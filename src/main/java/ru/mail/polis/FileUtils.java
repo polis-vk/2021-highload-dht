@@ -20,8 +20,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
-import java.lang.invoke.MethodHandles;
 import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
@@ -32,12 +32,12 @@ import java.util.concurrent.atomic.AtomicLong;
  *
  * @author Vadim Tsesko
  */
-public final class Files {
+public final class FileUtils {
     private static final String TEMP_PREFIX = "highload-dht";
 
-    private static final Logger log = LoggerFactory.getLogger(MethodHandles.lookup().lookupClass());
+    private static final Logger LOG = LoggerFactory.getLogger(FileUtils.class);
 
-    private Files() {
+    private FileUtils() {
         // Don't instantiate
     }
 
@@ -45,14 +45,14 @@ public final class Files {
      * Creates and returns a new unused yet temporary directory.
      */
     public static Path createTempDirectory() throws IOException {
-        final Path data = java.nio.file.Files.createTempDirectory(TEMP_PREFIX);
+        final Path data = Files.createTempDirectory(TEMP_PREFIX);
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             try {
-                if (java.nio.file.Files.exists(data)) {
+                if (Files.exists(data)) {
                     recursiveDelete(data);
                 }
             } catch (IOException e) {
-                log.error("Can't delete temporary directory: {}", data, e);
+                LOG.error("Can't delete temporary directory: {}", data, e);
             }
         }));
         return data;
@@ -62,14 +62,14 @@ public final class Files {
      * Recursively removes path.
      */
     public static void recursiveDelete(final Path path) throws IOException {
-        java.nio.file.Files.walkFileTree(
+        Files.walkFileTree(
                 path,
                 new SimpleFileVisitor<>() {
                     @Override
                     public FileVisitResult visitFile(
                             final Path file,
                             final BasicFileAttributes attrs) throws IOException {
-                        java.nio.file.Files.delete(file);
+                        Files.delete(file);
                         return FileVisitResult.CONTINUE;
                     }
 
@@ -77,7 +77,7 @@ public final class Files {
                     public FileVisitResult postVisitDirectory(
                             final Path dir,
                             final IOException exc) throws IOException {
-                        java.nio.file.Files.delete(dir);
+                        Files.delete(dir);
                         return FileVisitResult.CONTINUE;
                     }
                 });
@@ -88,7 +88,7 @@ public final class Files {
      */
     public static long directorySize(final Path path) throws IOException {
         final AtomicLong result = new AtomicLong(0L);
-        java.nio.file.Files.walkFileTree(
+        Files.walkFileTree(
                 path,
                 new SimpleFileVisitor<>() {
                     @Override

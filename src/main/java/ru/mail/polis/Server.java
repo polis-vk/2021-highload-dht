@@ -35,7 +35,7 @@ import java.nio.file.Path;
 public final class Server {
     private static final int PORT = 8080;
 
-    private static final Logger log = LoggerFactory.getLogger(Server.class);
+    private static final Logger LOG = LoggerFactory.getLogger(Server.class);
 
     private Server() {
         // Not instantiable
@@ -51,9 +51,9 @@ public final class Server {
         if (args.length > 0) {
             data = Path.of(args[0]);
         } else {
-            data = Files.createTempDirectory();
+            data = FileUtils.createTempDirectory();
         }
-        log.info("Storing data at {}", data);
+        LOG.info("Storing data at {}", data);
 
         // Start the storage
         try (DAO dao = DAOFactory.create(new DAOConfig(data))) {

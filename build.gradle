@@ -1,9 +1,9 @@
 plugins {
     id 'java'
     id 'application'
-    id("net.ltgt.errorprone") version "0.8.1"
-    id("checkstyle")
-    id("pmd")
+    id 'net.ltgt.errorprone' version '0.8.1'
+    id 'checkstyle'
+    id 'pmd'
 }
 
 java {

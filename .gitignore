@@ -1,18 +1,2 @@
-# Ignore everything
-*
-
-# But not Java files...
-!.gitignore
-!*.java
-!README.md
-!LICENSE
-!gradlew.bat
-!gradlew
-!build.gradle
-!settings.gradle
-!checkstyle.xml
-!.codeclimate.yml
-!pmd.xml
-
-# ...even if they are in subdirectories
-!*/
+.*
+build

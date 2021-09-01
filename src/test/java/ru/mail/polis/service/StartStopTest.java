@@ -27,7 +27,7 @@ import org.junit.jupiter.api.condition.EnabledOnOs;
 import org.junit.jupiter.api.condition.OS;
 import org.junit.jupiter.api.function.Executable;
 import org.junit.platform.commons.util.ExceptionUtils;
-import ru.mail.polis.Files;
+import ru.mail.polis.FileUtils;
 import ru.mail.polis.TestBase;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.DAOConfig;
@@ -76,7 +76,7 @@ class StartStopTest extends TestBase {
 
     @BeforeEach
     void beforeEach() throws IOException {
-        data = Files.createTempDirectory();
+        data = FileUtils.createTempDirectory();
         dao = DAOFactory.create(new DAOConfig(data));
         port = randomPort();
         kvService = ServiceFactory.create(port, dao);
@@ -88,7 +88,7 @@ class StartStopTest extends TestBase {
         client.close();
         kvService.stop();
         dao.close();
-        Files.recursiveDelete(data);
+        FileUtils.recursiveDelete(data);
     }
 
     private int status() throws Exception {

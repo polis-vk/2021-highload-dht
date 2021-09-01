@@ -26,14 +26,14 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * Unit tests for {@link Files} facilities.
+ * Unit tests for {@link FileUtils} facilities.
  *
  * @author Vadim Tsesko
  */
-class FilesTest {
+class FileUtilsTest {
     @Test
     void createRemove() throws IOException {
-        final Path dir = Files.createTempDirectory();
+        final Path dir = FileUtils.createTempDirectory();
         assertTrue(java.nio.file.Files.exists(dir));
         assertTrue(java.nio.file.Files.isDirectory(dir));
 
@@ -42,7 +42,7 @@ class FilesTest {
         assertTrue(data.createNewFile());
         assertTrue(data.isFile());
 
-        Files.recursiveDelete(dir);
+        FileUtils.recursiveDelete(dir);
         assertFalse(java.nio.file.Files.exists(dir));
     }
 }

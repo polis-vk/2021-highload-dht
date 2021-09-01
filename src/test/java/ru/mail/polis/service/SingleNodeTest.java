@@ -22,7 +22,7 @@ import one.nio.net.ConnectionString;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.Test;
-import ru.mail.polis.Files;
+import ru.mail.polis.FileUtils;
 import ru.mail.polis.TestBase;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.DAOConfig;
@@ -50,7 +50,7 @@ class SingleNodeTest extends TestBase {
     @BeforeAll
     static void beforeAll() throws Exception {
         port = randomPort();
-        daoConfig = new DAOConfig(Files.createTempDirectory());
+        daoConfig = new DAOConfig(FileUtils.createTempDirectory());
         dao = DAOFactory.create(daoConfig);
         storage = ServiceFactory.create(port, dao);
         storage.start();
@@ -63,7 +63,7 @@ class SingleNodeTest extends TestBase {
         client.close();
         storage.stop();
         dao.close();
-        Files.recursiveDelete(daoConfig.getDir());
+        FileUtils.recursiveDelete(daoConfig.getDir());
     }
 
     private static void reset() {
@@ -236,7 +236,7 @@ class SingleNodeTest extends TestBase {
             // Remove data and recreate
             storage.stop();
             dao.close();
-            Files.recursiveDelete(daoConfig.getDir());
+            FileUtils.recursiveDelete(daoConfig.getDir());
             java.nio.file.Files.createDirectory(daoConfig.getDir());
             dao = DAOFactory.create(daoConfig);
             port = randomPort();

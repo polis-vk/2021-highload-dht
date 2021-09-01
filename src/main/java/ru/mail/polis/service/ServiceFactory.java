@@ -47,7 +47,7 @@ public final class ServiceFactory {
             throw new IllegalStateException("The heap is too big. Consider setting Xmx.");
         }
 
-        if (port <= 0 || 65536 <= port) {
+        if (port <= 0 || 1 << 16 <= port) {
             throw new IllegalArgumentException("Port out of range");
         }
 
