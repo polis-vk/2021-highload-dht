@@ -17,12 +17,12 @@ repositories {
 
 dependencies {
     // Checks
-    errorprone("com.google.errorprone:error_prone_core:2.4.0")
-    checkstyle("com.puppycrawl.tools:checkstyle:8.42")
+    errorprone 'com.google.errorprone:error_prone_core:2.4.0'
+    checkstyle 'com.puppycrawl.tools:checkstyle:8.42'
 
     // Logging
-    implementation("org.slf4j:slf4j-api:1.7.26")
-    implementation("ch.qos.logback:logback-classic:1.2.3")
+    implementation 'org.slf4j:slf4j-api:1.7.26'
+    implementation 'ch.qos.logback:logback-classic:1.2.3'
 
     // Annotations for better code documentation
     implementation 'com.google.code.findbugs:jsr305:3.0.2'
