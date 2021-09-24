@@ -8,8 +8,6 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.lang.ref.Cleaner;
-import java.lang.ref.PhantomReference;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -19,7 +17,6 @@ import java.util.List;
 import java.util.NavigableMap;
 import java.util.NoSuchElementException;
 import java.util.Objects;
-import java.util.SortedMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentSkipListMap;
 
@@ -115,31 +112,29 @@ public class LsmDAO implements DAO {
         return merge(iterators);
     }
 
-    private SortedMap<ByteBuffer, Record> map(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
+    private NavigableMap<ByteBuffer, Record> map(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
         if (fromKey == null && toKey == null) {
             return memoryStorage;
+        } else if (fromKey == null) {
+            return memoryStorage.headMap(toKey, false);
+        } else if (toKey == null) {
+            return memoryStorage.tailMap(fromKey, true);
+        } else {
+            return memoryStorage.subMap(fromKey, true, toKey, false);
         }
-        if (fromKey == null) {
-            return memoryStorage.headMap(toKey);
-        }
-        if (toKey == null) {
-            return memoryStorage.tailMap(fromKey);
-        }
-        return memoryStorage.subMap(fromKey, toKey);
     }
 
     private static Iterator<Record> merge(List<Iterator<Record>> iterators) {
-        if (iterators.size() == 0) {
+        final int size = iterators.size();
+        if (size == 0) {
             return Collections.emptyIterator();
-        }
-        if (iterators.size() == 1) {
+        } else if (size == 1) {
             return iterators.get(0);
-        }
-        if (iterators.size() == 2) {
+        } else if (size == 2) {
             return mergeTwo(new PeekingIterator(iterators.get(0)), new PeekingIterator(iterators.get(1)));
         }
-        Iterator<Record> left = merge(iterators.subList(0, iterators.size() / 2));
-        Iterator<Record> right = merge(iterators.subList(iterators.size() / 2, iterators.size()));
+        Iterator<Record> left = merge(iterators.subList(0, size / 2));
+        Iterator<Record> right = merge(iterators.subList(size / 2, size));
         return mergeTwo(new PeekingIterator(left), new PeekingIterator(right));
     }
 

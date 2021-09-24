@@ -32,8 +32,8 @@ public class SSTable implements Closeable {
 
     static {
         try {
-            Class<?> aClass = Class.forName("sun.nio.ch.FileChannelImpl");
-            CLEAN = aClass.getDeclaredMethod("unmap", MappedByteBuffer.class);
+            Class<?> clz = Class.forName("sun.nio.ch.FileChannelImpl");
+            CLEAN = clz.getDeclaredMethod("unmap", MappedByteBuffer.class);
             CLEAN.setAccessible(true);
         } catch (Exception e) {
             throw new IllegalStateException(e);
@@ -213,7 +213,10 @@ public class SSTable implements Closeable {
         );
     }
 
-    private static void writeValueWithSize(ByteBuffer value, WritableByteChannel channel, ByteBuffer tmp) throws IOException {
+    private static void writeValueWithSize(
+            ByteBuffer value,
+            WritableByteChannel channel,
+            ByteBuffer tmp) throws IOException {
         writeInt(value.remaining(), channel, tmp);
         channel.write(tmp);
         channel.write(value);
@@ -262,7 +265,6 @@ public class SSTable implements Closeable {
             buffer.position(offset);
             int existingKeySize = buffer.getInt();
 
-            int result;
             int mismatchPos = buffer.mismatch(keyToFind);
             if (mismatchPos == -1) {
                 return offset;
@@ -272,6 +274,7 @@ public class SSTable implements Closeable {
                 return offset;
             }
 
+            final int result;
             if (mismatchPos < existingKeySize && mismatchPos < keyToFindSize) {
                 result = Byte.compare(
                         keyToFind.get(keyToFind.position() + mismatchPos),
