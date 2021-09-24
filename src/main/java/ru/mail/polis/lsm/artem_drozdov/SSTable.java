@@ -228,17 +228,17 @@ public class SSTable implements Closeable {
         IOException exception = null;
         try {
             free(mmap);
-        } catch (Throwable t) {
-            exception = new IOException(t);
+        } catch (IOException e) {
+            exception = e;
         }
 
         try {
             free(idx);
-        } catch (Throwable t) {
+        } catch (IOException e) {
             if (exception == null) {
-                exception = new IOException(t);
+                exception = e;
             } else {
-                exception.addSuppressed(t);
+                exception.addSuppressed(e);
             }
         }
 
