@@ -17,6 +17,7 @@
 package ru.mail.polis.service;
 
 import ru.mail.polis.lsm.DAO;
+import ru.mail.polis.service.sachuk.ilya.ServiceImpl;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -53,6 +54,6 @@ public final class ServiceFactory {
 
         Objects.requireNonNull(dao);
 
-        throw new UnsupportedOperationException("Implement me!");
+        return new ServiceImpl();
     }
 }
