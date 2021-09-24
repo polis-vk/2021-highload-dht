@@ -19,7 +19,6 @@ import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.stream.Stream;
 
@@ -42,6 +41,13 @@ public class SSTable implements Closeable {
 
     private final MappedByteBuffer mmap;
     private final MappedByteBuffer idx;
+
+    public SSTable(Path file) throws IOException {
+        Path indexFile = getIndexFile(file);
+
+        mmap = open(file);
+        idx = open(indexFile);
+    }
 
     public static List<SSTable> loadFromDir(Path dir) throws IOException {
         Path compaction = dir.resolve(COMPACTION_FILE_NAME);
@@ -140,17 +146,66 @@ public class SSTable implements Closeable {
         Files.move(compaction, file0, StandardCopyOption.ATOMIC_MOVE);
     }
 
-    public SSTable(Path file) throws IOException {
-        Path indexFile = getIndexFile(file);
-
-        mmap = open(file);
-        idx = open(indexFile);
-    }
-
     public static int sizeOf(Record record) {
         int keySize = Integer.BYTES + record.getKeySize();
         int valueSize = Integer.BYTES + record.getValueSize();
         return keySize + valueSize;
+    }
+
+    private static Path resolveWithExt(Path file, String ext) {
+        return file.resolveSibling(file.getFileName() + ext);
+    }
+
+    private static Path getIndexFile(Path file) {
+        return resolveWithExt(file, ".idx");
+    }
+
+    private static Path getTmpFile(Path file) {
+        return resolveWithExt(file, ".tmp");
+    }
+
+    private static FileChannel openForWrite(Path tmpFileName) throws IOException {
+        return FileChannel.open(
+                tmpFileName,
+                StandardOpenOption.CREATE_NEW,
+                StandardOpenOption.WRITE,
+                StandardOpenOption.TRUNCATE_EXISTING);
+    }
+
+    private static void writeValueWithSize(
+            ByteBuffer value,
+            WritableByteChannel channel,
+            ByteBuffer tmp) throws IOException {
+        writeInt(value.remaining(), channel, tmp);
+        channel.write(tmp);
+        channel.write(value);
+    }
+
+    private static void writeInt(int value, WritableByteChannel channel, ByteBuffer tmp) throws IOException {
+        tmp.position(0);
+        tmp.putInt(value);
+        tmp.position(0);
+
+        channel.write(tmp);
+    }
+
+    private static void rename(Path file, Path tmpFile) throws IOException {
+        Files.deleteIfExists(file);
+        Files.move(tmpFile, file, StandardCopyOption.ATOMIC_MOVE);
+    }
+
+    private static MappedByteBuffer open(Path name) throws IOException {
+        try (FileChannel channel = FileChannel.open(name, StandardOpenOption.READ)) {
+            return channel.map(FileChannel.MapMode.READ_ONLY, 0, channel.size());
+        }
+    }
+
+    private static void free(MappedByteBuffer buffer) throws IOException {
+        try {
+            CLEAN.invoke(null, buffer);
+        } catch (IllegalAccessException | InvocationTargetException e) {
+            throw new IOException(e);
+        }
     }
 
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
@@ -161,7 +216,7 @@ public class SSTable implements Closeable {
         int fromOffset = fromKey == null ? 0 : offset(buffer, fromKey);
         int toOffset = toKey == null ? maxSize : offset(buffer, toKey);
 
-        return range(
+        return new ByteBufferRecordIterator(
                 buffer,
                 fromOffset == -1 ? maxSize : fromOffset,
                 toOffset == -1 ? maxSize : toOffset
@@ -189,65 +244,6 @@ public class SSTable implements Closeable {
 
         if (exception != null) {
             throw exception;
-        }
-    }
-
-    private static Path resolveWithExt(Path file, String ext) {
-        return file.resolveSibling(file.getFileName() + ext);
-    }
-
-    private static Path getIndexFile(Path file) {
-        return resolveWithExt(file, ".idx");
-    }
-
-    private static Path getTmpFile(Path file) {
-        return resolveWithExt(file, ".tmp");
-    }
-
-    private static FileChannel openForWrite(Path tmpFileName) throws IOException {
-        return FileChannel.open(
-                tmpFileName,
-                StandardOpenOption.CREATE_NEW,
-                StandardOpenOption.WRITE,
-                StandardOpenOption.TRUNCATE_EXISTING
-        );
-    }
-
-    private static void writeValueWithSize(
-            ByteBuffer value,
-            WritableByteChannel channel,
-            ByteBuffer tmp) throws IOException {
-        writeInt(value.remaining(), channel, tmp);
-        channel.write(tmp);
-        channel.write(value);
-    }
-
-    private static void writeInt(int value, WritableByteChannel channel, ByteBuffer tmp) throws IOException {
-        tmp.position(0);
-        tmp.putInt(value);
-        tmp.position(0);
-
-        channel.write(tmp);
-    }
-
-    private static void rename(Path file, Path tmpFile) throws IOException {
-        Files.deleteIfExists(file);
-        Files.move(tmpFile, file, StandardCopyOption.ATOMIC_MOVE);
-    }
-
-    private static MappedByteBuffer open(Path name) throws IOException {
-        try (
-                FileChannel channel = FileChannel.open(name, StandardOpenOption.READ)
-        ) {
-            return channel.map(FileChannel.MapMode.READ_ONLY, 0, channel.size());
-        }
-    }
-
-    private static void free(MappedByteBuffer buffer) throws IOException {
-        try {
-            CLEAN.invoke(null, buffer);
-        } catch (IllegalAccessException | InvocationTargetException e) {
-            throw new IOException(e);
         }
     }
 
@@ -300,38 +296,4 @@ public class SSTable implements Closeable {
         return idx.getInt(left * Integer.BYTES);
     }
 
-    private static Iterator<Record> range(ByteBuffer buffer, int fromOffset, int toOffset) {
-        buffer.position(fromOffset);
-
-        return new Iterator<>() {
-            @Override
-            public boolean hasNext() {
-                return buffer.position() < toOffset;
-            }
-
-            @Override
-            public Record next() {
-                if (!hasNext()) {
-                    throw new NoSuchElementException("Limit is reached");
-                }
-
-                int keySize = buffer.getInt();
-                ByteBuffer key = read(keySize);
-
-                int valueSize = buffer.getInt();
-                if (valueSize == -1) {
-                    return Record.tombstone(key);
-                }
-                ByteBuffer value = read(valueSize);
-
-                return Record.of(key, value);
-            }
-
-            private ByteBuffer read(int size) {
-                ByteBuffer result = buffer.slice().limit(size);
-                buffer.position(buffer.position() + size);
-                return result;
-            }
-        };
-    }
 }
