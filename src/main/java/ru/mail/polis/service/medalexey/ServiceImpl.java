@@ -1,4 +1,4 @@
-package ru.mail.polis.service.med_alexey;
+package ru.mail.polis.service.medalexey;
 
 import one.nio.http.HttpServer;
 import one.nio.http.HttpServerConfig;

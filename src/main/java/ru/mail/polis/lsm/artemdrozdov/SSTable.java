@@ -1,4 +1,4 @@
-package ru.mail.polis.lsm.artem_drozdov;
+package ru.mail.polis.lsm.artemdrozdov;
 
 import ru.mail.polis.lsm.Record;
 

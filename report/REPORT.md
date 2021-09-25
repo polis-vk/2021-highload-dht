@@ -59,7 +59,7 @@ end
 
 73.07% занимает обработка запроса (one.nio.http.HttpServer.handleRequest(...)).
 
-37.22% занимает сохранение сущностей (ru.mail.polis.service.med_alexey.ServiceImpl.put(...)).
+37.22% занимает сохранение сущностей (ru.mail.polis.service.medalexey.ServiceImpl.put(...)).
 
 34.67% занимает отправка ответов (one.nio.http.HttpSession.sendResponse(...)).
 
@@ -69,7 +69,7 @@ end
 
 55.32% занимает обработка запроса (one.nio.http.HttpSession.handleParsedRequest(...)).
 
-37.38% занимает сохранение записи (ru.mail.polis.service.med_alexey.ServiceImpl.put(...)).
+37.38% занимает сохранение записи (ru.mail.polis.service.medalexey.ServiceImpl.put(...)).
 
 9,66% занимает отправка ответов (sendResponse).
 
@@ -79,7 +79,7 @@ end
 
 ![async-profiler-cpu-get.png](async-profiler-cpu-get.png)
 
-85.93% занимает получение записи (ru.mail.polis.service.med_alexey.ServiceImpl.get(...)).
+85.93% занимает получение записи (ru.mail.polis.service.medalexey.ServiceImpl.get(...)).
 
 7.61% занимает отправка ответов (sendResponse).
 
@@ -87,8 +87,8 @@ end
 
 ![async-profiler-cpu-get.png](async-profiler-cpu-get.png)
 
-94.82% занимает получение записи (ru.mail.polis.service.med_alexey.ServiceImpl.get(...)).
+94.82% занимает получение записи (ru.mail.polis.service.medalexey.ServiceImpl.get(...)).
 
-54.38% занимает получение метод merge (ru.mail.polis.lsm.artem_drozdov.LsmDAO.merge(List)).
+54.38% занимает получение метод merge (ru.mail.polis.lsm.artemdrozdov.LsmDAO.merge(List)).
 
-40.0% занимает получение метод range (ru.mail.polis.lsm.artem_drozdov.SSTable.range(...)).
+40.0% занимает получение метод range (ru.mail.polis.lsm.artemdrozdov.SSTable.range(...)).
