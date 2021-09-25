@@ -1,0 +1,971 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8'>
+<style>
+	body {margin: 0; padding: 10px; background-color: #ffffff}
+	h1 {margin: 5px 0 0 0; font-size: 18px; font-weight: normal; text-align: center}
+	header {margin: -24px 0 5px 0; line-height: 24px}
+	button {font: 12px sans-serif; cursor: pointer}
+	p {margin: 5px 0 5px 0}
+	a {color: #0366d6}
+	#hl {position: absolute; display: none; overflow: hidden; white-space: nowrap; pointer-events: none; background-color: #ffffe0; outline: 1px solid #ffc000; height: 15px}
+	#hl span {padding: 0 3px 0 3px}
+	#status {overflow: hidden; white-space: nowrap}
+	#match {overflow: hidden; white-space: nowrap; display: none; float: right; text-align: right}
+	#reset {cursor: pointer}
+</style>
+</head>
+<body style='font: 12px Verdana, sans-serif'>
+<h1>Flame Graph</h1>
+<header style='text-align: left'><button id='reverse' title='Reverse'>&#x1f53b;</button>&nbsp;&nbsp;<button id='search' title='Search'>&#x1f50d;</button></header>
+<header style='text-align: right'>Produced by <a href='https://github.com/jvm-profiling-tools/async-profiler'>async-profiler</a></header>
+<canvas id='canvas' style='width: 100%; height: 896px'></canvas>
+<div id='hl'><span></span></div>
+<p id='match'>Matched: <span id='matchval'></span> <span id='reset' title='Clear'>&#x274c;</span></p>
+<p id='status'>&nbsp;</p>
+<script>
+	// Copyright 2020 Andrei Pangin
+	// Licensed under the Apache License, Version 2.0.
+	'use strict';
+	var root, rootLevel, px, pattern;
+	var reverse = false;
+	const levels = Array(56);
+	for (let h = 0; h < levels.length; h++) {
+		levels[h] = [];
+	}
+
+	const canvas = document.getElementById('canvas');
+	const c = canvas.getContext('2d');
+	const hl = document.getElementById('hl');
+	const status = document.getElementById('status');
+
+	const canvasWidth = canvas.offsetWidth;
+	const canvasHeight = canvas.offsetHeight;
+	canvas.style.width = canvasWidth + 'px';
+	canvas.width = canvasWidth * (devicePixelRatio || 1);
+	canvas.height = canvasHeight * (devicePixelRatio || 1);
+	if (devicePixelRatio) c.scale(devicePixelRatio, devicePixelRatio);
+	c.font = document.body.style.font;
+
+	const palette = [
+		[0x50e150, 30, 30, 30],
+		[0x50bebe, 30, 30, 30],
+		[0xe17d00, 30, 30,  0],
+		[0xc8c83c, 30, 30, 10],
+		[0xe15a5a, 30, 40, 40],
+	];
+
+	function getColor(p) {
+		const v = Math.random();
+		return '#' + (p[0] + ((p[1] * v) << 16 | (p[2] * v) << 8 | (p[3] * v))).toString(16);
+	}
+
+	function f(level, left, width, type, title) {
+		levels[level].push({left: left, width: width, color: getColor(palette[type]), title: title});
+	}
+
+	function samples(n) {
+		return n === 1 ? '1 sample' : n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',') + ' samples';
+	}
+
+	function pct(a, b) {
+		return a >= b ? '100' : (100 * a / b).toFixed(2);
+	}
+
+	function findFrame(frames, x) {
+		let left = 0;
+		let right = frames.length - 1;
+
+		while (left <= right) {
+			const mid = (left + right) >>> 1;
+			const f = frames[mid];
+
+			if (f.left > x) {
+				right = mid - 1;
+			} else if (f.left + f.width <= x) {
+				left = mid + 1;
+			} else {
+				return f;
+			}
+		}
+
+		if (frames[left] && (frames[left].left - x) * px < 0.5) return frames[left];
+		if (frames[right] && (x - (frames[right].left + frames[right].width)) * px < 0.5) return frames[right];
+
+		return null;
+	}
+
+	function search(r) {
+		if (r && (r = prompt('Enter regexp to search:', '')) === null) {
+			return;
+		}
+
+		pattern = r ? RegExp(r) : undefined;
+		const matched = render(root, rootLevel);
+		document.getElementById('matchval').textContent = pct(matched, root.width) + '%';
+		document.getElementById('match').style.display = r ? 'inherit' : 'none';
+	}
+
+	function render(newRoot, newLevel) {
+		if (root) {
+			c.fillStyle = '#ffffff';
+			c.fillRect(0, 0, canvasWidth, canvasHeight);
+		}
+
+		root = newRoot || levels[0][0];
+		rootLevel = newLevel || 0;
+		px = canvasWidth / root.width;
+
+		const x0 = root.left;
+		const x1 = x0 + root.width;
+		const marked = [];
+
+		function mark(f) {
+			return marked[f.left] >= f.width || (marked[f.left] = f.width);
+		}
+
+		function totalMarked() {
+			let total = 0;
+			let left = 0;
+			for (let x in marked) {
+				if (+x >= left) {
+					total += marked[x];
+					left = +x + marked[x];
+				}
+			}
+			return total;
+		}
+
+		function drawFrame(f, y, alpha) {
+			if (f.left < x1 && f.left + f.width > x0) {
+				c.fillStyle = pattern && f.title.match(pattern) && mark(f) ? '#ee00ee' : f.color;
+				c.fillRect((f.left - x0) * px, y, f.width * px, 15);
+
+				if (f.width * px >= 21) {
+					const chars = Math.floor(f.width * px / 7);
+					const title = f.title.length <= chars ? f.title : f.title.substring(0, chars - 2) + '..';
+					c.fillStyle = '#000000';
+					c.fillText(title, Math.max(f.left - x0, 0) * px + 3, y + 12, f.width * px - 6);
+				}
+
+				if (alpha) {
+					c.fillStyle = 'rgba(255, 255, 255, 0.5)';
+					c.fillRect((f.left - x0) * px, y, f.width * px, 15);
+				}
+			}
+		}
+
+		for (let h = 0; h < levels.length; h++) {
+			const y = reverse ? h * 16 : canvasHeight - (h + 1) * 16;
+			const frames = levels[h];
+			for (let i = 0; i < frames.length; i++) {
+				drawFrame(frames[i], y, h < rootLevel);
+			}
+		}
+
+		return totalMarked();
+	}
+
+	canvas.onmousemove = function() {
+		const h = Math.floor((reverse ? event.offsetY : (canvasHeight - event.offsetY)) / 16);
+		if (h >= 0 && h < levels.length) {
+			const f = findFrame(levels[h], event.offsetX / px + root.left);
+			if (f) {
+				hl.style.left = (Math.max(f.left - root.left, 0) * px + canvas.offsetLeft) + 'px';
+				hl.style.width = (Math.min(f.width, root.width) * px) + 'px';
+				hl.style.top = ((reverse ? h * 16 : canvasHeight - (h + 1) * 16) + canvas.offsetTop) + 'px';
+				hl.firstChild.textContent = f.title;
+				hl.style.display = 'block';
+				canvas.title = f.title + '\n(' + samples(f.width) + ', ' + pct(f.width, levels[0][0].width) + '%)';
+				canvas.style.cursor = 'pointer';
+				canvas.onclick = function() {
+					if (f != root) {
+						render(f, h);
+						canvas.onmousemove();
+					}
+				};
+				status.textContent = 'Function: ' + canvas.title;
+				return;
+			}
+		}
+		canvas.onmouseout();
+	}
+
+	canvas.onmouseout = function() {
+		hl.style.display = 'none';
+		status.textContent = '\xa0';
+		canvas.title = '';
+		canvas.style.cursor = '';
+		canvas.onclick = '';
+	}
+
+	document.getElementById('reverse').onclick = function() {
+		reverse = !reverse;
+		render();
+	}
+
+	document.getElementById('search').onclick = function() {
+		search(true);
+	}
+
+	document.getElementById('reset').onclick = function() {
+		search(false);
+	}
+
+	window.onkeydown = function() {
+		if (event.ctrlKey && event.keyCode === 70) {
+			event.preventDefault();
+			search(true);
+		} else if (event.keyCode === 27) {
+			search(false);
+		}
+	}
+f(0,0,859,4,'all')
+f(1,0,799,0,'one/nio/server/SelectorThread.run')
+f(2,0,1,4,'[unknown]')
+f(3,0,1,4,'[unknown]')
+f(4,0,1,4,'/usr/lib/jvm/java-11-openjdk-amd64/lib/server/libjvm.so')
+f(2,1,49,0,'one/nio/net/NativeSelector.select')
+f(3,1,49,0,'one/nio/net/NativeSelector.epollWait')
+f(4,3,1,4,'__clock_gettime_2')
+f(4,4,1,4,'__libc_enable_asynccancel')
+f(4,5,45,4,'epoll_wait')
+f(5,34,16,2,'entry_SYSCALL_64_after_hwframe')
+f(6,34,16,2,'do_syscall_64')
+f(7,35,15,2,'__x64_sys_epoll_wait')
+f(8,35,15,2,'do_epoll_wait')
+f(9,35,2,2,'__fdget')
+f(10,35,2,2,'__fget_light')
+f(11,35,2,2,'__fget')
+f(9,37,1,2,'_raw_write_lock_irq')
+f(9,38,10,2,'ep_poll')
+f(10,38,7,2,'ep_scan_ready_list.constprop.0')
+f(11,39,5,2,'ep_send_events_proc')
+f(12,41,3,2,'ep_item_poll.isra.0')
+f(13,41,1,2,'__x86_indirect_thunk_rax')
+f(13,42,2,2,'sock_poll')
+f(14,42,2,2,'tcp_poll')
+f(11,44,1,2,'mutex_lock')
+f(10,45,3,2,'schedule_hrtimeout_range')
+f(11,45,3,2,'schedule_hrtimeout_range_clock')
+f(12,45,3,2,'schedule')
+f(13,45,3,2,'__sched_text_start')
+f(14,47,1,2,'finish_task_switch')
+f(9,48,2,2,'fput_many')
+f(2,50,749,0,'one/nio/net/Session.process')
+f(3,52,747,0,'one/nio/http/HttpSession.processRead')
+f(4,52,677,0,'one/nio/http/HttpSession.processHttpBuffer')
+f(5,60,655,0,'one/nio/http/HttpSession.handleParsedRequest')
+f(6,61,654,0,'one/nio/http/HttpServer.handleRequest')
+f(7,61,650,0,'RequestHandler1_handleEntity.handleRequest')
+f(8,61,283,0,'one/nio/http/HttpSession.sendResponse')
+f(9,61,275,0,'one/nio/http/HttpSession.writeResponse')
+f(10,61,11,0,'one/nio/http/Response.toBytes')
+f(11,66,6,0,'one/nio/util/ByteArrayBuilder.append')
+f(12,66,6,0,'one/nio/util/Utf8.length')
+f(13,66,6,0,'java/lang/String.charAt')
+f(14,71,1,4,'jbyte_disjoint_arraycopy')
+f(10,72,264,0,'one/nio/net/Session.write')
+f(11,72,264,0,'one/nio/net/Session.write')
+f(12,74,262,0,'one/nio/net/Session$ArrayQueueItem.write')
+f(13,76,1,0,'one/nio/http/Response.toBytes')
+f(13,77,259,0,'one/nio/net/NativeSocket.write')
+f(14,79,4,4,'Java_one_nio_net_NativeSocket_write')
+f(15,82,1,4,'__memcpy_avx_unaligned_erms')
+f(14,83,253,4,'__send')
+f(15,97,239,2,'entry_SYSCALL_64_after_hwframe')
+f(16,97,239,2,'do_syscall_64')
+f(17,98,238,2,'__x64_sys_sendto')
+f(18,98,238,2,'__sys_sendto')
+f(19,99,1,2,'fput_many')
+f(19,100,236,2,'sock_sendmsg')
+f(20,100,235,2,'inet6_sendmsg')
+f(21,101,234,2,'tcp_sendmsg')
+f(22,101,1,2,'skb_entail')
+f(22,102,1,2,'tcp_push')
+f(22,103,231,2,'tcp_sendmsg_locked')
+f(23,105,1,2,'__check_object_size')
+f(24,105,1,2,'__virt_addr_valid')
+f(23,106,1,2,'__virt_addr_valid')
+f(23,107,4,2,'_copy_from_iter_full')
+f(24,107,4,2,'copy_user_enhanced_fast_string')
+f(23,111,2,2,'sk_forced_mem_schedule')
+f(23,113,2,2,'sk_page_frag_refill')
+f(24,113,2,2,'skb_page_frag_refill')
+f(23,115,12,2,'sk_stream_alloc_skb')
+f(24,116,11,2,'__alloc_skb')
+f(25,117,4,2,'__kmalloc_reserve.isra.0')
+f(26,117,2,2,'__kmalloc_node_track_caller')
+f(27,118,1,2,'__slab_alloc')
+f(26,119,1,2,'__slab_alloc')
+f(26,120,1,2,'memset_erms')
+f(25,121,1,2,'__ksize')
+f(25,122,3,2,'kmem_cache_alloc_node')
+f(26,124,1,2,'__slab_alloc')
+f(25,125,2,2,'ksize')
+f(26,125,2,2,'__ksize')
+f(23,127,205,2,'tcp_push')
+f(24,128,203,2,'__tcp_push_pending_frames')
+f(25,128,1,2,'ktime_get')
+f(25,129,2,2,'tcp_schedule_loss_probe')
+f(25,131,1,2,'tcp_small_queue_check.isra.0')
+f(25,132,199,2,'tcp_write_xmit')
+f(26,134,193,2,'__tcp_transmit_skb')
+f(27,139,1,2,'__skb_clone')
+f(27,140,1,2,'bictcp_cwnd_event')
+f(27,141,184,2,'ip_queue_xmit')
+f(28,141,184,2,'__ip_queue_xmit')
+f(29,144,1,2,'__sk_dst_check')
+f(30,144,1,2,'ipv4_dst_check')
+f(29,145,180,2,'ip_local_out')
+f(30,146,27,2,'__ip_local_out')
+f(31,146,1,2,'ip_send_check')
+f(31,147,2,2,'iptable_filter_hook?[iptable_filter]')
+f(31,149,1,2,'ipv4_conntrack_defrag?[nf_defrag_ipv4]')
+f(31,150,3,2,'ipv4_conntrack_local?[nf_conntrack]')
+f(31,153,18,2,'nf_hook_slow')
+f(32,153,5,2,'iptable_filter_hook?[iptable_filter]')
+f(33,153,5,2,'ipt_do_table?[ip_tables]')
+f(32,158,10,2,'ipv4_conntrack_local?[nf_conntrack]')
+f(33,158,2,2,'get_l4proto?[nf_conntrack]')
+f(33,160,5,2,'nf_conntrack_in?[nf_conntrack]')
+f(34,161,2,2,'__nf_conntrack_find_get?[nf_conntrack]')
+f(34,163,1,2,'nf_conntrack_tcp_packet?[nf_conntrack]')
+f(35,163,1,2,'__nf_ct_refresh_acct?[nf_conntrack]')
+f(34,164,1,2,'nf_ct_get_tuple?[nf_conntrack]')
+f(33,165,2,2,'nf_conntrack_tcp_packet?[nf_conntrack]')
+f(33,167,1,2,'nf_ct_get_tuple?[nf_conntrack]')
+f(32,168,1,2,'nf_conntrack_in?[nf_conntrack]')
+f(32,169,2,2,'nf_nat_ipv4_local_fn?[nf_nat]')
+f(33,169,1,2,'nf_nat_inet_fn?[nf_nat]')
+f(33,170,1,2,'nf_nat_ipv4_fn?[nf_nat]')
+f(34,170,1,2,'nf_nat_inet_fn?[nf_nat]')
+f(31,171,2,2,'nf_nat_ipv4_local_fn?[nf_nat]')
+f(30,173,150,2,'ip_output')
+f(31,176,140,2,'ip_finish_output')
+f(32,176,1,2,'__cgroup_bpf_run_filter_skb')
+f(32,177,139,2,'__ip_finish_output')
+f(33,177,139,2,'ip_finish_output2')
+f(34,182,119,2,'__local_bh_enable_ip')
+f(35,182,119,2,'do_softirq.part.0')
+f(36,184,117,2,'do_softirq_own_stack')
+f(37,184,117,2,'__softirqentry_text_start')
+f(38,187,112,2,'net_rx_action')
+f(39,187,2,2,'__netif_receive_skb')
+f(39,189,110,2,'process_backlog')
+f(40,191,108,2,'__netif_receive_skb')
+f(41,191,108,2,'__netif_receive_skb_one_core')
+f(42,192,4,2,'__netif_receive_skb_core')
+f(42,196,102,2,'ip_rcv')
+f(43,196,1,2,'ip_local_deliver')
+f(43,197,2,2,'ip_rcv_core.isra.0')
+f(43,199,94,2,'ip_rcv_finish')
+f(44,199,93,2,'ip_local_deliver')
+f(45,200,85,2,'ip_local_deliver_finish')
+f(46,200,85,2,'ip_protocol_deliver_rcu')
+f(47,202,1,2,'raw_local_deliver')
+f(47,203,82,2,'tcp_v4_rcv')
+f(48,205,3,2,'__inet_lookup_established')
+f(48,208,1,2,'ipv4_dst_check')
+f(48,209,2,2,'sk_filter_trim_cap')
+f(49,209,1,2,'__cgroup_bpf_run_filter_skb')
+f(49,210,1,2,'security_sock_rcv_skb')
+f(48,211,74,2,'tcp_v4_do_rcv')
+f(49,213,1,2,'tcp_ack')
+f(49,214,1,2,'tcp_check_space')
+f(49,215,70,2,'tcp_rcv_established')
+f(50,215,2,2,'__tcp_ack_snd_check')
+f(51,216,1,2,'tcp_send_delayed_ack')
+f(52,216,1,2,'sk_reset_timer')
+f(53,216,1,2,'mod_timer')
+f(50,217,15,2,'tcp_ack')
+f(51,221,1,2,'bictcp_cong_avoid')
+f(51,222,9,2,'tcp_clean_rtx_queue')
+f(52,225,4,2,'__kfree_skb')
+f(53,225,1,2,'kfree_skbmem')
+f(54,225,1,2,'kmem_cache_free')
+f(55,225,1,2,'__slab_free')
+f(53,226,3,2,'skb_release_all')
+f(54,226,3,2,'skb_release_data')
+f(52,229,1,2,'jiffies_to_usecs')
+f(52,230,1,2,'tcp_ack_update_rtt.isra.0')
+f(51,231,1,2,'tcp_rack_advance')
+f(50,232,1,2,'tcp_clean_rtx_queue')
+f(50,233,49,2,'tcp_data_ready')
+f(51,233,49,2,'sock_def_readable')
+f(52,234,48,2,'__wake_up_sync_key')
+f(53,234,48,2,'__wake_up_common_lock')
+f(54,236,46,2,'__lock_text_start')
+f(50,282,1,2,'tcp_mstamp_refresh')
+f(51,282,1,2,'read_tsc')
+f(50,283,1,2,'tcp_queue_rcv')
+f(50,284,1,2,'tcp_rearm_rto')
+f(45,285,2,2,'ip_protocol_deliver_rcu')
+f(45,287,1,2,'iptable_filter_hook?[iptable_filter]')
+f(45,288,4,2,'nf_hook_slow')
+f(46,289,1,2,'iptable_filter_hook?[iptable_filter]')
+f(47,289,1,2,'ipt_do_table?[ip_tables]')
+f(46,290,1,2,'ipv4_confirm?[nf_conntrack]')
+f(47,290,1,2,'nf_confirm?[nf_conntrack]')
+f(48,290,1,2,'nf_ct_deliver_cached_events?[nf_conntrack]')
+f(46,291,1,2,'nf_nat_ipv4_fn?[nf_nat]')
+f(47,291,1,2,'nf_nat_inet_fn?[nf_nat]')
+f(44,292,1,2,'ip_rcv_finish_core.isra.0')
+f(43,293,2,2,'ip_sabotage_in?[br_netfilter]')
+f(43,295,3,2,'nf_hook_slow')
+f(44,295,1,2,'ipv4_conntrack_defrag?[nf_defrag_ipv4]')
+f(44,296,1,2,'ipv4_conntrack_in?[nf_conntrack]')
+f(45,296,1,2,'nf_conntrack_in?[nf_conntrack]')
+f(44,297,1,2,'nf_nat_ipv4_in?[nf_nat]')
+f(45,297,1,2,'nf_nat_ipv4_fn?[nf_nat]')
+f(46,297,1,2,'nf_nat_inet_fn?[nf_nat]')
+f(42,298,1,2,'ip_rcv_core.isra.0')
+f(38,299,2,2,'process_backlog')
+f(34,301,15,2,'dev_queue_xmit')
+f(35,301,15,2,'__dev_queue_xmit')
+f(36,304,1,2,'__x86_indirect_thunk_rax')
+f(36,305,6,2,'dev_hard_start_xmit')
+f(37,305,4,2,'loopback_xmit')
+f(38,305,2,2,'netif_rx')
+f(39,305,1,2,'enqueue_to_backlog')
+f(39,306,1,2,'netif_rx_internal')
+f(40,306,1,2,'enqueue_to_backlog')
+f(38,307,1,2,'sk_free')
+f(38,308,1,2,'tcp_wfree')
+f(37,309,1,2,'netif_rx')
+f(37,310,1,2,'tcp_wfree')
+f(36,311,4,2,'validate_xmit_skb')
+f(37,313,2,2,'netif_skb_features')
+f(38,314,1,2,'skb_network_protocol')
+f(36,315,1,2,'validate_xmit_xfrm')
+f(31,316,1,2,'ipv4_confirm?[nf_conntrack]')
+f(31,317,6,2,'nf_hook_slow')
+f(32,317,2,2,'ipv4_confirm?[nf_conntrack]')
+f(33,317,2,2,'nf_confirm?[nf_conntrack]')
+f(34,317,2,2,'nf_ct_deliver_cached_events?[nf_conntrack]')
+f(32,319,4,2,'nf_nat_ipv4_out?[nf_nat]')
+f(33,320,1,2,'nf_nat_inet_fn?[nf_nat]')
+f(33,321,2,2,'nf_nat_ipv4_fn?[nf_nat]')
+f(34,321,1,2,'nf_nat_inet_fn?[nf_nat]')
+f(34,322,1,2,'nf_nat_packet?[nf_nat]')
+f(30,323,2,2,'nf_hook_slow')
+f(27,325,2,2,'skb_clone')
+f(28,325,2,2,'__skb_clone')
+f(26,327,1,2,'ktime_get')
+f(26,328,2,2,'tcp_event_new_data_sent')
+f(27,329,1,2,'rb_insert_color')
+f(26,330,1,2,'tcp_schedule_loss_probe')
+f(27,330,1,2,'sk_reset_timer')
+f(28,330,1,2,'mod_timer')
+f(24,331,1,2,'tcp_write_xmit')
+f(23,332,2,2,'tcp_send_mss')
+f(24,332,1,2,'__x86_indirect_thunk_rax')
+f(24,333,1,2,'ipv4_mtu')
+f(22,334,1,2,'tcp_tx_timestamp')
+f(20,335,1,2,'tcp_sendmsg')
+f(9,336,8,0,'one/nio/http/Request.getHeader')
+f(10,337,7,0,'java/lang/String.regionMatches')
+f(11,337,7,0,'java/lang/StringLatin1.regionMatchesCI')
+f(12,337,7,0,'java/lang/Character.toLowerCase')
+f(13,337,7,0,'java/lang/Character.toLowerCase')
+f(14,337,7,0,'java/lang/CharacterDataLatin1.toLowerCase')
+f(15,340,1,4,'[unknown]')
+f(16,340,1,4,'/usr/lib/jvm/java-11-openjdk-amd64/lib/server/libjvm.so')
+f(15,341,3,4,'gettimeofday')
+f(8,344,9,0,'one/nio/http/Request.getRequiredParameter')
+f(9,344,9,0,'one/nio/http/Request.getParameter')
+f(10,349,2,0,'java/lang/String.substring')
+f(11,349,2,0,'java/lang/StringLatin1.newString')
+f(10,351,1,4,'jbyte_disjoint_arraycopy')
+f(10,352,1,0,'one/nio/util/URLEncoder.decode')
+f(11,352,1,0,'java/lang/String.indexOf')
+f(12,352,1,0,'java/lang/String.indexOf')
+f(13,352,1,0,'java/lang/StringLatin1.indexOf')
+f(8,353,358,0,'ru/mail/polis/service/gasparyan_sokrat/ServiceImpl.handleEntity')
+f(9,353,358,0,'ru/mail/polis/service/gasparyan_sokrat/ServiceDAO.handleRequest')
+f(10,354,357,0,'ru/mail/polis/service/gasparyan_sokrat/ServiceDAO.put')
+f(11,357,327,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO.upsert')
+f(12,357,1,0,'com/google/common/cache/LocalCache$Segment.put')
+f(12,358,37,0,'java/util/concurrent/ConcurrentSkipListMap.put')
+f(13,358,37,0,'java/util/concurrent/ConcurrentSkipListMap.doPut')
+f(14,363,4,0,'java/util/concurrent/ConcurrentSkipListMap.addCount')
+f(14,367,8,0,'java/util/concurrent/ConcurrentSkipListMap.addIndices')
+f(15,370,5,0,'java/util/concurrent/ConcurrentSkipListMap.cpr')
+f(16,370,5,0,'java/nio/ByteBuffer.compareTo')
+f(17,370,5,0,'java/nio/ByteBuffer.compareTo')
+f(18,371,4,0,'java/nio/BufferMismatch.mismatch')
+f(19,372,1,0,'java/nio/ByteBuffer.base')
+f(19,373,2,0,'java/nio/HeapByteBuffer.get')
+f(20,374,1,0,'java/nio/Buffer.checkIndex')
+f(14,375,18,0,'java/util/concurrent/ConcurrentSkipListMap.cpr')
+f(15,377,16,0,'java/nio/ByteBuffer.compareTo')
+f(16,377,16,0,'java/nio/ByteBuffer.compareTo')
+f(17,377,16,0,'java/nio/BufferMismatch.mismatch')
+f(18,391,2,0,'java/nio/HeapByteBuffer.get')
+f(14,393,2,4,'vectorizedMismatch')
+f(12,395,1,4,'jbyte_disjoint_arraycopy')
+f(12,396,7,0,'ru/mail/polis/lsm/Record.getKey')
+f(13,396,7,0,'java/nio/HeapByteBufferR.asReadOnlyBuffer')
+f(14,396,7,0,'java/nio/HeapByteBufferR.duplicate')
+f(15,396,7,0,'java/nio/HeapByteBufferR.<init>')
+f(16,396,7,0,'java/nio/HeapByteBuffer.<init>')
+f(17,396,7,0,'java/nio/ByteBuffer.<init>')
+f(18,396,7,0,'java/nio/Buffer.<init>')
+f(19,396,7,0,'java/nio/ByteBuffer.limit')
+f(20,396,7,0,'java/nio/ByteBuffer.limit')
+f(12,403,281,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO.flush')
+f(13,403,281,0,'ru/mail/polis/lsm/artem_drozdov/SSTable.write')
+f(14,403,281,0,'ru/mail/polis/lsm/artem_drozdov/SSTable.writeImpl')
+f(15,403,1,0,'ru/mail/polis/lsm/Record.getKey')
+f(16,403,1,0,'java/nio/HeapByteBufferR.asReadOnlyBuffer')
+f(17,403,1,0,'java/nio/HeapByteBufferR.duplicate')
+f(15,404,40,0,'ru/mail/polis/lsm/artem_drozdov/SSTable.writeInt')
+f(16,404,40,0,'sun/nio/ch/FileChannelImpl.write')
+f(17,404,40,0,'sun/nio/ch/IOUtil.write')
+f(18,404,40,0,'sun/nio/ch/IOUtil.writeFromNativeBuffer')
+f(19,404,40,0,'sun/nio/ch/FileDispatcherImpl.write')
+f(20,404,40,0,'sun/nio/ch/FileDispatcherImpl.write0')
+f(21,405,38,4,'__GI___libc_write')
+f(22,408,35,2,'entry_SYSCALL_64_after_hwframe')
+f(23,408,35,2,'do_syscall_64')
+f(24,411,32,2,'__x64_sys_write')
+f(25,411,32,2,'ksys_write')
+f(26,411,1,2,'__fdget_pos')
+f(27,411,1,2,'__fget_light')
+f(28,411,1,2,'__fget')
+f(26,412,1,2,'__sb_end_write')
+f(26,413,30,2,'vfs_write')
+f(27,413,20,2,'__fsnotify_parent')
+f(28,413,20,2,'fsnotify')
+f(29,414,19,2,'inotify_handle_event')
+f(30,414,1,2,'_raw_spin_lock')
+f(30,415,18,2,'fsnotify_add_event')
+f(31,415,17,2,'__wake_up')
+f(32,415,17,2,'__wake_up_common_lock')
+f(33,415,17,2,'__lock_text_start')
+f(31,432,1,2,'_raw_spin_lock')
+f(32,432,1,2,'native_queued_spin_lock_slowpath')
+f(27,433,9,2,'__vfs_write')
+f(28,433,9,2,'new_sync_write')
+f(29,433,9,2,'ext4_file_write_iter')
+f(30,433,9,2,'__generic_file_write_iter')
+f(31,434,8,2,'generic_perform_write')
+f(32,434,2,2,'ext4_da_write_begin')
+f(33,434,1,2,'__ext4_journal_start_sb')
+f(34,434,1,2,'jbd2__journal_start')
+f(35,434,1,2,'start_this_handle')
+f(33,435,1,2,'grab_cache_page_write_begin')
+f(34,435,1,2,'pagecache_get_page')
+f(35,435,1,2,'find_get_entry')
+f(32,436,6,2,'ext4_da_write_end')
+f(33,436,6,2,'generic_write_end')
+f(34,436,6,2,'__mark_inode_dirty')
+f(35,436,6,2,'ext4_dirty_inode')
+f(36,436,6,2,'ext4_mark_inode_dirty')
+f(37,436,5,2,'ext4_mark_iloc_dirty')
+f(38,436,5,2,'ext4_do_update_inode')
+f(39,437,2,2,'ext4_inode_csum_set')
+f(40,437,2,2,'ext4_inode_csum.isra.0')
+f(41,437,1,2,'crc32c_pcl_intel_update')
+f(41,438,1,2,'crypto_shash_update')
+f(42,438,1,2,'crc32c_pcl_intel_update')
+f(39,439,1,2,'from_kgid')
+f(40,439,1,2,'map_id_up')
+f(39,440,1,2,'jbd2_journal_dirty_metadata')
+f(37,441,1,2,'ext4_reserve_inode_write')
+f(38,441,1,2,'ext4_get_group_desc')
+f(27,442,1,2,'rw_verify_area')
+f(28,442,1,2,'security_file_permission')
+f(29,442,1,2,'apparmor_file_permission')
+f(30,442,1,2,'common_file_perm')
+f(21,443,1,4,'__libc_disable_asynccancel')
+f(15,444,221,0,'ru/mail/polis/lsm/artem_drozdov/SSTable.writeValueWithSize')
+f(16,444,112,0,'ru/mail/polis/lsm/artem_drozdov/SSTable.writeInt')
+f(17,445,111,0,'sun/nio/ch/FileChannelImpl.write')
+f(18,445,1,0,'java/nio/DirectByteBuffer.put')
+f(19,445,1,0,'java/nio/DirectByteBuffer.put')
+f(20,445,1,0,'java/nio/ByteBuffer.put')
+f(21,445,1,0,'java/nio/DirectByteBuffer.put')
+f(22,445,1,0,'java/nio/Buffer.nextPutIndex')
+f(18,446,107,0,'sun/nio/ch/IOUtil.write')
+f(19,448,1,0,'java/nio/DirectByteBuffer.put')
+f(20,448,1,0,'java/nio/DirectByteBuffer.put')
+f(21,448,1,0,'java/nio/ByteBuffer.put')
+f(19,449,102,0,'sun/nio/ch/IOUtil.writeFromNativeBuffer')
+f(20,449,102,0,'sun/nio/ch/FileDispatcherImpl.write')
+f(21,449,102,0,'sun/nio/ch/FileDispatcherImpl.write0')
+f(22,449,1,4,'/usr/lib/jvm/java-11-openjdk-amd64/lib/libnio.so')
+f(22,450,101,4,'__GI___libc_write')
+f(23,469,82,2,'entry_SYSCALL_64_after_hwframe')
+f(24,469,82,2,'do_syscall_64')
+f(25,475,76,2,'__x64_sys_write')
+f(26,475,76,2,'ksys_write')
+f(27,475,2,2,'__fdget_pos')
+f(28,475,2,2,'__fget_light')
+f(29,475,2,2,'__fget')
+f(27,477,74,2,'vfs_write')
+f(28,477,25,2,'__fsnotify_parent')
+f(29,477,25,2,'fsnotify')
+f(30,481,2,2,'__srcu_read_lock')
+f(30,483,1,2,'__srcu_read_unlock')
+f(30,484,17,2,'inotify_handle_event')
+f(31,484,1,2,'__kmalloc')
+f(32,484,1,2,'__slab_alloc')
+f(33,484,1,2,'___slab_alloc')
+f(34,484,1,2,'new_slab')
+f(35,484,1,2,'allocate_slab')
+f(36,484,1,2,'alloc_slab_page')
+f(37,484,1,2,'__memcg_kmem_charge_memcg')
+f(38,484,1,2,'page_counter_try_charge')
+f(31,485,3,2,'_raw_spin_lock')
+f(31,488,12,2,'fsnotify_add_event')
+f(32,488,12,2,'__wake_up')
+f(33,488,12,2,'__wake_up_common_lock')
+f(34,489,11,2,'__lock_text_start')
+f(31,500,1,2,'fsnotify_destroy_event')
+f(32,500,1,2,'inotify_free_event')
+f(30,501,1,2,'strcpy')
+f(28,502,46,2,'__vfs_write')
+f(29,502,46,2,'new_sync_write')
+f(30,502,46,2,'ext4_file_write_iter')
+f(31,502,45,2,'__generic_file_write_iter')
+f(32,502,1,2,'__x86_indirect_thunk_rax')
+f(32,503,44,2,'generic_perform_write')
+f(33,503,1,2,'balance_dirty_pages_ratelimited')
+f(33,504,10,2,'ext4_da_write_begin')
+f(34,505,8,2,'__ext4_journal_start_sb')
+f(35,505,1,2,'_cond_resched')
+f(35,506,7,2,'jbd2__journal_start')
+f(36,506,1,2,'_raw_read_lock')
+f(36,507,2,2,'kmem_cache_alloc')
+f(36,509,1,2,'memset_erms')
+f(36,510,3,2,'start_this_handle')
+f(37,510,3,2,'add_transaction_credits')
+f(34,513,1,2,'grab_cache_page_write_begin')
+f(35,513,1,2,'pagecache_get_page')
+f(36,513,1,2,'find_get_entry')
+f(33,514,27,2,'ext4_da_write_end')
+f(34,515,3,2,'__ext4_journal_stop')
+f(35,515,3,2,'jbd2_journal_stop')
+f(36,517,1,2,'kmem_cache_free')
+f(34,518,1,2,'block_write_end')
+f(34,519,22,2,'generic_write_end')
+f(35,519,21,2,'__mark_inode_dirty')
+f(36,521,19,2,'ext4_dirty_inode')
+f(37,522,17,2,'ext4_mark_inode_dirty')
+f(38,522,14,2,'ext4_mark_iloc_dirty')
+f(39,522,1,2,'__brelse')
+f(39,523,13,2,'ext4_do_update_inode')
+f(40,525,2,2,'_cond_resched')
+f(40,527,9,2,'ext4_inode_csum_set')
+f(41,527,9,2,'ext4_inode_csum.isra.0')
+f(42,527,1,2,'__x86_indirect_thunk_rax')
+f(42,528,1,2,'crc32c_pcl_intel_update')
+f(42,529,7,2,'crypto_shash_update')
+f(43,530,6,2,'crc32c_pcl_intel_update')
+f(38,536,3,2,'ext4_reserve_inode_write')
+f(39,536,3,2,'__ext4_get_inode_loc')
+f(40,538,1,2,'__getblk_gfp')
+f(37,539,1,2,'ext4_reserve_inode_write')
+f(35,540,1,2,'block_write_end')
+f(36,540,1,2,'__block_commit_write.isra.0')
+f(33,541,5,2,'iov_iter_copy_from_user_atomic')
+f(34,541,1,2,'copy_user_enhanced_fast_string')
+f(34,542,3,2,'copy_user_generic_unrolled')
+f(34,545,1,2,'copyin')
+f(33,546,1,2,'iov_iter_fault_in_readable')
+f(31,547,1,2,'ext4_write_checks')
+f(32,547,1,2,'generic_write_check_limits.isra.0')
+f(28,548,3,2,'rw_verify_area')
+f(29,548,2,2,'apparmor_file_permission')
+f(29,550,1,2,'security_file_permission')
+f(30,550,1,2,'common_file_perm')
+f(19,551,2,0,'sun/nio/ch/Util.getTemporaryDirectBuffer')
+f(20,551,2,0,'java/lang/ThreadLocal.get')
+f(21,551,2,0,'java/lang/ThreadLocal$ThreadLocalMap.getEntry')
+f(18,553,3,0,'sun/nio/ch/NativeThreadSet.add')
+f(19,554,2,0,'sun/nio/ch/NativeThread.current')
+f(20,555,1,4,'Java_sun_nio_ch_NativeThread_current')
+f(16,556,109,0,'sun/nio/ch/FileChannelImpl.write')
+f(17,558,3,0,'sun/nio/ch/FileChannelImpl.endBlocking')
+f(18,558,3,0,'java/nio/channels/spi/AbstractInterruptibleChannel.end')
+f(17,561,101,0,'sun/nio/ch/IOUtil.write')
+f(18,566,5,0,'java/nio/DirectByteBuffer.put')
+f(19,566,5,0,'java/nio/DirectByteBuffer.put')
+f(20,566,5,0,'java/nio/MappedByteBuffer.position')
+f(21,566,5,0,'java/nio/ByteBuffer.position')
+f(22,566,5,0,'java/nio/Buffer.position')
+f(23,568,1,4,'jlong_disjoint_arraycopy')
+f(23,569,1,4,'jshort_disjoint_arraycopy')
+f(23,570,1,4,'unsafe_arraycopy')
+f(18,571,90,0,'sun/nio/ch/IOUtil.writeFromNativeBuffer')
+f(19,571,90,0,'sun/nio/ch/FileDispatcherImpl.write')
+f(20,571,90,0,'sun/nio/ch/FileDispatcherImpl.write0')
+f(21,571,89,4,'__GI___libc_write')
+f(22,586,74,2,'entry_SYSCALL_64_after_hwframe')
+f(23,586,74,2,'do_syscall_64')
+f(24,589,71,2,'__x64_sys_write')
+f(25,589,1,2,'__fdget_pos')
+f(25,590,70,2,'ksys_write')
+f(26,591,1,2,'__fdget_pos')
+f(27,591,1,2,'__fget_light')
+f(28,591,1,2,'__fget')
+f(26,592,68,2,'vfs_write')
+f(27,593,12,2,'__fsnotify_parent')
+f(28,594,10,2,'fsnotify')
+f(29,596,8,2,'inotify_handle_event')
+f(30,596,2,2,'__kmalloc')
+f(31,596,2,2,'memcg_kmem_get_cache')
+f(30,598,1,2,'__x86_indirect_thunk_r14')
+f(30,599,2,2,'fsnotify_add_event')
+f(31,599,2,2,'strcmp')
+f(30,601,2,2,'fsnotify_destroy_event')
+f(31,601,2,2,'fsnotify_destroy_event.part.0')
+f(32,601,2,2,'inotify_free_event')
+f(33,601,2,2,'kfree')
+f(30,603,1,2,'memset_erms')
+f(28,604,1,2,'lockref_put_return')
+f(27,605,1,2,'__sb_start_write')
+f(27,606,49,2,'__vfs_write')
+f(28,606,49,2,'new_sync_write')
+f(29,606,48,2,'ext4_file_write_iter')
+f(30,606,48,2,'__generic_file_write_iter')
+f(31,606,1,2,'ext4_da_write_begin')
+f(31,607,47,2,'generic_perform_write')
+f(32,608,1,2,'balance_dirty_pages_ratelimited')
+f(32,609,5,2,'ext4_da_write_begin')
+f(33,609,3,2,'__ext4_journal_start_sb')
+f(34,609,3,2,'jbd2__journal_start')
+f(35,609,2,2,'kmem_cache_alloc')
+f(35,611,1,2,'memset_erms')
+f(33,612,1,2,'grab_cache_page_write_begin')
+f(34,612,1,2,'pagecache_get_page')
+f(35,612,1,2,'find_get_entry')
+f(33,613,1,2,'jbd2__journal_start')
+f(32,614,33,2,'ext4_da_write_end')
+f(33,616,3,2,'__ext4_journal_stop')
+f(34,617,2,2,'jbd2_journal_stop')
+f(35,618,1,2,'__wake_up')
+f(36,618,1,2,'__wake_up_common_lock')
+f(37,618,1,2,'__lock_text_start')
+f(33,619,28,2,'generic_write_end')
+f(34,619,26,2,'__mark_inode_dirty')
+f(35,621,24,2,'ext4_dirty_inode')
+f(36,621,2,2,'__ext4_journal_start_sb')
+f(37,622,1,2,'jbd2__journal_start')
+f(36,623,21,2,'ext4_mark_inode_dirty')
+f(37,623,18,2,'ext4_mark_iloc_dirty')
+f(38,624,1,2,'__brelse')
+f(38,625,16,2,'ext4_do_update_inode')
+f(39,628,11,2,'ext4_inode_csum_set')
+f(40,628,11,2,'ext4_inode_csum.isra.0')
+f(41,629,1,2,'__x86_indirect_thunk_rax')
+f(41,630,4,2,'crc32c_pcl_intel_update')
+f(41,634,5,2,'crypto_shash_update')
+f(42,635,4,2,'crc32c_pcl_intel_update')
+f(39,639,1,2,'from_kgid')
+f(40,639,1,2,'map_id_up')
+f(39,640,1,2,'from_kuid')
+f(40,640,1,2,'map_id_up')
+f(37,641,3,2,'ext4_reserve_inode_write')
+f(38,641,2,2,'__ext4_get_inode_loc')
+f(39,641,2,2,'__getblk_gfp')
+f(40,641,2,2,'__find_get_block')
+f(38,643,1,2,'__ext4_journal_get_write_access')
+f(39,643,1,2,'jbd2_journal_get_write_access')
+f(40,643,1,2,'jbd2_write_access_granted')
+f(36,644,1,2,'ext4_reserve_inode_write')
+f(34,645,2,2,'block_write_end')
+f(35,645,2,2,'__block_commit_write.isra.0')
+f(36,645,2,2,'mark_buffer_dirty')
+f(37,645,2,2,'__set_page_dirty')
+f(38,645,2,2,'__lock_text_start')
+f(32,647,2,2,'iov_iter_advance')
+f(32,649,3,2,'iov_iter_copy_from_user_atomic')
+f(33,651,1,2,'copy_user_enhanced_fast_string')
+f(32,652,2,2,'iov_iter_fault_in_readable')
+f(29,654,1,2,'up_write')
+f(27,655,5,2,'rw_verify_area')
+f(28,657,3,2,'security_file_permission')
+f(29,657,3,2,'apparmor_file_permission')
+f(30,657,3,2,'common_file_perm')
+f(31,658,2,2,'aa_file_perm')
+f(21,660,1,4,'__libc_enable_asynccancel')
+f(18,661,1,0,'sun/nio/ch/Util.getTemporaryDirectBuffer')
+f(19,661,1,0,'java/lang/ThreadLocal.get')
+f(20,661,1,0,'java/lang/ThreadLocal$ThreadLocalMap.getEntry')
+f(17,662,3,0,'sun/nio/ch/NativeThreadSet.add')
+f(18,664,1,0,'sun/nio/ch/NativeThread.current')
+f(15,665,1,0,'sun/nio/ch/FileChannelImpl.force')
+f(16,665,1,0,'sun/nio/ch/FileDispatcherImpl.force')
+f(17,665,1,0,'sun/nio/ch/FileDispatcherImpl.force0')
+f(18,665,1,4,'fdatasync')
+f(19,665,1,2,'entry_SYSCALL_64_after_hwframe')
+f(20,665,1,2,'do_syscall_64')
+f(21,665,1,2,'__x64_sys_fdatasync')
+f(22,665,1,2,'do_fsync')
+f(23,665,1,2,'vfs_fsync_range')
+f(24,665,1,2,'ext4_sync_file')
+f(25,665,1,2,'file_write_and_wait_range')
+f(26,665,1,2,'__filemap_fdatawrite_range')
+f(27,665,1,2,'do_writepages')
+f(28,665,1,2,'ext4_writepages')
+f(29,665,1,2,'mpage_map_and_submit_extent')
+f(30,665,1,2,'mpage_map_and_submit_buffers')
+f(15,666,18,0,'sun/nio/ch/FileChannelImpl.position')
+f(16,666,3,0,'sun/nio/ch/FileChannelImpl.beginBlocking')
+f(17,666,3,0,'java/nio/channels/spi/AbstractInterruptibleChannel.begin')
+f(18,666,3,0,'java/lang/Thread.isInterrupted')
+f(16,669,14,0,'sun/nio/ch/FileDispatcherImpl.seek')
+f(17,670,13,0,'sun/nio/ch/FileDispatcherImpl.seek0')
+f(18,671,12,4,'lseek64')
+f(19,678,5,2,'entry_SYSCALL_64_after_hwframe')
+f(20,678,1,2,'__x64_sys_lseek')
+f(20,679,4,2,'do_syscall_64')
+f(21,682,1,2,'__x64_sys_lseek')
+f(22,682,1,2,'ksys_lseek')
+f(23,682,1,2,'__f_unlock_pos')
+f(16,683,1,0,'sun/nio/ch/NativeThreadSet.add')
+f(11,684,27,0,'ru/mail/polis/service/gasparyan_sokrat/ServiceDAO.updateCache')
+f(12,684,27,0,'com/google/common/cache/LocalCache$LocalManualCache.put')
+f(13,684,27,0,'com/google/common/cache/LocalCache.put')
+f(14,685,25,0,'com/google/common/cache/LocalCache$Segment.put')
+f(15,694,8,0,'com/google/common/cache/LocalCache$Segment.evictEntries')
+f(16,694,8,0,'com/google/common/cache/LocalCache$Segment.removeEntry')
+f(17,694,8,0,'com/google/common/cache/LocalCache$Segment.removeValueFromChain')
+f(18,694,3,0,'com/google/common/cache/LocalCache$AccessQueue.remove')
+f(19,694,3,0,'com/google/common/cache/LocalCache.connectAccessOrder')
+f(20,694,3,0,'com/google/common/cache/LocalCache$AccessQueue$1.setNextInAccessQueue')
+f(21,696,1,4,'g1_post_barrier_slow')
+f(18,697,4,0,'com/google/common/cache/LocalCache$Segment.removeEntryFromChain')
+f(19,697,4,0,'com/google/common/cache/LocalCache$Segment.copyEntry')
+f(20,697,4,0,'com/google/common/cache/LocalCache$EntryFactory$2.copyEntry')
+f(21,697,4,0,'com/google/common/cache/LocalCache$EntryFactory.copyAccessEntry')
+f(22,697,4,0,'com/google/common/cache/LocalCache.connectAccessOrder')
+f(23,698,3,0,'com/google/common/cache/LocalCache$StrongAccessEntry.setPreviousInAccessQueue')
+f(24,700,1,2,'apic_timer_interrupt')
+f(25,700,1,2,'smp_apic_timer_interrupt')
+f(26,700,1,2,'irq_exit')
+f(27,700,1,2,'__softirqentry_text_start')
+f(28,700,1,2,'rcu_core_si')
+f(29,700,1,2,'rcu_core')
+f(30,700,1,2,'note_gp_changes')
+f(31,700,1,2,'__lock_text_start')
+f(18,701,1,0,'java/util/AbstractCollection.remove')
+f(19,701,1,0,'com/google/common/cache/LocalCache$2.iterator')
+f(20,701,1,0,'com/google/common/collect/RegularImmutableSet.iterator')
+f(21,701,1,0,'com/google/common/collect/Iterators.forArray')
+f(22,701,1,0,'com/google/common/collect/Iterators.forArray')
+f(23,701,1,0,'com/google/common/base/Preconditions.checkPositionIndex')
+f(15,702,8,0,'com/google/common/cache/LocalCache$Segment.setValue')
+f(16,702,1,0,'com/google/common/cache/LocalCache$LoadingValueReference.notifyNewValue')
+f(17,702,1,0,'com/google/common/cache/LocalCache$LoadingValueReference.set')
+f(18,702,1,0,'com/google/common/util/concurrent/SettableFuture.set')
+f(19,702,1,0,'com/google/common/util/concurrent/AbstractFuture.set')
+f(20,702,1,0,'com/google/common/util/concurrent/AbstractFuture.complete')
+f(21,702,1,0,'com/google/common/util/concurrent/AbstractFuture.clearListeners')
+f(22,702,1,0,'com/google/common/cache/LocalCache$AccessQueue$1.setPreviousInAccessQueue')
+f(16,703,7,0,'com/google/common/cache/LocalCache$Segment.recordWrite')
+f(17,703,7,0,'java/util/AbstractQueue.add')
+f(18,703,7,0,'com/google/common/cache/LocalCache$AccessQueue.offer')
+f(19,703,7,0,'com/google/common/cache/LocalCache$AccessQueue.offer')
+f(20,703,7,0,'com/google/common/cache/LocalCache.connectAccessOrder')
+f(21,707,2,0,'com/google/common/cache/LocalCache$AccessQueue$1.setPreviousInAccessQueue')
+f(22,707,2,4,'g1_post_barrier_slow')
+f(21,709,1,0,'com/google/common/cache/LocalCache$StrongAccessEntry.setNextInAccessQueue')
+f(14,710,1,0,'com/google/common/cache/LocalCache.hash')
+f(15,710,1,0,'com/google/common/base/Equivalence.hash')
+f(16,710,1,0,'com/google/common/base/Equivalence$Equals.doHash')
+f(17,710,1,0,'java/nio/ByteBuffer.hashCode')
+f(18,710,1,0,'java/util/concurrent/ConcurrentSkipListMap.doPut')
+f(7,711,4,0,'one/nio/http/PathMapper.find')
+f(8,711,4,0,'java/util/HashMap.get')
+f(9,711,4,0,'java/util/HashMap.getNode')
+f(10,714,1,4,'jlong_disjoint_arraycopy')
+f(5,715,2,0,'one/nio/http/HttpSession.parseRequest')
+f(6,715,1,0,'one/nio/http/Request.<init>')
+f(7,715,1,0,'java/lang/String.indexOf')
+f(8,715,1,0,'java/lang/String.indexOf')
+f(9,715,1,0,'java/lang/StringLatin1.indexOf')
+f(6,716,1,0,'one/nio/util/Utf8.startsWith')
+f(5,717,3,0,'one/nio/http/HttpSession.startParsingRequestBody')
+f(6,717,3,0,'java/lang/Integer.parseInt')
+f(7,717,3,0,'java/lang/Integer.parseInt')
+f(8,717,3,0,'java/lang/String.charAt')
+f(5,720,5,0,'one/nio/http/Request.getHeader')
+f(6,720,5,0,'java/lang/String.regionMatches')
+f(7,720,5,0,'java/lang/StringLatin1.regionMatchesCI')
+f(8,721,1,0,'java/lang/Character.toLowerCase')
+f(9,721,1,0,'java/lang/Character.toLowerCase')
+f(10,721,1,0,'java/lang/CharacterDataLatin1.toLowerCase')
+f(8,722,1,4,'jbyte_arraycopy')
+f(8,723,2,4,'jbyte_disjoint_arraycopy')
+f(5,725,4,0,'one/nio/util/Utf8.read')
+f(6,725,4,0,'one/nio/util/Utf8.read')
+f(4,729,1,0,'one/nio/net/NativeSocket.read')
+f(4,730,69,0,'one/nio/net/Session.read')
+f(5,730,69,0,'one/nio/net/NativeSocket.read')
+f(6,738,1,4,'/usr/lib/jvm/java-11-openjdk-amd64/lib/server/libjvm.so')
+f(6,739,5,4,'Java_one_nio_net_NativeSocket_read')
+f(7,739,3,4,'/usr/lib/jvm/java-11-openjdk-amd64/lib/server/libjvm.so')
+f(8,740,2,4,'/usr/lib/jvm/java-11-openjdk-amd64/lib/server/libjvm.so')
+f(7,742,2,4,'__memcpy_avx_unaligned_erms')
+f(6,744,55,4,'__libc_recv')
+f(7,765,34,2,'entry_SYSCALL_64_after_hwframe')
+f(8,765,34,2,'do_syscall_64')
+f(9,772,1,2,'__sys_recvfrom')
+f(9,773,26,2,'__x64_sys_recvfrom')
+f(10,773,26,2,'__sys_recvfrom')
+f(11,774,21,2,'sock_recvmsg')
+f(12,774,18,2,'inet6_recvmsg')
+f(13,774,1,2,'tcp_cleanup_rbuf')
+f(13,775,17,2,'tcp_recvmsg')
+f(14,776,4,2,'__kfree_skb')
+f(15,776,4,2,'skb_release_all')
+f(16,776,1,2,'skb_release_data')
+f(16,777,1,2,'skb_release_head_state')
+f(17,777,1,2,'dst_release')
+f(16,778,2,2,'sock_rfree')
+f(14,780,1,2,'__tcp_select_window')
+f(14,781,1,2,'_raw_spin_lock_bh')
+f(14,782,1,2,'lock_sock_nested')
+f(15,782,1,2,'__local_bh_enable_ip')
+f(14,783,4,2,'skb_copy_datagram_iter')
+f(15,783,4,2,'__skb_datagram_iter')
+f(16,785,2,2,'simple_copy_to_iter')
+f(17,785,2,2,'_copy_to_iter')
+f(18,785,2,2,'copy_user_enhanced_fast_string')
+f(14,787,1,2,'tcp_mstamp_refresh')
+f(14,788,4,2,'tcp_rcv_space_adjust')
+f(15,789,1,2,'ktime_get')
+f(15,790,2,2,'tcp_mstamp_refresh')
+f(16,790,2,2,'read_tsc')
+f(12,792,3,2,'security_socket_recvmsg')
+f(13,792,3,2,'apparmor_socket_recvmsg')
+f(14,792,3,2,'aa_sk_perm')
+f(15,792,3,2,'aa_label_sk_perm.part.0')
+f(16,792,1,2,'aa_apply_modes_to_perms')
+f(16,793,2,2,'aa_profile_af_perm')
+f(11,795,4,2,'sockfd_lookup_light')
+f(12,795,3,2,'__fdget')
+f(13,795,3,2,'__fget_light')
+f(14,795,3,2,'__fget')
+f(12,798,1,2,'__fget_light')
+f(1,799,60,4,'start_thread')
+f(2,799,60,4,'/usr/lib/jvm/java-11-openjdk-amd64/lib/server/libjvm.so')
+f(3,799,60,4,'/usr/lib/jvm/java-11-openjdk-amd64/lib/server/libjvm.so')
+f(4,799,60,4,'/usr/lib/jvm/java-11-openjdk-amd64/lib/server/libjvm.so')
+f(5,799,60,4,'/usr/lib/jvm/java-11-openjdk-amd64/lib/server/libjvm.so')
+f(6,799,60,4,'/usr/lib/jvm/java-11-openjdk-amd64/lib/server/libjvm.so')
+f(7,799,60,4,'/usr/lib/jvm/java-11-openjdk-amd64/lib/server/libjvm.so')
+f(8,814,45,4,'/usr/lib/jvm/java-11-openjdk-amd64/lib/server/libjvm.so')
+f(9,820,38,4,'/usr/lib/jvm/java-11-openjdk-amd64/lib/server/libjvm.so')
+f(10,827,31,4,'/usr/lib/jvm/java-11-openjdk-amd64/lib/server/libjvm.so')
+f(11,831,27,4,'/usr/lib/jvm/java-11-openjdk-amd64/lib/server/libjvm.so')
+f(12,840,18,4,'/usr/lib/jvm/java-11-openjdk-amd64/lib/server/libjvm.so')
+f(13,851,7,4,'/usr/lib/jvm/java-11-openjdk-amd64/lib/server/libjvm.so')
+f(14,856,2,4,'/usr/lib/jvm/java-11-openjdk-amd64/lib/server/libjvm.so')
+f(9,858,1,4,'__getrusage')
+render();
+</script></body></html>
