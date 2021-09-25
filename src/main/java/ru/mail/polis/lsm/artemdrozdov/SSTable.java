@@ -254,7 +254,9 @@ public class SSTable implements Closeable {
         );
     }
 
-    private static void writeValueWithSize(ByteBuffer value, WritableByteChannel channel, ByteBuffer tmp) throws IOException {
+    private static void writeValueWithSize(ByteBuffer value, WritableByteChannel channel, ByteBuffer tmp)
+            throws IOException {
+
         writeInt(value.remaining(), channel, tmp);
         channel.write(tmp);
         channel.write(value);
@@ -302,17 +304,13 @@ public class SSTable implements Closeable {
             int offset = idx.getInt(mid * Integer.BYTES);
             buffer.position(offset);
             int existingKeySize = buffer.getInt();
+            int mismatchPos = buffer.mismatch(keyToFind);
+
+            if (mismatchPos == -1 || (existingKeySize == keyToFindSize && mismatchPos == existingKeySize)) {
+                return offset;
+            }
 
             int result;
-            int mismatchPos = buffer.mismatch(keyToFind);
-            if (mismatchPos == -1) {
-                return offset;
-            }
-
-            if (existingKeySize == keyToFindSize && mismatchPos == existingKeySize) {
-                return offset;
-            }
-
             if (mismatchPos < existingKeySize && mismatchPos < keyToFindSize) {
                 result = Byte.compare(
                         keyToFind.get(keyToFind.position() + mismatchPos),

@@ -89,6 +89,7 @@ public class ServiceImpl extends HttpServer implements Service {
         buffer.get(result);
         return result;
     }
+
     private Response get(String id) {
         final ByteBuffer key = ByteBuffer.wrap(id.getBytes(StandardCharsets.UTF_8));
         final Iterator<Record> range = dao.range(key, DAO.nextKey(key));

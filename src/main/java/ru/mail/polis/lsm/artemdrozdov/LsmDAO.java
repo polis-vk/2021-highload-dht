@@ -78,7 +78,7 @@ public class LsmDAO implements DAO {
             try {
                 table = SSTable.compact(config.dir, range(null, null));
             } catch (IOException e) {
-                throw  new UncheckedIOException("Can't compact", e);
+                throw new UncheckedIOException("Can't compact", e);
             }
             tables.clear();
             tables.add(table);
@@ -133,7 +133,7 @@ public class LsmDAO implements DAO {
     }
 
     private static Iterator<Record> merge(List<Iterator<Record>> iterators) {
-        if (iterators.size() == 0) {
+        if (iterators.isEmpty()) {
             return Collections.emptyIterator();
         }
         if (iterators.size() == 1) {
