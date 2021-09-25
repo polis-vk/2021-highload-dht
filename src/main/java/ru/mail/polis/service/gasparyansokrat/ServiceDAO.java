@@ -5,7 +5,6 @@ import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import one.nio.http.Request;
 import one.nio.http.Response;
-import org.jetbrains.annotations.NotNull;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.Record;
 
@@ -79,6 +78,9 @@ public class ServiceDAO {
                     accept = res.getKey().equals(start);
                 }
 
+                if (accept) {
+                    updateCache(start, res);
+                }
             } else {
                 accept = true;
             }
@@ -115,7 +117,7 @@ public class ServiceDAO {
     /**
      * some doc.
      */
-    public Response handleRequest(@NotNull Request req, final String id) throws IOException {
+    public Response handleRequest(Request req, final String id) throws IOException {
 
         Response resp = null;
         try {
