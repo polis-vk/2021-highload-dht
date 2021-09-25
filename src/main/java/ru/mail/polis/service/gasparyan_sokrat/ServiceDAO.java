@@ -12,45 +12,43 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
-import java.util.concurrent.ExecutionException;
-
 
 public class ServiceDAO {
+
     DAO refDao;
     LoadingCache<ByteBuffer, Record> cache; // LRU cache for store request =)
-    final int MAX_CACHE_SIZE = 8 * 1024 * 1024; // 8 mb
+    static final int LIMIT_CAHCE = 8 * 1024 * 1024; // 8 mb
 
-    ServiceDAO(int cacheCapacity, DAO dao){
+    ServiceDAO(final int cacheCapacity, DAO dao) {
+        int cacheSize = cacheCapacity;
         this.refDao = dao;
-        if (cacheCapacity > MAX_CACHE_SIZE)
-            cacheCapacity = MAX_CACHE_SIZE;
-        try{
-            cache = CacheBuilder.newBuilder().
-                    maximumSize(cacheCapacity).
-                    build(new CacheLoader<ByteBuffer, Record>() {
-                        @Override
-                        public Record load(ByteBuffer id) throws IOException { // no checked exception
-                            try{
-                                Iterator<Record> it = refDao.range(id, DAO.nextKey(id));
-                                if (!it.hasNext())
-                                    return Record.tombstone(id);
-                                return it.next();
-                            } catch (Exception e) {
-                                throw new IOException("Bad access", e);
+        if (cacheSize > LIMIT_CAHCE)
+            cacheSize = LIMIT_CAHCE;
+
+        cache = CacheBuilder.newBuilder().maximumSize(cacheSize).
+                build(new CacheLoader<ByteBuffer, Record>() {
+                    @Override
+                    public Record load(ByteBuffer id) throws IOException { // no checked exception
+                        try {
+                            Iterator<Record> it = refDao.range(id, DAO.nextKey(id));
+                            if (!it.hasNext()) {
+                                return Record.tombstone(id);
                             }
+                            return it.next();
+                        } catch (Exception e) {
+                            throw new IOException("Bad access", e);
                         }
-                    });
-        } catch (Exception e) {
-            //
-        }
+                    }
+                });
     }
 
     private void updateCache(ByteBuffer id, Record rec){
         cache.put(id, rec);
     }
+
     private Record checkCache(ByteBuffer id) throws IOException {
         Record data = null;
-        try{
+        try {
             data = cache.get(id);
         } catch (Exception e) {
             throw new IOException("Bad access cache data", e);
@@ -58,7 +56,7 @@ public class ServiceDAO {
         return data;
     }
 
-    private byte[] cvtByteArray2Bytes(final ByteBuffer bf){
+    private byte[] cvtByteArray2Bytes(final ByteBuffer bf) {
         byte[] tmpBuff = new byte[bf.remaining()];
         bf.get(tmpBuff);
         return tmpBuff;
@@ -69,10 +67,10 @@ public class ServiceDAO {
         Response resp = null;
         Record res = null;
 
-        try{
+        try {
             res = checkCache(start);
             boolean accept = false;
-            if (res.isTombstone()){
+            if (res.isTombstone()) {
                 Iterator<Record> it = refDao.range(start, null); // DAO.nextKey(start)
 
                 while (it.hasNext() && !accept) {
@@ -80,14 +78,16 @@ public class ServiceDAO {
                     accept = res.getKey().equals(start);
                 }
             }
-            else{
+            else {
                 accept = true;
             }
 
-            if (accept)
+            if (accept) {
                 resp = new Response(Response.OK, cvtByteArray2Bytes(res.getValue()));
-            else
+            }
+            else {
                 resp = new Response(Response.NOT_FOUND, Response.EMPTY);
+            }
 
         } catch (Exception e) {
             throw new IOException("Bad value", e);
@@ -104,7 +104,7 @@ public class ServiceDAO {
         return new Response(Response.CREATED, Response.EMPTY);
     }
 
-    protected Response delete(final String id){
+    protected Response delete(final String id) {
         ByteBuffer key = ByteBuffer.wrap(id.getBytes(StandardCharsets.UTF_8));
         Record temp = Record.tombstone(key);
         refDao.upsert(temp);
@@ -113,8 +113,9 @@ public class ServiceDAO {
     }
 
     public Response handleRequest(Request req, final String id) throws IOException {
+
         Response resp = null;
-        try{
+        try {
             final int typeHttpMethod = req.getMethod();
             switch (typeHttpMethod) {
                 case Request.METHOD_GET:
@@ -128,12 +129,11 @@ public class ServiceDAO {
                     break;
                 default:
                     resp = new Response(Response.METHOD_NOT_ALLOWED, "Bad request".getBytes(StandardCharsets.UTF_8));
+                    break;
             }
         } catch (Exception e) {
             throw new IOException("Error access DAO", e);
         }
         return resp;
     }
-
-
 }

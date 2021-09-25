@@ -9,9 +9,9 @@ public class Record {
     private final ByteBuffer key;
     private final ByteBuffer value;
 
-    private Record(ByteBuffer key, @Nullable ByteBuffer value) {
-        this.key = key;
-        this.value = value;
+    Record(ByteBuffer key, @Nullable ByteBuffer value) {
+        this.key = key.asReadOnlyBuffer();
+        this.value = value == null ? null : value.asReadOnlyBuffer();
     }
 
     public static Record of(ByteBuffer key, ByteBuffer value) {
@@ -19,14 +19,14 @@ public class Record {
     }
 
     public static Record tombstone(ByteBuffer key) {
-        return new Record(key.asReadOnlyBuffer(), null);
+        return new Record(key, null);
     }
 
     public ByteBuffer getKey() {
         return key.asReadOnlyBuffer();
     }
 
-    public @Nullable ByteBuffer getValue() {
+    public ByteBuffer getValue() {
         return value == null ? null : value.asReadOnlyBuffer();
     }
 
@@ -41,4 +41,5 @@ public class Record {
     public int getValueSize() {
         return value == null ? 0 : value.remaining();
     }
+
 }
