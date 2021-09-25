@@ -52,5 +52,4 @@ public final class MergeIterator implements Iterator<Record> {
         }
     }
 
-
 }
