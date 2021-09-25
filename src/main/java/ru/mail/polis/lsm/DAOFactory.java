@@ -8,13 +8,8 @@ public final class DAOFactory {
         // Only static methods
     }
 
-    /**
-     * Create an instance of {@link DAO} with supplied {@link DAOConfig}.
-     */
     public static DAO create(DAOConfig config) throws IOException {
-        assert config.dir.toFile().exists();
-
-        throw new UnsupportedOperationException("Implement me");
+        return new DaoImpl(config);
     }
 
 }

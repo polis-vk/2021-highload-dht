@@ -16,4 +16,8 @@ public class DAOConfig {
         this.dir = dir;
         this.memoryLimit = memoryLimit;
     }
+
+    public Path getDir() {
+        return dir;
+    }
 }

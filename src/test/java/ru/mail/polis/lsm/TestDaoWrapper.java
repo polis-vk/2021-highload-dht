@@ -27,12 +27,17 @@ public class TestDaoWrapper implements DAO {
     }
 
     @Override
+    public Iterator<Record> descendingRange(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
+        return delegate.descendingRange(toReadOnly(fromKey), toReadOnly(toKey));
+    }
+
+    @Override
     public void upsert(Record record) {
         delegate.upsert(record);
     }
 
     @Override
-    public void closeAndCompact() {
+    public void closeAndCompact() throws IOException {
         delegate.closeAndCompact();
     }
 
