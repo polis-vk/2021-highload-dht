@@ -117,7 +117,6 @@ public class ServiceDAO {
      * @param req
      * @param id
      * @return
-     * @throws IOException
      */
     public Response handleRequest(@NotNull Request req, final String id) throws IOException {
 

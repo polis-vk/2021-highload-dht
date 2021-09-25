@@ -31,7 +31,6 @@ public final class PeekingIterator implements Iterator<Record> {
     }
 
     /**
-     *
      * some doc.
      */
     public Record peek() {

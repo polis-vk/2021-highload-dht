@@ -35,7 +35,6 @@ public class ServiceImpl extends HttpServer implements Service {
      * @param req
      * @param id
      * @return
-     * @throws IOException
      */
     @Path("/v0/entity")
     public Response handleEntity(Request req,
