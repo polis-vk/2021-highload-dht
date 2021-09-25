@@ -8,8 +8,8 @@ import java.util.NoSuchElementException;
 
 public final class RangeIterator implements Iterator<Record> {
 
-    private ByteBuffer buffer;
-    private int toOffset;
+    private final ByteBuffer buffer;
+    private final int toOffset;
 
     RangeIterator(ByteBuffer buffer, int toOffset) {
         this.buffer = buffer;
