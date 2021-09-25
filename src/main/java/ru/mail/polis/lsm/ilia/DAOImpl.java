@@ -23,12 +23,9 @@ public class DAOImpl implements DAO {
     private static final String FILE_NAME_COMPACT = SSTable.SSTABLE_FILE_PREFIX + COMPACT;
     private static final String FILE_NAME_COMPACT_RESULT = SSTable.SSTABLE_FILE_PREFIX + "0";
     private static final String IDX = ".idx";
-
-    private SortedMap<ByteBuffer, Record> memoryStorage = new ConcurrentSkipListMap<>();
     private final ConcurrentLinkedDeque<SSTable> tables = new ConcurrentLinkedDeque<>();
-
     private final DAOConfig config;
-
+    private NavigableMap<ByteBuffer, Record> memoryStorage = new ConcurrentSkipListMap<>();
     private int nextSStableIndex;
     private int memorySize;
 
@@ -86,7 +83,7 @@ public class DAOImpl implements DAO {
                     }
                 }
 
-                memoryStorage.clear();
+                memoryStorage = new ConcurrentSkipListMap<>();
                 Files.move(
                         dir.resolve(FILE_NAME_COMPACT),
                         dir.resolve(FILE_NAME_COMPACT_RESULT),

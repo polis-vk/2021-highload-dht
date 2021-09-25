@@ -15,20 +15,12 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
-import java.util.ArrayList;
-import java.util.Iterator;
-import java.util.List;
-import java.util.NoSuchElementException;
-import java.util.Objects;
+import java.util.*;
 
 final class SSTable implements Closeable {
 
-    private static final Method CLEAN;
     static final String SSTABLE_FILE_PREFIX = "file_";
-
-    private final MappedByteBuffer mmap;
-    private final MappedByteBuffer idx;
-    private final Path fileName;
+    private static final Method CLEAN;
 
     static {
         try {
@@ -40,16 +32,16 @@ final class SSTable implements Closeable {
         }
     }
 
+    private final MappedByteBuffer mmap;
+    private final MappedByteBuffer idx;
+    private final Path fileName;
+
     private SSTable(Path file) throws IOException {
         Path indexPath = getIndexFile(file);
         fileName = file;
 
         mmap = open(file);
         idx = open(indexPath);
-    }
-
-    Path getPath() {
-        return fileName;
     }
 
     static int sizeOf(Record record) {
@@ -113,30 +105,6 @@ final class SSTable implements Closeable {
         return new SSTable(file);
     }
 
-    @Override
-    public void close() throws IOException {
-        IOException exception = null;
-        try {
-            free(mmap);
-        } catch (Throwable t) {
-            exception = new IOException(t);
-        }
-
-        try {
-            free(idx);
-        } catch (Throwable t) {
-            if (exception == null) {
-                exception = new IOException(t);
-            } else {
-                exception.addSuppressed(t);
-            }
-        }
-
-        if (exception != null) {
-            throw exception;
-        }
-    }
-
     private static void rename(Path indexFile, Path tmpIndexName) throws IOException {
         Files.deleteIfExists(indexFile);
         Files.move(tmpIndexName, indexFile, StandardCopyOption.ATOMIC_MOVE);
@@ -185,6 +153,69 @@ final class SSTable implements Closeable {
                 FileChannel channel = FileChannel.open(name, StandardOpenOption.READ)
         ) {
             return channel.map(FileChannel.MapMode.READ_ONLY, 0, channel.size());
+        }
+    }
+
+    private static Iterator<Record> range(ByteBuffer buffer, int fromOffset, int toOffset) {
+        buffer.position(fromOffset);
+
+        return new Iterator<>() {
+            @Override
+            public boolean hasNext() {
+                return buffer.position() < toOffset;
+            }
+
+            @Override
+            public Record next() {
+                if (!hasNext()) {
+                    throw new NoSuchElementException("Limit is reached");
+                }
+
+                int keySize = buffer.getInt();
+                ByteBuffer key = read(keySize);
+
+                int valueSize = buffer.getInt();
+                if (valueSize == -1) {
+                    return Record.tombstone(key);
+                }
+                ByteBuffer value = read(valueSize);
+
+                return Record.of(key, value);
+            }
+
+            private ByteBuffer read(int size) {
+                ByteBuffer result = buffer.slice().limit(size);
+                buffer.position(buffer.position() + size);
+                return result;
+            }
+        };
+    }
+
+    Path getPath() {
+        return fileName;
+    }
+
+    @Override
+    public void close() throws IOException {
+        IOException exception = null;
+        try {
+            free(mmap);
+        } catch (Throwable t) {
+            exception = new IOException(t);
+        }
+
+        try {
+            free(idx);
+        } catch (Throwable t) {
+            if (exception == null) {
+                exception = new IOException(t);
+            } else {
+                exception.addSuppressed(t);
+            }
+        }
+
+        if (exception != null) {
+            throw exception;
         }
     }
 
@@ -244,40 +275,5 @@ final class SSTable implements Closeable {
                 fromOffset == -1 ? maxSize : fromOffset,
                 toOffset == -1 ? maxSize : toOffset
         );
-    }
-
-    private static Iterator<Record> range(ByteBuffer buffer, int fromOffset, int toOffset) {
-        buffer.position(fromOffset);
-
-        return new Iterator<>() {
-            @Override
-            public boolean hasNext() {
-                return buffer.position() < toOffset;
-            }
-
-            @Override
-            public Record next() {
-                if (!hasNext()) {
-                    throw new NoSuchElementException("Limit is reached");
-                }
-
-                int keySize = buffer.getInt();
-                ByteBuffer key = read(keySize);
-
-                int valueSize = buffer.getInt();
-                if (valueSize == -1) {
-                    return Record.tombstone(key);
-                }
-                ByteBuffer value = read(valueSize);
-
-                return Record.of(key, value);
-            }
-
-            private ByteBuffer read(int size) {
-                ByteBuffer result = buffer.slice().limit(size);
-                buffer.position(buffer.position() + size);
-                return result;
-            }
-        };
     }
 }
