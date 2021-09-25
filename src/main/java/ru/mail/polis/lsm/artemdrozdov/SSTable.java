@@ -43,6 +43,13 @@ public class SSTable implements Closeable {
     private final MappedByteBuffer mmap;
     private final MappedByteBuffer idx;
 
+    /**
+     * Load SSTables from provided dir
+     *
+     * @param dir
+     * @return list of SSTables
+     * @throws IOException
+     */
     public static List<SSTable> loadFromDir(Path dir) throws IOException {
         Path compaction = dir.resolve(COMPACTION_FILE_NAME);
         if (Files.exists(compaction)) {
@@ -58,6 +65,14 @@ public class SSTable implements Closeable {
         }
     }
 
+    /**
+     * Write records to provided file
+     *
+     * @param records
+     * @param file
+     * @return SSTable of provided file
+     * @throws IOException
+     */
     public static SSTable write(Iterator<Record> records, Path file) throws IOException {
         writeImpl(records, file);
 
@@ -98,6 +113,14 @@ public class SSTable implements Closeable {
         rename(file, tmpFileName);
     }
 
+    /**
+     * Compacts records into provided dir
+     *
+     * @param dir
+     * @param records
+     * @return new SSTable of provided dir
+     * @throws IOException
+     */
     public static SSTable compact(Path dir, Iterator<Record> records) throws IOException {
         Path compaction = dir.resolve("compaction");
         writeImpl(records, compaction);
@@ -140,6 +163,12 @@ public class SSTable implements Closeable {
         Files.move(compaction, file0, StandardCopyOption.ATOMIC_MOVE);
     }
 
+    /**
+     * Create SSTable from file
+     *
+     * @param file
+     * @throws IOException
+     */
     public SSTable(Path file) throws IOException {
         Path indexFile = getIndexFile(file);
 
@@ -147,12 +176,24 @@ public class SSTable implements Closeable {
         idx = open(indexFile);
     }
 
+    /**
+     * Count size of record
+     *
+     * @param record
+     * @return size of record in bytes
+     */
     public static int sizeOf(Record record) {
         int keySize = Integer.BYTES + record.getKeySize();
         int valueSize = Integer.BYTES + record.getValueSize();
         return keySize + valueSize;
     }
 
+    /**
+     * Provide iterator of records
+     * @param fromKey
+     * @param toKey
+     * @return iterator of records
+     */
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
         ByteBuffer buffer = mmap.asReadOnlyBuffer();
 

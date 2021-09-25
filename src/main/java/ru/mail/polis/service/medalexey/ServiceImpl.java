@@ -46,6 +46,13 @@ public class ServiceImpl extends HttpServer implements Service {
         return Response.ok("I'm ok");
     }
 
+    /**
+     *  Removed, upserted or returned entity depends on request method
+     *
+     * @param request
+     * @param id entity id
+     * @return
+     */
     @Path("/v0/entity")
     public Response entity(final Request request,
                            @Param(value = "id", required = true) final String id) {

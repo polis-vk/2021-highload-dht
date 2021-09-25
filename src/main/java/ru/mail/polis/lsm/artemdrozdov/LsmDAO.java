@@ -32,6 +32,12 @@ public class LsmDAO implements DAO {
     @GuardedBy("this")
     private int memoryConsumption;
 
+    /**
+     *  Create LsmDAO from config
+     *
+     * @param config
+     * @throws IOException
+     */
     public LsmDAO(DAOConfig config) throws IOException {
         this.config = config;
         List<SSTable> ssTables = SSTable.loadFromDir(config.dir);
