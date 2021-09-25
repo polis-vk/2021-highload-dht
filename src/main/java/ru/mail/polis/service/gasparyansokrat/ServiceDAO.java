@@ -113,10 +113,7 @@ public class ServiceDAO {
     }
 
     /**
-     *
-     * @param req
-     * @param id
-     * @return
+     * some doc.
      */
     public Response handleRequest(@NotNull Request req, final String id) throws IOException {
 
