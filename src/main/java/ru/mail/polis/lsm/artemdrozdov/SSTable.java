@@ -136,7 +136,9 @@ public class SSTable implements Closeable {
 
         Path file0 = dir.resolve(SSTABLE_FILE_PREFIX + 0);
         if (Files.exists(getFile(compaction, INDEX_FILE_EXT))) {
-            Files.move(getFile(compaction, INDEX_FILE_EXT), getFile(file0, INDEX_FILE_EXT), StandardCopyOption.ATOMIC_MOVE);
+            Files.move(getFile(compaction, INDEX_FILE_EXT),
+                    getFile(file0, INDEX_FILE_EXT),
+                    StandardCopyOption.ATOMIC_MOVE);
         }
         Files.move(compaction, file0, StandardCopyOption.ATOMIC_MOVE);
         return new SSTable(file0);
@@ -158,7 +160,9 @@ public class SSTable implements Closeable {
 
         Path file0 = dir.resolve(SSTABLE_FILE_PREFIX + 0);
         if (Files.exists(getFile(compaction, INDEX_FILE_EXT))) {
-            Files.move(getFile(compaction, INDEX_FILE_EXT), getFile(file0, INDEX_FILE_EXT), StandardCopyOption.ATOMIC_MOVE);
+            Files.move(getFile(compaction, INDEX_FILE_EXT),
+                    getFile(file0, INDEX_FILE_EXT),
+                    StandardCopyOption.ATOMIC_MOVE);
         }
 
         Files.move(compaction, file0, StandardCopyOption.ATOMIC_MOVE);
