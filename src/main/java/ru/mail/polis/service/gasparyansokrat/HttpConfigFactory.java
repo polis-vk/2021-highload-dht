@@ -1,4 +1,4 @@
-package ru.mail.polis.service.gasparyan_sokrat;
+package ru.mail.polis.service.gasparyansokrat;
 
 import one.nio.http.HttpServerConfig;
 import one.nio.server.AcceptorConfig;

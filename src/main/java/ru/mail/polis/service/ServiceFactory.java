@@ -17,7 +17,7 @@
 package ru.mail.polis.service;
 
 import ru.mail.polis.lsm.DAO;
-import ru.mail.polis.service.gasparyan_sokrat.ServiceImpl;
+import ru.mail.polis.service.gasparyansokrat.ServiceImpl;
 
 import java.io.IOException;
 import java.util.Objects;

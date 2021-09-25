@@ -1,4 +1,4 @@
-package ru.mail.polis.service.gasparyan_sokrat;
+package ru.mail.polis.service.gasparyansokrat;
 
 import com.google.common.cache.CacheBuilder;
 import com.google.common.cache.CacheLoader;
@@ -12,37 +12,37 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
+import java.util.concurrent.ExecutionException;
 
 public class ServiceDAO {
 
     DAO refDao;
     LoadingCache<ByteBuffer, Record> cache; // LRU cache for store request =)
-    static final int LIMIT_CAHCE = 8 * 1024 * 1024; // 8 mb
+    static final int LIMIT_SIZE = 8 * 1024 * 1024; // 8 mb
 
     ServiceDAO(final int cacheCapacity, DAO dao) {
         int cacheSize = cacheCapacity;
         this.refDao = dao;
-        if (cacheSize > LIMIT_CAHCE)
-            cacheSize = LIMIT_CAHCE;
 
-        cache = CacheBuilder.newBuilder().maximumSize(cacheSize).
-                build(new CacheLoader<ByteBuffer, Record>() {
+        if (cacheSize > LIMIT_SIZE) {
+            cacheSize = LIMIT_SIZE;
+        }
+
+        cache = CacheBuilder.newBuilder()
+                .maximumSize(cacheSize)
+                .build(new CacheLoader<ByteBuffer, Record>() {
                     @Override
-                    public Record load(ByteBuffer id) throws IOException { // no checked exception
-                        try {
-                            Iterator<Record> it = refDao.range(id, DAO.nextKey(id));
-                            if (!it.hasNext()) {
-                                return Record.tombstone(id);
-                            }
-                            return it.next();
-                        } catch (Exception e) {
-                            throw new IOException("Bad access", e);
+                    public Record load(ByteBuffer id) { // no checked exception
+                        Iterator<Record> it = refDao.range(id, DAO.nextKey(id));
+                        if (!it.hasNext()) {
+                            return Record.tombstone(id);
                         }
+                        return it.next();
                     }
                 });
     }
 
-    private void updateCache(ByteBuffer id, Record rec){
+    private void updateCache(ByteBuffer id, Record rec) {
         cache.put(id, rec);
     }
 
@@ -50,7 +50,7 @@ public class ServiceDAO {
         Record data = null;
         try {
             data = cache.get(id);
-        } catch (Exception e) {
+        } catch (ExecutionException e) {
             throw new IOException("Bad access cache data", e);
         }
         return data;
@@ -77,19 +77,18 @@ public class ServiceDAO {
                     res = it.next();
                     accept = res.getKey().equals(start);
                 }
-            }
-            else {
+
+            } else {
                 accept = true;
             }
 
             if (accept) {
                 resp = new Response(Response.OK, cvtByteArray2Bytes(res.getValue()));
-            }
-            else {
+            } else {
                 resp = new Response(Response.NOT_FOUND, Response.EMPTY);
             }
 
-        } catch (Exception e) {
+        } catch (IOException e) {
             throw new IOException("Bad value", e);
         }
         return resp;
@@ -131,7 +130,7 @@ public class ServiceDAO {
                     resp = new Response(Response.METHOD_NOT_ALLOWED, "Bad request".getBytes(StandardCharsets.UTF_8));
                     break;
             }
-        } catch (Exception e) {
+        } catch (IOException e) {
             throw new IOException("Error access DAO", e);
         }
         return resp;
