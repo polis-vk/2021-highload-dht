@@ -47,11 +47,11 @@ public class ServiceImpl extends HttpServer implements Service {
     }
 
     /**
-     *  Removed, upserted or returned entity depends on request method
+     *  Removed, upserted or returned entity depends on request method.
      *
-     * @param request
+     * @param request - http request
      * @param id entity id
-     * @return
+     * @return http response (2xx if ok, 4xx if error)
      */
     @Path("/v0/entity")
     public Response entity(final Request request,

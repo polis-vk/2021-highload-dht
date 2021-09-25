@@ -44,11 +44,11 @@ public class SSTable implements Closeable {
     private final MappedByteBuffer idx;
 
     /**
-     * Load SSTables from provided dir
+     * Load SSTables from provided dir.
      *
-     * @param dir
+     * @param dir - dir with SSTables
      * @return list of SSTables
-     * @throws IOException
+     * @throws IOException - in case of io exceptions
      */
     public static List<SSTable> loadFromDir(Path dir) throws IOException {
         Path compaction = dir.resolve(COMPACTION_FILE_NAME);
@@ -66,12 +66,12 @@ public class SSTable implements Closeable {
     }
 
     /**
-     * Write records to provided file
+     * Write records to provided file.
      *
-     * @param records
-     * @param file
+     * @param records - records to write
+     * @param file - file to write in
      * @return SSTable of provided file
-     * @throws IOException
+     * @throws IOException - in case of io exceprions
      */
     public static SSTable write(Iterator<Record> records, Path file) throws IOException {
         writeImpl(records, file);
@@ -114,12 +114,12 @@ public class SSTable implements Closeable {
     }
 
     /**
-     * Compacts records into provided dir
+     * Compacts records into provided dir.
      *
-     * @param dir
-     * @param records
+     * @param dir - dir to compact in
+     * @param records - records to compact
      * @return new SSTable of provided dir
-     * @throws IOException
+     * @throws IOException - in case of io exceptions
      */
     public static SSTable compact(Path dir, Iterator<Record> records) throws IOException {
         Path compaction = dir.resolve("compaction");
@@ -164,10 +164,10 @@ public class SSTable implements Closeable {
     }
 
     /**
-     * Create SSTable from file
+     * Create SSTable from file.
      *
-     * @param file
-     * @throws IOException
+     * @param file - file to create SSTable
+     * @throws IOException - in case of io exception
      */
     public SSTable(Path file) throws IOException {
         Path indexFile = getIndexFile(file);
@@ -177,9 +177,9 @@ public class SSTable implements Closeable {
     }
 
     /**
-     * Count size of record
+     * Count size of record.
      *
-     * @param record
+     * @param record - record to know the size of
      * @return size of record in bytes
      */
     public static int sizeOf(Record record) {
@@ -189,9 +189,9 @@ public class SSTable implements Closeable {
     }
 
     /**
-     * Provide iterator of records
-     * @param fromKey
-     * @param toKey
+     * Provide iterator of records.
+     * @param fromKey - first key
+     * @param toKey - last kef
      * @return iterator of records
      */
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {

@@ -33,10 +33,10 @@ public class LsmDAO implements DAO {
     private int memoryConsumption;
 
     /**
-     *  Create LsmDAO from config
+     *  Create LsmDAO from config.
      *
-     * @param config
-     * @throws IOException
+     * @param config - LamDAo config
+     * @throws IOException - in case of io exception
      */
     public LsmDAO(DAOConfig config) throws IOException {
         this.config = config;
