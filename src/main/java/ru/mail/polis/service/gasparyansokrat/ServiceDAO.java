@@ -5,6 +5,7 @@ import com.google.common.cache.CacheLoader;
 import com.google.common.cache.LoadingCache;
 import one.nio.http.Request;
 import one.nio.http.Response;
+import org.jetbrains.annotations.NotNull;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.Record;
 
@@ -111,7 +112,14 @@ public class ServiceDAO {
         return new Response(Response.ACCEPTED, Response.EMPTY);
     }
 
-    public Response handleRequest(Request req, final String id) throws IOException {
+    /**
+     *
+     * @param req
+     * @param id
+     * @return
+     * @throws IOException
+     */
+    public Response handleRequest(@NotNull Request req, final String id) throws IOException {
 
         Response resp = null;
         try {

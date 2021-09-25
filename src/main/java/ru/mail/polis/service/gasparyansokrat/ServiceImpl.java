@@ -30,6 +30,13 @@ public class ServiceImpl extends HttpServer implements Service {
         session.sendResponse(new Response(Response.BAD_REQUEST, Response.EMPTY));
     }
 
+    /**
+     *
+     * @param req
+     * @param id
+     * @return
+     * @throws IOException
+     */
     @Path("/v0/entity")
     public Response handleEntity(Request req,
                                 @Param(value = "id", required = true) String id) throws IOException {
@@ -39,8 +46,7 @@ public class ServiceImpl extends HttpServer implements Service {
 
             if (id.isEmpty()) {
                 resp = new Response(Response.BAD_REQUEST, Response.EMPTY);
-            }
-            else {
+            } else {
                 resp = servDAO.handleRequest(req, id);
             }
 

@@ -30,6 +30,10 @@ public final class PeekingIterator implements Iterator<Record> {
         return now;
     }
 
+    /**
+     *
+     * some doc.
+     */
     public Record peek() {
         if (current != null) {
             return current;
