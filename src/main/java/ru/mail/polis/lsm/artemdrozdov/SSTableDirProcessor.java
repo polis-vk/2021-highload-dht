@@ -13,7 +13,10 @@ import static ru.mail.polis.lsm.artemdrozdov.SSTable.COMPACTION_FILE_NAME;
 import static ru.mail.polis.lsm.artemdrozdov.SSTable.SSTABLE_FILE_PREFIX;
 import static ru.mail.polis.lsm.artemdrozdov.SSTable.getIndexFile;
 
-public abstract class SSTableDirProcessor {
+public final class SSTableDirProcessor {
+    private SSTableDirProcessor() {
+    }
+
     public static List<SSTable> loadFromDir(Path dir) throws IOException {
         Path compaction = dir.resolve(COMPACTION_FILE_NAME);
         if (Files.exists(compaction)) {
