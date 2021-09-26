@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8'>
+<style>
+	body {margin: 0; padding: 10px; background-color: #ffffff}
+	h1 {margin: 5px 0 0 0; font-size: 18px; font-weight: normal; text-align: center}
+	header {margin: -24px 0 5px 0; line-height: 24px}
+	button {font: 12px sans-serif; cursor: pointer}
+	p {margin: 5px 0 5px 0}
+	a {color: #0366d6}
+	#hl {position: absolute; display: none; overflow: hidden; white-space: nowrap; pointer-events: none; background-color: #ffffe0; outline: 1px solid #ffc000; height: 15px}
+	#hl span {padding: 0 3px 0 3px}
+	#status {overflow: hidden; white-space: nowrap}
+	#match {overflow: hidden; white-space: nowrap; display: none; float: right; text-align: right}
+	#reset {cursor: pointer}
+</style>
+</head>
+<body style='font: 12px Verdana, sans-serif'>
+<h1>Flame Graph</h1>
+<header style='text-align: left'><button id='reverse' title='Reverse'>&#x1f53b;</button>&nbsp;&nbsp;<button id='search' title='Search'>&#x1f50d;</button></header>
+<header style='text-align: right'>Produced by <a href='https://github.com/jvm-profiling-tools/async-profiler'>async-profiler</a></header>
+<canvas id='canvas' style='width: 100%; height: 608px'></canvas>
+<div id='hl'><span></span></div>
+<p id='match'>Matched: <span id='matchval'></span> <span id='reset' title='Clear'>&#x274c;</span></p>
+<p id='status'>&nbsp;</p>
+<script>
+	// Copyright 2020 Andrei Pangin
+	// Licensed under the Apache License, Version 2.0.
+	'use strict';
+	var root, rootLevel, px, pattern;
+	var reverse = false;
+	const levels = Array(38);
+	for (let h = 0; h < levels.length; h++) {
+		levels[h] = [];
+	}
+
+	const canvas = document.getElementById('canvas');
+	const c = canvas.getContext('2d');
+	const hl = document.getElementById('hl');
+	const status = document.getElementById('status');
+
+	const canvasWidth = canvas.offsetWidth;
+	const canvasHeight = canvas.offsetHeight;
+	canvas.style.width = canvasWidth + 'px';
+	canvas.width = canvasWidth * (devicePixelRatio || 1);
+	canvas.height = canvasHeight * (devicePixelRatio || 1);
+	if (devicePixelRatio) c.scale(devicePixelRatio, devicePixelRatio);
+	c.font = document.body.style.font;
+
+	const palette = [
+		[0x50e150, 30, 30, 30],
+		[0x50bebe, 30, 30, 30],
+		[0xe17d00, 30, 30,  0],
+		[0xc8c83c, 30, 30, 10],
+		[0xe15a5a, 30, 40, 40],
+	];
+
+	function getColor(p) {
+		const v = Math.random();
+		return '#' + (p[0] + ((p[1] * v) << 16 | (p[2] * v) << 8 | (p[3] * v))).toString(16);
+	}
+
+	function f(level, left, width, type, title) {
+		levels[level].push({left: left, width: width, color: getColor(palette[type]), title: title});
+	}
+
+	function samples(n) {
+		return n === 1 ? '1 sample' : n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',') + ' samples';
+	}
+
+	function pct(a, b) {
+		return a >= b ? '100' : (100 * a / b).toFixed(2);
+	}
+
+	function findFrame(frames, x) {
+		let left = 0;
+		let right = frames.length - 1;
+
+		while (left <= right) {
+			const mid = (left + right) >>> 1;
+			const f = frames[mid];
+
+			if (f.left > x) {
+				right = mid - 1;
+			} else if (f.left + f.width <= x) {
+				left = mid + 1;
+			} else {
+				return f;
+			}
+		}
+
+		if (frames[left] && (frames[left].left - x) * px < 0.5) return frames[left];
+		if (frames[right] && (x - (frames[right].left + frames[right].width)) * px < 0.5) return frames[right];
+
+		return null;
+	}
+
+	function search(r) {
+		if (r && (r = prompt('Enter regexp to search:', '')) === null) {
+			return;
+		}
+
+		pattern = r ? RegExp(r) : undefined;
+		const matched = render(root, rootLevel);
+		document.getElementById('matchval').textContent = pct(matched, root.width) + '%';
+		document.getElementById('match').style.display = r ? 'inherit' : 'none';
+	}
+
+	function render(newRoot, newLevel) {
+		if (root) {
+			c.fillStyle = '#ffffff';
+			c.fillRect(0, 0, canvasWidth, canvasHeight);
+		}
+
+		root = newRoot || levels[0][0];
+		rootLevel = newLevel || 0;
+		px = canvasWidth / root.width;
+
+		const x0 = root.left;
+		const x1 = x0 + root.width;
+		const marked = [];
+
+		function mark(f) {
+			return marked[f.left] >= f.width || (marked[f.left] = f.width);
+		}
+
+		function totalMarked() {
+			let total = 0;
+			let left = 0;
+			for (let x in marked) {
+				if (+x >= left) {
+					total += marked[x];
+					left = +x + marked[x];
+				}
+			}
+			return total;
+		}
+
+		function drawFrame(f, y, alpha) {
+			if (f.left < x1 && f.left + f.width > x0) {
+				c.fillStyle = pattern && f.title.match(pattern) && mark(f) ? '#ee00ee' : f.color;
+				c.fillRect((f.left - x0) * px, y, f.width * px, 15);
+
+				if (f.width * px >= 21) {
+					const chars = Math.floor(f.width * px / 7);
+					const title = f.title.length <= chars ? f.title : f.title.substring(0, chars - 2) + '..';
+					c.fillStyle = '#000000';
+					c.fillText(title, Math.max(f.left - x0, 0) * px + 3, y + 12, f.width * px - 6);
+				}
+
+				if (alpha) {
+					c.fillStyle = 'rgba(255, 255, 255, 0.5)';
+					c.fillRect((f.left - x0) * px, y, f.width * px, 15);
+				}
+			}
+		}
+
+		for (let h = 0; h < levels.length; h++) {
+			const y = reverse ? h * 16 : canvasHeight - (h + 1) * 16;
+			const frames = levels[h];
+			for (let i = 0; i < frames.length; i++) {
+				drawFrame(frames[i], y, h < rootLevel);
+			}
+		}
+
+		return totalMarked();
+	}
+
+	canvas.onmousemove = function() {
+		const h = Math.floor((reverse ? event.offsetY : (canvasHeight - event.offsetY)) / 16);
+		if (h >= 0 && h < levels.length) {
+			const f = findFrame(levels[h], event.offsetX / px + root.left);
+			if (f) {
+				hl.style.left = (Math.max(f.left - root.left, 0) * px + canvas.offsetLeft) + 'px';
+				hl.style.width = (Math.min(f.width, root.width) * px) + 'px';
+				hl.style.top = ((reverse ? h * 16 : canvasHeight - (h + 1) * 16) + canvas.offsetTop) + 'px';
+				hl.firstChild.textContent = f.title;
+				hl.style.display = 'block';
+				canvas.title = f.title + '\n(' + samples(f.width) + ', ' + pct(f.width, levels[0][0].width) + '%)';
+				canvas.style.cursor = 'pointer';
+				canvas.onclick = function() {
+					if (f != root) {
+						render(f, h);
+						canvas.onmousemove();
+					}
+				};
+				status.textContent = 'Function: ' + canvas.title;
+				return;
+			}
+		}
+		canvas.onmouseout();
+	}
+
+	canvas.onmouseout = function() {
+		hl.style.display = 'none';
+		status.textContent = '\xa0';
+		canvas.title = '';
+		canvas.style.cursor = '';
+		canvas.onclick = '';
+	}
+
+	document.getElementById('reverse').onclick = function() {
+		reverse = !reverse;
+		render();
+	}
+
+	document.getElementById('search').onclick = function() {
+		search(true);
+	}
+
+	document.getElementById('reset').onclick = function() {
+		search(false);
+	}
+
+	window.onkeydown = function() {
+		if (event.ctrlKey && event.keyCode === 70) {
+			event.preventDefault();
+			search(true);
+		} else if (event.keyCode === 27) {
+			search(false);
+		}
+	}
+f(0,0,411,4,'all')
+f(1,0,91,4,'/usr/lib/jvm/java-11-openjdk/lib/server/libjvm.so')
+f(2,2,89,4,'/usr/lib/jvm/java-11-openjdk/lib/server/libjvm.so')
+f(3,6,82,4,'/usr/lib/jvm/java-11-openjdk/lib/server/libjvm.so')
+f(4,51,36,4,'/usr/lib/jvm/java-11-openjdk/lib/server/libjvm.so')
+f(5,82,5,4,'/usr/lib/jvm/java-11-openjdk/lib/server/libjvm.so')
+f(6,83,4,4,'/usr/lib/jvm/java-11-openjdk/lib/server/libjvm.so')
+f(7,84,3,4,'/usr/lib/jvm/java-11-openjdk/lib/server/libjvm.so')
+f(8,86,1,4,'/usr/lib/jvm/java-11-openjdk/lib/server/libjvm.so')
+f(9,86,1,4,'/usr/lib/jvm/java-11-openjdk/lib/server/libjvm.so')
+f(10,86,1,4,'/usr/lib/jvm/java-11-openjdk/lib/server/libjvm.so')
+f(11,86,1,4,'/usr/lib/jvm/java-11-openjdk/lib/server/libjvm.so')
+f(4,87,1,4,'pthread_cond_wait@@GLIBC_2.3.2')
+f(3,88,3,4,'__tls_get_addr')
+f(1,91,28,4,'[no_Java_frame]')
+f(1,119,1,4,'[not_walkable_Java]')
+f(2,119,1,4,'/usr/lib/jvm/java-11-openjdk/lib/server/libjvm.so')
+f(1,120,2,4,'[unknown]')
+f(2,120,1,4,'__condvar_dec_grefs')
+f(2,121,1,4,'pthread_cond_timedwait@@GLIBC_2.3.2')
+f(1,122,1,4,'__futex_abstimed_wait_common64')
+f(1,123,288,0,'one/nio/server/SelectorThread.run')
+f(2,125,1,4,'/usr/lib/jvm/java-11-openjdk/lib/server/libjvm.so')
+f(3,125,1,4,'__vdso_gettimeofday')
+f(2,126,31,0,'one/nio/net/NativeSelector.select')
+f(3,126,31,0,'one/nio/net/NativeSelector.epollWait')
+f(4,133,6,4,'__clock_gettime_2')
+f(5,137,2,4,'__vdso_clock_gettime')
+f(4,139,9,4,'__libc_disable_asynccancel')
+f(4,148,9,4,'epoll_wait')
+f(2,157,254,0,'one/nio/net/Session.process')
+f(3,160,251,0,'one/nio/http/HttpSession.processRead')
+f(4,160,241,0,'one/nio/http/HttpSession.processHttpBuffer')
+f(5,160,228,0,'one/nio/http/HttpSession.handleParsedRequest')
+f(6,160,228,0,'one/nio/http/HttpServer.handleRequest')
+f(7,160,222,0,'RequestHandler1_getEntity.handleRequest')
+f(8,160,12,0,'one/nio/http/HttpSession.sendResponse')
+f(9,160,10,0,'one/nio/http/HttpSession.writeResponse')
+f(10,160,2,4,'__vdso_gettimeofday')
+f(10,162,3,0,'one/nio/http/Response.toBytes')
+f(10,165,5,0,'one/nio/net/Session.write')
+f(11,165,5,0,'one/nio/net/Session.write')
+f(12,165,5,0,'one/nio/net/Session$ArrayQueueItem.write')
+f(13,166,4,0,'one/nio/net/NativeSocket.write')
+f(14,166,4,4,'Java_one_nio_net_NativeSocket_write')
+f(15,166,2,4,'/usr/lib/jvm/java-11-openjdk/lib/server/libjvm.so')
+f(16,167,1,4,'/usr/lib/jvm/java-11-openjdk/lib/server/libjvm.so')
+f(15,168,2,4,'__memmove_avx_unaligned_erms')
+f(9,170,2,0,'one/nio/server/Server.incRequestsProcessed')
+f(10,170,2,0,'java/util/concurrent/atomic/LongAdder.increment')
+f(11,170,2,0,'java/util/concurrent/atomic/LongAdder.add')
+f(8,172,210,0,'ru/mail/polis/service/eldar_tim/TimService.getEntity')
+f(9,172,1,0,'java/lang/String.isBlank')
+f(10,172,1,0,'java/lang/String.indexOfNonWhitespace')
+f(11,172,1,4,'jbyte_disjoint_arraycopy')
+f(9,173,209,0,'ru/mail/polis/service/eldar_tim/TimService.get')
+f(10,173,1,0,'one/nio/http/Response.<init>')
+f(10,174,2,0,'ru/mail/polis/lsm/DAO.nextKey')
+f(11,174,2,0,'java/nio/HeapByteBuffer.put')
+f(12,174,2,4,'jbyte_disjoint_arraycopy')
+f(10,176,1,0,'ru/mail/polis/lsm/Record.getValue')
+f(11,176,1,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(12,176,1,0,'java/nio/DirectByteBufferR.duplicate')
+f(13,176,1,0,'java/nio/DirectByteBufferR.<init>')
+f(14,176,1,0,'java/nio/DirectByteBuffer.<init>')
+f(15,176,1,0,'java/nio/MappedByteBuffer.<init>')
+f(10,177,22,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO$2.hasNext')
+f(11,177,22,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO$PeekingIterator.peek')
+f(12,177,2,4,'itable stub')
+f(12,179,3,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO$1.hasNext')
+f(13,181,1,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO$PeekingIterator.hasNext')
+f(14,181,1,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO$1.hasNext')
+f(15,181,1,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO$PeekingIterator.hasNext')
+f(16,181,1,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO$1.hasNext')
+f(17,181,1,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO$PeekingIterator.hasNext')
+f(18,181,1,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO$1.hasNext')
+f(19,181,1,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO$PeekingIterator.hasNext')
+f(12,182,17,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO$1.next')
+f(13,182,17,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO$1.next')
+f(14,182,3,0,'ru/mail/polis/lsm/Record.getKey')
+f(15,182,3,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(16,182,3,0,'java/nio/DirectByteBufferR.duplicate')
+f(17,182,3,4,'itable stub')
+f(14,185,14,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO$PeekingIterator.next')
+f(15,185,14,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO$PeekingIterator.peek')
+f(16,185,14,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO$1.next')
+f(17,185,14,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO$1.next')
+f(18,185,1,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO$PeekingIterator.hasNext')
+f(19,185,1,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO$1.hasNext')
+f(20,185,1,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO$PeekingIterator.hasNext')
+f(21,185,1,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO$1.hasNext')
+f(18,186,13,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO$PeekingIterator.peek')
+f(19,186,13,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO$1.next')
+f(20,186,13,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO$1.next')
+f(21,186,1,0,'java/nio/ByteBuffer.compareTo')
+f(22,186,1,0,'java/nio/BufferMismatch.mismatch')
+f(23,186,1,0,'java/nio/DirectByteBufferR.base')
+f(21,187,2,0,'ru/mail/polis/lsm/Record.getKey')
+f(22,187,1,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(23,187,1,0,'java/nio/DirectByteBufferR.duplicate')
+f(24,187,1,0,'java/nio/DirectByteBufferR.<init>')
+f(25,187,1,0,'java/nio/DirectByteBuffer.<init>')
+f(26,187,1,0,'java/nio/MappedByteBuffer.<init>')
+f(27,187,1,0,'java/nio/ByteBuffer.<init>')
+f(22,188,1,0,'java/nio/HeapByteBufferR.asReadOnlyBuffer')
+f(23,188,1,0,'java/nio/HeapByteBufferR.duplicate')
+f(24,188,1,0,'java/nio/HeapByteBufferR.<init>')
+f(25,188,1,0,'java/nio/HeapByteBuffer.<init>')
+f(26,188,1,0,'java/nio/ByteBuffer.<init>')
+f(27,188,1,0,'java/nio/Buffer.<init>')
+f(21,189,1,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO$PeekingIterator.hasNext')
+f(22,189,1,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO$1.hasNext')
+f(23,189,1,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO$PeekingIterator.hasNext')
+f(24,189,1,0,'ru/mail/polis/lsm/artem_drozdov/SSTable$1.hasNext')
+f(21,190,2,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO$PeekingIterator.next')
+f(22,190,2,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO$PeekingIterator.peek')
+f(23,190,2,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO$1.next')
+f(24,190,2,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO$1.next')
+f(25,190,1,0,'ru/mail/polis/lsm/Record.getKey')
+f(26,190,1,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(27,190,1,0,'java/nio/DirectByteBufferR.duplicate')
+f(28,190,1,0,'java/nio/DirectByteBufferR.<init>')
+f(29,190,1,0,'java/nio/DirectByteBuffer.<init>')
+f(30,190,1,0,'java/nio/MappedByteBuffer.<init>')
+f(31,190,1,0,'java/nio/ByteBuffer.<init>')
+f(32,190,1,0,'java/nio/ByteBuffer.<init>')
+f(33,190,1,0,'java/nio/Buffer.<init>')
+f(34,190,1,0,'java/nio/MappedByteBuffer.limit')
+f(35,190,1,0,'java/nio/MappedByteBuffer.limit')
+f(36,190,1,0,'java/nio/ByteBuffer.limit')
+f(37,190,1,0,'java/nio/Buffer.limit')
+f(25,191,1,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO$PeekingIterator.peek')
+f(26,191,1,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO$1.next')
+f(27,191,1,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO$1.next')
+f(28,191,1,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO$PeekingIterator.next')
+f(29,191,1,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO$PeekingIterator.peek')
+f(30,191,1,4,'itable stub')
+f(21,192,7,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO$PeekingIterator.peek')
+f(22,192,7,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO$1.next')
+f(23,192,7,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO$1.next')
+f(24,192,1,0,'ru/mail/polis/lsm/Record.getKey')
+f(25,192,1,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(26,192,1,0,'java/nio/DirectByteBufferR.duplicate')
+f(27,192,1,0,'java/nio/DirectByteBufferR.<init>')
+f(28,192,1,0,'java/nio/DirectByteBuffer.<init>')
+f(29,192,1,0,'java/nio/MappedByteBuffer.<init>')
+f(30,192,1,0,'java/nio/ByteBuffer.<init>')
+f(31,192,1,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO$PeekingIterator.peek')
+f(24,193,1,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO$1.hasNext')
+f(24,194,5,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO$PeekingIterator.next')
+f(25,194,1,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO$1.hasNext')
+f(25,195,1,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO$PeekingIterator.hasNext')
+f(26,195,1,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO$1.hasNext')
+f(27,195,1,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO$PeekingIterator.hasNext')
+f(28,195,1,0,'ru/mail/polis/lsm/artem_drozdov/SSTable$1.hasNext')
+f(25,196,3,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO$PeekingIterator.peek')
+f(26,196,2,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO$1.next')
+f(27,196,2,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO$1.next')
+f(28,196,2,0,'ru/mail/polis/lsm/Record.getKey')
+f(29,196,1,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(30,196,1,0,'java/nio/DirectByteBufferR.duplicate')
+f(31,196,1,0,'java/nio/DirectByteBufferR.<init>')
+f(32,196,1,0,'java/nio/DirectByteBuffer.<init>')
+f(33,196,1,0,'java/nio/MappedByteBuffer.<init>')
+f(34,196,1,0,'java/nio/ByteBuffer.<init>')
+f(35,196,1,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO$PeekingIterator.peek')
+f(29,197,1,0,'ru/mail/polis/lsm/artem_drozdov/SSTable$1.hasNext')
+f(26,198,1,0,'ru/mail/polis/lsm/artem_drozdov/SSTable$1.next')
+f(27,198,1,0,'ru/mail/polis/lsm/artem_drozdov/SSTable$1.next')
+f(28,198,1,0,'ru/mail/polis/lsm/artem_drozdov/SSTable$1.read')
+f(29,198,1,0,'java/nio/MappedByteBuffer.limit')
+f(30,198,1,0,'java/nio/MappedByteBuffer.limit')
+f(31,198,1,0,'java/nio/ByteBuffer.limit')
+f(10,199,183,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO.range')
+f(11,201,13,0,'java/util/concurrent/ConcurrentSkipListMap$Values.iterator')
+f(12,202,12,0,'java/util/concurrent/ConcurrentSkipListMap$SubMap$SubMapValueIterator.<init>')
+f(13,202,12,0,'java/util/concurrent/ConcurrentSkipListMap$SubMap$SubMapIter.<init>')
+f(14,202,12,0,'java/util/concurrent/ConcurrentSkipListMap$SubMap.loNode')
+f(15,202,12,0,'java/util/concurrent/ConcurrentSkipListMap.findNear')
+f(16,202,1,0,'java/util/concurrent/ConcurrentSkipListMap.cpr')
+f(17,202,1,0,'java/nio/ByteBuffer.compareTo')
+f(18,202,1,0,'java/nio/ByteBuffer.compareTo')
+f(16,203,11,0,'java/util/concurrent/ConcurrentSkipListMap.findPredecessor')
+f(17,203,11,0,'java/util/concurrent/ConcurrentSkipListMap.cpr')
+f(18,203,11,0,'java/nio/ByteBuffer.compareTo')
+f(19,203,11,0,'java/nio/ByteBuffer.compareTo')
+f(20,203,1,0,'java/nio/Buffer.limit')
+f(20,204,5,0,'java/nio/BufferMismatch.mismatch')
+f(21,204,4,0,'java/nio/HeapByteBuffer.get')
+f(21,208,1,0,'jdk/internal/util/ArraysSupport.vectorizedMismatch')
+f(20,209,5,0,'java/nio/HeapByteBuffer.get')
+f(11,214,1,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO.filterTombstones')
+f(11,215,5,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO.map')
+f(12,215,5,0,'java/util/concurrent/ConcurrentSkipListMap.subMap')
+f(13,215,5,0,'java/util/concurrent/ConcurrentSkipListMap.subMap')
+f(14,215,5,0,'java/util/concurrent/ConcurrentSkipListMap.subMap')
+f(15,216,4,0,'java/util/concurrent/ConcurrentSkipListMap$SubMap.<init>')
+f(16,217,1,4,'/usr/lib/jvm/java-11-openjdk/lib/server/libjvm.so')
+f(17,217,1,4,'/usr/lib/jvm/java-11-openjdk/lib/server/libjvm.so')
+f(16,218,2,0,'java/util/concurrent/ConcurrentSkipListMap.cpr')
+f(17,218,2,0,'java/nio/ByteBuffer.compareTo')
+f(18,218,2,0,'java/nio/ByteBuffer.compareTo')
+f(19,218,2,0,'java/nio/BufferMismatch.mismatch')
+f(20,218,2,4,'vtable stub')
+f(11,220,162,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO.sstableRanges')
+f(12,221,5,0,'java/util/ArrayList.<init>')
+f(13,223,3,0,'java/util/AbstractList.<init>')
+f(14,223,3,0,'java/util/AbstractCollection.<init>')
+f(15,223,3,0,'java/lang/Object.<init>')
+f(12,226,2,0,'java/util/concurrent/ConcurrentLinkedDeque.iterator')
+f(13,226,2,0,'java/util/concurrent/ConcurrentLinkedDeque$Itr.<init>')
+f(14,226,2,0,'java/util/concurrent/ConcurrentLinkedDeque$AbstractItr.<init>')
+f(15,226,2,0,'java/util/concurrent/ConcurrentLinkedDeque$AbstractItr.advance')
+f(12,228,5,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO.merge')
+f(13,228,1,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO$PeekingIterator.<init>')
+f(13,229,4,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO.merge')
+f(14,230,1,0,'java/util/ArrayList$SubList.subList')
+f(15,230,1,0,'java/util/ArrayList$SubList.<init>')
+f(14,231,2,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO.merge')
+f(15,231,1,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO$PeekingIterator.<init>')
+f(15,232,1,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO.merge')
+f(16,232,1,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO.mergeTwo')
+f(12,233,149,0,'ru/mail/polis/lsm/artem_drozdov/SSTable.range')
+f(13,233,149,0,'ru/mail/polis/lsm/artem_drozdov/SSTable.offset')
+f(14,259,1,0,'java/nio/Buffer.remaining')
+f(14,260,29,0,'java/nio/ByteBuffer.mismatch')
+f(15,264,1,0,'java/nio/Buffer.position')
+f(15,265,24,0,'java/nio/BufferMismatch.mismatch')
+f(16,272,1,0,'java/nio/ByteBuffer.base')
+f(16,273,6,0,'java/nio/DirectByteBuffer.get')
+f(17,273,1,0,'java/nio/Buffer.checkIndex')
+f(17,274,5,0,'jdk/internal/misc/Unsafe.getByte')
+f(16,279,3,0,'java/nio/HeapByteBuffer.get')
+f(17,281,1,0,'java/nio/Buffer.checkIndex')
+f(16,282,7,0,'jdk/internal/util/ArraysSupport.vectorizedMismatch')
+f(14,289,88,0,'java/nio/DirectByteBuffer.getInt')
+f(15,289,1,0,'java/nio/Buffer.nextGetIndex')
+f(15,290,87,0,'java/nio/DirectByteBuffer.getInt')
+f(16,290,87,0,'jdk/internal/misc/Unsafe.getIntUnaligned')
+f(17,292,85,0,'jdk/internal/misc/Unsafe.convEndian')
+f(14,377,1,0,'java/nio/HeapByteBuffer.get')
+f(15,377,1,0,'java/nio/Buffer.checkIndex')
+f(14,378,4,0,'java/nio/MappedByteBuffer.position')
+f(15,378,4,0,'java/nio/MappedByteBuffer.position')
+f(16,378,4,0,'java/nio/ByteBuffer.position')
+f(17,378,4,0,'java/nio/Buffer.position')
+f(7,382,5,0,'one/nio/http/PathMapper.find')
+f(8,382,5,0,'java/util/HashMap.get')
+f(9,382,4,0,'java/util/HashMap.getNode')
+f(10,385,1,4,'vtable stub')
+f(9,386,1,0,'java/util/HashMap.hash')
+f(10,386,1,0,'java/lang/String.hashCode')
+f(7,387,1,0,'one/nio/http/Request.getPath')
+f(8,387,1,0,'java/lang/String.substring')
+f(9,387,1,0,'java/lang/StringLatin1.newString')
+f(10,387,1,0,'java/util/Arrays.copyOfRange')
+f(11,387,1,0,'java/util/LinkedList.pollFirst')
+f(5,388,4,0,'one/nio/http/HttpSession.parseRequest')
+f(6,388,2,0,'one/nio/http/Request.<init>')
+f(7,388,2,0,'java/lang/String.indexOf')
+f(8,388,2,0,'java/lang/String.indexOf')
+f(6,390,2,0,'one/nio/util/Utf8.read')
+f(7,390,2,0,'one/nio/util/Utf8.read')
+f(5,392,4,0,'one/nio/http/HttpSession.startParsingRequestBody')
+f(6,392,4,0,'java/lang/Integer.parseInt')
+f(7,392,4,0,'java/lang/Integer.parseInt')
+f(8,392,3,0,'java/lang/Character.digit')
+f(9,392,3,0,'java/lang/Character.digit')
+f(10,392,3,0,'java/lang/CharacterData.of')
+f(11,392,3,0,'one/nio/http/Request.getHeader')
+f(8,395,1,0,'java/lang/String.charAt')
+f(5,396,1,0,'one/nio/http/Request.addHeader')
+f(5,397,1,0,'one/nio/http/Request.getHeader')
+f(6,397,1,0,'java/lang/String.regionMatches')
+f(7,397,1,0,'java/lang/StringLatin1.regionMatchesCI')
+f(5,398,3,0,'one/nio/util/Utf8.read')
+f(6,399,2,0,'one/nio/util/Utf8.read')
+f(4,401,1,0,'one/nio/net/NativeSocket.read')
+f(4,402,9,0,'one/nio/net/Session.read')
+f(5,405,6,0,'one/nio/net/NativeSocket.read')
+f(6,405,6,4,'Java_one_nio_net_NativeSocket_read')
+f(7,405,6,4,'/usr/lib/jvm/java-11-openjdk/lib/server/libjvm.so')
+f(8,408,3,4,'/usr/lib/jvm/java-11-openjdk/lib/server/libjvm.so')
+render();
+</script></body></html>
