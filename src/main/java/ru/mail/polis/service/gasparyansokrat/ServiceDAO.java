@@ -16,9 +16,9 @@ import java.util.concurrent.ExecutionException;
 
 public class ServiceDAO {
 
-    DAO refDao;
-    LoadingCache<ByteBuffer, Record> cache; // LRU cache for store request =)
-    static final int LIMIT_SIZE = 8 * 1024 * 1024; // 8 mb
+    private DAO refDao;
+    private LoadingCache<ByteBuffer, Record> cache; // LRU cache for store request =)
+    private static final int LIMIT_SIZE = 8 * 1024 * 1024; // 8 mb
 
     ServiceDAO(final int cacheCapacity, DAO dao) {
         int cacheSize = cacheCapacity;

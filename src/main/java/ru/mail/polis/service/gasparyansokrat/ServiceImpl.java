@@ -13,7 +13,7 @@ import java.io.IOException;
 
 public class ServiceImpl extends HttpServer implements Service {
 
-    ServiceDAO servDAO;
+    private ServiceDAO servDAO;
 
     public ServiceImpl(final int port, final DAO dao) throws IOException {
         super(HttpConfigFactory.buildHttpConfig(port, "localhost"));
