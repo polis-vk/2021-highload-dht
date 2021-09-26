@@ -1,6 +1,12 @@
 package ru.mail.polis.service.eldar_tim;
 
-import one.nio.http.*;
+import one.nio.http.HttpServer;
+import one.nio.http.HttpServerConfig;
+import one.nio.http.HttpSession;
+import one.nio.http.Param;
+import one.nio.http.Path;
+import one.nio.http.Request;
+import one.nio.http.Response;
 import one.nio.server.AcceptorConfig;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.Record;
@@ -12,6 +18,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 
 /**
+ * Service implementation for Stage 1 within 2021-highload-dht.
+ *
  * @author Eldar Timraleev
  */
 public class TimService extends HttpServer implements Service {
@@ -23,7 +31,7 @@ public class TimService extends HttpServer implements Service {
     }
 
     private static HttpServerConfig buildHttpServerConfig(final int port) {
-        HttpServerConfig httpServerConfig = new HttpServerConfig();
+        final HttpServerConfig httpServerConfig = new HttpServerConfig();
         AcceptorConfig acceptorConfig = new AcceptorConfig();
         acceptorConfig.port = port;
         acceptorConfig.reusePort = true;
