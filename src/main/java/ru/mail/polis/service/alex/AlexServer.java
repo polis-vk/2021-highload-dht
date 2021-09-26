@@ -61,7 +61,7 @@ public class AlexServer extends HttpServer {
         final Iterator<Record> iteratorRecord = dao.range(key, DAO.nextKey(key));
         if (iteratorRecord.hasNext()) {
             final Record record = iteratorRecord.next();
-            return new Response(Response.OK, record.getValue().array());
+            return new Response(Response.OK, bytesFrom(record.getValue()));
         } else {
             return new Response(Response.NOT_FOUND, "Not found record!".getBytes(StandardCharsets.UTF_8));
         }
@@ -82,5 +82,11 @@ public class AlexServer extends HttpServer {
 
     private static ByteBuffer byteBufferFrom(final String value) {
         return ByteBuffer.wrap(value.getBytes(StandardCharsets.UTF_8));
+    }
+
+    private static byte[] bytesFrom(final ByteBuffer byteBuffer) {
+        final byte[] result = new byte[byteBuffer.remaining()];
+        byteBuffer.get(result);
+        return result;
     }
 }
