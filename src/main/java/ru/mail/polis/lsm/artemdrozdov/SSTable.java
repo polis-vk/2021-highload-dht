@@ -32,8 +32,8 @@ public class SSTable implements Closeable {
 
     static {
         try {
-            Class<?> aClass = Class.forName("sun.nio.ch.FileChannelImpl");
-            CLEAN = aClass.getDeclaredMethod("unmap", MappedByteBuffer.class);
+            Class<?> aclass = Class.forName("sun.nio.ch.FileChannelImpl");
+            CLEAN = aclass.getDeclaredMethod("unmap", MappedByteBuffer.class);
             CLEAN.setAccessible(true);
         } catch (Exception e) {
             throw new IllegalStateException(e);
@@ -46,7 +46,23 @@ public class SSTable implements Closeable {
     public static List<SSTable> loadFromDir(Path dir) throws IOException {
         Path compaction = dir.resolve(COMPACTION_FILE_NAME);
         if (Files.exists(compaction)) {
-            finishCompaction(dir);
+            try (Stream<Path> files = Files.list(dir)) {
+                files.filter(file -> file.getFileName().startsWith(SSTABLE_FILE_PREFIX))
+                        .forEach(path -> {
+                            try {
+                                Files.delete(path);
+                            } catch (IOException e) {
+                                throw new UncheckedIOException(e);
+                            }
+                        });
+            }
+
+            Path file0 = dir.resolve(SSTABLE_FILE_PREFIX + 0);
+            if (Files.exists(getIndexFile(compaction))) {
+                Files.move(getIndexFile(compaction), getIndexFile(file0), StandardCopyOption.ATOMIC_MOVE);
+            }
+
+            Files.move(compaction, file0, StandardCopyOption.ATOMIC_MOVE);
         }
         List<SSTable> result = new ArrayList<>();
         for (int i = 0; ; i++) {
@@ -66,8 +82,8 @@ public class SSTable implements Closeable {
 
     private static void writeImpl(Iterator<Record> records, Path file) throws IOException {
         Path indexFile = getIndexFile(file);
-        Path tmpFileName = getTmpFile(file);
-        Path tmpIndexName = getTmpFile(indexFile);
+        Path tmpFileName = resolveWithExt(file, ".tmp");
+        Path tmpIndexName = resolveWithExt(indexFile, ".tmp");
 
         try (
                 FileChannel fileChannel = openForWrite(tmpFileName);
@@ -116,28 +132,6 @@ public class SSTable implements Closeable {
         }
         Files.move(compaction, file0, StandardCopyOption.ATOMIC_MOVE);
         return new SSTable(file0);
-    }
-
-    private static void finishCompaction(Path dir) throws IOException {
-        try (Stream<Path> files = Files.list(dir)) {
-            files.filter(file -> file.getFileName().startsWith(SSTABLE_FILE_PREFIX))
-                    .forEach(path -> {
-                        try {
-                            Files.delete(path);
-                        } catch (IOException e) {
-                            throw new UncheckedIOException(e);
-                        }
-                    });
-        }
-
-        Path compaction = dir.resolve(COMPACTION_FILE_NAME);
-
-        Path file0 = dir.resolve(SSTABLE_FILE_PREFIX + 0);
-        if (Files.exists(getIndexFile(compaction))) {
-            Files.move(getIndexFile(compaction), getIndexFile(file0), StandardCopyOption.ATOMIC_MOVE);
-        }
-
-        Files.move(compaction, file0, StandardCopyOption.ATOMIC_MOVE);
     }
 
     public SSTable(Path file) throws IOException {
@@ -203,9 +197,6 @@ public class SSTable implements Closeable {
         return resolveWithExt(file, ".idx");
     }
 
-    private static Path getTmpFile(Path file) {
-        return resolveWithExt(file, ".tmp");
-    }
 
     private static FileChannel openForWrite(Path tmpFileName) throws IOException {
         return FileChannel.open(
@@ -216,7 +207,11 @@ public class SSTable implements Closeable {
         );
     }
 
-    private static void writeValueWithSize(ByteBuffer value, WritableByteChannel channel, ByteBuffer tmp) throws IOException {
+    private static void writeValueWithSize(
+            ByteBuffer value,
+            WritableByteChannel channel,
+            ByteBuffer tmp
+    ) throws IOException {
         writeInt(value.remaining(), channel, tmp);
         channel.write(tmp);
         channel.write(value);
