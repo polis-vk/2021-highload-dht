@@ -1,4 +1,4 @@
-package ru.mail.polis.lsm.artem_drozdov;
+package ru.mail.polis.lsm.artemdrozdov;
 
 import ru.mail.polis.lsm.Record;
 
@@ -176,13 +176,13 @@ public class SSTable implements Closeable {
         IOException exception = null;
         try {
             free(mmap);
-        } catch (Exception t) {
+        } catch (IOException t) {
             exception = new IOException(t);
         }
 
         try {
             free(idx);
-        } catch (Exception t) {
+        } catch (IOException t) {
             if (exception == null) {
                 exception = new IOException(t);
             } else {

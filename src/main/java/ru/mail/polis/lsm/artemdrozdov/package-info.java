@@ -1,4 +1,4 @@
 @ParametersAreNonnullByDefault
-package ru.mail.polis.lsm.artem_drozdov;
+package ru.mail.polis.lsm.artemdrozdov;
 
 import javax.annotation.ParametersAreNonnullByDefault;
