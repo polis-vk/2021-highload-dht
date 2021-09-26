@@ -22,10 +22,10 @@ final class DaoWrapper {
     }
 
     public Response getEntity(String id) {
-        final ByteBuffer id_buffer = ByteBuffer.wrap(id.getBytes(StandardCharsets.UTF_8));
+        final ByteBuffer idBuffer = ByteBuffer.wrap(id.getBytes(StandardCharsets.UTF_8));
         final Iterator<Record> range = this.dao.range(
-                id_buffer,
-                DAO.nextKey(id_buffer)
+                idBuffer,
+                DAO.nextKey(idBuffer)
         );
         if (range.hasNext()) {
             final Record resRecord = range.next();
