@@ -11,7 +11,7 @@ import java.io.IOException;
 
 public class AlexService implements Service {
 
-    private static final Logger logger = LoggerFactory.getLogger(AlexService.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(AlexService.class);
     private final HttpServerConfig httpServerConfig;
     private final DAO dao;
     private HttpServer alexServer;
@@ -36,7 +36,7 @@ public class AlexService implements Service {
             alexServer = new AlexServer(httpServerConfig, dao);
             alexServer.start();
         } catch (IOException e) {
-            logger.error("Server can not start!");
+            LOGGER.error("Server can not start!");
         }
     }
 
