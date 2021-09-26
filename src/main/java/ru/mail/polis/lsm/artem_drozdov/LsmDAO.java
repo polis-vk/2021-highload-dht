@@ -70,7 +70,7 @@ public class LsmDAO implements DAO {
     @Override
     public void closeAndCompact() {
         synchronized (this) {
-            SSTable table = null;
+            SSTable table;
             try {
                 table = SSTable.compact(config.dir, range(null, null));
             } catch (IOException e) {
