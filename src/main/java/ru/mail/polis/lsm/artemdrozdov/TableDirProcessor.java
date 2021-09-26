@@ -13,8 +13,8 @@ import static ru.mail.polis.lsm.artemdrozdov.SSTable.COMPACTION_FILE_NAME;
 import static ru.mail.polis.lsm.artemdrozdov.SSTable.SSTABLE_FILE_PREFIX;
 import static ru.mail.polis.lsm.artemdrozdov.SSTable.getIndexFile;
 
-public final class SsTableDirProcessor {
-    private SsTableDirProcessor() {
+public final class TableDirProcessor {
+    private TableDirProcessor() {
     }
 
     public static List<SSTable> loadFromDir(Path dir) throws IOException {
