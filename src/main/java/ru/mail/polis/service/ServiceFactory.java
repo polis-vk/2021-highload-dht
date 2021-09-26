@@ -17,7 +17,7 @@
 package ru.mail.polis.service;
 
 import ru.mail.polis.lsm.DAO;
-import ru.mail.polis.service.alex_nifontov.StartService;
+import ru.mail.polis.service.alexnifontov.StartService;
 
 import java.io.IOException;
 import java.util.Objects;

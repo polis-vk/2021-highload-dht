@@ -1,4 +1,4 @@
-package ru.mail.polis.lsm.alex_nifontov;
+package ru.mail.polis.lsm.alexnifontov;
 
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.DAOConfig;
@@ -8,8 +8,6 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.lang.ref.Cleaner;
-import java.lang.ref.PhantomReference;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -143,7 +141,9 @@ public class LsmDAO implements DAO {
         return mergeTwo(new PeekingIterator(left), new PeekingIterator(right));
     }
 
-    private static Iterator<Record> mergeTwo(PeekingIterator left, PeekingIterator right) {
+    private static Iterator<Record> mergeTwo(
+            PeekingIterator left,
+            PeekingIterator right) {
         return new Iterator<>() {
 
             @Override

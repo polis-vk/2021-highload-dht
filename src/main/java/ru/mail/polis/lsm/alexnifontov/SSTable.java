@@ -1,4 +1,4 @@
-package ru.mail.polis.lsm.alex_nifontov;
+package ru.mail.polis.lsm.alexnifontov;
 
 import ru.mail.polis.lsm.Record;
 

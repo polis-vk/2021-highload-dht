@@ -1,4 +1,4 @@
-package ru.mail.polis.service.alex_nifontov;
+package ru.mail.polis.service.alexnifontov;
 
 import one.nio.http.HttpServer;
 import one.nio.http.HttpServerConfig;
