@@ -5,6 +5,7 @@ import one.nio.server.AcceptorConfig;
 
 final class MyConfig extends HttpServerConfig {
     MyConfig(int port) {
+        super();
         AcceptorConfig acceptorConfig = new AcceptorConfig();
         acceptorConfig.port = port;
         acceptorConfig.reusePort = true;
