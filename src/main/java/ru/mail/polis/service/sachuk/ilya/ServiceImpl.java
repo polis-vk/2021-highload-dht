@@ -47,7 +47,7 @@ public class ServiceImpl extends HttpServer implements Service {
     ) {
 
         if (id.isBlank()) {
-            return new Response(Response.BAD_REQUEST, "Empty id".getBytes(StandardCharsets.UTF_8));
+            return new Response(Response.BAD_REQUEST, Response.EMPTY);
         }
 
         switch (request.getMethod()) {
@@ -58,7 +58,7 @@ public class ServiceImpl extends HttpServer implements Service {
             case Request.METHOD_DELETE:
                 return delete(id);
             default:
-                return new Response(Response.METHOD_NOT_ALLOWED, "Method not allowed".getBytes(StandardCharsets.UTF_8));
+                return new Response(Response.METHOD_NOT_ALLOWED, Response.EMPTY);
         }
     }
 
@@ -66,7 +66,7 @@ public class ServiceImpl extends HttpServer implements Service {
 
         dao.upsert(Record.tombstone(Utils.stringToBytebuffer(id)));
 
-        return new Response(Response.ACCEPTED, "Deleted".getBytes(StandardCharsets.UTF_8));
+        return new Response(Response.ACCEPTED, Response.EMPTY);
     }
 
     private Response put(String id, Request request) {
@@ -77,7 +77,7 @@ public class ServiceImpl extends HttpServer implements Service {
 
         dao.upsert(Record.of(key, value));
 
-        return new Response(Response.CREATED, "Created".getBytes(StandardCharsets.UTF_8));
+        return new Response(Response.CREATED, Response.EMPTY);
     }
 
     private Response get(String id) {
@@ -91,17 +91,17 @@ public class ServiceImpl extends HttpServer implements Service {
 
             return new Response(Response.OK, Utils.bytebufferToBytes(record.getValue()));
         } else {
-            return new Response(Response.NOT_FOUND, "Not found".getBytes(StandardCharsets.UTF_8));
+            return new Response(Response.NOT_FOUND, Response.EMPTY);
         }
     }
 
     @Path(value = "/v0/status")
     public Response status() {
-        return new Response(Response.OK, "OK".getBytes(StandardCharsets.UTF_8));
+        return new Response(Response.OK, Response.EMPTY);
     }
 
     @Override
     public void handleDefault(Request request, HttpSession session) throws IOException {
-        session.sendResponse(new Response(Response.BAD_REQUEST, "Bad request".getBytes(StandardCharsets.UTF_8)));
+        session.sendResponse(new Response(Response.BAD_REQUEST, Response.EMPTY));
     }
 }
