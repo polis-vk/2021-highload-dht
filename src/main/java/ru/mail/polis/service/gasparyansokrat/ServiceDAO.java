@@ -14,7 +14,7 @@ public class ServiceDAO {
 
     private final DAO refDao;
 
-    ServiceDAO(final int cacheCapacity, DAO dao) {
+    ServiceDAO(DAO dao) {
         this.refDao = dao;
     }
 

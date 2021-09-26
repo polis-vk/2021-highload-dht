@@ -17,7 +17,7 @@ public class ServiceImpl extends HttpServer implements Service {
 
     public ServiceImpl(final int port, final DAO dao) throws IOException {
         super(HttpConfigFactory.buildHttpConfig(port, "localhost"));
-        this.servDAO = new ServiceDAO(8192, dao);
+        this.servDAO = new ServiceDAO(dao);
     }
 
     @Path("/v0/status")
