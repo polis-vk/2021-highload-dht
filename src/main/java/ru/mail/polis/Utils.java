@@ -3,7 +3,7 @@ package ru.mail.polis;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
-public class Utils {
+public final class Utils {
     public static ByteBuffer stringToBytebuffer(String text) {
         return ByteBuffer.wrap(text.getBytes(StandardCharsets.UTF_8));
     }
