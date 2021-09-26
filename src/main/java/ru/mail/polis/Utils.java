@@ -1,4 +1,4 @@
-package ru.mail.polis.service.sachuk.ilya;
+package ru.mail.polis;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;

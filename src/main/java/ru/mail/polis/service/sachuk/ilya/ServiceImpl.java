@@ -8,6 +8,7 @@ import one.nio.http.Path;
 import one.nio.http.Request;
 import one.nio.http.Response;
 import one.nio.server.AcceptorConfig;
+import ru.mail.polis.Utils;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.Record;
 import ru.mail.polis.service.Service;
@@ -44,31 +45,42 @@ public class ServiceImpl extends HttpServer implements Service {
             Request request,
             @Param(value = "id", required = true) String id
     ) {
+
+        if (id.isBlank()) {
+            return new Response(Response.BAD_REQUEST, "Empty id".getBytes(StandardCharsets.UTF_8));
+        }
+
         switch (request.getMethod()) {
             case Request.METHOD_GET:
                 return get(id);
             case Request.METHOD_PUT:
-                return put(request);
+                return put(id, request);
             case Request.METHOD_DELETE:
-                return delete(request);
+                return delete(id);
             default:
                 return new Response(Response.METHOD_NOT_ALLOWED, "Method not allowed".getBytes(StandardCharsets.UTF_8));
         }
     }
 
-    private Response delete(Request request) {
-        throw new UnsupportedOperationException("todo");
+    private Response delete(String id) {
+
+        dao.upsert(Record.tombstone(Utils.stringToBytebuffer(id)));
+
+        return new Response(Response.ACCEPTED, "Deleted".getBytes(StandardCharsets.UTF_8));
     }
 
-    private Response put(Request request) {
-        throw new UnsupportedOperationException("todo");
+    private Response put(String id, Request request) {
+
+        byte[] body = request.getBody();
+        ByteBuffer key = ByteBuffer.wrap(id.getBytes(StandardCharsets.UTF_8));
+        ByteBuffer value = ByteBuffer.wrap(body);
+
+        dao.upsert(Record.of(key, value));
+
+        return new Response(Response.CREATED, "Created".getBytes(StandardCharsets.UTF_8));
     }
 
     private Response get(String id) {
-
-        if (id.isBlank()) {
-            return new Response(Response. BAD_REQUEST, "Empty id".getBytes(StandardCharsets.UTF_8));
-        }
 
         ByteBuffer fromKey = Utils.stringToBytebuffer(id);
 
@@ -90,6 +102,6 @@ public class ServiceImpl extends HttpServer implements Service {
 
     @Override
     public void handleDefault(Request request, HttpSession session) throws IOException {
-        super.handleDefault(request, session);
+        session.sendResponse(new Response(Response.BAD_REQUEST, "Bad request".getBytes(StandardCharsets.UTF_8)));
     }
 }
