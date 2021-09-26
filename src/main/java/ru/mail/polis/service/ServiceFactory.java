@@ -54,6 +54,6 @@ public final class ServiceFactory {
 
         Objects.requireNonNull(dao);
 
-        return new ServiceImpl();
+        return new ServiceImpl(port, dao);
     }
 }

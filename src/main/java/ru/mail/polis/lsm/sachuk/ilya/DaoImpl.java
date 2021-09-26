@@ -44,7 +44,7 @@ public class DaoImpl implements DAO {
      * @throws IOException is thrown when an I/O error occurs.
      */
     public DaoImpl(DAOConfig config) throws IOException {
-        this.dirPath = config.getDir();
+        this.dirPath = config.dir;
 
         ssTables.addAll(SSTable.loadFromDir(dirPath));
         nextSSTableNumber = ssTables.size();
@@ -87,22 +87,27 @@ public class DaoImpl implements DAO {
     }
 
     @Override
-    public void compact() throws IOException {
+    public void closeAndCompact() {
         synchronized (this) {
             Iterator<Record> iterator = range(null, null);
 
-            SSTable compactedTable = SSTable.save(iterator, dirPath, nextSSTableNumber++);
+            try {
+                SSTable compactedTable = SSTable.save(iterator, dirPath, nextSSTableNumber++);
 
-            String indexFile = compactedTable.getIndexPath().getFileName().toString();
-            String saveFile = compactedTable.getSavePath().getFileName().toString();
+                String indexFile = compactedTable.getIndexPath().getFileName().toString();
+                String saveFile = compactedTable.getSavePath().getFileName().toString();
 
-            closeOldTables(indexFile, saveFile);
-            deleteOldTables(indexFile, saveFile);
 
-            ssTables.add(compactedTable);
+                closeOldTables(indexFile, saveFile);
+                deleteOldTables(indexFile, saveFile);
 
-            Files.move(compactedTable.getIndexPath(), dirPath.resolve(SSTable.FIRST_INDEX_FILE), StandardCopyOption.ATOMIC_MOVE);
-            Files.move(compactedTable.getSavePath(), dirPath.resolve(SSTable.FIRST_SAVE_FILE), StandardCopyOption.ATOMIC_MOVE);
+                ssTables.add(compactedTable);
+
+                Files.move(compactedTable.getIndexPath(), dirPath.resolve(SSTable.FIRST_INDEX_FILE), StandardCopyOption.ATOMIC_MOVE);
+                Files.move(compactedTable.getSavePath(), dirPath.resolve(SSTable.FIRST_SAVE_FILE), StandardCopyOption.ATOMIC_MOVE);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
         }
     }
 
