@@ -154,6 +154,9 @@ public class SSTable implements Closeable {
     }
 
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
+        /*
+         * getting records in range [fromKey,toKey)
+         */
         ByteBuffer buffer = mmap.asReadOnlyBuffer();
 
         int maxSize = mmap.remaining();
@@ -173,13 +176,13 @@ public class SSTable implements Closeable {
         IOException exception = null;
         try {
             free(mmap);
-        } catch (Throwable t) {
+        } catch (Exception t) {
             exception = new IOException(t);
         }
 
         try {
             free(idx);
-        } catch (Throwable t) {
+        } catch (Exception t) {
             if (exception == null) {
                 exception = new IOException(t);
             } else {
