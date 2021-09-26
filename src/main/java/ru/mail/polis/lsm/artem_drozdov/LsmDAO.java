@@ -8,18 +8,9 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.lang.ref.Cleaner;
-import java.lang.ref.PhantomReference;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
-import java.util.NavigableMap;
-import java.util.NoSuchElementException;
-import java.util.Objects;
-import java.util.SortedMap;
+import java.util.*;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentSkipListMap;
 
@@ -129,7 +120,7 @@ public class LsmDAO implements DAO {
     }
 
     private static Iterator<Record> merge(List<Iterator<Record>> iterators) {
-        if (iterators.size() == 0) {
+        if (iterators.isEmpty()) {
             return Collections.emptyIterator();
         }
         if (iterators.size() == 1) {
@@ -187,19 +178,11 @@ public class LsmDAO implements DAO {
     private static Iterator<Record> filterTombstones(Iterator<Record> iterator) {
         PeekingIterator delegate = new PeekingIterator(iterator);
         return new Iterator<>() {
+            private Record nextRecord = nextNotTombstone();
+
             @Override
             public boolean hasNext() {
-                for (;;) {
-                    Record peek = delegate.peek();
-                    if (peek == null) {
-                        return false;
-                    }
-                    if (!peek.isTombstone()) {
-                        return true;
-                    }
-
-                    delegate.next();
-                }
+                return nextRecord != null;
             }
 
             @Override
@@ -207,7 +190,20 @@ public class LsmDAO implements DAO {
                 if (!hasNext()) {
                     throw new NoSuchElementException("No elements");
                 }
-                return delegate.next();
+                Record recordToReturn = this.nextRecord;
+                this.nextRecord = nextNotTombstone();
+                return recordToReturn;
+            }
+
+            private Record nextNotTombstone() {
+                Record next = null;
+                while (next == null && delegate.hasNext()) {
+                    next = delegate.next();
+                    if (next.isTombstone()) {
+                        next = null;
+                    }
+                }
+                return next;
             }
         };
     }
