@@ -6,7 +6,6 @@ import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.Record;
 
 import java.io.IOException;
-import java.nio.Buffer;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
@@ -35,6 +34,9 @@ public class BasicService extends HttpServer implements Service {
 
     @Path("/v0/entity")
     public Response entity(final Request request, @Param(value = "id", required = true) final String id) {
+        if (id.isBlank()) {
+            return new Response(Response.BAD_REQUEST, "Bad id".getBytes(StandardCharsets.UTF_8));
+        }
         switch (request.getMethod()) {
             case Request.METHOD_GET:
                 return get(id);
@@ -75,5 +77,11 @@ public class BasicService extends HttpServer implements Service {
         final ByteBuffer key = ByteBuffer.wrap(id.getBytes(StandardCharsets.UTF_8));
         dao.upsert(Record.tombstone(key));
         return new Response(Response.ACCEPTED, Response.EMPTY);
+    }
+
+    @Override
+    public void handleDefault(Request request, HttpSession session) throws IOException {
+        Response response = new Response(Response.BAD_REQUEST, Response.EMPTY);
+        session.sendResponse(response);
     }
 }
