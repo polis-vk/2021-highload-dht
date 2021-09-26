@@ -27,7 +27,6 @@ public class SSTable implements Closeable {
 
     public static final String SSTABLE_FILE_PREFIX = "file_";
     public static final String COMPACTION_FILE_NAME = "compaction";
-
     private static final Method CLEAN;
 
     static {
@@ -56,7 +55,6 @@ public class SSTable implements Closeable {
                             }
                         });
             }
-
             Path file0 = dir.resolve(SSTABLE_FILE_PREFIX + 0);
             if (Files.exists(getIndexFile(compaction))) {
                 Files.move(getIndexFile(compaction), getIndexFile(file0), StandardCopyOption.ATOMIC_MOVE);
@@ -76,7 +74,6 @@ public class SSTable implements Closeable {
 
     public static SSTable write(Iterator<Record> records, Path file) throws IOException {
         writeImpl(records, file);
-
         return new SSTable(file);
     }
 
@@ -84,7 +81,6 @@ public class SSTable implements Closeable {
         Path indexFile = getIndexFile(file);
         Path tmpFileName = resolveWithExt(file, ".tmp");
         Path tmpIndexName = resolveWithExt(indexFile, ".tmp");
-
         try (
                 FileChannel fileChannel = openForWrite(tmpFileName);
                 FileChannel indexChannel = openForWrite(tmpIndexName)
@@ -109,7 +105,6 @@ public class SSTable implements Closeable {
             }
             fileChannel.force(false);
         }
-
         rename(indexFile, tmpIndexName);
         rename(file, tmpFileName);
     }
@@ -117,7 +112,6 @@ public class SSTable implements Closeable {
     public static SSTable compact(Path dir, Iterator<Record> records) throws IOException {
         Path compaction = dir.resolve("compaction");
         writeImpl(records, compaction);
-
         for (int i = 0; ; i++) {
             Path file = dir.resolve(SSTABLE_FILE_PREFIX + i);
             if (!Files.deleteIfExists(file)) {
@@ -125,7 +119,6 @@ public class SSTable implements Closeable {
             }
             Files.deleteIfExists(getIndexFile(file));
         }
-
         Path file0 = dir.resolve(SSTABLE_FILE_PREFIX + 0);
         if (Files.exists(getIndexFile(compaction))) {
             Files.move(getIndexFile(compaction), getIndexFile(file0), StandardCopyOption.ATOMIC_MOVE);
@@ -136,7 +129,6 @@ public class SSTable implements Closeable {
 
     public SSTable(Path file) throws IOException {
         Path indexFile = getIndexFile(file);
-
         mmap = open(file);
         idx = open(indexFile);
     }
@@ -152,12 +144,9 @@ public class SSTable implements Closeable {
          * getting records in range [fromKey,toKey)
          */
         ByteBuffer buffer = mmap.asReadOnlyBuffer();
-
         int maxSize = mmap.remaining();
-
         int fromOffset = fromKey == null ? 0 : offset(buffer, fromKey);
         int toOffset = toKey == null ? maxSize : offset(buffer, toKey);
-
         return range(
                 buffer,
                 fromOffset == -1 ? maxSize : fromOffset,
@@ -183,7 +172,6 @@ public class SSTable implements Closeable {
                 exception.addSuppressed(t);
             }
         }
-
         if (exception != null) {
             throw exception;
         }
@@ -196,7 +184,6 @@ public class SSTable implements Closeable {
     private static Path getIndexFile(Path file) {
         return resolveWithExt(file, ".idx");
     }
-
 
     private static FileChannel openForWrite(Path tmpFileName) throws IOException {
         return FileChannel.open(
@@ -221,7 +208,6 @@ public class SSTable implements Closeable {
         tmp.position(0);
         tmp.putInt(value);
         tmp.position(0);
-
         channel.write(tmp);
     }
 
@@ -250,26 +236,20 @@ public class SSTable implements Closeable {
         int left = 0;
         int rightLimit = idx.remaining() / Integer.BYTES;
         int right = rightLimit;
-
         int keyToFindSize = keyToFind.remaining();
-
         while (left < right) {
             int mid = left + ((right - left) >>> 1);
-
             int offset = idx.getInt(mid * Integer.BYTES);
             buffer.position(offset);
             int existingKeySize = buffer.getInt();
-
             int result;
             int mismatchPos = buffer.mismatch(keyToFind);
             if (mismatchPos == -1) {
                 return offset;
             }
-
             if (existingKeySize == keyToFindSize && mismatchPos == existingKeySize) {
                 return offset;
             }
-
             if (mismatchPos < existingKeySize && mismatchPos < keyToFindSize) {
                 result = Byte.compare(
                         keyToFind.get(keyToFind.position() + mismatchPos),
@@ -280,18 +260,15 @@ public class SSTable implements Closeable {
             } else {
                 result = -1;
             }
-
             if (result > 0) {
                 left = mid + 1;
             } else {
                 right = mid;
             }
         }
-
         if (left >= rightLimit) {
             return -1;
         }
-
         return idx.getInt(left * Integer.BYTES);
     }
 
@@ -318,7 +295,6 @@ public class SSTable implements Closeable {
                     return Record.tombstone(key);
                 }
                 ByteBuffer value = read(valueSize);
-
                 return Record.of(key, value);
             }
 
