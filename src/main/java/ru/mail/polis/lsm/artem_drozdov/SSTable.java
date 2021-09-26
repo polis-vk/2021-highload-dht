@@ -2,6 +2,7 @@ package ru.mail.polis.lsm.artem_drozdov;
 
 import ru.mail.polis.lsm.Record;
 import ru.mail.polis.lsm.artem_drozdov.util.File;
+import ru.mail.polis.lsm.artem_drozdov.util.RecordIterator;
 
 import javax.annotation.Nullable;
 import java.io.Closeable;
@@ -20,7 +21,6 @@ import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.stream.Stream;
 
@@ -71,8 +71,8 @@ public class SSTable implements Closeable {
         Path tmpIndexName = File.getTmpFile(indexFile);
 
         try (
-                FileChannel fileChannel = openForWrite(tmpFileName);
-                FileChannel indexChannel = openForWrite(tmpIndexName)
+                FileChannel fileChannel = File.openForWrite(tmpFileName);
+                FileChannel indexChannel = File.openForWrite(tmpIndexName)
         ) {
             ByteBuffer size = ByteBuffer.allocate(Integer.BYTES);
             while (records.hasNext()) {
@@ -162,7 +162,7 @@ public class SSTable implements Closeable {
         int fromOffset = fromKey == null ? 0 : offset(buffer, fromKey);
         int toOffset = toKey == null ? maxSize : offset(buffer, toKey);
 
-        return range(
+        return RecordIterator.range(
                 buffer,
                 fromOffset == -1 ? maxSize : fromOffset,
                 toOffset == -1 ? maxSize : toOffset
@@ -191,15 +191,6 @@ public class SSTable implements Closeable {
         if (exception != null) {
             throw exception;
         }
-    }
-
-    private static FileChannel openForWrite(Path tmpFileName) throws IOException {
-        return FileChannel.open(
-                tmpFileName,
-                StandardOpenOption.CREATE_NEW,
-                StandardOpenOption.WRITE,
-                StandardOpenOption.TRUNCATE_EXISTING
-        );
     }
 
     private static void writeValueWithSize(ByteBuffer value,
@@ -283,38 +274,4 @@ public class SSTable implements Closeable {
         return idx.getInt(left * Integer.BYTES);
     }
 
-    private static Iterator<Record> range(ByteBuffer buffer, int fromOffset, int toOffset) {
-        buffer.position(fromOffset);
-
-        return new Iterator<>() {
-            @Override
-            public boolean hasNext() {
-                return buffer.position() < toOffset;
-            }
-
-            @Override
-            public Record next() {
-                if (!hasNext()) {
-                    throw new NoSuchElementException("Limit is reached");
-                }
-
-                int keySize = buffer.getInt();
-                ByteBuffer key = read(keySize);
-
-                int valueSize = buffer.getInt();
-                if (valueSize == -1) {
-                    return Record.tombstone(key);
-                }
-                ByteBuffer value = read(valueSize);
-
-                return Record.of(key, value);
-            }
-
-            private ByteBuffer read(int size) {
-                ByteBuffer result = buffer.slice().limit(size);
-                buffer.position(buffer.position() + size);
-                return result;
-            }
-        };
-    }
 }
