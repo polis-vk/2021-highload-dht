@@ -33,7 +33,7 @@ public class LsmDAO implements DAO {
 
     public LsmDAO(DAOConfig config) throws IOException {
         this.config = config;
-        List<SSTable> ssTables = SSTableDirManager.loadFromDir(config.dir);
+        List<SSTable> ssTables = SSTableDirHelper.loadFromDir(config.dir);
         tables.addAll(ssTables);
     }
 
