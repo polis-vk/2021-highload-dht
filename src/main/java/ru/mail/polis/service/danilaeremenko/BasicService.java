@@ -7,7 +7,6 @@ import ru.mail.polis.service.Service;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
-
 public class BasicService extends HttpServer implements Service {
     private final DaoWrapper daoWrapper;
 

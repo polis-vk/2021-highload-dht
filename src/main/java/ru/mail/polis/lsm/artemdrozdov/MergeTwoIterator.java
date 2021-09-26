@@ -1,4 +1,4 @@
-package ru.mail.polis.lsm.artem_drozdov;
+package ru.mail.polis.lsm.artemdrozdov;
 
 import ru.mail.polis.lsm.Record;
 
@@ -8,8 +8,8 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 
 public class MergeTwoIterator implements Iterator<Record> {
-    PeekingIterator left;
-    PeekingIterator right;
+    final PeekingIterator left;
+    final PeekingIterator right;
 
     MergeTwoIterator(PeekingIterator left, PeekingIterator right) {
         this.left = left;
