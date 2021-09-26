@@ -32,6 +32,12 @@ public class TimService extends HttpServer implements Service {
         return httpServerConfig;
     }
 
+    @Override
+    public void handleDefault(Request request, HttpSession session) throws IOException {
+        Response response = new Response(Response.BAD_REQUEST, Response.EMPTY);
+        session.sendResponse(response);
+    }
+
     @Path("/v0/status")
     public Response getStatus() {
         return Response.ok(Response.OK);
@@ -58,13 +64,19 @@ public class TimService extends HttpServer implements Service {
         }
     }
 
+    private static byte[] extractBytes(final ByteBuffer buffer) {
+        final byte[] result = new byte[buffer.remaining()];
+        buffer.get(result);
+        return result;
+    }
+
     private Response get(String id) {
         ByteBuffer key = ByteBuffer.wrap(id.getBytes(StandardCharsets.UTF_8));
         final Iterator<Record> iterator = dao.range(key, DAO.nextKey(key));
         if (iterator.hasNext()) {
-            return new Response(Response.OK, iterator.next().getValue().array());
+            return new Response(Response.OK, extractBytes(iterator.next().getValue()));
         } else {
-            return new Response(Response.NOT_FOUND);
+            return new Response(Response.NOT_FOUND, Response.EMPTY);
         }
     }
 
@@ -72,12 +84,12 @@ public class TimService extends HttpServer implements Service {
         ByteBuffer key = ByteBuffer.wrap(id.getBytes(StandardCharsets.UTF_8));
         ByteBuffer value = ByteBuffer.wrap(body);
         dao.upsert(Record.of(key, value));
-        return new Response(Response.CREATED);
+        return new Response(Response.CREATED, Response.EMPTY);
     }
 
     private Response delete(String id) {
         ByteBuffer key = ByteBuffer.wrap(id.getBytes(StandardCharsets.UTF_8));
         dao.upsert(Record.tombstone(key));
-        return new Response(Response.ACCEPTED);
+        return new Response(Response.ACCEPTED, Response.EMPTY);
     }
 }
