@@ -5,7 +5,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 
-final public class File {
+public final class File {
+    private File() {
+        // Not supposed to be instantiated
+    }
+
     public static void rename(Path file, Path tmpFile) throws IOException {
         Files.deleteIfExists(file);
         Files.move(tmpFile, file, StandardCopyOption.ATOMIC_MOVE);
