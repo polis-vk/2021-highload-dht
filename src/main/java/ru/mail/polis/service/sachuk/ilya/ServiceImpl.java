@@ -8,24 +8,19 @@ import one.nio.http.Path;
 import one.nio.http.Request;
 import one.nio.http.Response;
 import one.nio.server.AcceptorConfig;
-import ru.mail.polis.Utils;
 import ru.mail.polis.lsm.DAO;
-import ru.mail.polis.lsm.Record;
 import ru.mail.polis.service.Service;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
-import java.util.Iterator;
 
 public class ServiceImpl extends HttpServer implements Service {
 
-    private final DAO dao;
+    private final EntityRequestHandler entityRequestHandler;
 
     public ServiceImpl(int port, DAO dao) throws IOException {
         super(configFrom(port));
 
-        this.dao = dao;
+        this.entityRequestHandler = new EntityRequestHandler(dao);
     }
 
     private static HttpServerConfig configFrom(int port) {
@@ -41,7 +36,7 @@ public class ServiceImpl extends HttpServer implements Service {
     }
 
     @Path(value = "/v0/entity")
-    public Response handleRequest(
+    public Response entityRequest(
             Request request,
             @Param(value = "id", required = true) String id
     ) {
@@ -52,46 +47,13 @@ public class ServiceImpl extends HttpServer implements Service {
 
         switch (request.getMethod()) {
             case Request.METHOD_GET:
-                return get(id);
+                return entityRequestHandler.get(id);
             case Request.METHOD_PUT:
-                return put(id, request);
+                return entityRequestHandler.put(id, request);
             case Request.METHOD_DELETE:
-                return delete(id);
+                return entityRequestHandler.delete(id);
             default:
                 return new Response(Response.METHOD_NOT_ALLOWED, Response.EMPTY);
-        }
-    }
-
-    private Response delete(String id) {
-
-        dao.upsert(Record.tombstone(Utils.stringToBytebuffer(id)));
-
-        return new Response(Response.ACCEPTED, Response.EMPTY);
-    }
-
-    private Response put(String id, Request request) {
-
-        byte[] body = request.getBody();
-        ByteBuffer key = ByteBuffer.wrap(id.getBytes(StandardCharsets.UTF_8));
-        ByteBuffer value = ByteBuffer.wrap(body);
-
-        dao.upsert(Record.of(key, value));
-
-        return new Response(Response.CREATED, Response.EMPTY);
-    }
-
-    private Response get(String id) {
-
-        ByteBuffer fromKey = Utils.stringToBytebuffer(id);
-
-        Iterator<Record> range = dao.range(fromKey, DAO.nextKey(fromKey));
-
-        if (range.hasNext()) {
-            Record record = range.next();
-
-            return new Response(Response.OK, Utils.bytebufferToBytes(record.getValue()));
-        } else {
-            return new Response(Response.NOT_FOUND, Response.EMPTY);
         }
     }
 
