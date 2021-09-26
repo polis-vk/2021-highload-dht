@@ -1,5 +1,7 @@
 package ru.mail.polis.lsm;
 
+import ru.mail.polis.lsm.daoimpl.LsmDAO;
+
 import java.io.IOException;
 
 public final class DAOFactory {
@@ -14,7 +16,7 @@ public final class DAOFactory {
     public static DAO create(DAOConfig config) throws IOException {
         assert config.dir.toFile().exists();
 
-        throw new UnsupportedOperationException("Implement me");
+        return new LsmDAO(config);
     }
 
 }

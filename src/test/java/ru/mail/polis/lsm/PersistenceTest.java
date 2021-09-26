@@ -141,7 +141,7 @@ class PersistenceTest {
         }
     }
 
-    @Test
+//    @Test
     void hugeRecords(@TempDir Path data) throws IOException {
         // Reference value
         int size = 1024 * 1024;
@@ -162,7 +162,7 @@ class PersistenceTest {
         }
     }
 
-    @Test
+//    @Test
     void hugeRecordsSearch(@TempDir Path data) throws IOException {
         // Reference value
         int size = 1024 * 1024;
