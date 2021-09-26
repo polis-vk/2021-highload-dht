@@ -13,16 +13,17 @@ java {
 
 repositories {
     jcenter()
+    mavenCentral()
 }
 
 dependencies {
     // Checks
-    errorprone 'com.google.errorprone:error_prone_core:2.4.0'
-    checkstyle 'com.puppycrawl.tools:checkstyle:8.42'
+    errorprone 'com.google.errorprone:error_prone_core:2.9.0'
+    checkstyle 'com.puppycrawl.tools:checkstyle:8.45.1'
 
     // Logging
-    implementation 'org.slf4j:slf4j-api:1.7.26'
-    implementation 'ch.qos.logback:logback-classic:1.2.3'
+    implementation 'org.slf4j:slf4j-api:1.7.32'
+    implementation 'ch.qos.logback:logback-classic:1.2.6'
 
     // Annotations for better code documentation
     implementation 'com.google.code.findbugs:jsr305:3.0.2'
@@ -31,8 +32,8 @@ dependencies {
     implementation 'ru.odnoklassniki:one-nio:1.4.0'
 
     // JUnit Jupiter test framework
-    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.7.0'
-    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.7.0'
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.0'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.0'
 }
 
 application {
