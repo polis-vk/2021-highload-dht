@@ -7,8 +7,8 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 
-public final class File {
-    private File() {
+public final class FileUtils {
+    private FileUtils() {
         // Not supposed to be instantiated
     }
 

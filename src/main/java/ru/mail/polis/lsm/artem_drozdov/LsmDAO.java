@@ -3,7 +3,7 @@ package ru.mail.polis.lsm.artem_drozdov;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.DAOConfig;
 import ru.mail.polis.lsm.Record;
-import ru.mail.polis.lsm.artem_drozdov.util.RecordIterator;
+import ru.mail.polis.lsm.artem_drozdov.util.RecordIterators;
 
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
@@ -41,11 +41,11 @@ public class LsmDAO implements DAO {
         synchronized (this) {
             Iterator<Record> sstableRanges = sstableRanges(fromKey, toKey);
             Iterator<Record> memoryRange = map(fromKey, toKey).values().iterator();
-            Iterator<Record> iterator = new RecordIterator.MergingIterator(
-                    new RecordIterator.PeekingIterator(sstableRanges),
-                    new RecordIterator.PeekingIterator(memoryRange)
+            Iterator<Record> iterator = new RecordIterators.MergingIterator(
+                    new RecordIterators.PeekingIterator(sstableRanges),
+                    new RecordIterators.PeekingIterator(memoryRange)
             );
-            return RecordIterator.filterTombstones(iterator);
+            return RecordIterators.filterTombstones(iterator);
         }
     }
 
@@ -111,7 +111,7 @@ public class LsmDAO implements DAO {
         for (SSTable ssTable : tables) {
             iterators.add(ssTable.range(fromKey, toKey));
         }
-        return RecordIterator.merge(iterators);
+        return RecordIterators.merge(iterators);
     }
 
     private SortedMap<ByteBuffer, Record> map(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {

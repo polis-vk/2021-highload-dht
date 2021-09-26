@@ -9,8 +9,8 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 
-public final class RecordIterator {
-    private RecordIterator() {
+public final class RecordIterators {
+    private RecordIterators() {
         // Not supposed to be instantiated
     }
 
@@ -98,8 +98,8 @@ public final class RecordIterator {
     }
 
     public static class MergingIterator implements Iterator<Record> {
-        PeekingIterator left;
-        PeekingIterator right;
+        private final PeekingIterator left;
+        private final PeekingIterator right;
 
         public MergingIterator(PeekingIterator left, PeekingIterator right) {
             this.left = left;
