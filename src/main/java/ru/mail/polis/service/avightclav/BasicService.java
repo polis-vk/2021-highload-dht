@@ -25,7 +25,7 @@ public class BasicService extends HttpServer implements Service {
         this.dao = dao;
     }
 
-    static HttpServerConfig from(final int port) {
+    protected static HttpServerConfig from(final int port) {
         final HttpServerConfig config = new HttpServerConfig();
         final AcceptorConfig acceptor = new AcceptorConfig();
         acceptor.port = port;
@@ -63,7 +63,7 @@ public class BasicService extends HttpServer implements Service {
         }
     }
 
-    static byte[] extractBytes(final ByteBuffer byteBuffer) {
+    protected static byte[] extractBytes(final ByteBuffer byteBuffer) {
         byte[] buffer = new byte[byteBuffer.remaining()];
         byteBuffer.get(buffer);
         return buffer;
