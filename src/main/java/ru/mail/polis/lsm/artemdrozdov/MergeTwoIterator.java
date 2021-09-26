@@ -8,8 +8,8 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 
 public class MergeTwoIterator implements Iterator<Record> {
-    final private PeekingIterator left;
-    final private PeekingIterator right;
+    private final PeekingIterator left;
+    private final PeekingIterator right;
 
     MergeTwoIterator(PeekingIterator left, PeekingIterator right) {
         this.left = left;
