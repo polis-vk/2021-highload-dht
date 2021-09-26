@@ -1,0 +1,541 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8'>
+<style>
+	body {margin: 0; padding: 10px; background-color: #ffffff}
+	h1 {margin: 5px 0 0 0; font-size: 18px; font-weight: normal; text-align: center}
+	header {margin: -24px 0 5px 0; line-height: 24px}
+	button {font: 12px sans-serif; cursor: pointer}
+	p {margin: 5px 0 5px 0}
+	a {color: #0366d6}
+	#hl {position: absolute; display: none; overflow: hidden; white-space: nowrap; pointer-events: none; background-color: #ffffe0; outline: 1px solid #ffc000; height: 15px}
+	#hl span {padding: 0 3px 0 3px}
+	#status {overflow: hidden; white-space: nowrap}
+	#match {overflow: hidden; white-space: nowrap; display: none; float: right; text-align: right}
+	#reset {cursor: pointer}
+</style>
+</head>
+<body style='font: 12px Verdana, sans-serif'>
+<h1>CPU profile</h1>
+<header style='text-align: left'><button id='reverse' title='Reverse'>&#x1f53b;</button>&nbsp;&nbsp;<button id='search' title='Search'>&#x1f50d;</button></header>
+<header style='text-align: right'>Produced by <a href='https://github.com/jvm-profiling-tools/async-profiler'>async-profiler</a></header>
+<canvas id='canvas' style='width: 100%; height: 720px'></canvas>
+<div id='hl'><span></span></div>
+<p id='match'>Matched: <span id='matchval'></span> <span id='reset' title='Clear'>&#x274c;</span></p>
+<p id='status'>&nbsp;</p>
+<script>
+	// Copyright 2020 Andrei Pangin
+	// Licensed under the Apache License, Version 2.0.
+	'use strict';
+	var root, rootLevel, px, pattern;
+	var reverse = false;
+	const levels = Array(45);
+	for (let h = 0; h < levels.length; h++) {
+		levels[h] = [];
+	}
+
+	const canvas = document.getElementById('canvas');
+	const c = canvas.getContext('2d');
+	const hl = document.getElementById('hl');
+	const status = document.getElementById('status');
+
+	const canvasWidth = canvas.offsetWidth;
+	const canvasHeight = canvas.offsetHeight;
+	canvas.style.width = canvasWidth + 'px';
+	canvas.width = canvasWidth * (devicePixelRatio || 1);
+	canvas.height = canvasHeight * (devicePixelRatio || 1);
+	if (devicePixelRatio) c.scale(devicePixelRatio, devicePixelRatio);
+	c.font = document.body.style.font;
+
+	const palette = [
+		[0x50e150, 30, 30, 30],
+		[0x50bebe, 30, 30, 30],
+		[0xe17d00, 30, 30,  0],
+		[0xc8c83c, 30, 30, 10],
+		[0xe15a5a, 30, 40, 40],
+	];
+
+	function getColor(p) {
+		const v = Math.random();
+		return '#' + (p[0] + ((p[1] * v) << 16 | (p[2] * v) << 8 | (p[3] * v))).toString(16);
+	}
+
+	function f(level, left, width, type, title) {
+		levels[level].push({left: left, width: width, color: getColor(palette[type]), title: title});
+	}
+
+	function samples(n) {
+		return n === 1 ? '1 sample' : n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',') + ' samples';
+	}
+
+	function pct(a, b) {
+		return a >= b ? '100' : (100 * a / b).toFixed(2);
+	}
+
+	function findFrame(frames, x) {
+		let left = 0;
+		let right = frames.length - 1;
+
+		while (left <= right) {
+			const mid = (left + right) >>> 1;
+			const f = frames[mid];
+
+			if (f.left > x) {
+				right = mid - 1;
+			} else if (f.left + f.width <= x) {
+				left = mid + 1;
+			} else {
+				return f;
+			}
+		}
+
+		if (frames[left] && (frames[left].left - x) * px < 0.5) return frames[left];
+		if (frames[right] && (x - (frames[right].left + frames[right].width)) * px < 0.5) return frames[right];
+
+		return null;
+	}
+
+	function search(r) {
+		if (r && (r = prompt('Enter regexp to search:', '')) === null) {
+			return;
+		}
+
+		pattern = r ? RegExp(r) : undefined;
+		const matched = render(root, rootLevel);
+		document.getElementById('matchval').textContent = pct(matched, root.width) + '%';
+		document.getElementById('match').style.display = r ? 'inherit' : 'none';
+	}
+
+	function render(newRoot, newLevel) {
+		if (root) {
+			c.fillStyle = '#ffffff';
+			c.fillRect(0, 0, canvasWidth, canvasHeight);
+		}
+
+		root = newRoot || levels[0][0];
+		rootLevel = newLevel || 0;
+		px = canvasWidth / root.width;
+
+		const x0 = root.left;
+		const x1 = x0 + root.width;
+		const marked = [];
+
+		function mark(f) {
+			return marked[f.left] >= f.width || (marked[f.left] = f.width);
+		}
+
+		function totalMarked() {
+			let total = 0;
+			let left = 0;
+			Object.keys(marked).sort(function(a, b) { return a - b; }).forEach(function(x) {
+				if (+x >= left) {
+					total += marked[x];
+					left = +x + marked[x];
+				}
+			});
+			return total;
+		}
+
+		function drawFrame(f, y, alpha) {
+			if (f.left < x1 && f.left + f.width > x0) {
+				c.fillStyle = pattern && f.title.match(pattern) && mark(f) ? '#ee00ee' : f.color;
+				c.fillRect((f.left - x0) * px, y, f.width * px, 15);
+
+				if (f.width * px >= 21) {
+					const chars = Math.floor(f.width * px / 7);
+					const title = f.title.length <= chars ? f.title : f.title.substring(0, chars - 2) + '..';
+					c.fillStyle = '#000000';
+					c.fillText(title, Math.max(f.left - x0, 0) * px + 3, y + 12, f.width * px - 6);
+				}
+
+				if (alpha) {
+					c.fillStyle = 'rgba(255, 255, 255, 0.5)';
+					c.fillRect((f.left - x0) * px, y, f.width * px, 15);
+				}
+			}
+		}
+
+		for (let h = 0; h < levels.length; h++) {
+			const y = reverse ? h * 16 : canvasHeight - (h + 1) * 16;
+			const frames = levels[h];
+			for (let i = 0; i < frames.length; i++) {
+				drawFrame(frames[i], y, h < rootLevel);
+			}
+		}
+
+		return totalMarked();
+	}
+
+	canvas.onmousemove = function() {
+		const h = Math.floor((reverse ? event.offsetY : (canvasHeight - event.offsetY)) / 16);
+		if (h >= 0 && h < levels.length) {
+			const f = findFrame(levels[h], event.offsetX / px + root.left);
+			if (f) {
+				hl.style.left = (Math.max(f.left - root.left, 0) * px + canvas.offsetLeft) + 'px';
+				hl.style.width = (Math.min(f.width, root.width) * px) + 'px';
+				hl.style.top = ((reverse ? h * 16 : canvasHeight - (h + 1) * 16) + canvas.offsetTop) + 'px';
+				hl.firstChild.textContent = f.title;
+				hl.style.display = 'block';
+				canvas.title = f.title + '\n(' + samples(f.width) + ', ' + pct(f.width, levels[0][0].width) + '%)';
+				canvas.style.cursor = 'pointer';
+				canvas.onclick = function() {
+					if (f != root) {
+						render(f, h);
+						canvas.onmousemove();
+					}
+				};
+				status.textContent = 'Function: ' + canvas.title;
+				return;
+			}
+		}
+		canvas.onmouseout();
+	}
+
+	canvas.onmouseout = function() {
+		hl.style.display = 'none';
+		status.textContent = '\xa0';
+		canvas.title = '';
+		canvas.style.cursor = '';
+		canvas.onclick = '';
+	}
+
+	document.getElementById('reverse').onclick = function() {
+		reverse = !reverse;
+		render();
+	}
+
+	document.getElementById('search').onclick = function() {
+		search(true);
+	}
+
+	document.getElementById('reset').onclick = function() {
+		search(false);
+	}
+
+	window.onkeydown = function() {
+		if (event.ctrlKey && event.keyCode === 70) {
+			event.preventDefault();
+			search(true);
+		} else if (event.keyCode === 27) {
+			search(false);
+		}
+	}
+f(0,0,398,4,'all')
+f(1,0,2,4,'[unknown]')
+f(2,0,1,4,'open64')
+f(3,0,1,2,'entry_SYSCALL_64_after_hwframe')
+f(4,0,1,2,'do_syscall_64')
+f(5,0,1,2,'do_sys_open')
+f(6,0,1,2,'do_sys_openat2')
+f(7,0,1,2,'do_filp_open')
+f(8,0,1,2,'path_openat')
+f(9,0,1,2,'link_path_walk.part.0')
+f(10,0,1,2,'walk_component')
+f(11,0,1,2,'__lookup_slow')
+f(12,0,1,2,'v9fs_vfs_lookup.part.0')
+f(13,0,1,2,'v9fs_inode_from_fid_dotl')
+f(14,0,1,2,'iget5_locked')
+f(15,0,1,2,'alloc_inode')
+f(16,0,1,2,'v9fs_alloc_inode')
+f(17,0,1,2,'kmem_cache_alloc')
+f(2,1,1,4,'pthread_cond_timedwait@@GLIBC_2.3.2')
+f(3,1,1,2,'entry_SYSCALL_64_after_hwframe')
+f(4,1,1,2,'do_syscall_64')
+f(5,1,1,2,'__x64_sys_futex')
+f(6,1,1,2,'do_futex')
+f(7,1,1,2,'futex_wait')
+f(8,1,1,2,'futex_wait_queue_me')
+f(9,1,1,2,'schedule')
+f(10,1,1,2,'__sched_text_start')
+f(11,1,1,2,'finish_task_switch')
+f(1,2,387,0,'one/nio/server/SelectorThread.run')
+f(2,3,12,0,'one/nio/net/NativeSelector$2.next')
+f(3,3,12,0,'one/nio/net/NativeSelector$2.next')
+f(2,15,56,0,'one/nio/net/NativeSelector.select')
+f(3,16,55,0,'one/nio/net/NativeSelector.epollWait')
+f(4,21,6,4,'clock_gettime')
+f(5,26,1,4,'clock_gettime')
+f(4,27,44,4,'epoll_wait')
+f(5,35,36,2,'entry_SYSCALL_64_after_hwframe')
+f(6,35,36,2,'do_syscall_64')
+f(7,35,35,2,'__x64_sys_epoll_wait')
+f(8,35,35,2,'do_epoll_wait')
+f(9,35,2,2,'__fdget')
+f(9,37,1,2,'__fget_light')
+f(9,38,30,2,'ep_poll')
+f(10,39,13,2,'ep_scan_ready_list.constprop.0')
+f(11,39,12,2,'ep_send_events_proc')
+f(12,39,2,2,'__put_user_nocheck_4')
+f(12,41,10,2,'ep_item_poll.isra.0')
+f(13,42,9,2,'sock_poll')
+f(14,45,6,2,'tcp_poll')
+f(15,47,4,2,'tcp_stream_memory_free')
+f(11,51,1,2,'mutex_lock')
+f(10,52,16,2,'schedule_hrtimeout_range_clock')
+f(11,52,16,2,'schedule')
+f(12,53,15,2,'__sched_text_start')
+f(13,56,12,2,'finish_task_switch')
+f(9,68,1,2,'fput')
+f(9,69,1,2,'fput_many')
+f(7,70,1,2,'syscall_enter_from_user_mode')
+f(2,71,318,0,'one/nio/net/Session.process')
+f(3,72,317,0,'one/nio/http/HttpSession.processRead')
+f(4,73,272,0,'one/nio/http/HttpSession.processHttpBuffer')
+f(5,73,256,0,'one/nio/http/HttpSession.handleParsedRequest')
+f(6,73,256,0,'one/nio/http/HttpServer.handleRequest')
+f(7,74,252,0,'RequestHandler1_entity.handleRequest')
+f(8,74,219,0,'one/nio/http/HttpSession.sendResponse')
+f(9,75,214,0,'one/nio/http/HttpSession.writeResponse')
+f(10,75,2,0,'one/nio/http/Response.toBytes')
+f(11,75,1,4,'jbyte_disjoint_arraycopy')
+f(11,76,1,0,'one/nio/util/ByteArrayBuilder.append')
+f(10,77,212,0,'one/nio/net/Session.write')
+f(11,78,211,0,'one/nio/net/Session.write')
+f(12,78,211,0,'one/nio/net/Session$ArrayQueueItem.write')
+f(13,79,210,0,'one/nio/net/NativeSocket.write')
+f(14,80,1,4,'Java_one_nio_net_NativeSocket_write')
+f(14,81,208,4,'send')
+f(15,84,205,2,'entry_SYSCALL_64_after_hwframe')
+f(16,84,205,2,'do_syscall_64')
+f(17,84,205,2,'__x64_sys_sendto')
+f(18,84,205,2,'__sys_sendto')
+f(19,85,1,2,'fput_many')
+f(19,86,1,2,'inet6_sendmsg')
+f(20,86,1,2,'inet_send_prepare')
+f(19,87,202,2,'tcp_sendmsg')
+f(20,87,1,2,'release_sock')
+f(21,87,1,2,'tcp_release_cb')
+f(20,88,201,2,'tcp_sendmsg_locked')
+f(21,91,183,2,'__tcp_push_pending_frames')
+f(22,92,182,2,'tcp_write_xmit')
+f(23,94,177,2,'__tcp_transmit_skb')
+f(24,96,172,2,'__ip_queue_xmit')
+f(25,96,1,2,'__sk_dst_check')
+f(26,96,1,2,'ipv4_dst_check')
+f(25,97,12,2,'ip_local_out')
+f(26,97,12,2,'__ip_local_out')
+f(27,98,11,2,'nf_hook_slow')
+f(28,98,8,2,'ipt_do_table')
+f(28,106,1,2,'iptable_filter_hook')
+f(28,107,2,2,'iptable_mangle_hook')
+f(29,107,2,2,'ipt_do_table')
+f(25,109,159,2,'ip_output')
+f(26,110,1,2,'__ip_finish_output')
+f(26,111,157,2,'ip_finish_output2')
+f(27,111,8,2,'__dev_queue_xmit')
+f(28,113,4,2,'dev_hard_start_xmit')
+f(29,114,3,2,'loopback_xmit')
+f(30,114,1,2,'__x86_retpoline_rax')
+f(30,115,1,2,'netif_rx')
+f(31,115,1,2,'netif_rx_internal')
+f(32,115,1,2,'enqueue_to_backlog')
+f(30,116,1,2,'sk_free')
+f(28,117,2,2,'validate_xmit_skb.isra.0')
+f(29,118,1,2,'skb_csum_hwoffload_help')
+f(27,119,149,2,'__local_bh_enable_ip')
+f(28,119,149,2,'do_softirq.part.0')
+f(29,120,148,2,'do_softirq_own_stack')
+f(30,120,148,2,'asm_call_sysvec_on_stack')
+f(31,120,148,2,'__softirqentry_text_start')
+f(32,122,146,2,'net_rx_action')
+f(33,122,1,2,'__kfree_skb_flush')
+f(33,123,145,2,'process_backlog')
+f(34,124,144,2,'__netif_receive_skb_one_core')
+f(35,124,3,2,'__netif_receive_skb_core')
+f(35,127,141,2,'ip_rcv')
+f(36,127,138,2,'ip_local_deliver')
+f(37,127,138,2,'ip_local_deliver_finish')
+f(38,127,138,2,'ip_protocol_deliver_rcu')
+f(39,127,138,2,'tcp_v4_rcv')
+f(40,127,1,2,'__inet_lookup_established')
+f(40,128,1,2,'sk_filter_trim_cap')
+f(40,129,136,2,'tcp_v4_do_rcv')
+f(41,130,135,2,'tcp_rcv_established')
+f(42,131,1,2,'rcu_read_unlock_strict')
+f(42,132,127,2,'sock_def_readable')
+f(43,133,126,2,'__wake_up_common_lock')
+f(44,133,126,2,'__lock_text_start')
+f(42,259,6,2,'tcp_ack')
+f(43,260,2,2,'__kfree_skb')
+f(44,260,1,2,'__slab_free.isra.0')
+f(44,261,1,2,'kfree')
+f(43,262,1,2,'kmem_cache_free')
+f(44,262,1,2,'__slab_free.isra.0')
+f(43,263,1,2,'rb_first')
+f(43,264,1,2,'tcp_rack_update_reo_wnd')
+f(36,265,3,2,'nf_hook_slow')
+f(37,265,1,2,'iptable_mangle_hook')
+f(37,266,1,2,'iptable_raw_hook')
+f(37,267,1,2,'nf_nat_ipv4_in')
+f(24,268,1,2,'__tcp_v4_send_check')
+f(24,269,1,2,'bictcp_cwnd_event')
+f(24,270,1,2,'tcp_rate_skb_sent')
+f(23,271,1,2,'asm_sysvec_hyperv_stimer0')
+f(24,271,1,2,'sysvec_hyperv_stimer0')
+f(25,271,1,2,'irq_exit_rcu')
+f(26,271,1,2,'do_softirq_own_stack')
+f(27,271,1,2,'asm_call_sysvec_on_stack')
+f(28,271,1,2,'__softirqentry_text_start')
+f(29,271,1,2,'rebalance_domains')
+f(30,271,1,2,'load_balance')
+f(31,271,1,2,'find_busiest_group')
+f(32,271,1,2,'update_sd_lb_stats.constprop.0')
+f(23,272,2,2,'tcp_event_new_data_sent')
+f(24,273,1,2,'sk_reset_timer')
+f(25,273,1,2,'mod_timer')
+f(26,273,1,2,'lock_timer_base')
+f(21,274,1,2,'_copy_from_iter_full')
+f(22,274,1,2,'copyin')
+f(23,274,1,2,'copy_user_enhanced_fast_string')
+f(21,275,3,2,'sk_page_frag_refill')
+f(22,276,2,2,'skb_page_frag_refill')
+f(21,278,7,2,'sk_stream_alloc_skb')
+f(22,278,7,2,'__alloc_skb')
+f(23,280,1,2,'__kmalloc_reserve.isra.0')
+f(24,280,1,2,'__kmalloc_track_caller')
+f(23,281,2,2,'__ksize')
+f(23,283,2,2,'kmem_cache_alloc')
+f(21,285,1,2,'skb_entail')
+f(21,286,1,2,'sock_zerocopy_put')
+f(21,287,2,2,'tcp_send_mss')
+f(22,287,2,2,'tcp_current_mss')
+f(23,288,1,2,'ipv4_mtu')
+f(9,289,4,0,'one/nio/http/Request.getHeader')
+f(10,289,1,0,'java/lang/String.regionMatches')
+f(11,289,1,0,'java/lang/StringLatin1.regionMatchesCI')
+f(12,289,1,0,'java/lang/Character.toLowerCase')
+f(10,290,3,0,'one/nio/http/Request.trim')
+f(8,293,4,0,'one/nio/http/Request.getRequiredParameter')
+f(9,294,3,0,'one/nio/http/Request.getParameter')
+f(10,294,3,0,'java/lang/String.startsWith')
+f(11,296,1,0,'java/lang/String.length')
+f(8,297,29,0,'ru/mail/polis/service/avightclav/BasicService.entity')
+f(9,297,1,0,'java/lang/String.isBlank')
+f(10,297,1,0,'java/lang/String.length')
+f(9,298,28,0,'ru/mail/polis/service/avightclav/BasicService.put')
+f(10,298,2,0,'java/nio/ByteBuffer.wrap')
+f(11,299,1,0,'java/nio/ByteBuffer.wrap')
+f(12,299,1,0,'java/nio/HeapByteBuffer.<init>')
+f(13,299,1,0,'java/nio/ByteBuffer.<init>')
+f(14,299,1,0,'java/nio/Buffer.<init>')
+f(15,299,1,0,'java/nio/ByteBuffer.limit')
+f(16,299,1,0,'java/nio/ByteBuffer.limit')
+f(17,299,1,0,'java/nio/Buffer.limit')
+f(10,300,2,0,'ru/mail/polis/lsm/Record.of')
+f(11,300,2,0,'ru/mail/polis/lsm/Record.<init>')
+f(12,300,2,0,'java/nio/HeapByteBufferR.asReadOnlyBuffer')
+f(13,300,2,0,'java/nio/HeapByteBufferR.duplicate')
+f(14,300,1,0,'java/nio/HeapByteBufferR.<init>')
+f(15,300,1,0,'java/nio/HeapByteBuffer.<init>')
+f(16,300,1,0,'java/nio/ByteBuffer.<init>')
+f(17,300,1,0,'java/nio/Buffer.<init>')
+f(18,300,1,0,'java/nio/ByteBuffer.position')
+f(19,300,1,0,'java/nio/ByteBuffer.position')
+f(20,300,1,0,'java/nio/Buffer.position')
+f(14,301,1,4,'jbyte_disjoint_arraycopy')
+f(10,302,24,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO.upsert')
+f(11,302,24,0,'java/util/concurrent/ConcurrentSkipListMap.put')
+f(12,302,24,0,'java/util/concurrent/ConcurrentSkipListMap.doPut')
+f(13,314,1,0,'java/util/concurrent/ConcurrentSkipListMap$Index.<init>')
+f(13,315,3,0,'java/util/concurrent/ConcurrentSkipListMap.addIndices')
+f(14,316,1,0,'java/util/concurrent/ConcurrentSkipListMap.addIndices')
+f(14,317,1,0,'java/util/concurrent/ConcurrentSkipListMap.cpr')
+f(15,317,1,0,'java/nio/ByteBuffer.compareTo')
+f(16,317,1,0,'java/nio/ByteBuffer.compareTo')
+f(17,317,1,0,'java/nio/BufferMismatch.mismatch')
+f(18,317,1,4,'vectorizedMismatch')
+f(13,318,8,0,'java/util/concurrent/ConcurrentSkipListMap.cpr')
+f(14,318,8,0,'java/nio/ByteBuffer.compareTo')
+f(15,320,6,0,'java/nio/ByteBuffer.compareTo')
+f(16,320,5,0,'java/nio/BufferMismatch.mismatch')
+f(17,320,2,0,'java/nio/HeapByteBuffer.get')
+f(17,322,3,4,'vectorizedMismatch')
+f(16,325,1,0,'java/nio/HeapByteBuffer.get')
+f(7,326,3,0,'one/nio/http/PathMapper.find')
+f(8,326,3,0,'java/util/HashMap.get')
+f(9,326,3,0,'java/util/HashMap.getNode')
+f(10,326,3,0,'java/lang/String.equals')
+f(5,329,8,0,'one/nio/http/HttpSession.parseRequest')
+f(6,331,2,0,'one/nio/http/Request.<init>')
+f(7,331,2,0,'java/lang/String.indexOf')
+f(8,331,2,0,'java/lang/String.indexOf')
+f(9,331,1,0,'java/lang/String.isLatin1')
+f(9,332,1,0,'java/lang/StringLatin1.indexOf')
+f(6,333,1,0,'one/nio/util/Utf8.read')
+f(7,333,1,0,'one/nio/util/Utf8.read')
+f(8,333,1,0,'java/lang/String.<init>')
+f(9,333,1,0,'java/lang/String.rangeCheck')
+f(6,334,3,0,'one/nio/util/Utf8.startsWith')
+f(5,337,5,0,'one/nio/http/HttpSession.startParsingRequestBody')
+f(6,337,4,0,'java/lang/Integer.parseInt')
+f(7,338,3,0,'java/lang/Integer.parseInt')
+f(6,341,1,0,'one/nio/http/Request.setBody')
+f(5,342,2,0,'one/nio/http/Request.getHeader')
+f(6,342,2,0,'one/nio/http/Request.trim')
+f(7,343,1,0,'java/lang/String.substring')
+f(5,344,1,0,'one/nio/util/Utf8.read')
+f(6,344,1,0,'one/nio/util/Utf8.read')
+f(7,344,1,0,'java/lang/String.<init>')
+f(8,344,1,0,'java/lang/String.rangeCheck')
+f(9,344,1,0,'java/lang/String.checkBoundsOffCount')
+f(4,345,44,0,'one/nio/net/Session.read')
+f(5,345,44,0,'one/nio/net/NativeSocket.read')
+f(6,349,7,4,'Java_one_nio_net_NativeSocket_read')
+f(7,349,1,3,'AccessInternal::PostRuntimeDispatch<G1BarrierSet::AccessBarrier<1097844ul, G1BarrierSet>, (AccessInternal::BarrierType)2, 1097844ul>::oop_access_barrier(void*)')
+f(7,350,1,3,'ThreadInVMfromNative::~ThreadInVMfromNative()')
+f(7,351,2,3,'ThreadStateTransition::transition_from_native(JavaThread*, JavaThreadState) [clone .constprop.0]')
+f(7,353,1,4,'jni_SetByteArrayRegion')
+f(8,353,1,3,'ThreadStateTransition::transition_from_native(JavaThread*, JavaThreadState) [clone .constprop.0]')
+f(7,354,2,3,'void AccessInternal::arraycopy_conjoint<signed char>(signed char*, signed char*, unsigned long)')
+f(6,356,31,4,'__recv')
+f(7,361,26,2,'entry_SYSCALL_64_after_hwframe')
+f(8,361,26,2,'do_syscall_64')
+f(9,361,20,2,'__x64_sys_recvfrom')
+f(10,361,20,2,'__sys_recvfrom')
+f(11,361,15,2,'inet6_recvmsg')
+f(12,361,15,2,'tcp_recvmsg')
+f(13,362,2,2,'__kfree_skb')
+f(14,362,2,2,'skb_release_all')
+f(15,362,2,2,'skb_release_head_state')
+f(16,363,1,2,'dst_release')
+f(13,364,1,2,'__local_bh_enable_ip')
+f(13,365,4,2,'lock_sock_nested')
+f(14,367,1,2,'_raw_spin_lock_bh')
+f(14,368,1,2,'queued_spin_lock_slowpath')
+f(13,369,1,2,'release_sock')
+f(14,369,1,2,'tcp_release_cb')
+f(13,370,5,2,'skb_copy_datagram_iter')
+f(14,370,5,2,'__skb_datagram_iter')
+f(15,371,4,2,'simple_copy_to_iter')
+f(16,371,4,2,'__check_object_size')
+f(17,371,3,2,'__virt_addr_valid')
+f(17,374,1,2,'check_stack_object')
+f(13,375,1,2,'tcp_rcv_space_adjust')
+f(11,376,5,2,'sockfd_lookup_light')
+f(12,376,1,2,'__fdget')
+f(12,377,4,2,'__fget_light')
+f(13,379,2,2,'__fget_files')
+f(9,381,6,2,'syscall_enter_from_user_mode')
+f(6,387,2,4,'jni_SetByteArrayRegion')
+f(1,389,9,4,'start_thread')
+f(2,389,9,4,'thread_native_entry(Thread*)')
+f(3,389,9,3,'Thread::call_run()')
+f(4,389,7,3,'GangWorker::loop()')
+f(5,389,7,3,'G1ParTask::work(unsigned int)')
+f(6,389,7,3,'G1ParEvacuateFollowersClosure::do_void()')
+f(7,389,7,3,'G1ParScanThreadState::trim_queue()')
+f(8,395,1,3,'G1ParScanThreadState::copy_to_survivor_space(InCSetState, oopDesc*, markOopDesc*)')
+f(4,396,1,3,'VMThread::run()')
+f(5,396,1,3,'VMThread::loop()')
+f(6,396,1,3,'SafepointSynchronize::begin()')
+f(7,396,1,3,'ThreadSafepointState::examine_state_of_thread()')
+f(8,396,1,3,'SafepointSynchronize::check_for_lazy_critical_native(JavaThread*, JavaThreadState)')
+f(9,396,1,3,'JavaThread::pd_last_frame()')
+f(10,396,1,3,'CodeBlob::is_zombie() const')
+f(4,397,1,3,'WatcherThread::run()')
+f(5,397,1,3,'PeriodicTask::real_time_tick(int)')
+f(6,397,1,3,'StatSamplerTask::task()')
+f(7,397,1,3,'PerfLongVariant::sample()')
+render();
+</script></body></html>
