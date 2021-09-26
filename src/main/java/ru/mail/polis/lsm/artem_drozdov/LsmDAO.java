@@ -41,7 +41,10 @@ public class LsmDAO implements DAO {
         synchronized (this) {
             Iterator<Record> sstableRanges = sstableRanges(fromKey, toKey);
             Iterator<Record> memoryRange = map(fromKey, toKey).values().iterator();
-            Iterator<Record> iterator = RecordIterator.mergeTwo(new RecordIterator.PeekingIterator(sstableRanges), new RecordIterator.PeekingIterator(memoryRange));
+            Iterator<Record> iterator = RecordIterator.mergeTwo(
+                    new RecordIterator.PeekingIterator(sstableRanges),
+                    new RecordIterator.PeekingIterator(memoryRange)
+            );
             return RecordIterator.filterTombstones(iterator);
         }
     }

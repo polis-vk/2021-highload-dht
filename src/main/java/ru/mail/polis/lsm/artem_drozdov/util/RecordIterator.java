@@ -9,7 +9,11 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Objects;
 
-public class RecordIterator {
+public final class RecordIterator {
+
+    private RecordIterator() {
+        // Not supposed to be instantiated
+    }
 
     public static Iterator<Record> merge(List<Iterator<Record>> iterators) {
         if (iterators.isEmpty()) {
