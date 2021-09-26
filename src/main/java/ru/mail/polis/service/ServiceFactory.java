@@ -53,6 +53,6 @@ public final class ServiceFactory {
 
         Objects.requireNonNull(dao);
 
-        throw new UnsupportedOperationException("Implement me!");
+        return new BasicService(port, dao);
     }
 }
