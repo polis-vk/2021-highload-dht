@@ -147,7 +147,7 @@ public class SSTable implements Closeable {
         return file.resolveSibling(file.getFileName() + ext);
     }
 
-    static Path getIndexFile(Path file) {
+    public static Path getIndexFile(Path file) {
         return resolveWithExt(file, ".idx");
     }
 

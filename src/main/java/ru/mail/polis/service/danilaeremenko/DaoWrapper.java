@@ -15,13 +15,13 @@ final class DaoWrapper {
         this.dao = dao;
     }
 
-    byte[] brFromBuffer(ByteBuffer buff) {
+    private byte[] brFromBuffer(ByteBuffer buff) {
         byte[] bytes = new byte[buff.remaining()];
         buff.get(bytes);
         return bytes;
     }
 
-    Response getEntity(String id) {
+    public Response getEntity(String id) {
         final ByteBuffer id_buffer = ByteBuffer.wrap(id.getBytes(StandardCharsets.UTF_8));
         final Iterator<Record> range = this.dao.range(
                 id_buffer,
@@ -39,7 +39,7 @@ final class DaoWrapper {
 
     }
 
-    Response putEntity(String id, final byte[] body) {
+    public Response putEntity(String id, final byte[] body) {
         Record newRecord = Record.of(
                 ByteBuffer.wrap(id.getBytes(StandardCharsets.UTF_8)),
                 ByteBuffer.wrap(body)
@@ -48,7 +48,7 @@ final class DaoWrapper {
         return new Response(Response.CREATED, "Created".getBytes(StandardCharsets.UTF_8));
     }
 
-    Response deleteEntity(String id) {
+    public Response deleteEntity(String id) {
         dao.upsert(
                 Record.tombstone(ByteBuffer.wrap(id.getBytes(StandardCharsets.UTF_8)))
         );
