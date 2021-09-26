@@ -35,6 +35,12 @@ public final class HttpBasicService extends HttpServer implements Service
         return Response.ok("I'm ok");
     }
 
+    /**
+     *
+     * @param request Request
+     * @param id id of entity
+     * @return Response
+     */
     @Path("/v0/entity")
     public Response entity(final Request request,
                            @Param(value = "id", required = true) final String id) {
