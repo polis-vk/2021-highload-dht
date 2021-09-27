@@ -70,14 +70,16 @@ public final class RecordIterators {
             @Override
             public boolean hasNext() {
                 for (;;) {
-                    if (delegate.hasNext()) {
-                        Record peek = delegate.peek();
-                        if (!peek.isTombstone()) {
-                            return true;
-                        }
-                        delegate.next();
-                    } else {
+                    Record peek = delegate.peek();
+                    if (peek == null) {
                         return false;
+                    }
+                    if (!peek.isTombstone()) {
+                        return true;
+                    }
+
+                    if (delegate.hasNext()) {
+                        delegate.next();
                     }
                 }
             }
