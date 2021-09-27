@@ -56,7 +56,7 @@ public class SSTable implements Closeable {
         this.idxPath = dir;
     }
 
-    static List<SSTable> loadFromDir(Path dir) throws IOException {
+    public static List<SSTable> loadFromDir(Path dir) throws IOException {
         try (Stream<Path> files = Files.list(dir)) {
             return files
                     .filter(path -> path.getFileName().toString().startsWith("file_"))
@@ -164,7 +164,7 @@ public class SSTable implements Closeable {
         }
     }
 
-    Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey, boolean isDirectOrder) {
+    public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey, boolean isDirectOrder) {
         synchronized (this) {
             return new DiskIterator(fromKey,
                     toKey,

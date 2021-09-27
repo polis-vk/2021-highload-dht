@@ -24,8 +24,8 @@ public class DiskIterator implements Iterator<Record> {
         this.buffer = buffer;
         this.idx = index;
         this.isDirectOrder = isDirectOrder;
-        toStartPosition();
-        getCurrent();
+        moveToStart();
+        loadCurrent();
     }
 
     @Override
@@ -35,21 +35,23 @@ public class DiskIterator implements Iterator<Record> {
 
     @Override
     public Record next() {
-        if (!hasNext()) throw new NoSuchElementException();
+        if (!hasNext()) {
+            throw new NoSuchElementException();
+        }
         Record result = current;
-        getCurrent();
+        loadCurrent();
         return result;
     }
 
-    private void getCurrent() {
+    private void loadCurrent() {
         if (isDirectOrder) {
-            getNextRecord();
+            loadNextRecord();
         } else {
-            getPreviousRecord();
+            loadPreviousRecord();
         }
     }
 
-    private void getPreviousRecord() {
+    private void loadPreviousRecord() {
         if (bufferIsOver) {
             current = null;
             return;
@@ -76,7 +78,7 @@ public class DiskIterator implements Iterator<Record> {
         }
     }
 
-    private void getNextRecord() {
+    private void loadNextRecord() {
         if (!buffer.hasRemaining() || (current != null && toKey != null && current.getKey().compareTo(toKey) >= 0)) {
             current = null;
             return;
@@ -100,15 +102,15 @@ public class DiskIterator implements Iterator<Record> {
         }
     }
 
-    private void toStartPosition() {
+    private void moveToStart() {
         if (isDirectOrder) {
-            toFirstRecord();
+            moveToFirst();
         } else {
-            toLastRecord();
+            moveToLast();
         }
     }
 
-    private void toFirstRecord() {
+    private void moveToFirst() {
         if (fromKey == null) {
             buffer.position(0);
             return;
@@ -119,7 +121,7 @@ public class DiskIterator implements Iterator<Record> {
         buffer.position(fromOffset == -1 ? maxSize : fromOffset);
     }
 
-    private void toLastRecord() {
+    private void moveToLast() {
         if (toKey == null) {
             idx.position(idx.remaining());
             int pos = getPreviousRecordPosition();

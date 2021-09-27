@@ -2,7 +2,6 @@ package ru.mail.polis.lsm;
 
 import javax.annotation.Nullable;
 import java.io.Closeable;
-import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
 

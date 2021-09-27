@@ -18,7 +18,7 @@ public class FilterIterator implements Iterator<Record> {
         this.iter = iterator;
         this.toKey = toKey;
         this.isDirectOrder = isDirectOrder;
-        getCurrent();
+        loadCurrent();
     }
 
     @Override
@@ -39,13 +39,15 @@ public class FilterIterator implements Iterator<Record> {
 
     @Override
     public Record next() {
-        if (!hasNext()) throw new NoSuchElementException();
+        if (!hasNext()) {
+            throw new NoSuchElementException();
+        }
         Record result = current;
-        getCurrent();
+        loadCurrent();
         return result;
     }
 
-    private void getCurrent() {
+    private void loadCurrent() {
         Record next = Record.tombstone(ByteBuffer.allocate(Integer.BYTES));
         while (next.isTombstone() && iter.hasNext()) {
             next = iter.next();

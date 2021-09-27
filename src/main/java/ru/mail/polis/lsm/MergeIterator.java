@@ -25,10 +25,10 @@ class MergeIterator implements Iterator<Record> {
                 queue.add(new QueueUnit(iterators.get(iterNumber).next(), iterNumber));
             }
         }
-        getCurrent();
+        loadCurrent();
     }
 
-    private void getCurrent() {
+    private void loadCurrent() {
         Record result = null;
 
         while (!queue.isEmpty() && result == null) {
@@ -58,9 +58,11 @@ class MergeIterator implements Iterator<Record> {
 
     @Override
     public Record next() {
-        if (!hasNext()) throw new NoSuchElementException();
+        if (!hasNext()) {
+            throw new NoSuchElementException();
+        }
         Record result = current;
-        getCurrent();
+        loadCurrent();
         return result;
     }
 
