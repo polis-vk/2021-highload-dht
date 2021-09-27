@@ -172,9 +172,9 @@ public class SSTable {
         int start = 0;
         int end = indexArray.length - 1;
 
-        int positionToRead;
+        int positionToRead = -1;
 
-        int middle = (start + end) / 2;
+        int middle;
 
         while (start <= end) {
 
@@ -186,27 +186,22 @@ public class SSTable {
 
             ByteBuffer key = readFromFile(mappedByteBuffer);
 
-            if (keyToFind.compareTo(key) == 0) {
+            int compare = keyToFind.compareTo(key);
+
+            if (compare == 0) {
                 return positionToRead;
-            } else if (keyToFind.compareTo(key) > 0) {
+            } else if (compare > 0) {
                 start = middle + 1;
 
-                if (start > end && keyToFind.compareTo(key) > 0) {
-
-                    if (start == indexArray.length) {
-                        return -1;
-                    }
-
-                    if (start < indexArray.length) {
-                        return start;
-                    }
+                if (start == indexArray.length) {
+                    return -1;
                 }
             } else {
                 end = middle - 1;
             }
 
         }
-        return indexArray[middle];
+        return positionToRead;
     }
 
     private void restoreStorage() throws IOException {

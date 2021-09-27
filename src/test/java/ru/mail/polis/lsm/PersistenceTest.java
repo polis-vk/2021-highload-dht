@@ -8,6 +8,7 @@ import java.nio.ByteBuffer;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Iterator;
@@ -143,6 +144,9 @@ class PersistenceTest {
 
     @Test
     void hugeRecords(@TempDir Path data) throws IOException {
+
+        data = Paths.get("D:\\junit\\2");
+
         // Reference value
         int size = 1024 * 1024;
         byte[] suffix = sizeBasedRandomData(size);
@@ -164,6 +168,9 @@ class PersistenceTest {
 
     @Test
     void hugeRecordsSearch(@TempDir Path data) throws IOException {
+
+        data = Paths.get("D:\\junit\\1");
+
         // Reference value
         int size = 1024 * 1024;
         byte[] suffix = sizeBasedRandomData(size);
