@@ -41,7 +41,9 @@ class SSTable {
 
     private static final String TMP_FILE = "TMP";
     private static final String NULL_VALUE = "NULL_VALUE";
-    private static final ByteBuffer BYTE_BUFFER_TOMBSTONE = ByteBuffer.wrap(NULL_VALUE.getBytes(StandardCharsets.UTF_8));
+    private static final ByteBuffer BYTE_BUFFER_TOMBSTONE = ByteBuffer.wrap(
+            NULL_VALUE.getBytes(StandardCharsets.UTF_8)
+    );
 
     private final Path savePath;
     private final Path indexPath;
@@ -246,7 +248,11 @@ class SSTable {
         return byteBuffer;
     }
 
-    private static void writeSizeAndValue(ByteBuffer value, WritableByteChannel channel, ByteBuffer tmp) throws IOException {
+    private static void writeSizeAndValue(
+            ByteBuffer value,
+            WritableByteChannel channel,
+            ByteBuffer tmp
+    ) throws IOException {
         tmp.position(0);
         tmp.putInt(value.remaining());
         tmp.position(0);

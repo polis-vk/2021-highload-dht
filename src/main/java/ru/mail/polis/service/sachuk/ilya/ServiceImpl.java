@@ -35,7 +35,7 @@ public class ServiceImpl extends HttpServer implements Service {
         return httpServerConfig;
     }
 
-    @Path(value = "/v0/entity")
+    @Path("/v0/entity")
     public Response entityRequest(
             Request request,
             @Param(value = "id", required = true) String id
@@ -57,7 +57,7 @@ public class ServiceImpl extends HttpServer implements Service {
         }
     }
 
-    @Path(value = "/v0/status")
+    @Path("/v0/status")
     public Response status() {
         return new Response(Response.OK, Response.EMPTY);
     }

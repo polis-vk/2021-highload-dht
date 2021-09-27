@@ -69,7 +69,7 @@ public class DaoImpl implements DAO {
     }
 
     @Override
-    public void upsert(Record record) throws UncheckedIOException {
+    public void upsert(Record record) {
         synchronized (this) {
             memoryConsumption += sizeOf(record);
             if (memoryConsumption > LIMIT) {
@@ -97,14 +97,20 @@ public class DaoImpl implements DAO {
                 String indexFile = compactedTable.getIndexPath().getFileName().toString();
                 String saveFile = compactedTable.getSavePath().getFileName().toString();
 
-
                 closeOldTables(indexFile, saveFile);
                 deleteOldTables(indexFile, saveFile);
 
                 ssTables.add(compactedTable);
 
-                Files.move(compactedTable.getIndexPath(), dirPath.resolve(SSTable.FIRST_INDEX_FILE), StandardCopyOption.ATOMIC_MOVE);
-                Files.move(compactedTable.getSavePath(), dirPath.resolve(SSTable.FIRST_SAVE_FILE), StandardCopyOption.ATOMIC_MOVE);
+                Files.move(compactedTable.getIndexPath(),
+                        dirPath.resolve(SSTable.FIRST_INDEX_FILE),
+                        StandardCopyOption.ATOMIC_MOVE
+                );
+
+                Files.move(compactedTable.getSavePath(),
+                        dirPath.resolve(SSTable.FIRST_SAVE_FILE),
+                        StandardCopyOption.ATOMIC_MOVE
+                );
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
@@ -168,8 +174,8 @@ public class DaoImpl implements DAO {
 
     private void closeOldTables(String indexFile, String saveFile) throws IOException {
         List<SSTable> filteredSSTables = ssTables.stream()
-                .filter(ssTable1 -> checkFilesNameEquals(ssTable1.getIndexPath(), indexFile) &&
-                        checkFilesNameEquals(ssTable1.getSavePath(), saveFile))
+                .filter(ssTable1 -> checkFilesNameEquals(ssTable1.getIndexPath(), indexFile)
+                        && checkFilesNameEquals(ssTable1.getSavePath(), saveFile))
                 .collect(Collectors.toList());
 
         for (SSTable filteredSSTable : filteredSSTables) {

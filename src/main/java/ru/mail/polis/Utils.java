@@ -4,6 +4,11 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
 public final class Utils {
+
+    private Utils() {
+        // Don't instantiate
+    }
+
     public static ByteBuffer stringToBytebuffer(String text) {
         return ByteBuffer.wrap(text.getBytes(StandardCharsets.UTF_8));
     }
