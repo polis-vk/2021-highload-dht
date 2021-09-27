@@ -16,7 +16,7 @@ public class BasicService extends HttpServer implements Service {
     private final DaoWrapper daoWrapper;
 
     public BasicService(int port, DAO dao) throws IOException {
-        super(new MyConfig(port));
+        super(MyConfigFactory.fromPort(port));
         this.daoWrapper = new DaoWrapper(dao);
     }
 
