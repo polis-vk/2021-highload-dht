@@ -31,7 +31,7 @@ public class DaoImpl implements DAO {
     private static final long LIMIT = 16L * 1024 * 1024;
 
     private final Path dirPath;
-    private final NavigableMap<ByteBuffer, Record> memoryStorage = new ConcurrentSkipListMap<>();
+    private NavigableMap<ByteBuffer, Record> memoryStorage = new ConcurrentSkipListMap<>();
     private final List<SSTable> ssTables = new ArrayList<>();
 
     private long memoryConsumption;
@@ -154,8 +154,7 @@ public class DaoImpl implements DAO {
         );
 
         ssTables.add(ssTable);
-        memoryStorage.clear();
-
+        memoryStorage = new ConcurrentSkipListMap<>();
     }
 
     private Iterator<Record> ssTableRanges(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
