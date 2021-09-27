@@ -15,7 +15,11 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.NoSuchElementException;
+import java.util.Objects;
 
 final class SSTable implements Closeable {
 
@@ -156,67 +160,15 @@ final class SSTable implements Closeable {
         }
     }
 
-    private static Iterator<Record> range(ByteBuffer buffer, int fromOffset, int toOffset) {
-        buffer.position(fromOffset);
-
-        return new Iterator<>() {
-            @Override
-            public boolean hasNext() {
-                return buffer.position() < toOffset;
-            }
-
-            @Override
-            public Record next() {
-                if (!hasNext()) {
-                    throw new NoSuchElementException("Limit is reached");
-                }
-
-                int keySize = buffer.getInt();
-                ByteBuffer key = read(keySize);
-
-                int valueSize = buffer.getInt();
-                if (valueSize == -1) {
-                    return Record.tombstone(key);
-                }
-                ByteBuffer value = read(valueSize);
-
-                return Record.of(key, value);
-            }
-
-            private ByteBuffer read(int size) {
-                ByteBuffer result = buffer.slice().limit(size);
-                buffer.position(buffer.position() + size);
-                return result;
-            }
-        };
-    }
-
     Path getPath() {
         return fileName;
     }
 
     @Override
     public void close() throws IOException {
-        IOException exception = null;
-        try {
-            free(mmap);
-        } catch (Throwable t) {
-            exception = new IOException(t);
-        }
+        free(mmap);
+        free(idx);
 
-        try {
-            free(idx);
-        } catch (Throwable t) {
-            if (exception == null) {
-                exception = new IOException(t);
-            } else {
-                exception.addSuppressed(t);
-            }
-        }
-
-        if (exception != null) {
-            throw exception;
-        }
     }
 
     private int offset(ByteBuffer buffer, ByteBuffer key) {
@@ -275,5 +227,40 @@ final class SSTable implements Closeable {
                 fromOffset == -1 ? maxSize : fromOffset,
                 toOffset == -1 ? maxSize : toOffset
         );
+    }
+
+    private static Iterator<Record> range(ByteBuffer buffer, int fromOffset, int toOffset) {
+        buffer.position(fromOffset);
+
+        return new Iterator<>() {
+            @Override
+            public boolean hasNext() {
+                return buffer.position() < toOffset;
+            }
+
+            @Override
+            public Record next() {
+                if (!hasNext()) {
+                    throw new NoSuchElementException("Limit is reached");
+                }
+
+                int keySize = buffer.getInt();
+                ByteBuffer key = read(keySize);
+
+                int valueSize = buffer.getInt();
+                if (valueSize == -1) {
+                    return Record.tombstone(key);
+                }
+                ByteBuffer value = read(valueSize);
+
+                return Record.of(key, value);
+            }
+
+            private ByteBuffer read(int size) {
+                ByteBuffer result = buffer.slice().limit(size);
+                buffer.position(buffer.position() + size);
+                return result;
+            }
+        };
     }
 }

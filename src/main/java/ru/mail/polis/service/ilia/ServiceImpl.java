@@ -37,6 +37,13 @@ public class ServiceImpl extends HttpServer implements Service {
         return Response.ok("I'm ok");
     }
 
+    /**
+     * Processing and executing the request
+     *
+     * @param request - http request
+     * @param id - entity id
+     * @return http response
+     */
     @Path("/v0/entity")
     public Response entity(
             Request request,
