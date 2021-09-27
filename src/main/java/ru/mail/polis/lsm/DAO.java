@@ -16,7 +16,7 @@ public interface DAO extends Closeable {
 
     void upsert(Record record);
 
-    void closeAndCompact() throws IOException;
+    void closeAndCompact();
 
     /**
      * Appends {@code Byte.MIN_VALUE} to {@code buffer}.
@@ -37,6 +37,4 @@ public interface DAO extends Closeable {
 
         return result;
     }
-
-
 }

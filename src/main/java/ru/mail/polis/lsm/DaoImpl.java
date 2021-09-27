@@ -7,7 +7,12 @@ import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+import java.util.NavigableMap;
+import java.util.Objects;
+import java.util.SortedMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentSkipListMap;
 
@@ -94,23 +99,27 @@ public class DaoImpl implements DAO {
     }
 
     @Override
-    public void closeAndCompact() throws IOException {
+    public void closeAndCompact() {
         synchronized (this) {
             Iterator<Record> result = range(null, null);
             boolean dataExists = result.hasNext() && !tables.isEmpty();
             SSTable compactSSTable = null;
             String compactFileName = "file_" + tables.size();
             String compactIdxName = "idx_" + tables.size();
-            if (dataExists) {
-                compactSSTable = makeSSTable(compactFileName, compactIdxName, result);
-                tables.add(compactSSTable);
-            }
-            removeOldSSTables();
-            if (dataExists) {
-                map.clear();
-                Files.move(config.getDir().resolve(compactFileName), config.getDir().resolve("file_0"));
-                Files.move(config.getDir().resolve(compactIdxName), config.getDir().resolve("idx_0"));
-                Objects.requireNonNull(compactSSTable).setFilePath(config.getDir().resolve("file_0"));
+            try {
+                if (dataExists) {
+                    compactSSTable = makeSSTable(compactFileName, compactIdxName, result);
+                    tables.add(compactSSTable);
+                }
+                removeOldSSTables();
+                if (dataExists) {
+                    map.clear();
+                    Files.move(config.getDir().resolve(compactFileName), config.getDir().resolve("file_0"));
+                    Files.move(config.getDir().resolve(compactIdxName), config.getDir().resolve("idx_0"));
+                    Objects.requireNonNull(compactSSTable).setFilePath(config.getDir().resolve("file_0"));
+                }
+            } catch (IOException e) {
+                throw new UncheckedIOException("Can't compact", e);
             }
         }
     }

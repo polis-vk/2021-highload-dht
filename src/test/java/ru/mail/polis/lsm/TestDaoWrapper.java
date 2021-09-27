@@ -37,7 +37,7 @@ public class TestDaoWrapper implements DAO {
     }
 
     @Override
-    public void closeAndCompact() throws IOException {
+    public void closeAndCompact() {
         delegate.closeAndCompact();
     }
 
