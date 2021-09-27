@@ -27,6 +27,7 @@ public class LsmDAO implements DAO {
 
     private NavigableMap<ByteBuffer, Record> memoryStorage = newStorage();
     private final ConcurrentLinkedDeque<SSTable> tables = new ConcurrentLinkedDeque<>();
+    private int size = 0;
 
     @SuppressWarnings({"FieldCanBeLocal", "unused"})
     private final DAOConfig config;
@@ -63,7 +64,6 @@ public class LsmDAO implements DAO {
                 memoryConsumption = sizeOf(record);
             }
         }
-
         memoryStorage.put(record.getKey(), record);
     }
 
