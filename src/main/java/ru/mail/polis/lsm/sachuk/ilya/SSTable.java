@@ -1,6 +1,7 @@
 package ru.mail.polis.lsm.sachuk.ilya;
 
 import ru.mail.polis.lsm.Record;
+import ru.mail.polis.lsm.sachuk.ilya.iterators.SSTableIterator;
 
 import javax.annotation.Nullable;
 import java.io.File;
@@ -24,11 +25,10 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
-import java.util.NoSuchElementException;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-class SSTable {
+public class SSTable {
 
     public static final String FIRST_SAVE_FILE = "SSTABLE0.save";
     public static final String FIRST_INDEX_FILE = "INDEX0.index";
@@ -41,7 +41,7 @@ class SSTable {
 
     private static final String TMP_FILE = "TMP";
     private static final String NULL_VALUE = "NULL_VALUE";
-    private static final ByteBuffer BYTE_BUFFER_TOMBSTONE = ByteBuffer.wrap(
+    public static final ByteBuffer BYTE_BUFFER_TOMBSTONE = ByteBuffer.wrap(
             NULL_VALUE.getBytes(StandardCharsets.UTF_8)
     );
 
@@ -65,7 +65,7 @@ class SSTable {
             return Collections.emptyIterator();
         }
 
-        return new SSTableIterator(binarySearchKey(indexes, fromKey), toKey);
+        return new SSTableIterator(binarySearchKey(indexes, fromKey), toKey, mappedByteBuffer);
     }
 
     public static List<SSTable> loadFromDir(Path dir) throws IOException {
@@ -239,7 +239,7 @@ class SSTable {
         }
     }
 
-    private ByteBuffer readFromFile(MappedByteBuffer mappedByteBuffer) {
+    public static ByteBuffer readFromFile(MappedByteBuffer mappedByteBuffer) {
         int length = mappedByteBuffer.getInt();
 
         ByteBuffer byteBuffer = mappedByteBuffer.slice().limit(length).asReadOnlyBuffer();
@@ -326,62 +326,5 @@ class SSTable {
                 StandardOpenOption.CREATE_NEW,
                 StandardOpenOption.WRITE,
                 StandardOpenOption.TRUNCATE_EXISTING);
-    }
-
-    private class SSTableIterator implements Iterator<Record> {
-        private final ByteBuffer keyToRead;
-        private final boolean readToEnd;
-
-        SSTableIterator(int positionToStartRead, ByteBuffer keyToRead) {
-            this.keyToRead = keyToRead;
-
-            this.readToEnd = keyToRead == null;
-
-            if (positionToStartRead == -1) {
-                mappedByteBuffer.position(mappedByteBuffer.limit());
-            } else {
-                mappedByteBuffer.position(positionToStartRead);
-            }
-        }
-
-        @Override
-        public boolean hasNext() {
-            if (readToEnd) {
-                return mappedByteBuffer.hasRemaining();
-            }
-
-            return mappedByteBuffer.hasRemaining() && getNextKey().compareTo(keyToRead) < 0;
-        }
-
-        @Override
-        public Record next() {
-
-            if (!hasNext()) {
-                throw new NoSuchElementException();
-            }
-
-            ByteBuffer key = readFromFile(mappedByteBuffer);
-            ByteBuffer value = readFromFile(mappedByteBuffer);
-
-            Record record;
-
-            if (value.compareTo(BYTE_BUFFER_TOMBSTONE) == 0) {
-                record = Record.tombstone(key);
-            } else {
-                value.position(0);
-                record = Record.of(key, value);
-            }
-
-            return record;
-        }
-
-        private ByteBuffer getNextKey() {
-            int currentPos = mappedByteBuffer.position();
-
-            ByteBuffer key = readFromFile(mappedByteBuffer);
-            mappedByteBuffer.position(currentPos);
-
-            return key;
-        }
     }
 }
