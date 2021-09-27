@@ -18,7 +18,6 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NavigableMap;
-import java.util.SortedMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentSkipListMap;
 
@@ -164,16 +163,16 @@ public class DAOImpl implements DAO {
         return merge(iterators);
     }
 
-    private SortedMap<ByteBuffer, Record> map(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
+    private NavigableMap<ByteBuffer, Record> map(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
         if (fromKey == null && toKey == null) {
             return memoryStorage;
         }
         if (fromKey == null) {
-            return memoryStorage.headMap(toKey);
+            return memoryStorage.headMap(toKey, false);
         }
         if (toKey == null) {
-            return memoryStorage.tailMap(fromKey);
+            return memoryStorage.tailMap(fromKey, true);
         }
-        return memoryStorage.subMap(fromKey, toKey);
+        return memoryStorage.subMap(fromKey, true, toKey, false);
     }
 }

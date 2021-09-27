@@ -23,7 +23,7 @@ import java.util.Objects;
 
 final class SSTable implements Closeable {
 
-    static final String SSTABLE_FILE_PREFIX = "file_";
+    public static final String SSTABLE_FILE_PREFIX = "file_";
     private static final Method CLEAN;
 
     static {
@@ -48,13 +48,13 @@ final class SSTable implements Closeable {
         idx = open(indexPath);
     }
 
-    static int sizeOf(Record record) {
+    public static int sizeOf(Record record) {
         int keySize = Integer.BYTES + record.getKeySize();
         int valueSize = Integer.BYTES + record.getValueSize();
         return keySize + valueSize;
     }
 
-    static List<SSTable> loadFromDir(Path dir) throws IOException {
+    public static List<SSTable> loadFromDir(Path dir) throws IOException {
         List<SSTable> result = new ArrayList<>();
         for (int i = 0; ; i++) {
             Path file = dir.resolve(SSTABLE_FILE_PREFIX + i);
@@ -65,7 +65,7 @@ final class SSTable implements Closeable {
         }
     }
 
-    static SSTable write(Iterator<Record> records, Path file) throws IOException {
+    public static SSTable write(Iterator<Record> records, Path file) throws IOException {
         Path indexFile = getIndexFile(file);
         Path tmpFileName = getTmpFile(file);
         Path tmpIndexName = getTmpFile(indexFile);
@@ -160,7 +160,7 @@ final class SSTable implements Closeable {
         }
     }
 
-    Path getPath() {
+    public Path getPath() {
         return fileName;
     }
 
@@ -214,7 +214,7 @@ final class SSTable implements Closeable {
         return idx.getInt(left * Integer.BYTES);
     }
 
-    Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
+    public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
         ByteBuffer buffer = mmap.asReadOnlyBuffer();
 
         int maxSize = mmap.remaining();
