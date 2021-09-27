@@ -18,7 +18,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.SortedMap;
+import java.util.NavigableMap;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.concurrent.ConcurrentSkipListMap;
@@ -31,7 +31,7 @@ public class DaoImpl implements DAO {
     private static final long LIMIT = 16L * 1024 * 1024;
 
     private final Path dirPath;
-    private final SortedMap<ByteBuffer, Record> memoryStorage = new ConcurrentSkipListMap<>();
+    private final NavigableMap<ByteBuffer, Record> memoryStorage = new ConcurrentSkipListMap<>();
     private final List<SSTable> ssTables = new ArrayList<>();
 
     private long memoryConsumption;

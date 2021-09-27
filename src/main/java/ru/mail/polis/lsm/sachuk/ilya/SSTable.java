@@ -30,8 +30,8 @@ import java.util.stream.Stream;
 
 class SSTable {
 
-    static final String FIRST_SAVE_FILE = "SSTABLE0.save";
-    static final String FIRST_INDEX_FILE = "INDEX0.index";
+    public static final String FIRST_SAVE_FILE = "SSTABLE0.save";
+    public static final String FIRST_INDEX_FILE = "INDEX0.index";
 
     private static final String SAVE_FILE = "SSTABLE";
     private static final String SAVE_FILE_END = ".save";
@@ -59,7 +59,7 @@ class SSTable {
         restoreStorage();
     }
 
-    Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
+    public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
 
         if (fromKey != null && toKey != null && fromKey.compareTo(toKey) == 0) {
             return Collections.emptyIterator();
@@ -68,7 +68,7 @@ class SSTable {
         return new SSTableIterator(binarySearchKey(indexes, fromKey), toKey);
     }
 
-    static List<SSTable> loadFromDir(Path dir) throws IOException {
+    public static List<SSTable> loadFromDir(Path dir) throws IOException {
 
         List<SSTable> listSSTables = new ArrayList<>();
 
@@ -85,7 +85,7 @@ class SSTable {
         return listSSTables;
     }
 
-    static SSTable save(Iterator<Record> iterators, Path dir, int fileNumber) throws IOException {
+    public static SSTable save(Iterator<Record> iterators, Path dir, int fileNumber) throws IOException {
 
         final Path savePath = dir.resolve(SAVE_FILE + fileNumber + SAVE_FILE_END);
         final Path indexPath = dir.resolve(INDEX_FILE + fileNumber + INDEX_FILE_END);
@@ -142,7 +142,7 @@ class SSTable {
         return new SSTable(savePath, indexPath);
     }
 
-    void close() throws IOException {
+    public void close() throws IOException {
         if (mappedByteBuffer != null) {
             clean(mappedByteBuffer);
         }
@@ -328,7 +328,7 @@ class SSTable {
                 StandardOpenOption.TRUNCATE_EXISTING);
     }
 
-    class SSTableIterator implements Iterator<Record> {
+    private class SSTableIterator implements Iterator<Record> {
         private final ByteBuffer keyToRead;
         private final boolean readToEnd;
 
