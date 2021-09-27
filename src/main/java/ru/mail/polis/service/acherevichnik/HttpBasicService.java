@@ -11,9 +11,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 
-
-public final class HttpBasicService extends HttpServer implements Service
-{
+public final class HttpBasicService extends HttpServer implements Service {
     private final DAO dao;
 
     public HttpBasicService(final int port, final DAO dao) throws IOException {
@@ -36,7 +34,7 @@ public final class HttpBasicService extends HttpServer implements Service
     }
 
     /**
-     *
+     * Summary
      * @param request Request
      * @param id id of entity
      * @return Response
