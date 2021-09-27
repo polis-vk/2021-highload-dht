@@ -144,9 +144,6 @@ class PersistenceTest {
 
     @Test
     void hugeRecords(@TempDir Path data) throws IOException {
-
-        data = Paths.get("D:\\junit\\2");
-
         // Reference value
         int size = 1024 * 1024;
         byte[] suffix = sizeBasedRandomData(size);
@@ -168,9 +165,6 @@ class PersistenceTest {
 
     @Test
     void hugeRecordsSearch(@TempDir Path data) throws IOException {
-
-        data = Paths.get("D:\\junit\\1");
-
         // Reference value
         int size = 1024 * 1024;
         byte[] suffix = sizeBasedRandomData(size);
