@@ -40,7 +40,7 @@ public final class HttpBasicService extends HttpServer implements Service {
     }
 
     /**
-     * Summary
+     * Summary.
      * @param request Request
      * @param id id of entity
      * @return Response
