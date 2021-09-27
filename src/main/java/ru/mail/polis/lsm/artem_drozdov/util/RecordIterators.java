@@ -67,11 +67,19 @@ public final class RecordIterators {
     public static Iterator<Record> filterTombstones(Iterator<Record> iterator) {
         PeekingIterator delegate = new PeekingIterator(iterator);
         return new Iterator<>() {
-            private Record nextRecord = nextNotTombstone();
-
             @Override
             public boolean hasNext() {
-                return nextRecord != null;
+                for (;;) {
+                    if (delegate.hasNext()) {
+                        Record peek = delegate.peek();
+                        if (!peek.isTombstone()) {
+                            return true;
+                        }
+                        delegate.next();
+                    } else {
+                        return false;
+                    }
+                }
             }
 
             @Override
@@ -79,20 +87,7 @@ public final class RecordIterators {
                 if (!hasNext()) {
                     throw new NoSuchElementException("No elements");
                 }
-                Record recordToReturn = this.nextRecord;
-                this.nextRecord = nextNotTombstone();
-                return recordToReturn;
-            }
-
-            private Record nextNotTombstone() {
-                Record next = null;
-                while (next == null && delegate.hasNext()) {
-                    next = delegate.next();
-                    if (next.isTombstone()) {
-                        next = null;
-                    }
-                }
-                return next;
+                return delegate.next();
             }
         };
     }
