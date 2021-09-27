@@ -1,15 +1,7 @@
 package ru.mail.polis.lsm.artem_drozdov;
 
-import ru.mail.polis.lsm.DAO;
-import ru.mail.polis.lsm.DAOConfig;
-import ru.mail.polis.lsm.Record;
-
-import javax.annotation.Nullable;
-import javax.annotation.concurrent.GuardedBy;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.lang.ref.Cleaner;
-import java.lang.ref.PhantomReference;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -23,11 +15,17 @@ import java.util.SortedMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentSkipListMap;
 
+import javax.annotation.Nullable;
+import javax.annotation.concurrent.GuardedBy;
+
+import ru.mail.polis.lsm.DAO;
+import ru.mail.polis.lsm.DAOConfig;
+import ru.mail.polis.lsm.Record;
+
 public class LsmDAO implements DAO {
 
     private NavigableMap<ByteBuffer, Record> memoryStorage = newStorage();
     private final ConcurrentLinkedDeque<SSTable> tables = new ConcurrentLinkedDeque<>();
-    private int size = 0;
 
     @SuppressWarnings({"FieldCanBeLocal", "unused"})
     private final DAOConfig config;
@@ -74,7 +72,7 @@ public class LsmDAO implements DAO {
             try {
                 table = SSTable.compact(config.dir, range(null, null));
             } catch (IOException e) {
-                throw new RuntimeException();
+                throw new RuntimeException(e);
             }
             tables.clear();
             tables.add(table);
@@ -129,7 +127,7 @@ public class LsmDAO implements DAO {
     }
 
     private static Iterator<Record> merge(List<Iterator<Record>> iterators) {
-        if (iterators.size() == 0) {
+        if (iterators.isEmpty()) {
             return Collections.emptyIterator();
         }
         if (iterators.size() == 1) {

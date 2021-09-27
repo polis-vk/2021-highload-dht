@@ -4,9 +4,6 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 import one.nio.http.Param;
 import one.nio.http.Path;
 import one.nio.http.Request;
@@ -17,8 +14,6 @@ import ru.mail.polis.lsm.Record;
 
 public class MainController implements Controller {
 
-    private static final Logger logger = LoggerFactory.getLogger(MainController.class);
-
     private final DAO dao;
 
     public MainController(DAO dao) {
@@ -28,7 +23,6 @@ public class MainController implements Controller {
     @SuppressWarnings("unused")
     @Path("/v0/status")
     public Response status(Request request) {
-        logger.debug("\"status\" endpoint was called from: {}", request.getHost());
         return new Response(Response.OK, Response.EMPTY);
     }
 
@@ -60,9 +54,9 @@ public class MainController implements Controller {
         if (iterator.hasNext()) {
             record = iterator.next();
         }
-        return record != null
-            ? new Response(Response.OK, RecordUtil.extractBytes(record.getValue()))
-            : new Response(Response.NOT_FOUND, Response.EMPTY);
+        return record == null
+            ? new Response(Response.NOT_FOUND, Response.EMPTY)
+            : new Response(Response.OK, RecordUtil.extractBytes(record.getValue()));
     }
 
     private Response put(final String id, final byte[] payload) {

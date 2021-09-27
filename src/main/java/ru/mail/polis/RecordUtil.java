@@ -2,7 +2,11 @@ package ru.mail.polis;
 
 import java.nio.ByteBuffer;
 
-public class RecordUtil {
+public final class RecordUtil {
+
+    private RecordUtil() {
+
+    }
 
     /**
      * Extracting byte array from ByteBuffer.

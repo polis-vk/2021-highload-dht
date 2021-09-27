@@ -1,8 +1,8 @@
 package ru.mail.polis.lsm;
 
-import javax.annotation.Nullable;
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
+
+import javax.annotation.Nullable;
 
 @SuppressWarnings("JavaLangClash")
 public class Record {
@@ -41,13 +41,5 @@ public class Record {
 
     public int getValueSize() {
         return value == null ? 0 : value.remaining();
-    }
-
-    @Override
-    public String toString() {
-        return "Record{" +
-            "key=" + StandardCharsets.UTF_8.decode(key) +
-            ", value=" + StandardCharsets.UTF_8.decode(value) +
-            '}';
     }
 }
