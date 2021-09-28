@@ -3,6 +3,7 @@ package ru.mail.polis.lsm.artem_drozdov;
 import ru.mail.polis.lsm.Record;
 
 import java.util.Iterator;
+import java.util.NoSuchElementException;
 
 class TombstoneFilterIterator implements Iterator<Record> {
     private final PeekingIterator delegate;
@@ -28,6 +29,9 @@ class TombstoneFilterIterator implements Iterator<Record> {
 
     @Override
     public Record next() {
+        if (!hasNext()) {
+            throw new NoSuchElementException("No elements");
+        }
         return delegate.next();
     }
 }

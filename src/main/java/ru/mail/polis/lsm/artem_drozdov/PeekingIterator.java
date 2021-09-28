@@ -3,6 +3,7 @@ package ru.mail.polis.lsm.artem_drozdov;
 import ru.mail.polis.lsm.Record;
 
 import java.util.Iterator;
+import java.util.NoSuchElementException;
 
 class PeekingIterator implements Iterator<Record> {
 
@@ -21,6 +22,9 @@ class PeekingIterator implements Iterator<Record> {
 
     @Override
     public Record next() {
+        if (!hasNext()) {
+            throw new NoSuchElementException("No elements");
+        }
         Record now = peek();
         current = null;
         return now;
