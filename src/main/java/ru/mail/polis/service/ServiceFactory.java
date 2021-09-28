@@ -17,6 +17,7 @@
 package ru.mail.polis.service;
 
 import ru.mail.polis.lsm.DAO;
+import ru.mail.polis.service.alyonazakharova.BasicService;
 
 import java.io.IOException;
 import java.util.Objects;
