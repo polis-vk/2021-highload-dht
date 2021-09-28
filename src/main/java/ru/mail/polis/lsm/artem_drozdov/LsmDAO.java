@@ -8,8 +8,6 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.lang.ref.Cleaner;
-import java.lang.ref.PhantomReference;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -129,7 +127,7 @@ public class LsmDAO implements DAO {
     }
 
     private static Iterator<Record> merge(List<Iterator<Record>> iterators) {
-        if (iterators.size() == 0) {
+        if (iterators.isEmpty()) {
             return Collections.emptyIterator();
         }
         if (iterators.size() == 1) {
@@ -144,44 +142,7 @@ public class LsmDAO implements DAO {
     }
 
     private static Iterator<Record> mergeTwo(PeekingIterator left, PeekingIterator right) {
-        return new Iterator<>() {
-
-            @Override
-            public boolean hasNext() {
-                return left.hasNext() || right.hasNext();
-            }
-
-            @Override
-            public Record next() {
-                if (!hasNext()) {
-                    throw new NoSuchElementException("No elements");
-                }
-
-                if (!left.hasNext()) {
-                    return right.next();
-                }
-                if (!right.hasNext()) {
-                    return left.next();
-                }
-
-                // checked earlier
-                ByteBuffer leftKey = Objects.requireNonNull(left.peek()).getKey();
-                ByteBuffer rightKey = Objects.requireNonNull(right.peek()).getKey();
-
-                int compareResult = leftKey.compareTo(rightKey);
-                if (compareResult == 0) {
-                    left.next();
-                    return right.next();
-                }
-
-                if (compareResult < 0) {
-                    return left.next();
-                } else {
-                    return right.next();
-                }
-            }
-
-        };
+        return new MergeTwoIterator(left, right);
     }
 
     private static Iterator<Record> filterTombstones(Iterator<Record> iterator) {
@@ -229,9 +190,6 @@ public class LsmDAO implements DAO {
 
         @Override
         public Record next() {
-            if (!hasNext()) {
-                throw new NoSuchElementException();
-            }
             Record now = peek();
             current = null;
             return now;
@@ -248,6 +206,53 @@ public class LsmDAO implements DAO {
 
             current = delegate.next();
             return current;
+        }
+
+    }
+
+    private static class MergeTwoIterator implements Iterator<Record> {
+
+        private final PeekingIterator left;
+        private final PeekingIterator right;
+
+        public MergeTwoIterator(PeekingIterator left, PeekingIterator right) {
+            this.left = left;
+            this.right = right;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return left.hasNext() || right.hasNext();
+        }
+
+        @Override
+        public Record next() {
+            if (!hasNext()) {
+                throw new NoSuchElementException("No elements");
+            }
+
+            if (!left.hasNext()) {
+                return right.next();
+            }
+            if (!right.hasNext()) {
+                return left.next();
+            }
+
+            // checked earlier
+            ByteBuffer leftKey = Objects.requireNonNull(left.peek()).getKey();
+            ByteBuffer rightKey = Objects.requireNonNull(right.peek()).getKey();
+
+            int compareResult = leftKey.compareTo(rightKey);
+            if (compareResult == 0) {
+                left.next();
+                return right.next();
+            }
+
+            if (compareResult < 0) {
+                return left.next();
+            } else {
+                return right.next();
+            }
         }
 
     }

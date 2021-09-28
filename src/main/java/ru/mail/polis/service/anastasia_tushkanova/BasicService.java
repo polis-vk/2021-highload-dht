@@ -49,7 +49,7 @@ public class BasicService extends HttpServer implements Service {
 
     @Path("/v0/entity")
     public Response entity(@Param(value = "id", required = true) final String id,
-                            final Request request) {
+                           final Request request) {
         if (id.isBlank()) {
             return new Response(Response.BAD_REQUEST, "Blank id".getBytes(StandardCharsets.UTF_8));
         }
@@ -66,7 +66,7 @@ public class BasicService extends HttpServer implements Service {
         }
     }
 
-    private Response get(ByteBuffer id) throws UncheckedIOException {
+    private Response get(ByteBuffer id) {
         Iterator<Record> daoIterator = dao.range(id, null);
         if (!daoIterator.hasNext()) {
             return new Response(Response.NOT_FOUND, Response.EMPTY);
@@ -79,7 +79,7 @@ public class BasicService extends HttpServer implements Service {
         }
     }
 
-    private Response put(byte[] requestBody, ByteBuffer id) throws UncheckedIOException {
+    private Response put(byte[] requestBody, ByteBuffer id) {
         dao.upsert(Record.of(id, ByteBuffer.wrap(requestBody)));
         return new Response(Response.CREATED, Response.EMPTY);
     }
