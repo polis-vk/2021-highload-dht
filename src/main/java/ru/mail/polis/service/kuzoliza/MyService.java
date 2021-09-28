@@ -22,7 +22,7 @@ import java.util.NoSuchElementException;
 public class MyService extends HttpServer {
 
     private final DAO dao;
-    private static final Logger log = LoggerFactory.getLogger(MyService.class);
+    private static final Logger LOG = LoggerFactory.getLogger(MyService.class);
 
     MyService(final HttpServerConfig config, final DAO dao) throws IOException {
         super(config);
@@ -59,7 +59,7 @@ public class MyService extends HttpServer {
         try {
             return response(key, request);
         } catch (IOException e) {
-            log.error("Can't process response {}", id, e);
+            LOG.error("Can't process response {}", id, e);
             return new Response(Response.INTERNAL_ERROR, Response.EMPTY);
         }
     }
@@ -72,7 +72,7 @@ public class MyService extends HttpServer {
                     final ByteBuffer value = range.next().getValue();
                     return Response.ok(toByteArray(value));
                 } catch (NoSuchElementException e) {
-                    log.debug("Can't find resource {}", key, e);
+                    LOG.debug("Can't find resource {}", key, e);
                     return new Response(Response.NOT_FOUND, Response.EMPTY);
                 }
 

@@ -15,7 +15,7 @@ public class StartService implements Service {
     private final HttpServerConfig config;
     private final DAO dao;
     private HttpServer server;
-    private static final Logger log = LoggerFactory.getLogger(StartService.class.getName());
+    private static final Logger LOG = LoggerFactory.getLogger(StartService.class.getName());
 
     /**
      * Service configuration.
@@ -39,7 +39,7 @@ public class StartService implements Service {
             this.server = new MyService(config, dao);
             this.server.start();
         } catch (IOException e) {
-            log.error("Can't start server");
+            LOG.error("Can't start server");
         }
     }
 
