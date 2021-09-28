@@ -9,10 +9,14 @@ import javax.annotation.concurrent.GuardedBy;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.util.*;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class LmsDAO implements DAO {
 
@@ -22,7 +26,7 @@ public class LmsDAO implements DAO {
     @SuppressWarnings("unused")
     private final DAOConfig config;
 
-    @GuardedBy("this")
+//    @GuardedBy("this")
     private int nextSSTableIndex;
 
     @GuardedBy("this")
@@ -76,35 +80,44 @@ public class LmsDAO implements DAO {
 
     @Override
     public void closeAndCompact() {
-//        Iterator<Record> iterator = range(null, null);
-//        Path dir = config.dir;
-//        List<SSTable> compactedSSTables = SSTable.writeCompacted(dir, iterator);
-//
-//        try (Stream<Path> stream = Files.list(dir)) {
-//            List<Path> files = stream
-//                    .filter(file -> !file.toFile().getName().contains(SSTable.COMPACTED_FILE_PREFIX))
-//                    .collect(Collectors.toList());
-//
-//            closeTables();
-//
-//            for (Path file : files) {
-//                Files.delete(file);
-//            }
-//        }
-//
-//        ssTables.clear();
-//        ssTables.addAll(compactedSSTables);
-//
-//        for (int i = 0; i < compactedSSTables.size(); i++) {
-//            Path newFile = dir.resolve(SSTable.SSTABLE_FILE_PREFIX + i);
-//            Path newIndexFile = SSTable.getIndexFile(newFile);
-//            Path oldFile = compactedSSTables.get(i).getFile();
-//            Path oldIndexFile = SSTable.getIndexFile(oldFile);
-//            Files.move(oldFile, newFile, StandardCopyOption.ATOMIC_MOVE);
-//            Files.move(oldIndexFile, newIndexFile, StandardCopyOption.ATOMIC_MOVE);
-//        }
-//
-//        nextSSTableIndex = compactedSSTables.size() + 1;
+        Iterator<Record> iterator = range(null, null);
+        Path dir = config.dir;
+
+        try {
+            List<SSTable> compactedSSTables = SSTable.writeCompacted(dir, iterator);
+
+            try (Stream<Path> stream = Files.list(dir)) {
+                List<Path> files = stream
+                        .filter(file -> !file.toFile().getName().contains(SSTable.COMPACTED_FILE_PREFIX))
+                        .collect(Collectors.toList());
+
+                closeTables();
+
+                for (Path file : files) {
+                    Files.delete(file);
+                }
+            }
+
+            ssTables.clear();
+            ssTables.addAll(compactedSSTables);
+
+            for (int i = 0; i < compactedSSTables.size(); i++) {
+                Path newFile = dir.resolve(SSTable.SSTABLE_FILE_PREFIX + i);
+                Path newIndexFile = SSTable.getIndexFile(newFile);
+                Path oldFile = compactedSSTables.get(i).getFile();
+                Path oldIndexFile = SSTable.getIndexFile(oldFile);
+                try {
+                    Files.move(oldFile, newFile, StandardCopyOption.ATOMIC_MOVE);
+                    Files.move(oldIndexFile, newIndexFile, StandardCopyOption.ATOMIC_MOVE);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
+
+            nextSSTableIndex = compactedSSTables.size() + 1;
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     @Override
