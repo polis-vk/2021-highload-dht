@@ -64,8 +64,7 @@ public final class RecordIterators {
         return new MergingIterator(new PeekingIterator(left), new PeekingIterator(right));
     }
 
-    public static Iterator<Record> filterTombstones(Iterator<Record> iterator) {
-        PeekingIterator delegate = new PeekingIterator(iterator);
+    public static Iterator<Record> filterTombstones(Iterator<Record> delegate) {
         return new Iterator<>() {
             private Record nextRecord = nextNotTombstone();
 
