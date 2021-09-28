@@ -14,7 +14,6 @@ import ru.mail.polis.lsm.Record;
 import ru.mail.polis.service.Service;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
