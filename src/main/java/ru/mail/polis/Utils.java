@@ -11,7 +11,7 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 
 public final class Utils {
-    public Utils() {
+    private Utils() {
         // Don't instantiate
     }
 
