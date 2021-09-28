@@ -154,8 +154,8 @@ public class SSTable implements Closeable {
         int fromOffset = fromKey == null ? 0 : offset(buffer, fromKey);
         int toOffset = toKey == null ? maxSize : offset(buffer, toKey);
 
-        buffer.position(fromOffset);
-        return new SSTableIterator(buffer, toOffset);
+        buffer.position(fromOffset == -1 ? maxSize : fromOffset);
+        return new SSTableIterator(buffer, toOffset == -1 ? maxSize : toOffset);
     }
 
     @Override
