@@ -11,10 +11,7 @@ import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -23,9 +20,6 @@ import java.util.SortedMap;
 @SuppressWarnings("JdkObsolete")
 class SSTable {
     private static final Method CLEAN;
-    private static final String TMP_FILE_EXT = ".tmp";
-    private static final String INDEX_FILE_EXT = ".idx";
-    private static final String COMPACT_FILE_NAME = "COMPACT_";
 
     private final MappedByteBuffer mmap;
     private final MappedByteBuffer idx;
@@ -41,36 +35,10 @@ class SSTable {
     }
 
     public SSTable(Path file) throws IOException {
-        Path indexFile = getIndexFile(file);
+        Path indexFile = FileUtils.getIndexFile(file);
 
-        mmap = openForRead(file);
-        idx = openForRead(indexFile);
-    }
-
-    private static MappedByteBuffer openForRead(Path name) throws IOException {
-        try (FileChannel channel = FileChannel.open(name, StandardOpenOption.READ)) {
-            return channel.map(FileChannel.MapMode.READ_ONLY, 0, channel.size());
-        }
-    }
-
-    private static Path resolveWithExt(Path file, String ext) {
-        return file.resolveSibling(file.getFileName() + ext);
-    }
-
-    private static Path getIndexFile(Path file) {
-        return resolveWithExt(file, INDEX_FILE_EXT);
-    }
-
-    private static Path getTmpFile(Path file) {
-        return resolveWithExt(file, TMP_FILE_EXT);
-    }
-
-    private static FileChannel openForWrite(Path tmpFileName) throws IOException {
-        return FileChannel.open(
-                tmpFileName,
-                StandardOpenOption.CREATE_NEW,
-                StandardOpenOption.WRITE,
-                StandardOpenOption.TRUNCATE_EXISTING);
+        mmap = FileUtils.openForRead(file);
+        idx = FileUtils.openForRead(indexFile);
     }
 
     private static void free(MappedByteBuffer buffer) throws IOException {
@@ -122,7 +90,7 @@ class SSTable {
     }
 
     public static List<SSTable> loadFromDir(Path dir) throws IOException {
-        prepareDirectory(dir);
+        FileUtils.prepareDirectory(dir);
         File[] files = dir.toFile().listFiles();
         ArrayList<SSTable> ssTables = new ArrayList<>();
         if (files.length == 0) {
@@ -131,7 +99,7 @@ class SSTable {
 
         for (File file : files) {
             String name = file.getName();
-            if (!name.endsWith(TMP_FILE_EXT) && !name.endsWith(INDEX_FILE_EXT)) {
+            if (!name.endsWith(FileUtils.TMP_FILE_EXT) && !name.endsWith(FileUtils.INDEX_FILE_EXT)) {
                 ssTables.add(new SSTable(file.toPath()));
             }
         }
@@ -143,12 +111,12 @@ class SSTable {
     }
 
     public static void write(Iterator<Record> records, Path file) throws IOException {
-        Path indexFile = getIndexFile(file);
-        Path tmpFileName = getTmpFile(file);
-        Path tmpIndexName = getTmpFile(indexFile);
+        Path indexFile = FileUtils.getIndexFile(file);
+        Path tmpFileName = FileUtils.getTmpFile(file);
+        Path tmpIndexName = FileUtils.getTmpFile(indexFile);
 
-        try (FileChannel fileChannel = openForWrite(tmpFileName);
-             FileChannel indexChannel = openForWrite(tmpIndexName)
+        try (FileChannel fileChannel = FileUtils.openForWrite(tmpFileName);
+             FileChannel indexChannel = FileUtils.openForWrite(tmpIndexName)
         ) {
             final ByteBuffer size = ByteBuffer.allocate(Integer.BYTES);
             while (records.hasNext()) {
@@ -165,13 +133,8 @@ class SSTable {
             fileChannel.force(false);
         }
 
-        rename(indexFile, tmpIndexName);
-        rename(file, tmpFileName);
-    }
-
-    private static void rename(Path file, Path tmpFile) throws IOException {
-        Files.deleteIfExists(file);
-        Files.move(tmpFile, file, StandardCopyOption.ATOMIC_MOVE);
+        FileUtils.rename(indexFile, tmpIndexName);
+        FileUtils.rename(file, tmpFileName);
     }
 
     /**
@@ -198,41 +161,12 @@ class SSTable {
             return null;
         }
 
-        Path fileName = dir.resolve(COMPACT_FILE_NAME + files[0].getName());
+        Path fileName = dir.resolve(FileUtils.COMPACT_FILE_NAME + files[0].getName());
         write(range, fileName);
         return fileName;
     }
 
-    /**
-     * Delete all files if there is compact file inside dir.
-     *
-     * @param dir directory
-     * @return true if compact files deleted
-     */
-    public static boolean prepareDirectory(Path dir) throws IOException {
-        File[] files = dir.toFile().listFiles();
 
-        if ((files.length == 0) || !files[0].getName().startsWith(COMPACT_FILE_NAME)) {
-            return false;
-        }
-
-        for (File file : files) {
-            if (!file.getName().startsWith(COMPACT_FILE_NAME)) {
-                file.delete();
-            }
-        }
-
-        Path compactFile = files[0].toPath();
-        String fileName = files[0].getName().substring(COMPACT_FILE_NAME.length());
-        Path file = dir.resolve(fileName);
-
-        if (Files.exists(getIndexFile(compactFile))) {
-            Files.move(getIndexFile(compactFile), getIndexFile(file), StandardCopyOption.ATOMIC_MOVE);
-        }
-
-        Files.move(compactFile, file, StandardCopyOption.ATOMIC_MOVE);
-        return true;
-    }
 
     private int offset(ByteBuffer buffer, ByteBuffer keyToFind) {
         int left = 0;

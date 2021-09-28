@@ -7,7 +7,7 @@ import java.util.List;
 import java.util.PriorityQueue;
 
 public class MergingIterator implements Iterator<Record> {
-    private PriorityQueue<Entry> queue;
+    private final PriorityQueue<Entry> queue;
 
     MergingIterator(List<Iterator<Record>> iterators) {
         queue = new PriorityQueue<>((a, b) -> {
