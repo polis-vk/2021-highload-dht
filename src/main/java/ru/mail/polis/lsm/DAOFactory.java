@@ -1,8 +1,8 @@
 package ru.mail.polis.lsm;
 
-import java.io.IOException;
-
 import ru.mail.polis.lsm.artem_drozdov.LsmDAO;
+
+import java.io.IOException;
 
 public final class DAOFactory {
 

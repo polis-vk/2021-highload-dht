@@ -1,9 +1,5 @@
 package ru.mail.polis.controller;
 
-import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
-import java.util.Iterator;
-
 import one.nio.http.Param;
 import one.nio.http.Path;
 import one.nio.http.Request;
@@ -11,6 +7,10 @@ import one.nio.http.Response;
 import ru.mail.polis.RecordUtil;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.Record;
+
+import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
+import java.util.Iterator;
 
 public class MainController implements Controller {
 

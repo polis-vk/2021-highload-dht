@@ -1,7 +1,5 @@
 package ru.mail.polis.service;
 
-import java.io.IOException;
-
 import one.nio.http.HttpServer;
 import one.nio.http.HttpServerConfig;
 import one.nio.http.HttpSession;
@@ -10,6 +8,8 @@ import one.nio.http.Response;
 import one.nio.server.AcceptorConfig;
 import ru.mail.polis.controller.MainController;
 import ru.mail.polis.lsm.DAO;
+
+import java.io.IOException;
 
 public class HttpServerImpl extends HttpServer implements Service {
 
