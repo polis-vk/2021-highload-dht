@@ -32,8 +32,8 @@ public class SSTable implements Closeable {
 
     static {
         try {
-            Class<?> aClass = Class.forName("sun.nio.ch.FileChannelImpl");
-            CLEAN = aClass.getDeclaredMethod("unmap", MappedByteBuffer.class);
+            Class<?> myClass = Class.forName("sun.nio.ch.FileChannelImpl");
+            CLEAN = myClass.getDeclaredMethod("unmap", MappedByteBuffer.class);
             CLEAN.setAccessible(true);
         } catch (Exception e) {
             throw new IllegalStateException(e);
@@ -147,12 +147,6 @@ public class SSTable implements Closeable {
         idx = open(indexFile);
     }
 
-    public static int sizeOf(Record record) {
-        int keySize = Integer.BYTES + record.getKeySize();
-        int valueSize = Integer.BYTES + record.getValueSize();
-        return keySize + valueSize;
-    }
-
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
         ByteBuffer buffer = mmap.asReadOnlyBuffer();
 
@@ -213,7 +207,8 @@ public class SSTable implements Closeable {
         );
     }
 
-    private static void writeValueWithSize(ByteBuffer value, WritableByteChannel channel, ByteBuffer tmp) throws IOException {
+    private static void writeValueWithSize(ByteBuffer value, WritableByteChannel channel, ByteBuffer tmp)
+            throws IOException {
         writeInt(value.remaining(), channel, tmp);
         channel.write(tmp);
         channel.write(value);

@@ -1,26 +1,18 @@
 package ru.mail.polis.lsm.artem_drozdov;
 
+import ru.mail.polis.lsm.DAO;
+import ru.mail.polis.lsm.DAOConfig;
+import ru.mail.polis.lsm.Record;
+
+import javax.annotation.Nullable;
+import javax.annotation.concurrent.GuardedBy;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
-import java.util.NavigableMap;
-import java.util.NoSuchElementException;
-import java.util.Objects;
-import java.util.SortedMap;
+import java.util.*;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentSkipListMap;
-
-import javax.annotation.Nullable;
-import javax.annotation.concurrent.GuardedBy;
-
-import ru.mail.polis.lsm.DAO;
-import ru.mail.polis.lsm.DAOConfig;
-import ru.mail.polis.lsm.Record;
 
 public class LsmDAO implements DAO {
 
@@ -85,7 +77,9 @@ public class LsmDAO implements DAO {
     }
 
     private int sizeOf(Record record) {
-        return SSTable.sizeOf(record);
+        int keySize = Integer.BYTES + record.getKeySize();
+        int valueSize = Integer.BYTES + record.getValueSize();
+        return keySize + valueSize;
     }
 
     @Override
@@ -172,11 +166,7 @@ public class LsmDAO implements DAO {
                     return right.next();
                 }
 
-                if (compareResult < 0) {
-                    return left.next();
-                } else {
-                    return right.next();
-                }
+                return compareResult > 0 ? left.next() : right.next();
             }
 
         };

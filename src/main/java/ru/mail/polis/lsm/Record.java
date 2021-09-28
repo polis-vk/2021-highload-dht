@@ -1,8 +1,7 @@
 package ru.mail.polis.lsm;
 
-import java.nio.ByteBuffer;
-
 import javax.annotation.Nullable;
+import java.nio.ByteBuffer;
 
 @SuppressWarnings("JavaLangClash")
 public class Record {
