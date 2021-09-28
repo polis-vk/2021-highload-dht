@@ -1,6 +1,12 @@
 package ru.mail.polis.service.alyonazakharova;
 
-import one.nio.http.*;
+import one.nio.http.HttpServer;
+import one.nio.http.HttpServerConfig;
+import one.nio.http.HttpSession;
+import one.nio.http.Param;
+import one.nio.http.Path;
+import one.nio.http.Request;
+import one.nio.http.Response;
 import one.nio.server.AcceptorConfig;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.Record;
@@ -15,11 +21,11 @@ public class BasicService extends HttpServer implements Service {
     private final DAO dao;
 
     /**
-     * Init server.
+     * Inits server.
      *
      * @param port number or port
      * @param dao data access object
-     * @throws IOException
+     * @throws IOException if something goes wrong...
      */
     public BasicService(final int port, final DAO dao) throws IOException {
         super(from(port));
@@ -27,7 +33,7 @@ public class BasicService extends HttpServer implements Service {
     }
 
     /**
-     * Generate HttpServerConfig by port number.
+     * Generates HttpServerConfig by port number.
      *
      * @param port number of port
      * @return HttpServerConfig which is used in constructor
@@ -52,7 +58,7 @@ public class BasicService extends HttpServer implements Service {
     }
 
     /**
-     * Execute get, put or delete operation.
+     * Executes get, put or delete operation.
      *
      * @param request method (get/put/delete)
      * @param id record's key
@@ -76,7 +82,7 @@ public class BasicService extends HttpServer implements Service {
     }
 
     /**
-     * Transform ByteBuffer to array of bytes.
+     * Transforms ByteBuffer to array of bytes.
      *
      * @param buffer to be transformed
      * @return transformed byte array

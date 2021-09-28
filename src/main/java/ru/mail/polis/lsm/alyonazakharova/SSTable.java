@@ -1,5 +1,6 @@
 package ru.mail.polis.lsm.alyonazakharova;
 
+import ru.mail.polis.Utils;
 import ru.mail.polis.lsm.Record;
 
 import javax.annotation.Nullable;
@@ -10,11 +11,8 @@ import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
-import java.nio.channels.WritableByteChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -30,8 +28,8 @@ public class SSTable implements Closeable {
 
     static {
         try {
-            Class<?> aClass = Class.forName("sun.nio.ch.FileChannelImpl");
-            CLEAN = aClass.getDeclaredMethod("unmap", MappedByteBuffer.class);
+            Class<?> CLAZZ = Class.forName("sun.nio.ch.FileChannelImpl");
+            CLEAN = CLAZZ.getDeclaredMethod("unmap", MappedByteBuffer.class);
             CLEAN.setAccessible(true);
         } catch (ClassNotFoundException | NoSuchMethodException e) {
             throw new IllegalStateException(e);
@@ -51,9 +49,9 @@ public class SSTable implements Closeable {
      */
     public SSTable(Path file) throws IOException {
         this.file = file;
-        Path indexFile = getIndexFile(file);
-        mmap = open(file);
-        idx = open(indexFile);
+        Path indexFile = Utils.getIndexFile(file);
+        mmap = Utils.open(file);
+        idx = Utils.open(indexFile);
     }
 
     public Path getFile() {
@@ -87,12 +85,12 @@ public class SSTable implements Closeable {
      * @throws IOException if a problem while writing to file occurs
      */
     public static SSTable write(Path file, Iterator<Record> iterator) throws IOException {
-        Path tmpFile = getTmpFile(file);
-        Path indexFile = getIndexFile(file);
-        Path tmpIndexFile = getTmpFile(indexFile);
+        Path tmpFile = Utils.getTmpFile(file);
+        Path indexFile = Utils.getIndexFile(file);
+        Path tmpIndexFile = Utils.getTmpFile(indexFile);
 
-        try (FileChannel fileChannel = openForWrite(tmpFile);
-             FileChannel indexChannel = openForWrite(tmpIndexFile)) {
+        try (FileChannel fileChannel = Utils.openForWrite(tmpFile);
+             FileChannel indexChannel = Utils.openForWrite(tmpIndexFile)) {
 
             final ByteBuffer size = ByteBuffer.allocate(Integer.BYTES);
 
@@ -101,22 +99,22 @@ public class SSTable implements Closeable {
                 if (position > Integer.MAX_VALUE) {
                     throw new IllegalStateException("File is too long");
                 }
-                writeInt((int) position, indexChannel, size);
+                Utils.writeInt((int) position, indexChannel, size);
 
                 Record record = iterator.next();
-                writeValueWithSize(record.getKey(), fileChannel, size);
+                Utils.writeValueWithSize(record.getKey(), fileChannel, size);
                 if (record.isTombstone()) {
-                    writeInt(-1, fileChannel, size);
+                    Utils.writeInt(-1, fileChannel, size);
                 } else {
                     ByteBuffer value = Objects.requireNonNull(record.getValue());
-                    writeValueWithSize(value, fileChannel, size);
+                    Utils.writeValueWithSize(value, fileChannel, size);
                 }
             }
             fileChannel.force(false);
         }
 
-        rename(tmpIndexFile, indexFile);
-        rename(tmpFile, file);
+        Utils.rename(tmpIndexFile, indexFile);
+        Utils.rename(tmpFile, file);
 
         return new SSTable(file);
     }
@@ -139,12 +137,12 @@ public class SSTable implements Closeable {
 
             Path file = dir.resolve(COMPACTED_FILE_PREFIX + compactedSSTables.size());
 
-            Path tmpFile = getTmpFile(file);
-            Path indexFile = getIndexFile(file);
-            Path tmpIndexFile = getTmpFile(indexFile);
+            Path tmpFile = Utils.getTmpFile(file);
+            Path indexFile = Utils.getIndexFile(file);
+            Path tmpIndexFile = Utils.getTmpFile(indexFile);
 
-            try (FileChannel fileChannel = openForWrite(tmpFile);
-                 FileChannel indexChannel = openForWrite(tmpIndexFile)) {
+            try (FileChannel fileChannel = Utils.openForWrite(tmpFile);
+                 FileChannel indexChannel = Utils.openForWrite(tmpIndexFile)) {
                 while (iterator.hasNext()) {
                     // 100 - ето из воздуха взятое значение, просто чтобы потестить
                     // наверное, можно было бы использовать здесь memoryLimit, который использовали для флаша
@@ -152,22 +150,22 @@ public class SSTable implements Closeable {
                         break;
                     }
                     long position = fileChannel.position();
-                    writeInt((int) position, indexChannel, size);
+                    Utils.writeInt((int) position, indexChannel, size);
 
                     Record record = iterator.next();
-                    writeValueWithSize(record.getKey(), fileChannel, size);
+                    Utils.writeValueWithSize(record.getKey(), fileChannel, size);
                     if (record.isTombstone()) {
-                        writeInt(-1, fileChannel, size);
+                        Utils.writeInt(-1, fileChannel, size);
                     } else {
                         ByteBuffer value = Objects.requireNonNull(record.getValue());
-                        writeValueWithSize(value, fileChannel, size);
+                        Utils.writeValueWithSize(value, fileChannel, size);
                     }
                     memoryConsumption += sizeOf(record);
                 }
                 fileChannel.force(false);
             }
-            rename(tmpIndexFile, indexFile);
-            rename(tmpFile, file);
+            Utils.rename(tmpIndexFile, indexFile);
+            Utils.rename(tmpFile, file);
 
             compactedSSTables.add(new SSTable(file));
         }
@@ -327,53 +325,5 @@ public class SSTable implements Closeable {
         }
 
         return idx.getInt(left * Integer.BYTES);
-    }
-
-    protected static Path getIndexFile(Path file) {
-        return resolveWithExt(file, ".idx");
-    }
-
-    private static Path getTmpFile(Path file) {
-        return resolveWithExt(file, ".tmp");
-    }
-
-    private static Path resolveWithExt(Path file, String ext) {
-        return file.resolveSibling(file.getFileName() + ext);
-    }
-
-    private static MappedByteBuffer open(Path name) throws IOException {
-        try (FileChannel channel = FileChannel.open(name, StandardOpenOption.READ)) {
-            return channel.map(FileChannel.MapMode.READ_ONLY, 0, channel.size());
-        }
-    }
-
-    private static FileChannel openForWrite(Path tmpFile) throws IOException {
-        return FileChannel.open(
-                tmpFile,
-                StandardOpenOption.WRITE,
-                StandardOpenOption.CREATE,
-                StandardOpenOption.TRUNCATE_EXISTING);
-    }
-
-    private static void rename(Path tmpFile, Path file) throws IOException {
-        Files.deleteIfExists(file);
-        Files.move(tmpFile, file, StandardCopyOption.ATOMIC_MOVE);
-    }
-
-    private static void writeValueWithSize(ByteBuffer value,
-                                           WritableByteChannel channel,
-                                           ByteBuffer size) throws IOException {
-        writeInt(value.remaining(), channel, size);
-        channel.write(size);
-        channel.write(value);
-    }
-
-    private static void writeInt(int value,
-                                 WritableByteChannel channel,
-                                 ByteBuffer size) throws IOException {
-        size.position(0);
-        size.putInt(value);
-        size.position(0);
-        channel.write(size);
     }
 }

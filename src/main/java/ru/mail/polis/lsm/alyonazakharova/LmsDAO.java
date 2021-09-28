@@ -1,5 +1,6 @@
 package ru.mail.polis.lsm.alyonazakharova;
 
+import ru.mail.polis.Utils;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.DAOConfig;
 import ru.mail.polis.lsm.Record;
@@ -12,7 +13,13 @@ import java.nio.ByteBuffer;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+import java.util.NavigableMap;
+import java.util.NoSuchElementException;
+import java.util.SortedMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.stream.Collectors;
@@ -26,7 +33,7 @@ public class LmsDAO implements DAO {
     @SuppressWarnings("unused")
     private final DAOConfig config;
 
-//    @GuardedBy("this")
+    //    @GuardedBy("this")
     private int nextSSTableIndex;
 
     @GuardedBy("this")
@@ -103,9 +110,9 @@ public class LmsDAO implements DAO {
 
             for (int i = 0; i < compactedSSTables.size(); i++) {
                 Path newFile = dir.resolve(SSTable.SSTABLE_FILE_PREFIX + i);
-                Path newIndexFile = SSTable.getIndexFile(newFile);
+                Path newIndexFile = Utils.getIndexFile(newFile);
                 Path oldFile = compactedSSTables.get(i).getFile();
-                Path oldIndexFile = SSTable.getIndexFile(oldFile);
+                Path oldIndexFile = Utils.getIndexFile(oldFile);
                 try {
                     Files.move(oldFile, newFile, StandardCopyOption.ATOMIC_MOVE);
                     Files.move(oldIndexFile, newIndexFile, StandardCopyOption.ATOMIC_MOVE);
@@ -149,7 +156,8 @@ public class LmsDAO implements DAO {
         return SSTable.sizeOf(record);
     }
 
-    private Iterator<Record> ssTableRanges(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) throws IOException {
+    private Iterator<Record> ssTableRanges(@Nullable ByteBuffer fromKey,
+                                           @Nullable ByteBuffer toKey) throws IOException {
         List<Iterator<Record>> iterators = new ArrayList<>(ssTables.size());
         for (SSTable ssTable : ssTables) {
             iterators.add(ssTable.range(fromKey, toKey));
