@@ -1,4 +1,4 @@
-package ru.mail.polis.lsm.alex_holod;
+package ru.mail.polis.lsm.holod;
 
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.DAOConfig;

@@ -1,4 +1,4 @@
-package ru.mail.polis.service.alex_holod;
+package ru.mail.polis.service.holod;
 
 import one.nio.http.*;
 import ru.mail.polis.lsm.DAO;
@@ -70,9 +70,7 @@ public class BasicService extends HttpServer {
     }
 
     private Response get(final String id) {
-         final ByteBuffer key =
-                 ByteBuffer.wrap
-                         (id.getBytes(StandardCharsets.UTF_8));
+         final ByteBuffer key = ByteBuffer.wrap(id.getBytes(StandardCharsets.UTF_8));
          final Iterator<Record> range = dao.range(key, DAO.nextKey(key));
          if (range.hasNext()) {
              final Record first = range.next();

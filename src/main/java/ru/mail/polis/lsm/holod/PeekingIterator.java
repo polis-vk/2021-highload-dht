@@ -1,4 +1,4 @@
-package ru.mail.polis.lsm.alex_holod;
+package ru.mail.polis.lsm.holod;
 
 import java.util.Iterator;
 import java.util.NoSuchElementException;

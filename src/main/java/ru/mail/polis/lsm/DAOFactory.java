@@ -1,6 +1,6 @@
 package ru.mail.polis.lsm;
 
-import ru.mail.polis.lsm.alex_holod.LsmDAO;
+import ru.mail.polis.lsm.holod.LsmDAO;
 
 import java.io.IOException;
 
