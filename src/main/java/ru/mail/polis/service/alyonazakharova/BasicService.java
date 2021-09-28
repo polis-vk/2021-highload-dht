@@ -14,11 +14,24 @@ import java.util.Iterator;
 public class BasicService extends HttpServer implements Service {
     private final DAO dao;
 
+    /**
+     * Init server.
+     *
+     * @param port number or port
+     * @param dao data access object
+     * @throws IOException
+     */
     public BasicService(final int port, final DAO dao) throws IOException {
         super(from(port));
         this.dao = dao;
     }
 
+    /**
+     * Generate HttpServerConfig by port number.
+     *
+     * @param port number of port
+     * @return HttpServerConfig which is used in constructor
+     */
     private static HttpServerConfig from(final int port) {
         final HttpServerConfig config = new HttpServerConfig();
         final AcceptorConfig acceptorConfig = new AcceptorConfig();
@@ -28,11 +41,23 @@ public class BasicService extends HttpServer implements Service {
         return config;
     }
 
+    /**
+     * Method to check if the server is listening.
+     *
+     * @return 200 OK
+     */
     @Path("/v0/status")
     public Response status() {
         return Response.ok("I'm OK");
     }
 
+    /**
+     * Execute get, put or delete operation.
+     *
+     * @param request method (get/put/delete)
+     * @param id record's key
+     * @return 405/200/404/201/202 response
+     */
     @Path("/v0/entity")
     public Response entity(final Request request, @Param(value = "id", required = true) final String id) {
         if (id.isBlank()) {
@@ -50,12 +75,24 @@ public class BasicService extends HttpServer implements Service {
         }
     }
 
+    /**
+     * Transform ByteBuffer to array of bytes.
+     *
+     * @param buffer to be transformed
+     * @return transformed byte array
+     */
     private static byte[] extractBytes(final ByteBuffer buffer) {
         final byte[] result = new byte[buffer.remaining()];
         buffer.get(result);
         return result;
     }
 
+    /**
+     * Get a record by key.
+     *
+     * @param id key
+     * @return 200 OK if the record was found and 404 NOT FOUND otherwise
+     */
     private Response get(final String id) {
         final ByteBuffer key = ByteBuffer.wrap(id.getBytes(StandardCharsets.UTF_8));
         final Iterator<Record> range = dao.range(key, DAO.nextKey(key));
@@ -67,6 +104,13 @@ public class BasicService extends HttpServer implements Service {
         }
     }
 
+    /**
+     * Upsert a record.
+     *
+     * @param id key
+     * @param body value
+     * @return 201 CREATED
+     */
     private Response put(final String id, final byte[] body) {
         final ByteBuffer key = ByteBuffer.wrap(id.getBytes(StandardCharsets.UTF_8));
         final ByteBuffer value = ByteBuffer.wrap(body);
@@ -74,6 +118,12 @@ public class BasicService extends HttpServer implements Service {
         return new Response(Response.CREATED, Response.EMPTY);
     }
 
+    /**
+     * Delete a record by key.
+     *
+     * @param id key
+     * @return 202 ACCEPTED
+     */
     private Response delete(final String id) {
         final ByteBuffer key = ByteBuffer.wrap(id.getBytes(StandardCharsets.UTF_8));
         dao.upsert(Record.tombstone(key));
