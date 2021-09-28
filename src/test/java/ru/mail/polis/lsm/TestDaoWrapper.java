@@ -5,7 +5,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
 
-public class TestDaoWrapper implements DAO {
+public class  TestDaoWrapper implements DAO {
     static final long MAX_HEAP = 128 * 1024 * 1024;
 
     private final DAO delegate;
