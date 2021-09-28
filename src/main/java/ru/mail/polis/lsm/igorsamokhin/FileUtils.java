@@ -57,7 +57,7 @@ final class FileUtils {
     public static boolean prepareDirectory(Path dir) throws IOException {
         File[] files = dir.toFile().listFiles();
 
-        if ((files.length == 0) || !files[0].getName().startsWith(COMPACT_FILE_NAME)) {
+        if ((files == null) || (files.length == 0) || !files[0].getName().startsWith(COMPACT_FILE_NAME)) {
             return false;
         }
 

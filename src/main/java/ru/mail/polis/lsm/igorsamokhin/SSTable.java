@@ -93,7 +93,7 @@ class SSTable {
         FileUtils.prepareDirectory(dir);
         File[] files = dir.toFile().listFiles();
         ArrayList<SSTable> ssTables = new ArrayList<>();
-        if (files.length == 0) {
+        if ((files == null) || (files.length == 0)) {
             return ssTables;
         }
 
