@@ -6,13 +6,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
-import java.util.NavigableMap;
-import java.util.NoSuchElementException;
-import java.util.SortedMap;
+import java.util.*;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentSkipListMap;
 
@@ -141,30 +135,6 @@ public class LsmDAO implements DAO {
     }
 
     private static Iterator<Record> filterTombstones(Iterator<Record> iterator) {
-        PeekingIterator delegate = new PeekingIterator(iterator);
-        return new Iterator<>() {
-            @Override
-            public boolean hasNext() {
-                for (;;) {
-                    Record peek = delegate.peek();
-                    if (peek == null) {
-                        return false;
-                    }
-                    if (!peek.isTombstone()) {
-                        return true;
-                    }
-
-                    delegate.next();
-                }
-            }
-
-            @Override
-            public Record next() {
-                if (!hasNext()) {
-                    throw new NoSuchElementException("No elements");
-                }
-                return delegate.next();
-            }
-        };
+        return new FilterIterator(new PeekingIterator(iterator));
     }
 }
