@@ -165,9 +165,6 @@ public class LsmDAO implements DAO {
 
             @Override
             public Record next() {
-                if (!hasNext()) {
-                    throw new NoSuchElementException("No elements");
-                }
                 return delegate.next();
             }
         };
