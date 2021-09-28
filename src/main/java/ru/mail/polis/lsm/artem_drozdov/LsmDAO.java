@@ -15,8 +15,6 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NavigableMap;
-import java.util.NoSuchElementException;
-import java.util.Objects;
 import java.util.SortedMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentSkipListMap;
@@ -147,110 +145,6 @@ public class LsmDAO implements DAO {
 
     private static Iterator<Record> filterTombstones(Iterator<Record> iterator) {
         PeekingIterator delegate = new PeekingIterator(iterator);
-        return new Iterator<>() {
-            @Override
-            public boolean hasNext() {
-                for (;;) {
-                    Record peek = delegate.peek();
-                    if (peek == null) {
-                        return false;
-                    }
-                    if (!peek.isTombstone()) {
-                        return true;
-                    }
-
-                    delegate.next();
-                }
-            }
-
-            @Override
-            public Record next() {
-                return delegate.next();
-            }
-        };
-    }
-
-    private static class PeekingIterator implements Iterator<Record> {
-
-        private Record current;
-
-        private final Iterator<Record> delegate;
-
-        public PeekingIterator(Iterator<Record> delegate) {
-            this.delegate = delegate;
-        }
-
-        @Override
-        public boolean hasNext() {
-            return current != null || delegate.hasNext();
-        }
-
-        @Override
-        public Record next() {
-            Record now = peek();
-            current = null;
-            return now;
-        }
-
-        public Record peek() {
-            if (current != null) {
-                return current;
-            }
-
-            if (!delegate.hasNext()) {
-                return null;
-            }
-
-            current = delegate.next();
-            return current;
-        }
-
-    }
-
-    private static class MergeTwoIterator implements Iterator<Record> {
-
-        private final PeekingIterator left;
-        private final PeekingIterator right;
-
-        public MergeTwoIterator(PeekingIterator left, PeekingIterator right) {
-            this.left = left;
-            this.right = right;
-        }
-
-        @Override
-        public boolean hasNext() {
-            return left.hasNext() || right.hasNext();
-        }
-
-        @Override
-        public Record next() {
-            if (!hasNext()) {
-                throw new NoSuchElementException("No elements");
-            }
-
-            if (!left.hasNext()) {
-                return right.next();
-            }
-            if (!right.hasNext()) {
-                return left.next();
-            }
-
-            // checked earlier
-            ByteBuffer leftKey = Objects.requireNonNull(left.peek()).getKey();
-            ByteBuffer rightKey = Objects.requireNonNull(right.peek()).getKey();
-
-            int compareResult = leftKey.compareTo(rightKey);
-            if (compareResult == 0) {
-                left.next();
-                return right.next();
-            }
-
-            if (compareResult < 0) {
-                return left.next();
-            } else {
-                return right.next();
-            }
-        }
-
+        return new TombstoneFilterIterator(delegate);
     }
 }
