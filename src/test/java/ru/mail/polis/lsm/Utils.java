@@ -1,8 +1,5 @@
 package ru.mail.polis.lsm;
 
-import org.junit.jupiter.api.Assertions;
-import org.junit.jupiter.api.io.TempDir;
-
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
@@ -19,10 +16,8 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
-import java.util.NavigableMap;
 import java.util.Random;
 import java.util.TreeMap;
-import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertIterableEquals;
 
@@ -94,19 +89,13 @@ class Utils {
 
     static void assertDaoEquals(DAO dao, Map<ByteBuffer, ByteBuffer> map) {
         TreeMap<ByteBuffer, ByteBuffer> bufferTreeMap = new TreeMap<>(map);
-        NavigableMap<ByteBuffer, ByteBuffer> bufferTreeMapReverse = bufferTreeMap.descendingMap();
 
         assertEquals(dao.range(null, null), bufferTreeMap.entrySet());
-        assertEquals(dao.descendingRange(null, null), bufferTreeMapReverse.entrySet());
 
         if (!bufferTreeMap.isEmpty()) {
             assertEquals(dao.range(bufferTreeMap.firstKey(), DAO.nextKey(bufferTreeMap.lastKey())), bufferTreeMap.entrySet());
             assertEquals(dao.range(bufferTreeMap.firstKey(), null), bufferTreeMap.entrySet());
             assertEquals(dao.range(null, DAO.nextKey(bufferTreeMap.lastKey())), bufferTreeMap.entrySet());
-
-            assertEquals(dao.descendingRange(bufferTreeMap.firstKey(), DAO.nextKey(bufferTreeMap.lastKey())), bufferTreeMapReverse.entrySet());
-            assertEquals(dao.descendingRange(bufferTreeMap.firstKey(), null), bufferTreeMapReverse.entrySet());
-            assertEquals(dao.descendingRange(null, DAO.nextKey(bufferTreeMap.lastKey())), bufferTreeMapReverse.entrySet());
         }
     }
 
@@ -116,6 +105,7 @@ class Utils {
 
         List<String> i1List = new ArrayList<>();
         i1.forEachRemaining(r -> i1List.add(toString(decoder, r.getKey(), r.getValue())));
+
         List<String> i2List = new ArrayList<>();
         for (Map.Entry<ByteBuffer, ByteBuffer> entry : i2) {
             i2List.add(toString(decoder, entry.getKey(), entry.getValue()));
@@ -155,46 +145,5 @@ class Utils {
                         return FileVisitResult.CONTINUE;
                     }
                 });
-    }
-
-    static long getFilesCount(@TempDir Path dir) throws IOException {
-        try (Stream<Path> files = Files.list(dir)) {
-            return files.count();
-        }
-    }
-
-    static long getFilesSize(@TempDir Path dir) throws IOException {
-        try (Stream<Path> files = Files.list(dir)) {
-            return files
-                    .map(file -> {
-                        try {
-                            return Files.size(file);
-                        } catch (IOException e) {
-                            e.printStackTrace();
-                        }
-                        return 0L;
-                    })
-                    .reduce(0L, Long::sum);
-        }
-    }
-
-    static void verifyNext(byte[] suffix, Iterator<Record> range, int index) {
-        ByteBuffer key = keyWithSuffix(index, suffix);
-        ByteBuffer value = valueWithSuffix(index, suffix);
-
-        Record next = range.next();
-
-        Assertions.assertEquals(key, next.getKey());
-        Assertions.assertEquals(value, next.getValue());
-    }
-
-    static void prepareHugeDao(@TempDir Path data, int recordsCount, byte[] suffix) throws IOException {
-        try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
-            for (int i = 0; i < recordsCount; i++) {
-                ByteBuffer key = keyWithSuffix(i, suffix);
-                ByteBuffer value = valueWithSuffix(i, suffix);
-                dao.upsert(Record.of(key, value));
-            }
-        }
     }
 }

@@ -28,7 +28,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class ConcurrentTest {
 
     private static final int THREAD_COUNT = 32;
-    private static final int TASKS_COUNT = 1_000;
+    private static final int TASKS_COUNT = 100;
 
     private DAO dao;
     private ExecutorService executor;
@@ -65,7 +65,7 @@ class ConcurrentTest {
         }
 
         executor.shutdown();
-        if (!executor.awaitTermination(10, TimeUnit.SECONDS)) {
+        if (!executor.awaitTermination(60, TimeUnit.SECONDS)) {
             throw new InterruptedException();
         }
 

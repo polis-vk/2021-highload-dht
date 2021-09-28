@@ -8,8 +8,13 @@ public final class DAOFactory {
         // Only static methods
     }
 
+    /**
+     * Create an instance of {@link DAO} with supplied {@link DAOConfig}.
+     */
     public static DAO create(DAOConfig config) throws IOException {
-        return new DaoImpl(config);
+        assert config.dir.toFile().exists();
+
+        return new LsmDAO(config);
     }
 
 }
