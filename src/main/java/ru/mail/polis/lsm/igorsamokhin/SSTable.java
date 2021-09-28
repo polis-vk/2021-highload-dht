@@ -166,8 +166,6 @@ class SSTable {
         return fileName;
     }
 
-
-
     private int offset(ByteBuffer buffer, ByteBuffer keyToFind) {
         int left = 0;
         int rightLimit = idx.remaining() / Integer.BYTES;

@@ -72,7 +72,9 @@ final class FileUtils {
         Path file = dir.resolve(fileName);
 
         if (Files.exists(FileUtils.getIndexFile(compactFile))) {
-            Files.move(FileUtils.getIndexFile(compactFile), FileUtils.getIndexFile(file), StandardCopyOption.ATOMIC_MOVE);
+            Files.move(FileUtils.getIndexFile(compactFile),
+                    FileUtils.getIndexFile(file),
+                    StandardCopyOption.ATOMIC_MOVE);
         }
 
         Files.move(compactFile, file, StandardCopyOption.ATOMIC_MOVE);
