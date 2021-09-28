@@ -10,7 +10,11 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 
-public class Utils {
+public final class Utils {
+    public Utils() {
+        // Don't instantiate
+    }
+
     public static Path getIndexFile(Path file) {
         return resolveWithExt(file, ".idx");
     }
