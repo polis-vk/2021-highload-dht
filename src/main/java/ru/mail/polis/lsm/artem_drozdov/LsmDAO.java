@@ -166,7 +166,7 @@ public class LsmDAO implements DAO {
                     return right.next();
                 }
 
-                return compareResult > 0 ? left.next() : right.next();
+                return compareResult < 0 ? left.next() : right.next();
             }
 
         };
