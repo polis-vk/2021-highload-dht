@@ -63,7 +63,7 @@ final class FileUtils {
 
         for (File file : files) {
             if (!file.getName().startsWith(COMPACT_FILE_NAME)) {
-                file.delete();
+                Files.delete(file.toPath());
             }
         }
 
