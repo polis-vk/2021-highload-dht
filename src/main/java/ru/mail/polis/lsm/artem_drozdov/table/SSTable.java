@@ -120,7 +120,9 @@ public class SSTable implements Closeable {
 
         Path file0 = dir.resolve(SSTABLE_FILE_PREFIX + 0);
         if (Files.exists(FileHelper.getIndexFile(compaction))) {
-            Files.move(FileHelper.getIndexFile(compaction), FileHelper.getIndexFile(file0), StandardCopyOption.ATOMIC_MOVE);
+            Files.move(FileHelper.getIndexFile(compaction),
+                    FileHelper.getIndexFile(file0),
+                    StandardCopyOption.ATOMIC_MOVE);
         }
 
         Files.move(compaction, file0, StandardCopyOption.ATOMIC_MOVE);

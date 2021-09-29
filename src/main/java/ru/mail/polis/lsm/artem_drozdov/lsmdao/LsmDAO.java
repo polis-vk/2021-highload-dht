@@ -17,7 +17,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.NavigableMap;
 import java.util.NoSuchElementException;
-import java.util.Objects;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentSkipListMap;
 
@@ -43,7 +42,8 @@ public class LsmDAO implements DAO {
         synchronized (this) {
             Iterator<Record> sstableRanges = sstableRanges(fromKey, toKey);
             Iterator<Record> memoryRange = map(fromKey, toKey).values().iterator();
-            Iterator<Record> iterator = mergeTwo(new PeekingIterator(sstableRanges), new PeekingIterator(memoryRange));
+            Iterator<Record> iterator =
+                    new MergingIterator(new PeekingIterator(sstableRanges), new PeekingIterator(memoryRange));
             return filterTombstones(iterator);
         }
     }
@@ -129,52 +129,11 @@ public class LsmDAO implements DAO {
             return iterators.get(0);
         }
         if (iterators.size() == 2) {
-            return mergeTwo(new PeekingIterator(iterators.get(0)), new PeekingIterator(iterators.get(1)));
+            return new MergingIterator(new PeekingIterator(iterators.get(0)), new PeekingIterator(iterators.get(1)));
         }
         Iterator<Record> left = merge(iterators.subList(0, iterators.size() / 2));
         Iterator<Record> right = merge(iterators.subList(iterators.size() / 2, iterators.size()));
-        return mergeTwo(new PeekingIterator(left), new PeekingIterator(right));
-    }
-
-    private static Iterator<Record> mergeTwo(PeekingIterator left, PeekingIterator right) {
-        return new Iterator<>() {
-
-            @Override
-            public boolean hasNext() {
-                return left.hasNext() || right.hasNext();
-            }
-
-            @Override
-            public Record next() {
-                if (!hasNext()) {
-                    throw new NoSuchElementException("No elements");
-                }
-
-                if (!left.hasNext()) {
-                    return right.next();
-                }
-                if (!right.hasNext()) {
-                    return left.next();
-                }
-
-                // checked earlier
-                ByteBuffer leftKey = Objects.requireNonNull(left.peek()).getKey();
-                ByteBuffer rightKey = Objects.requireNonNull(right.peek()).getKey();
-
-                int compareResult = leftKey.compareTo(rightKey);
-                if (compareResult == 0) {
-                    left.next();
-                    return right.next();
-                }
-
-                if (compareResult < 0) {
-                    return left.next();
-                } else {
-                    return right.next();
-                }
-            }
-
-        };
+        return new MergingIterator(new PeekingIterator(left), new PeekingIterator(right));
     }
 
     private static Iterator<Record> filterTombstones(Iterator<Record> iterator) {
