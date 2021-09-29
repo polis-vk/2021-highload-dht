@@ -2,8 +2,8 @@ package ru.mail.polis.service.lucas_mbele;
 
 import one.nio.http.HttpServer;
 import one.nio.http.HttpSession;
-import one.nio.http.Param;
 import one.nio.http.HttpServerConfig;
+import one.nio.http.Param;
 import one.nio.http.Path;
 import one.nio.http.Request;
 import one.nio.http.Response;
@@ -23,8 +23,7 @@ public class HttpRestService extends HttpServer implements Service {
         this.dao = dao;
     }
 
-    public static HttpServerConfig serviceConfig(int port)
-    {
+    public static HttpServerConfig serviceConfig(int port) {
         // Minimal configuration of our service
         HttpServerConfig config = new HttpServerConfig();
         config.acceptors = new AcceptorConfig[]{ServiceUtils.acceptors(port)};
@@ -32,29 +31,24 @@ public class HttpRestService extends HttpServer implements Service {
     }
      // We check if our service works
      @Path("/v0/status")
-     public Response status(Request request)
-     {
+     public Response status(Request request) {
          //Obviously we know that this request implies a GET Method, but for the purpose we set it
-         if (request.getMethod() == Request.METHOD_GET) // TRUE
-         {
+         if (request.getMethod() == Request.METHOD_GET) {
              return Response.ok(Response.OK); //Code 202
          }
-         else
-         {
+         else {
              return new Response(Response.SERVICE_UNAVAILABLE,Response.EMPTY);
          }
 
      }
     //METHODS - GET/PUT/DELETE
     @Path("/v0/entity")
-    public Response entity(Request request, @Param(value = "id",required = true) String id)
-    {
+    public Response entity(Request request, @Param(value = "id",required = true) String id) {
         if (id.isBlank()) {
             return new Response(Response.BAD_REQUEST, Response.EMPTY);
         }
         // We handle all 3 methods
-        switch (request.getMethod())
-        {
+        switch (request.getMethod()) {
             case Request.METHOD_GET:
                 return get(id);
             case Request.METHOD_PUT:
@@ -68,13 +62,11 @@ public class HttpRestService extends HttpServer implements Service {
     private Response get(String id) {
         ByteBuffer key = ByteBuffer.wrap(id.getBytes(StandardCharsets.UTF_8));
         Iterator<Record> keyIterator = dao.range(key,DAO.nextKey(key)); // A key range containing ids whose start from the current id
-        if (keyIterator.hasNext())
-         {
+        if (keyIterator.hasNext()) {
             Record record = keyIterator.next();
             return new Response(Response.OK , ServiceUtils.extractBytesBuffer(record.getValue()));
          }
-        else 
-         {
+        else {
             return new Response(Response.NOT_FOUND,Response.EMPTY);
          }
     }
@@ -85,8 +77,7 @@ public class HttpRestService extends HttpServer implements Service {
         return new Response(Response.CREATED,Response.EMPTY);
     }
 
-    private Response delete(String id)
-    {
+    private Response delete(String id) {
         ByteBuffer key = ByteBuffer.wrap(id.getBytes(StandardCharsets.UTF_8));
         dao.upsert(Record.tombstone(key));
         return new Response(Response.ACCEPTED, Response.EMPTY);
