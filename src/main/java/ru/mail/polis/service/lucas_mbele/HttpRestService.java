@@ -37,7 +37,7 @@ public class HttpRestService extends HttpServer implements Service {
          //Obviously we know that this request implies a GET Method, but for the purpose we set it
          if (request.getMethod() == Request.METHOD_GET) {
              return Response.ok(Response.OK); //Code 202
-         }
+              }
          else {
              return new Response(Response.SERVICE_UNAVAILABLE,Response.EMPTY);
             }
@@ -69,7 +69,7 @@ public class HttpRestService extends HttpServer implements Service {
         if (keyIterator.hasNext()) {
             Record record = keyIterator.next();
             return new Response(Response.OK,ServiceUtils.extractBytesBuffer(record.getValue()));
-        }
+             }
         else {
             return new Response(Response.NOT_FOUND,Response.EMPTY);
            }
