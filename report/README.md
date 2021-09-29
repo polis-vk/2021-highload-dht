@@ -125,9 +125,9 @@ Transfer/sec:    327.14KB
 ```
 
 ### Async-profiler
-#### [Output CPU for PUT-requests](cpuPut.png)
+#### [Output CPU for PUT-requests](cpuPut.html)
 ![cpu PUT](cpuPut.png)
-#### [Output ALLOC for PUT-requests](allocPut.png)
+#### [Output ALLOC for PUT-requests](allocPut.html)
 ![alloc PUT](allocPut.png)
 
 ### Conclusions
@@ -286,7 +286,7 @@ Transfer/sec:    360.34KB
 ### Async-profiler
 #### [Output CPU for GET-requests](cpuGet.html)
 ![cpu GET](cpuGet.png)
-#### [Output ALLOC for GET-requests](allocGet.png)
+#### [Output ALLOC for GET-requests](allocGet.html)
 ![alloc GET](allocGet.png)
 
 ### Conclusions
