@@ -127,7 +127,7 @@ public class LsmDAO implements DAO {
     }
 
     private static Iterator<Record> merge(List<Iterator<Record>> iterators) {
-        if (iterators.size() == 0) {
+        if (iterators.isEmpty() ) {
             return Collections.emptyIterator();
         }
         if (iterators.size() == 1) {
@@ -146,7 +146,7 @@ public class LsmDAO implements DAO {
 
             @Override
             public boolean hasNext() {
-                return left.hasNext() || right.hasNext();
+                return (left.hasNext() || right.hasNext());
             }
 
             @Override
