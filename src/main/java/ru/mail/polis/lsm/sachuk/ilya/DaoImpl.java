@@ -28,9 +28,8 @@ import java.util.stream.StreamSupport;
 
 public class DaoImpl implements DAO {
 
-    private static final long LIMIT = 16L * 1024 * 1024;
-
     private final Path dirPath;
+    private final DAOConfig config;
     private NavigableMap<ByteBuffer, Record> memoryStorage = new ConcurrentSkipListMap<>();
     private final List<SSTable> ssTables = new ArrayList<>();
 
@@ -44,6 +43,7 @@ public class DaoImpl implements DAO {
      * @throws IOException is thrown when an I/O error occurs.
      */
     public DaoImpl(DAOConfig config) throws IOException {
+        this.config = config;
         this.dirPath = config.dir;
 
         ssTables.addAll(SSTable.loadFromDir(dirPath));
@@ -72,7 +72,7 @@ public class DaoImpl implements DAO {
     public void upsert(Record record) {
         synchronized (this) {
             memoryConsumption += sizeOf(record);
-            if (memoryConsumption > LIMIT) {
+            if (memoryConsumption > config.memoryLimit) {
                 try {
                     flush();
                     memoryConsumption = 0;
