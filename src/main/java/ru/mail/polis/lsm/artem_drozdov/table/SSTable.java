@@ -19,15 +19,6 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.stream.Stream;
 
-import static ru.mail.polis.lsm.artem_drozdov.table.FileHelper.free;
-import static ru.mail.polis.lsm.artem_drozdov.table.FileHelper.getIndexFile;
-import static ru.mail.polis.lsm.artem_drozdov.table.FileHelper.getTmpFile;
-import static ru.mail.polis.lsm.artem_drozdov.table.FileHelper.open;
-import static ru.mail.polis.lsm.artem_drozdov.table.FileHelper.openForWrite;
-import static ru.mail.polis.lsm.artem_drozdov.table.FileHelper.rename;
-import static ru.mail.polis.lsm.artem_drozdov.table.FileHelper.writeInt;
-import static ru.mail.polis.lsm.artem_drozdov.table.FileHelper.writeValueWithSize;
-
 public class SSTable implements Closeable {
 
     public static final String SSTABLE_FILE_PREFIX = "file_";
@@ -58,13 +49,13 @@ public class SSTable implements Closeable {
     }
 
     private static void writeImpl(Iterator<Record> records, Path file) throws IOException {
-        Path indexFile = getIndexFile(file);
-        Path tmpFileName = getTmpFile(file);
-        Path tmpIndexName = getTmpFile(indexFile);
+        Path indexFile = FileHelper.getIndexFile(file);
+        Path tmpFileName = FileHelper.getTmpFile(file);
+        Path tmpIndexName = FileHelper.getTmpFile(indexFile);
 
         try (
-                FileChannel fileChannel = openForWrite(tmpFileName);
-                FileChannel indexChannel = openForWrite(tmpIndexName)
+                FileChannel fileChannel = FileHelper.openForWrite(tmpFileName);
+                FileChannel indexChannel = FileHelper.openForWrite(tmpIndexName)
         ) {
             ByteBuffer size = ByteBuffer.allocate(Integer.BYTES);
             while (records.hasNext()) {
@@ -72,23 +63,23 @@ public class SSTable implements Closeable {
                 if (position > Integer.MAX_VALUE) {
                     throw new IllegalStateException("File is too long");
                 }
-                writeInt((int) position, indexChannel, size);
+                FileHelper.writeInt((int) position, indexChannel, size);
 
                 Record record = records.next();
-                writeValueWithSize(record.getKey(), fileChannel, size);
+                FileHelper.writeValueWithSize(record.getKey(), fileChannel, size);
                 if (record.isTombstone()) {
-                    writeInt(-1, fileChannel, size);
+                    FileHelper.writeInt(-1, fileChannel, size);
                 } else {
                     // value is null for tombstones only
                     ByteBuffer value = Objects.requireNonNull(record.getValue());
-                    writeValueWithSize(value, fileChannel, size);
+                    FileHelper.writeValueWithSize(value, fileChannel, size);
                 }
             }
             fileChannel.force(false);
         }
 
-        rename(indexFile, tmpIndexName);
-        rename(file, tmpFileName);
+        FileHelper.rename(indexFile, tmpIndexName);
+        FileHelper.rename(file, tmpFileName);
     }
 
     public static SSTable compact(Path dir, Iterator<Record> records) throws IOException {
@@ -100,12 +91,12 @@ public class SSTable implements Closeable {
             if (!Files.deleteIfExists(file)) {
                 break;
             }
-            Files.deleteIfExists(getIndexFile(file));
+            Files.deleteIfExists(FileHelper.getIndexFile(file));
         }
 
         Path file0 = dir.resolve(SSTABLE_FILE_PREFIX + 0);
-        if (Files.exists(getIndexFile(compaction))) {
-            Files.move(getIndexFile(compaction), getIndexFile(file0), StandardCopyOption.ATOMIC_MOVE);
+        if (Files.exists(FileHelper.getIndexFile(compaction))) {
+            Files.move(FileHelper.getIndexFile(compaction), FileHelper.getIndexFile(file0), StandardCopyOption.ATOMIC_MOVE);
         }
         Files.move(compaction, file0, StandardCopyOption.ATOMIC_MOVE);
         return new SSTable(file0);
@@ -126,18 +117,18 @@ public class SSTable implements Closeable {
         Path compaction = dir.resolve(COMPACTION_FILE_NAME);
 
         Path file0 = dir.resolve(SSTABLE_FILE_PREFIX + 0);
-        if (Files.exists(getIndexFile(compaction))) {
-            Files.move(getIndexFile(compaction), getIndexFile(file0), StandardCopyOption.ATOMIC_MOVE);
+        if (Files.exists(FileHelper.getIndexFile(compaction))) {
+            Files.move(FileHelper.getIndexFile(compaction), FileHelper.getIndexFile(file0), StandardCopyOption.ATOMIC_MOVE);
         }
 
         Files.move(compaction, file0, StandardCopyOption.ATOMIC_MOVE);
     }
 
     public SSTable(Path file) throws IOException {
-        Path indexFile = getIndexFile(file);
+        Path indexFile = FileHelper.getIndexFile(file);
 
-        mmap = open(file);
-        idx = open(indexFile);
+        mmap = FileHelper.open(file);
+        idx = FileHelper.open(indexFile);
     }
 
     public static int sizeOf(Record record) {
@@ -165,16 +156,16 @@ public class SSTable implements Closeable {
     public void close() throws IOException {
         IOException exception = null;
         try {
-            free(mmap);
-        } catch (IOException t) {
-            exception = t;
+            FileHelper.free(mmap);
+        } catch (Exception t) {
+            exception = new IOException(t);
         }
 
         try {
-            free(idx);
-        } catch (IOException t) {
+            FileHelper.free(idx);
+        } catch (Exception t) {
             if (exception == null) {
-                exception = t;
+                exception = new IOException(t);
             } else {
                 exception.addSuppressed(t);
             }

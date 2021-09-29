@@ -13,6 +13,7 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 
 public class FileHelper {
+
     private static final Method CLEAN;
 
     static {
@@ -23,6 +24,9 @@ public class FileHelper {
         } catch (Exception e) {
             throw new IllegalStateException(e);
         }
+    }
+
+    private FileHelper() {
     }
 
     static Path resolveWithExt(Path file, String ext) {
