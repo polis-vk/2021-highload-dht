@@ -206,7 +206,7 @@ public class SSTable implements Closeable {
             writeInt(value.remaining(), channel, tmp);
             channel.write(tmp);
             channel.write(value);
-        }catch (IOException e) {
+        } catch (IOException e) {
             e.PrintStackTrace();
         }
     }
