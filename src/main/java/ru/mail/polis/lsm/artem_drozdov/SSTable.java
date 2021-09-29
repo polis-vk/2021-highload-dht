@@ -27,13 +27,12 @@ public class SSTable implements Closeable {
 
     public static final String SSTABLE_FILE_PREFIX = "file_";
     public static final String COMPACTION_FILE_NAME = "compaction";
-
     private static final Method CLEAN;
 
     static {
         try {
-            Class<?> aClass = Class.forName("sun.nio.ch.FileChannelImpl");
-            CLEAN = aClass.getDeclaredMethod("unmap", MappedByteBuffer.class);
+            Class<?> anyClass = Class.forName("sun.nio.ch.FileChannelImpl");
+            CLEAN = anyClass.getDeclaredMethod("unmap", MappedByteBuffer.class);
             CLEAN.setAccessible(true);
         } catch (Exception e) {
             throw new IllegalStateException(e);
@@ -60,7 +59,6 @@ public class SSTable implements Closeable {
 
     public static SSTable write(Iterator<Record> records, Path file) throws IOException {
         writeImpl(records, file);
-
         return new SSTable(file);
     }
 
@@ -68,7 +66,6 @@ public class SSTable implements Closeable {
         Path indexFile = getIndexFile(file);
         Path tmpFileName = getTmpFile(file);
         Path tmpIndexName = getTmpFile(indexFile);
-
         try (
                 FileChannel fileChannel = openForWrite(tmpFileName);
                 FileChannel indexChannel = openForWrite(tmpIndexName)
@@ -80,7 +77,6 @@ public class SSTable implements Closeable {
                     throw new IllegalStateException("File is too long");
                 }
                 writeInt((int) position, indexChannel, size);
-
                 Record record = records.next();
                 writeValueWithSize(record.getKey(), fileChannel, size);
                 if (record.isTombstone()) {
@@ -93,7 +89,6 @@ public class SSTable implements Closeable {
             }
             fileChannel.force(false);
         }
-
         rename(indexFile, tmpIndexName);
         rename(file, tmpFileName);
     }
@@ -101,7 +96,6 @@ public class SSTable implements Closeable {
     public static SSTable compact(Path dir, Iterator<Record> records) throws IOException {
         Path compaction = dir.resolve("compaction");
         writeImpl(records, compaction);
-
         for (int i = 0; ; i++) {
             Path file = dir.resolve(SSTABLE_FILE_PREFIX + i);
             if (!Files.deleteIfExists(file)) {
@@ -109,7 +103,6 @@ public class SSTable implements Closeable {
             }
             Files.deleteIfExists(getIndexFile(file));
         }
-
         Path file0 = dir.resolve(SSTABLE_FILE_PREFIX + 0);
         if (Files.exists(getIndexFile(compaction))) {
             Files.move(getIndexFile(compaction), getIndexFile(file0), StandardCopyOption.ATOMIC_MOVE);
@@ -129,20 +122,16 @@ public class SSTable implements Closeable {
                         }
                     });
         }
-
         Path compaction = dir.resolve(COMPACTION_FILE_NAME);
-
         Path file0 = dir.resolve(SSTABLE_FILE_PREFIX + 0);
         if (Files.exists(getIndexFile(compaction))) {
             Files.move(getIndexFile(compaction), getIndexFile(file0), StandardCopyOption.ATOMIC_MOVE);
         }
-
         Files.move(compaction, file0, StandardCopyOption.ATOMIC_MOVE);
     }
 
     public SSTable(Path file) throws IOException {
         Path indexFile = getIndexFile(file);
-
         mmap = open(file);
         idx = open(indexFile);
     }
@@ -155,12 +144,9 @@ public class SSTable implements Closeable {
 
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
         ByteBuffer buffer = mmap.asReadOnlyBuffer();
-
         int maxSize = mmap.remaining();
-
         int fromOffset = fromKey == null ? 0 : offset(buffer, fromKey);
         int toOffset = toKey == null ? maxSize : offset(buffer, toKey);
-
         return range(
                 buffer,
                 fromOffset == -1 ? maxSize : fromOffset,
@@ -173,20 +159,18 @@ public class SSTable implements Closeable {
         IOException exception = null;
         try {
             free(mmap);
-        } catch (Throwable t) {
+        } catch (Exception t) {
             exception = new IOException(t);
         }
-
         try {
             free(idx);
-        } catch (Throwable t) {
+        } catch (Exception t) {
             if (exception == null) {
                 exception = new IOException(t);
             } else {
                 exception.addSuppressed(t);
             }
         }
-
         if (exception != null) {
             throw exception;
         }
@@ -225,7 +209,6 @@ public class SSTable implements Closeable {
         tmp.position(0);
         tmp.putInt(value);
         tmp.position(0);
-
         channel.write(tmp);
     }
 
@@ -269,7 +252,6 @@ public class SSTable implements Closeable {
             if (mismatchPos == -1) {
                 return offset;
             }
-
             if (existingKeySize == keyToFindSize && mismatchPos == existingKeySize) {
                 return offset;
             }
@@ -284,14 +266,12 @@ public class SSTable implements Closeable {
             } else {
                 result = -1;
             }
-
             if (result > 0) {
                 left = mid + 1;
             } else {
                 right = mid;
             }
         }
-
         if (left >= rightLimit) {
             return -1;
         }
