@@ -2,16 +2,8 @@ package ru.mail.polis.service.lucas_mbele;
 
 import one.nio.http.HttpServerConfig;
 import one.nio.server.AcceptorConfig;
-
 import java.nio.ByteBuffer;
 
-/**
- * *
- *
- *
- * @author Lucas Mbele on 9/27/21
- * *
- */
 
 public class ServiceUtils
 {
@@ -28,7 +20,9 @@ public class ServiceUtils
         acceptorConfig.deferAccept = true; // We assume a response accept with a delay
         acceptorConfig.reusePort = true;
         acceptorConfig.port = port;
-        //Let's assume that default size for both of our receiver and sender buffers will be 8 Kb, so not too big to prevent memory waste
+        //Let's assume that default size for both of our
+        //receiver and sender buffers will be 8 Kb
+        //so not too big to prevent memory waste
         acceptorConfig.recvBuf = 8 * 1024;
         acceptorConfig.sendBuf = 8 * 1024;
         return acceptorConfig;
