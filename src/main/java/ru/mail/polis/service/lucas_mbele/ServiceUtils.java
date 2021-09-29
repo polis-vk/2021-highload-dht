@@ -24,7 +24,7 @@ public final class ServiceUtils {
         return acceptorConfig;
     }
     
-    //Allow us to extract bytes from our buffer.
+    //Allow us extracting bytes from our buffer.
     public static byte [] extractBytesBuffer(ByteBuffer buffer) {
         byte [] remaining = new byte[buffer.remaining()];
         buffer.get(remaining);
