@@ -197,10 +197,11 @@ public class LsmDAO implements DAO {
                         return false;
                     }
                     if (!peek.isTombstone()) {
+                        delegate.next();
                         return true;
                     }
 
-                    delegate.next();
+                    
                 }
             }
 
