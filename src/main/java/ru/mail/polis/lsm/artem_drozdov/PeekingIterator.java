@@ -42,5 +42,4 @@ final class PeekingIterator implements Iterator<Record> {
         current = delegate.next();
         return current;
     }
-
 }

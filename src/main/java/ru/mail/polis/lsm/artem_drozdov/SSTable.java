@@ -141,7 +141,6 @@ public class SSTable implements Closeable {
 
     public SSTable(Path file) throws IOException {
         Path indexFile = getIndexFile(file);
-
         mmap = open(file);
         idx = open(indexFile);
     }
@@ -154,12 +153,9 @@ public class SSTable implements Closeable {
 
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
         ByteBuffer buffer = mmap.asReadOnlyBuffer();
-
         int maxSize = mmap.remaining();
-
         int fromOffset = fromKey == null ? 0 : offset(buffer, fromKey);
         int toOffset = toKey == null ? maxSize : offset(buffer, toKey);
-
         return range(
                 buffer,
                 fromOffset == -1 ? maxSize : fromOffset,
