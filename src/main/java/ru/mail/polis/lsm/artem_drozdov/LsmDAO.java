@@ -162,7 +162,14 @@ public class LsmDAO implements DAO {
                     return left.next();
                 }
 
-                // checked earlier
+               return result(left,right);
+            }
+
+        };
+    }
+    
+    private Record result(PeekingIterator left, PeekingIterator right){
+         // checked earlier
                 ByteBuffer leftKey = Objects.requireNonNull(left.peek()).getKey();
                 ByteBuffer rightKey = Objects.requireNonNull(right.peek()).getKey();
 
@@ -177,9 +184,6 @@ public class LsmDAO implements DAO {
                 } else {
                     return right.next();
                 }
-            }
-
-        };
     }
 
     private static Iterator<Record> filterTombstones(Iterator<Record> iterator) {
