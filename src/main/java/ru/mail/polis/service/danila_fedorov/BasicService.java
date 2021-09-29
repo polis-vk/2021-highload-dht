@@ -28,7 +28,7 @@ public class BasicService extends HttpServer implements Service {
         this.dao = dao;
     }
 
-    private static HttpServerConfig from (final int port) {
+    private static HttpServerConfig from(final int port) {
         final HttpServerConfig config = new HttpServerConfig();
         final AcceptorConfig acceptor = new AcceptorConfig();
         acceptor.port = port;
