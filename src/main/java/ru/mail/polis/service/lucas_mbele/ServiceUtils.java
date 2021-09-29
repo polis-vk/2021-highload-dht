@@ -23,6 +23,7 @@ public final class ServiceUtils {
         acceptorConfig.sendBuf = 8 * 1024;
         return acceptorConfig;
     }
+    
     //Allow us to extract bytes from our buffer.
     public static byte [] extractBytesBuffer(ByteBuffer buffer) {
         byte [] remaining = new byte[buffer.remaining()];
