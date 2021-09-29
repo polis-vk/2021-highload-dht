@@ -4,6 +4,7 @@ import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.DAOConfig;
 import ru.mail.polis.lsm.Record;
 import ru.mail.polis.lsm.sachuk.ilya.iterators.MergeIterator;
+import ru.mail.polis.lsm.sachuk.ilya.iterators.PeekingIterator;
 
 import javax.annotation.Nullable;
 import java.io.File;
@@ -220,7 +221,7 @@ public class DaoImpl implements DAO {
     }
 
     private static Iterator<Record> mergeTwo(Iterator<Record> leftIterator, Iterator<Record> rightIterator) {
-        return new MergeIterator(leftIterator, rightIterator);
+        return new MergeIterator(new PeekingIterator<>(leftIterator), new PeekingIterator<>(rightIterator));
     }
 }
 

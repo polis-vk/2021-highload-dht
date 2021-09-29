@@ -2,75 +2,52 @@ package ru.mail.polis.lsm.sachuk.ilya.iterators;
 
 import ru.mail.polis.lsm.Record;
 
-import javax.annotation.Nullable;
+import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
+import java.util.Objects;
 
-public class MergeIterator implements Iterator<Record> {
+public final class MergeIterator implements Iterator<Record> {
+    private final PeekingIterator<Record> left;
+    private final PeekingIterator<Record> right;
 
-    private Record leftRecord;
-    private Record rightRecord;
-    private final Iterator<Record> leftIterator;
-    private final Iterator<Record> rightIterator;
-
-    public MergeIterator(Iterator<Record> leftIterator, Iterator<Record> rightIterator) {
-        this.leftIterator = leftIterator;
-        this.rightIterator = rightIterator;
+    public MergeIterator(
+            final PeekingIterator<Record> left,
+            final PeekingIterator<Record> right) {
+        this.left = left;
+        this.right = right;
     }
 
     @Override
     public boolean hasNext() {
-        return leftIterator.hasNext() || rightIterator.hasNext();
+        return left.hasNext() || right.hasNext();
     }
 
     @Override
     public Record next() {
-
         if (!hasNext()) {
-            throw new NoSuchElementException();
+            throw new NoSuchElementException("No elements");
         }
 
-        leftRecord = getNext(leftIterator, leftRecord);
-        rightRecord = getNext(rightIterator, rightRecord);
-
-        if (leftRecord == null) {
-            return getRight();
+        if (!left.hasNext()) {
+            return right.next();
         }
-        if (rightRecord == null) {
-            return getLeft();
+        if (!right.hasNext()) {
+            return left.next();
         }
 
-        int compare = leftRecord.getKey().compareTo(rightRecord.getKey());
+        // checked earlier
+        ByteBuffer leftKey = Objects.requireNonNull(left.peek()).getKey();
+        ByteBuffer rightKey = Objects.requireNonNull(right.peek()).getKey();
 
-        if (compare == 0) {
-            leftRecord = null;
-            return getRight();
-        } else if (compare < 0) {
-            return getLeft();
+        int compareResult = leftKey.compareTo(rightKey);
+        if (compareResult == 0) {
+            left.next();
+            return right.next();
+        } else if (compareResult < 0) {
+            return left.next();
         } else {
-            return getRight();
+            return right.next();
         }
-    }
-
-    private Record getRight() {
-        Record tmp = rightRecord;
-        rightRecord = null;
-
-        return tmp;
-    }
-
-    private Record getLeft() {
-        Record tmp = leftRecord;
-        leftRecord = null;
-
-        return tmp;
-    }
-
-    private Record getNext(Iterator<Record> iterator, @Nullable Record current) {
-        if (current != null) {
-            return current;
-        }
-
-        return iterator.hasNext() ? iterator.next() : null;
     }
 }
