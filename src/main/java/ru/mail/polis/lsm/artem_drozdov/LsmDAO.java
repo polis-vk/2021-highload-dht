@@ -83,7 +83,7 @@ public class LsmDAO implements DAO {
     }
 
     private int sizeOf(Record record) {
-        return SSTable.sizeOf(record);
+        return SSTableUtil.sizeOf(record);
     }
 
     @Override

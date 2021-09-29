@@ -19,7 +19,6 @@ import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.stream.Stream;
 
@@ -63,7 +62,7 @@ public class SSTable implements Closeable {
     }
 
     private static void writeImpl(Iterator<Record> records, Path file) throws IOException {
-        Path indexFile = getIndexFile(file);
+        Path indexFile = SSTableUtil.getIndexFile(file);
         Path tmpFileName = getTmpFile(file);
         Path tmpIndexName = getTmpFile(indexFile);
         try (
@@ -101,11 +100,13 @@ public class SSTable implements Closeable {
             if (!Files.deleteIfExists(file)) {
                 break;
             }
-            Files.deleteIfExists(getIndexFile(file));
+            Files.deleteIfExists(SSTableUtil.getIndexFile(file));
         }
         Path file0 = dir.resolve(SSTABLE_FILE_PREFIX + 0);
-        if (Files.exists(getIndexFile(compaction))) {
-            Files.move(getIndexFile(compaction), getIndexFile(file0), StandardCopyOption.ATOMIC_MOVE);
+        if (Files.exists(SSTableUtil.getIndexFile(compaction))) {
+            Files.move(SSTableUtil.getIndexFile(compaction),
+                    SSTableUtil.getIndexFile(file0),
+                    StandardCopyOption.ATOMIC_MOVE);
         }
         Files.move(compaction, file0, StandardCopyOption.ATOMIC_MOVE);
         return new SSTable(file0);
@@ -124,22 +125,18 @@ public class SSTable implements Closeable {
         }
         Path compaction = dir.resolve(COMPACTION_FILE_NAME);
         Path file0 = dir.resolve(SSTABLE_FILE_PREFIX + 0);
-        if (Files.exists(getIndexFile(compaction))) {
-            Files.move(getIndexFile(compaction), getIndexFile(file0), StandardCopyOption.ATOMIC_MOVE);
+        if (Files.exists(SSTableUtil.getIndexFile(compaction))) {
+            Files.move(SSTableUtil.getIndexFile(compaction),
+                    SSTableUtil.getIndexFile(file0),
+                    StandardCopyOption.ATOMIC_MOVE);
         }
         Files.move(compaction, file0, StandardCopyOption.ATOMIC_MOVE);
     }
 
     public SSTable(Path file) throws IOException {
-        Path indexFile = getIndexFile(file);
+        Path indexFile = SSTableUtil.getIndexFile(file);
         mmap = open(file);
         idx = open(indexFile);
-    }
-
-    public static int sizeOf(Record record) {
-        int keySize = Integer.BYTES + record.getKeySize();
-        int valueSize = Integer.BYTES + record.getValueSize();
-        return keySize + valueSize;
     }
 
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
@@ -147,7 +144,7 @@ public class SSTable implements Closeable {
         int maxSize = mmap.remaining();
         int fromOffset = fromKey == null ? 0 : offset(buffer, fromKey);
         int toOffset = toKey == null ? maxSize : offset(buffer, toKey);
-        return range(
+        return SSTableUtil.range(
                 buffer,
                 fromOffset == -1 ? maxSize : fromOffset,
                 toOffset == -1 ? maxSize : toOffset
@@ -176,16 +173,8 @@ public class SSTable implements Closeable {
         }
     }
 
-    private static Path resolveWithExt(Path file, String ext) {
-        return file.resolveSibling(file.getFileName() + ext);
-    }
-
-    private static Path getIndexFile(Path file) {
-        return resolveWithExt(file, ".idx");
-    }
-
     private static Path getTmpFile(Path file) {
-        return resolveWithExt(file, ".tmp");
+        return SSTableUtil.resolveWithExt(file, ".tmp");
     }
 
     private static FileChannel openForWrite(Path tmpFileName) throws IOException {
@@ -279,38 +268,4 @@ public class SSTable implements Closeable {
         return idx.getInt(left * Integer.BYTES);
     }
 
-    private static Iterator<Record> range(ByteBuffer buffer, int fromOffset, int toOffset) {
-        buffer.position(fromOffset);
-
-        return new Iterator<>() {
-            @Override
-            public boolean hasNext() {
-                return buffer.position() < toOffset;
-            }
-
-            @Override
-            public Record next() {
-                if (!hasNext()) {
-                    throw new NoSuchElementException("Limit is reached");
-                }
-
-                int keySize = buffer.getInt();
-                ByteBuffer key = read(keySize);
-
-                int valueSize = buffer.getInt();
-                if (valueSize == -1) {
-                    return Record.tombstone(key);
-                }
-                ByteBuffer value = read(valueSize);
-
-                return Record.of(key, value);
-            }
-
-            private ByteBuffer read(int size) {
-                ByteBuffer result = buffer.slice().limit(size);
-                buffer.position(buffer.position() + size);
-                return result;
-            }
-        };
-    }
 }
