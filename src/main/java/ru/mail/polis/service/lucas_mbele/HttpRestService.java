@@ -1,14 +1,12 @@
 package ru.mail.polis.service.lucas_mbele;
 
-/**
- * *
- *
- *
- * @author Lucas on 9/27/21
- * *
- */
-
-import one.nio.http.*;
+import one.nio.http.HttpServer;
+import one.nio.http.HttpSession;
+import one.nio.http.Request;
+import one.nio.http.Param;
+import one.nio.http.HttpServerConfig;
+import one.nio.http.Path;
+import one.nio.http.Response;
 import one.nio.server.AcceptorConfig;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.Record;
@@ -41,16 +39,22 @@ public class HttpRestService extends HttpServer implements Service {
      {
          //Obviously we know that this request implies a GET Method, but for the purpose we set it
          if (request.getMethod() == Request.METHOD_GET) // TRUE
-               return Response.ok(Response.OK); //Code 202
+         {
+             return Response.ok(Response.OK); //Code 202
+         }
          else
-               return new Response(Response.SERVICE_UNAVAILABLE,Response.EMPTY);
+         {
+             return new Response(Response.SERVICE_UNAVAILABLE,Response.EMPTY);
+         }
+
      }
     //METHODS - GET/PUT/DELETE
     @Path("/v0/entity")
     public Response entity (Request request, @Param(value = "id",required = true) String id)
     {
-        if (id.isBlank())
-            return new Response(Response.BAD_REQUEST,Response.EMPTY);
+        if (id.isBlank()) {
+            return new Response(Response.BAD_REQUEST, Response.EMPTY);
+        }
         // We handle all 3 methods
         switch(request.getMethod())
         {
@@ -72,8 +76,9 @@ public class HttpRestService extends HttpServer implements Service {
             Record record = key_iterator.next();
             return new Response(Response.OK , ServiceUtils.extractBytesBuffer(record.getValue()));
          }
-        else
+        else{
             return new Response(Response.NOT_FOUND,Response.EMPTY);
+        }
     }
     private Response put(String id, byte[] body) {
         ByteBuffer key = ByteBuffer.wrap(id.getBytes(StandardCharsets.UTF_8));
