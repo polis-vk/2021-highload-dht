@@ -3,14 +3,13 @@ package ru.mail.polis.service.lucas_mbele;
 import one.nio.server.AcceptorConfig;
 import java.nio.ByteBuffer;
 
-
-public final class ServiceUtils
-{
+public final class ServiceUtils {
+    
     private ServiceUtils() {
         // Don't instantiate
     }
     
-         // Creates and returns a proper config for acceptors of our service.
+    // Creates and returns a proper config for acceptors of our service.
     public static AcceptorConfig acceptors(int port) {
         // Minimal configuration of our service
         AcceptorConfig acceptorConfig = new AcceptorConfig();
@@ -25,7 +24,7 @@ public final class ServiceUtils
         return acceptorConfig;
     }
     
-        //Allow us to extract bytes from our buffer.
+    //Allow us to extract bytes from our buffer.
     public static byte [] extractBytesBuffer(ByteBuffer buffer) {
         byte [] remaining = new byte[buffer.remaining()];
         buffer.get(remaining);
