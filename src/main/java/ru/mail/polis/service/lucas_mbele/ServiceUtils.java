@@ -5,7 +5,7 @@ import one.nio.server.AcceptorConfig;
 import java.nio.ByteBuffer;
 
 
-public class ServiceUtils
+public final class ServiceUtils
 {
     private ServiceUtils() {
         // Don't instantiate
