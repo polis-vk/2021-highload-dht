@@ -25,6 +25,7 @@ Transfer/sec:     66.34KB
 [FlameGraph alloc](profile_flamegraphs/alloc_put_empty_profile.html)
 
 ![](profile_flamegraphs/put_new_entity.png)
+![](profile_flamegraphs/mem_put_new_entity.png)
 
 Как видно из результатов профайла при обработке запроса нашим сервисом ресурсы cpu используются только DAO,
 тем самым у нас нет возможность оптимизировать `PUT` запрос при новой записи.
@@ -53,6 +54,9 @@ Transfer/sec:     36.86KB
 [FlameGraph alloc](profile_flamegraphs/alloc_put_existed_profile.html)
 
 ![](profile_flamegraphs/put_existed_entity.png)
+![](profile_flamegraphs/mem_put_existed_entity.png)
+
+По данным профайла возможных оптимизаций кода не нахожу.
 
 ## Нагрузочное тестирование `GET` полной базы
 
@@ -75,6 +79,9 @@ Transfer/sec:     51.20KB
 [FlameGraph cpu](profile_flamegraphs/cpu_get_existed_profile.html)
 
 [FlameGraph alloc](profile_flamegraphs/alloc_get_existed_profile.html)
+
+![](profile_flamegraphs/get_existed_entity.png)
+![](profile_flamegraphs/mem_get_existed_entity.png)
 
 ## Нагрузочное тестирование `GET` пустой базы
 
@@ -99,8 +106,13 @@ Transfer/sec:     53.11KB
 
 [FlameGraph alloc](profile_flamegraphs/alloc_get_empty_profile.html)
 
-
 ![](profile_flamegraphs/get_empty_entity.png)
+![](profile_flamegraphs/mem_get_empty_entity.png)
 
 Как видно из результатов профайла при обработке запроса нашим сервисом ресурсы cpu используются только DAO, 
 тем самым у нас нет возможность оптимизировать `GET` запрос при пустой базе.
+
+---
+
+Довольно большая задержка объясняется использование виртуальной машины на процессоре Apple M1.
+Из-за такой большой задержки, утилита wrk2 не успевает получить результаты всех запросов к концу тестирования.
