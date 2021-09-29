@@ -32,8 +32,8 @@ public class SSTable implements Closeable {
 
     static {
         try {
-            Class<?> aClass = Class.forName("sun.nio.ch.FileChannelImpl");
-            CLEAN = aClass.getDeclaredMethod("unmap", MappedByteBuffer.class);
+            Class<?> name = Class.forName("sun.nio.ch.FileChannelImpl");
+            CLEAN = name.getDeclaredMethod("unmap", MappedByteBuffer.class);
             CLEAN.setAccessible(true);
         } catch (Exception e) {
             throw new IllegalStateException(e);
