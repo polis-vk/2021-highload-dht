@@ -60,7 +60,6 @@ public class SSTable implements Closeable {
 
     public static SSTable write(Iterator<Record> records, Path file) throws IOException {
         writeImpl(records, file);
-
         return new SSTable(file);
     }
 
@@ -68,7 +67,6 @@ public class SSTable implements Closeable {
         Path indexFile = getIndexFile(file);
         Path tmpFileName = getTmpFile(file);
         Path tmpIndexName = getTmpFile(indexFile);
-
         try (
                 FileChannel fileChannel = openForWrite(tmpFileName);
                 FileChannel indexChannel = openForWrite(tmpIndexName)
@@ -80,7 +78,6 @@ public class SSTable implements Closeable {
                     throw new IllegalStateException("File is too long");
                 }
                 writeInt((int) position, indexChannel, size);
-
                 Record record = records.next();
                 writeValueWithSize(record.getKey(), fileChannel, size);
                 if (record.isTombstone()) {
@@ -101,7 +98,6 @@ public class SSTable implements Closeable {
     public static SSTable compact(Path dir, Iterator<Record> records) throws IOException {
         Path compaction = dir.resolve("compaction");
         writeImpl(records, compaction);
-
         for (int i = 0; ; i++) {
             Path file = dir.resolve(SSTABLE_FILE_PREFIX + i);
             if (!Files.deleteIfExists(file)) {
@@ -131,18 +127,15 @@ public class SSTable implements Closeable {
         }
 
         Path compaction = dir.resolve(COMPACTION_FILE_NAME);
-
         Path file0 = dir.resolve(SSTABLE_FILE_PREFIX + 0);
         if (Files.exists(getIndexFile(compaction))) {
             Files.move(getIndexFile(compaction), getIndexFile(file0), StandardCopyOption.ATOMIC_MOVE);
         }
-
         Files.move(compaction, file0, StandardCopyOption.ATOMIC_MOVE);
     }
 
     public SSTable(Path file) throws IOException {
         Path indexFile = getIndexFile(file);
-
         mmap = open(file);
         idx = open(indexFile);
     }
@@ -155,12 +148,9 @@ public class SSTable implements Closeable {
 
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
         ByteBuffer buffer = mmap.asReadOnlyBuffer();
-
         int maxSize = mmap.remaining();
-
         int fromOffset = fromKey == null ? 0 : offset(buffer, fromKey);
         int toOffset = toKey == null ? maxSize : offset(buffer, toKey);
-
         return range(
                 buffer,
                 fromOffset == -1 ? maxSize : fromOffset,
@@ -176,7 +166,6 @@ public class SSTable implements Closeable {
         } catch (Throwable t) {
             exception = new IOException(t);
         }
-
         try {
             free(idx);
         } catch (Throwable t) {
@@ -186,7 +175,6 @@ public class SSTable implements Closeable {
                 exception.addSuppressed(t);
             }
         }
-
         if (exception != null) {
             throw exception;
         }
@@ -223,7 +211,6 @@ public class SSTable implements Closeable {
         tmp.position(0);
         tmp.putInt(value);
         tmp.position(0);
-
         channel.write(tmp);
     }
 
@@ -252,16 +239,13 @@ public class SSTable implements Closeable {
         int left = 0;
         int rightLimit = idx.remaining() / Integer.BYTES;
         int right = rightLimit;
-
         int keyToFindSize = keyToFind.remaining();
 
         while (left < right) {
             int mid = left + ((right - left) >>> 1);
-
             int offset = idx.getInt(mid * Integer.BYTES);
             buffer.position(offset);
             int existingKeySize = buffer.getInt();
-
             int result;
             int mismatchPos = buffer.mismatch(keyToFind);
             if (mismatchPos == -1) {
@@ -282,24 +266,20 @@ public class SSTable implements Closeable {
             } else {
                 result = -1;
             }
-
             if (result > 0) {
                 left = mid + 1;
             } else {
                 right = mid;
             }
         }
-
         if (left >= rightLimit) {
             return -1;
         }
-
         return idx.getInt(left * Integer.BYTES);
     }
 
     private static Iterator<Record> range(ByteBuffer buffer, int fromOffset, int toOffset) {
         buffer.position(fromOffset);
-
         return new Iterator<>() {
             @Override
             public boolean hasNext() {
@@ -314,13 +294,11 @@ public class SSTable implements Closeable {
 
                 int keySize = buffer.getInt();
                 ByteBuffer key = read(keySize);
-
                 int valueSize = buffer.getInt();
                 if (valueSize == -1) {
                     return Record.tombstone(key);
                 }
                 ByteBuffer value = read(valueSize);
-
                 return Record.of(key, value);
             }
 
