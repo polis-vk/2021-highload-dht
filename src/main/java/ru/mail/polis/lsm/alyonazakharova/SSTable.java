@@ -144,8 +144,6 @@ public class SSTable implements Closeable {
             try (FileChannel fileChannel = Utils.openForWrite(tmpFile);
                  FileChannel indexChannel = Utils.openForWrite(tmpIndexFile)) {
                 while (iterator.hasNext()) {
-                    // 100 - ето из воздуха взятое значение, просто чтобы потестить
-                    // наверное, можно было бы использовать здесь memoryLimit, который использовали для флаша
                     if (memoryConsumption > 100) {
                         break;
                     }
