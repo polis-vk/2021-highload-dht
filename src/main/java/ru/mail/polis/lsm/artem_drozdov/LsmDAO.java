@@ -191,7 +191,7 @@ public class LsmDAO implements DAO {
         return new Iterator<>() {
             @Override
             public boolean hasNext() {
-                for (;;) {
+                while(true) {
                     Record peek = delegate.peek();
                     if (peek == null) {
                         return false;
@@ -199,6 +199,7 @@ public class LsmDAO implements DAO {
                     if (!peek.isTombstone()) {
                         return true;
                     }
+                    delegate.next();
                 }
             }
 
