@@ -168,8 +168,8 @@ public class LsmDAO implements DAO {
         };
     }
     
-    private Record result(PeekingIterator left, PeekingIterator right){
-         // checked earlier
+    private Record result(PeekingIterator left, PeekingIterator right) {
+                // checked earlier
                 ByteBuffer leftKey = Objects.requireNonNull(left.peek()).getKey();
                 ByteBuffer rightKey = Objects.requireNonNull(right.peek()).getKey();
 
