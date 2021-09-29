@@ -12,7 +12,7 @@ import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 
-public class FileHelper {
+final class FileHelper {
 
     private static final Method CLEAN;
 
@@ -29,19 +29,19 @@ public class FileHelper {
     private FileHelper() {
     }
 
-    static Path resolveWithExt(Path file, String ext) {
+    public static Path resolveWithExt(Path file, String ext) {
         return file.resolveSibling(file.getFileName() + ext);
     }
 
-    static Path getIndexFile(Path file) {
+    public static Path getIndexFile(Path file) {
         return resolveWithExt(file, ".idx");
     }
 
-    static Path getTmpFile(Path file) {
+    public static Path getTmpFile(Path file) {
         return resolveWithExt(file, ".tmp");
     }
 
-    static FileChannel openForWrite(Path tmpFileName) throws IOException {
+    public static FileChannel openForWrite(Path tmpFileName) throws IOException {
         return FileChannel.open(
                 tmpFileName,
                 StandardOpenOption.CREATE_NEW,
@@ -50,7 +50,7 @@ public class FileHelper {
         );
     }
 
-    static void writeValueWithSize(ByteBuffer value,
+    public static void writeValueWithSize(ByteBuffer value,
                                            WritableByteChannel channel,
                                            ByteBuffer tmp) throws IOException {
         writeInt(value.remaining(), channel, tmp);
@@ -58,7 +58,7 @@ public class FileHelper {
         channel.write(value);
     }
 
-    static void writeInt(int value, WritableByteChannel channel, ByteBuffer tmp) throws IOException {
+    public static void writeInt(int value, WritableByteChannel channel, ByteBuffer tmp) throws IOException {
         tmp.position(0);
         tmp.putInt(value);
         tmp.position(0);
@@ -66,12 +66,12 @@ public class FileHelper {
         channel.write(tmp);
     }
 
-    static void rename(Path file, Path tmpFile) throws IOException {
+    public static void rename(Path file, Path tmpFile) throws IOException {
         Files.deleteIfExists(file);
         Files.move(tmpFile, file, StandardCopyOption.ATOMIC_MOVE);
     }
 
-    static MappedByteBuffer open(Path name) throws IOException {
+    public static MappedByteBuffer open(Path name) throws IOException {
         try (
                 FileChannel channel = FileChannel.open(name, StandardOpenOption.READ)
         ) {
@@ -79,7 +79,7 @@ public class FileHelper {
         }
     }
 
-    static void free(MappedByteBuffer buffer) throws IOException {
+    public static void free(MappedByteBuffer buffer) throws IOException {
         try {
             CLEAN.invoke(null, buffer);
         } catch (IllegalAccessException | InvocationTargetException e) {
