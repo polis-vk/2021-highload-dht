@@ -1,8 +1,8 @@
 package ru.mail.polis.service.lucas_mbele;
 
 import one.nio.http.HttpServer;
-import one.nio.http.HttpSession;
 import one.nio.http.HttpServerConfig;
+import one.nio.http.HttpSession;
 import one.nio.http.Param;
 import one.nio.http.Path;
 import one.nio.http.Request;
@@ -29,24 +29,26 @@ public class HttpRestService extends HttpServer implements Service {
         config.acceptors = new AcceptorConfig[]{ServiceUtils.acceptors(port)};
         return config;
     }
+    
      // We check if our service works
      @Path("/v0/status")
      public Response status(Request request) {
          //Obviously we know that this request implies a GET Method, but for the purpose we set it
          if (request.getMethod() == Request.METHOD_GET) {
              return Response.ok(Response.OK); //Code 202
-         }
+            }
          else {
              return new Response(Response.SERVICE_UNAVAILABLE,Response.EMPTY);
-         }
+            }
 
      }
+    
     //METHODS - GET/PUT/DELETE
     @Path("/v0/entity")
     public Response entity(Request request, @Param(value = "id",required = true) String id) {
         if (id.isBlank()) {
             return new Response(Response.BAD_REQUEST, Response.EMPTY);
-        }
+           }
         // We handle all 3 methods
         switch (request.getMethod()) {
             case Request.METHOD_GET:
@@ -57,19 +59,21 @@ public class HttpRestService extends HttpServer implements Service {
                 return delete(id);
             default:
                 return new Response(Response.METHOD_NOT_ALLOWED,"Method not allowed".getBytes(StandardCharsets.UTF_8));
-        }
+           }
     }
+    
     private Response get(String id) {
         ByteBuffer key = ByteBuffer.wrap(id.getBytes(StandardCharsets.UTF_8));
         Iterator<Record> keyIterator = dao.range(key,DAO.nextKey(key)); // A key range containing ids whose start from the current id
         if (keyIterator.hasNext()) {
             Record record = keyIterator.next();
-            return new Response(Response.OK , ServiceUtils.extractBytesBuffer(record.getValue()));
-         }
+            return new Response(Response.OK,ServiceUtils.extractBytesBuffer(record.getValue()));
+           }
         else {
             return new Response(Response.NOT_FOUND,Response.EMPTY);
-         }
+           }
     }
+    
     private Response put(String id, byte[] body) {
         ByteBuffer key = ByteBuffer.wrap(id.getBytes(StandardCharsets.UTF_8));
         ByteBuffer value = ByteBuffer.wrap(body);
