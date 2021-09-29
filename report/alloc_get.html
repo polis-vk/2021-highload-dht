@@ -1,0 +1,1115 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8'>
+<style>
+	body {margin: 0; padding: 10px; background-color: #ffffff}
+	h1 {margin: 5px 0 0 0; font-size: 18px; font-weight: normal; text-align: center}
+	header {margin: -24px 0 5px 0; line-height: 24px}
+	button {font: 12px sans-serif; cursor: pointer}
+	p {margin: 5px 0 5px 0}
+	a {color: #0366d6}
+	#hl {position: absolute; display: none; overflow: hidden; white-space: nowrap; pointer-events: none; background-color: #ffffe0; outline: 1px solid #ffc000; height: 15px}
+	#hl span {padding: 0 3px 0 3px}
+	#status {overflow: hidden; white-space: nowrap}
+	#match {overflow: hidden; white-space: nowrap; display: none; float: right; text-align: right}
+	#reset {cursor: pointer}
+</style>
+</head>
+<body style='font: 12px Verdana, sans-serif'>
+<h1>Allocation profile</h1>
+<header style='text-align: left'><button id='reverse' title='Reverse'>&#x1f53b;</button>&nbsp;&nbsp;<button id='search' title='Search'>&#x1f50d;</button></header>
+<header style='text-align: right'>Produced by <a href='https://github.com/jvm-profiling-tools/async-profiler'>async-profiler</a></header>
+<canvas id='canvas' style='width: 100%; height: 832px'></canvas>
+<div id='hl'><span></span></div>
+<p id='match'>Matched: <span id='matchval'></span> <span id='reset' title='Clear'>&#x274c;</span></p>
+<p id='status'>&nbsp;</p>
+<script>
+	// Copyright 2020 Andrei Pangin
+	// Licensed under the Apache License, Version 2.0.
+	'use strict';
+	var root, rootLevel, px, pattern;
+	var reverse = false;
+	const levels = Array(52);
+	for (let h = 0; h < levels.length; h++) {
+		levels[h] = [];
+	}
+
+	const canvas = document.getElementById('canvas');
+	const c = canvas.getContext('2d');
+	const hl = document.getElementById('hl');
+	const status = document.getElementById('status');
+
+	const canvasWidth = canvas.offsetWidth;
+	const canvasHeight = canvas.offsetHeight;
+	canvas.style.width = canvasWidth + 'px';
+	canvas.width = canvasWidth * (devicePixelRatio || 1);
+	canvas.height = canvasHeight * (devicePixelRatio || 1);
+	if (devicePixelRatio) c.scale(devicePixelRatio, devicePixelRatio);
+	c.font = document.body.style.font;
+
+	const palette = [
+		[0x50e150, 30, 30, 30],
+		[0x50bebe, 30, 30, 30],
+		[0xe17d00, 30, 30,  0],
+		[0xc8c83c, 30, 30, 10],
+		[0xe15a5a, 30, 40, 40],
+	];
+
+	function getColor(p) {
+		const v = Math.random();
+		return '#' + (p[0] + ((p[1] * v) << 16 | (p[2] * v) << 8 | (p[3] * v))).toString(16);
+	}
+
+	function f(level, left, width, type, title) {
+		levels[level].push({left: left, width: width, color: getColor(palette[type]), title: title});
+	}
+
+	function samples(n) {
+		return n === 1 ? '1 sample' : n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',') + ' samples';
+	}
+
+	function pct(a, b) {
+		return a >= b ? '100' : (100 * a / b).toFixed(2);
+	}
+
+	function findFrame(frames, x) {
+		let left = 0;
+		let right = frames.length - 1;
+
+		while (left <= right) {
+			const mid = (left + right) >>> 1;
+			const f = frames[mid];
+
+			if (f.left > x) {
+				right = mid - 1;
+			} else if (f.left + f.width <= x) {
+				left = mid + 1;
+			} else {
+				return f;
+			}
+		}
+
+		if (frames[left] && (frames[left].left - x) * px < 0.5) return frames[left];
+		if (frames[right] && (x - (frames[right].left + frames[right].width)) * px < 0.5) return frames[right];
+
+		return null;
+	}
+
+	function search(r) {
+		if (r && (r = prompt('Enter regexp to search:', '')) === null) {
+			return;
+		}
+
+		pattern = r ? RegExp(r) : undefined;
+		const matched = render(root, rootLevel);
+		document.getElementById('matchval').textContent = pct(matched, root.width) + '%';
+		document.getElementById('match').style.display = r ? 'inherit' : 'none';
+	}
+
+	function render(newRoot, newLevel) {
+		if (root) {
+			c.fillStyle = '#ffffff';
+			c.fillRect(0, 0, canvasWidth, canvasHeight);
+		}
+
+		root = newRoot || levels[0][0];
+		rootLevel = newLevel || 0;
+		px = canvasWidth / root.width;
+
+		const x0 = root.left;
+		const x1 = x0 + root.width;
+		const marked = [];
+
+		function mark(f) {
+			return marked[f.left] >= f.width || (marked[f.left] = f.width);
+		}
+
+		function totalMarked() {
+			let total = 0;
+			let left = 0;
+			Object.keys(marked).sort(function(a, b) { return a - b; }).forEach(function(x) {
+				if (+x >= left) {
+					total += marked[x];
+					left = +x + marked[x];
+				}
+			});
+			return total;
+		}
+
+		function drawFrame(f, y, alpha) {
+			if (f.left < x1 && f.left + f.width > x0) {
+				c.fillStyle = pattern && f.title.match(pattern) && mark(f) ? '#ee00ee' : f.color;
+				c.fillRect((f.left - x0) * px, y, f.width * px, 15);
+
+				if (f.width * px >= 21) {
+					const chars = Math.floor(f.width * px / 7);
+					const title = f.title.length <= chars ? f.title : f.title.substring(0, chars - 2) + '..';
+					c.fillStyle = '#000000';
+					c.fillText(title, Math.max(f.left - x0, 0) * px + 3, y + 12, f.width * px - 6);
+				}
+
+				if (alpha) {
+					c.fillStyle = 'rgba(255, 255, 255, 0.5)';
+					c.fillRect((f.left - x0) * px, y, f.width * px, 15);
+				}
+			}
+		}
+
+		for (let h = 0; h < levels.length; h++) {
+			const y = reverse ? h * 16 : canvasHeight - (h + 1) * 16;
+			const frames = levels[h];
+			for (let i = 0; i < frames.length; i++) {
+				drawFrame(frames[i], y, h < rootLevel);
+			}
+		}
+
+		return totalMarked();
+	}
+
+	canvas.onmousemove = function() {
+		const h = Math.floor((reverse ? event.offsetY : (canvasHeight - event.offsetY)) / 16);
+		if (h >= 0 && h < levels.length) {
+			const f = findFrame(levels[h], event.offsetX / px + root.left);
+			if (f) {
+				hl.style.left = (Math.max(f.left - root.left, 0) * px + canvas.offsetLeft) + 'px';
+				hl.style.width = (Math.min(f.width, root.width) * px) + 'px';
+				hl.style.top = ((reverse ? h * 16 : canvasHeight - (h + 1) * 16) + canvas.offsetTop) + 'px';
+				hl.firstChild.textContent = f.title;
+				hl.style.display = 'block';
+				canvas.title = f.title + '\n(' + samples(f.width) + ', ' + pct(f.width, levels[0][0].width) + '%)';
+				canvas.style.cursor = 'pointer';
+				canvas.onclick = function() {
+					if (f != root) {
+						render(f, h);
+						canvas.onmousemove();
+					}
+				};
+				status.textContent = 'Function: ' + canvas.title;
+				return;
+			}
+		}
+		canvas.onmouseout();
+	}
+
+	canvas.onmouseout = function() {
+		hl.style.display = 'none';
+		status.textContent = '\xa0';
+		canvas.title = '';
+		canvas.style.cursor = '';
+		canvas.onclick = '';
+	}
+
+	document.getElementById('reverse').onclick = function() {
+		reverse = !reverse;
+		render();
+	}
+
+	document.getElementById('search').onclick = function() {
+		search(true);
+	}
+
+	document.getElementById('reset').onclick = function() {
+		search(false);
+	}
+
+	window.onkeydown = function() {
+		if (event.ctrlKey && event.keyCode === 70) {
+			event.preventDefault();
+			search(true);
+		} else if (event.keyCode === 27) {
+			search(false);
+		}
+	}
+f(0,0,81173,4,'all')
+f(1,0,81173,0,'one/nio/server/SelectorThread.run')
+f(2,0,81173,0,'one/nio/net/Session.process')
+f(3,0,81173,0,'one/nio/http/HttpSession.processRead')
+f(4,0,81173,0,'one/nio/http/HttpSession.processHttpBuffer')
+f(5,0,80864,0,'one/nio/http/HttpSession.handleParsedRequest')
+f(6,0,80864,0,'one/nio/http/HttpServer.handleRequest')
+f(7,0,80818,0,'RequestHandler1_entityRequest.handleRequest')
+f(8,0,102,0,'one/nio/http/HttpSession.sendResponse')
+f(9,0,102,0,'one/nio/http/HttpSession.writeResponse')
+f(10,0,88,0,'one/nio/http/Response.toBytes')
+f(11,0,88,0,'one/nio/util/ByteArrayBuilder.<init>')
+f(12,0,88,1,'byte[]')
+f(10,88,14,0,'one/nio/net/Session.write')
+f(11,88,14,1,'one.nio.net.Session$ArrayQueueItem')
+f(8,102,52,0,'one/nio/http/Request.getRequiredParameter')
+f(9,102,52,0,'one/nio/http/Request.getParameter')
+f(10,102,52,0,'java/lang/String.substring')
+f(11,102,52,0,'java/lang/StringLatin1.newString')
+f(12,102,13,1,'java.lang.String')
+f(12,115,39,0,'java/util/Arrays.copyOfRange')
+f(13,115,39,1,'byte[]')
+f(8,154,80664,0,'ru/mail/polis/service/sachuk/ilya/ServiceImpl.entityRequest')
+f(9,154,80664,0,'ru/mail/polis/service/sachuk/ilya/EntityRequestHandler.get')
+f(10,154,8716,0,'java/util/Spliterators$1Adapter.hasNext')
+f(11,154,8716,0,'java/util/stream/StreamSpliterators$WrappingSpliterator.tryAdvance')
+f(12,154,8716,0,'java/util/stream/StreamSpliterators$AbstractWrappingSpliterator.doAdvance')
+f(13,154,8575,0,'java/util/stream/StreamSpliterators$AbstractWrappingSpliterator.fillBuffer')
+f(14,154,8575,0,'java/util/stream/StreamSpliterators$WrappingSpliterator$$Lambda$76/829188600.getAsBoolean')
+f(15,154,8575,0,'java/util/stream/StreamSpliterators$WrappingSpliterator.lambda$initPartialTraversalState$0')
+f(16,154,8575,0,'java/util/Spliterators$IteratorSpliterator.tryAdvance')
+f(17,154,240,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(18,154,240,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(19,154,240,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(20,154,240,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(21,154,240,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(22,154,240,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(23,154,240,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(24,154,240,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(25,154,240,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(26,154,240,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(27,154,240,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(28,154,240,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(29,154,240,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(30,154,240,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(31,154,27,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(32,154,27,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(33,154,27,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(34,154,27,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(35,154,27,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(36,154,27,0,'java/nio/DirectByteBufferR.slice')
+f(37,154,27,1,'java.nio.DirectByteBufferR')
+f(31,181,213,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(32,181,213,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(33,181,213,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(34,181,213,0,'java/nio/DirectByteBufferR.slice')
+f(35,181,213,1,'java.nio.DirectByteBufferR')
+f(17,394,8335,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.next')
+f(18,394,8335,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.next')
+f(19,394,236,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(20,394,236,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(21,394,236,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(22,394,236,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(23,394,236,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(24,394,236,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(25,394,236,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(26,394,236,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(27,394,236,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(28,394,236,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(29,394,236,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(30,394,236,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(31,394,236,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(32,394,236,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(33,394,23,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(34,394,23,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(35,394,23,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(36,394,23,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(37,394,23,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(38,394,23,0,'java/nio/DirectByteBufferR.slice')
+f(39,394,23,1,'java.nio.DirectByteBufferR')
+f(33,417,213,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(34,417,213,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(35,417,213,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(36,417,213,0,'java/nio/DirectByteBufferR.slice')
+f(37,417,213,1,'java.nio.DirectByteBufferR')
+f(19,630,218,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(20,630,218,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(21,630,218,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(22,630,218,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(23,630,218,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(24,630,218,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(25,630,218,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(26,630,218,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(27,630,218,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(28,630,218,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(29,630,218,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(30,630,218,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(31,630,218,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(32,630,21,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(33,630,21,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(34,630,21,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(35,630,21,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(36,630,21,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(37,630,21,0,'java/nio/DirectByteBufferR.slice')
+f(38,630,21,1,'java.nio.DirectByteBufferR')
+f(32,651,197,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(33,651,197,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(34,651,197,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(35,651,197,0,'java/nio/DirectByteBufferR.slice')
+f(36,651,197,1,'java.nio.DirectByteBufferR')
+f(19,848,7881,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.next')
+f(20,848,242,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(21,848,242,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(22,848,242,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(23,848,242,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(24,848,242,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(25,848,242,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(26,848,242,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(27,848,242,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(28,848,242,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(29,848,242,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(30,848,242,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(31,848,242,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(32,848,242,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(33,848,27,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(34,848,27,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(35,848,27,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(36,848,27,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(37,848,27,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(38,848,27,0,'java/nio/DirectByteBufferR.slice')
+f(39,848,27,1,'java.nio.DirectByteBufferR')
+f(33,875,215,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(34,875,215,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(35,875,215,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(36,875,215,0,'java/nio/DirectByteBufferR.slice')
+f(37,875,215,1,'java.nio.DirectByteBufferR')
+f(20,1090,7639,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.peek')
+f(21,1090,250,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(22,1090,250,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(23,1090,250,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(24,1090,250,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(25,1090,250,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(26,1090,250,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(27,1090,250,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(28,1090,250,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(29,1090,250,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(30,1090,250,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(31,1090,250,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(32,1090,250,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(33,1090,25,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(34,1090,25,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(35,1090,25,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(36,1090,25,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(37,1090,25,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(38,1090,25,0,'java/nio/DirectByteBufferR.slice')
+f(39,1090,25,1,'java.nio.DirectByteBufferR')
+f(33,1115,225,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(34,1115,225,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(35,1115,225,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(36,1115,225,0,'java/nio/DirectByteBufferR.slice')
+f(37,1115,225,1,'java.nio.DirectByteBufferR')
+f(21,1340,7389,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.next')
+f(22,1340,7389,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.next')
+f(23,1340,243,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(24,1340,243,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(25,1340,243,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(26,1340,243,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(27,1340,243,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(28,1340,243,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(29,1340,243,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(30,1340,243,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(31,1340,243,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(32,1340,243,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(33,1340,243,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(34,1340,243,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(35,1340,26,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(36,1340,26,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(37,1340,26,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(38,1340,26,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(39,1340,26,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(40,1340,26,0,'java/nio/DirectByteBufferR.slice')
+f(41,1340,26,1,'java.nio.DirectByteBufferR')
+f(35,1366,217,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(36,1366,217,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(37,1366,217,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(38,1366,217,0,'java/nio/DirectByteBufferR.slice')
+f(39,1366,217,1,'java.nio.DirectByteBufferR')
+f(23,1583,1543,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(24,1583,1543,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(25,1583,1543,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(26,1583,1543,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(27,1583,1543,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(28,1583,1543,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(29,1583,1543,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(30,1583,1543,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(31,1583,1543,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(32,1583,1543,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(33,1583,1543,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(34,1583,377,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(35,1583,377,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(36,1583,377,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(37,1583,377,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(38,1583,377,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(39,1583,377,0,'java/nio/DirectByteBufferR.slice')
+f(40,1583,377,1,'java.nio.DirectByteBufferR')
+f(34,1960,1166,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(35,1960,1166,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(36,1960,1166,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(37,1960,1166,0,'java/nio/DirectByteBufferR.slice')
+f(38,1960,1166,1,'java.nio.DirectByteBufferR')
+f(23,3126,5603,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.next')
+f(24,3126,211,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(25,3126,211,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(26,3126,211,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(27,3126,211,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(28,3126,211,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(29,3126,211,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(30,3126,211,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(31,3126,211,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(32,3126,211,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(33,3126,211,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(34,3126,211,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(35,3126,10,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(36,3126,10,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(37,3126,10,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(38,3126,10,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(39,3126,10,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(40,3126,10,0,'java/nio/DirectByteBufferR.slice')
+f(41,3126,10,1,'java.nio.DirectByteBufferR')
+f(35,3136,201,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(36,3136,201,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(37,3136,201,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(38,3136,201,0,'java/nio/DirectByteBufferR.slice')
+f(39,3136,201,1,'java.nio.DirectByteBufferR')
+f(24,3337,5392,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.peek')
+f(25,3337,251,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(26,3337,251,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(27,3337,251,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(28,3337,251,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(29,3337,251,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(30,3337,251,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(31,3337,251,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(32,3337,251,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(33,3337,251,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(34,3337,251,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(35,3337,27,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(36,3337,27,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(37,3337,27,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(38,3337,27,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(39,3337,27,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(40,3337,27,0,'java/nio/DirectByteBufferR.slice')
+f(41,3337,27,1,'java.nio.DirectByteBufferR')
+f(35,3364,224,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(36,3364,224,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(37,3364,224,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(38,3364,224,0,'java/nio/DirectByteBufferR.slice')
+f(39,3364,224,1,'java.nio.DirectByteBufferR')
+f(25,3588,5141,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.next')
+f(26,3588,5141,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.next')
+f(27,3588,251,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(28,3588,251,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(29,3588,251,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(30,3588,251,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(31,3588,251,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(32,3588,251,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(33,3588,251,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(34,3588,251,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(35,3588,251,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(36,3588,251,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(37,3588,27,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(38,3588,27,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(39,3588,27,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(40,3588,27,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(41,3588,27,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(42,3588,27,0,'java/nio/DirectByteBufferR.slice')
+f(43,3588,27,1,'java.nio.DirectByteBufferR')
+f(37,3615,224,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(38,3615,224,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(39,3615,224,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(40,3615,224,0,'java/nio/DirectByteBufferR.slice')
+f(41,3615,224,1,'java.nio.DirectByteBufferR')
+f(27,3839,942,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(28,3839,942,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(29,3839,942,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(30,3839,942,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(31,3839,942,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(32,3839,942,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(33,3839,942,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(34,3839,942,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(35,3839,942,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(36,3839,188,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(37,3839,188,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(38,3839,188,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(39,3839,188,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(40,3839,188,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(41,3839,188,0,'java/nio/DirectByteBufferR.slice')
+f(42,3839,188,1,'java.nio.DirectByteBufferR')
+f(36,4027,754,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(37,4027,754,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(38,4027,754,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(39,4027,754,0,'java/nio/DirectByteBufferR.slice')
+f(40,4027,754,1,'java.nio.DirectByteBufferR')
+f(27,4781,3948,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.next')
+f(28,4781,287,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(29,4781,287,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(30,4781,287,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(31,4781,287,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(32,4781,287,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(33,4781,287,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(34,4781,287,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(35,4781,287,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(36,4781,287,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(37,4781,30,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(38,4781,30,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(39,4781,30,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(40,4781,30,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(41,4781,30,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(42,4781,30,0,'java/nio/DirectByteBufferR.slice')
+f(43,4781,30,1,'java.nio.DirectByteBufferR')
+f(37,4811,257,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(38,4811,257,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(39,4811,257,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(40,4811,257,0,'java/nio/DirectByteBufferR.slice')
+f(41,4811,257,1,'java.nio.DirectByteBufferR')
+f(28,5068,3661,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.peek')
+f(29,5068,243,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(30,5068,243,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(31,5068,243,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(32,5068,243,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(33,5068,243,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(34,5068,243,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(35,5068,243,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(36,5068,243,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(37,5068,28,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(38,5068,28,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(39,5068,28,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(40,5068,28,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(41,5068,28,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(42,5068,28,0,'java/nio/DirectByteBufferR.slice')
+f(43,5068,28,1,'java.nio.DirectByteBufferR')
+f(37,5096,215,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(38,5096,215,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(39,5096,215,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(40,5096,215,0,'java/nio/DirectByteBufferR.slice')
+f(41,5096,215,1,'java.nio.DirectByteBufferR')
+f(29,5311,3418,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.next')
+f(30,5311,3418,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.next')
+f(31,5311,59,0,'ru/mail/polis/lsm/Record.getKey')
+f(32,5311,59,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(33,5311,59,0,'java/nio/DirectByteBufferR.duplicate')
+f(34,5311,59,1,'java.nio.DirectByteBufferR')
+f(31,5370,257,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(32,5370,257,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(33,5370,257,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(34,5370,257,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(35,5370,257,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(36,5370,257,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(37,5370,257,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(38,5370,257,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(39,5370,29,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(40,5370,29,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(41,5370,29,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(42,5370,29,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(43,5370,29,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(44,5370,29,0,'java/nio/DirectByteBufferR.slice')
+f(45,5370,29,1,'java.nio.DirectByteBufferR')
+f(39,5399,228,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(40,5399,228,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(41,5399,228,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(42,5399,228,0,'java/nio/DirectByteBufferR.slice')
+f(43,5399,228,1,'java.nio.DirectByteBufferR')
+f(31,5627,276,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(32,5627,276,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(33,5627,276,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(34,5627,276,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(35,5627,276,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(36,5627,276,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(37,5627,276,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(38,5627,29,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(39,5627,29,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(40,5627,29,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(41,5627,29,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(42,5627,29,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(43,5627,29,0,'java/nio/DirectByteBufferR.slice')
+f(44,5627,29,1,'java.nio.DirectByteBufferR')
+f(38,5656,247,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(39,5656,247,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(40,5656,247,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(41,5656,247,0,'java/nio/DirectByteBufferR.slice')
+f(42,5656,247,1,'java.nio.DirectByteBufferR')
+f(31,5903,735,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.next')
+f(32,5903,80,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(33,5903,80,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(34,5903,80,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(35,5903,80,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(36,5903,80,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(37,5903,80,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(38,5903,80,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(39,5903,80,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(40,5903,80,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(41,5903,80,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(42,5903,80,0,'java/nio/DirectByteBufferR.slice')
+f(43,5903,80,1,'java.nio.DirectByteBufferR')
+f(32,5983,655,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.peek')
+f(33,5983,60,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(34,5983,60,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(35,5983,60,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(36,5983,60,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(37,5983,60,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(38,5983,60,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(39,5983,60,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(40,5983,60,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(41,5983,60,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(42,5983,60,0,'java/nio/DirectByteBufferR.slice')
+f(43,5983,60,1,'java.nio.DirectByteBufferR')
+f(33,6043,595,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.next')
+f(34,6043,595,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.next')
+f(35,6043,65,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(36,6043,65,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(37,6043,65,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(38,6043,65,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(39,6043,65,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(40,6043,65,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(41,6043,65,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(42,6043,65,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(43,6043,65,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(44,6043,65,0,'java/nio/DirectByteBufferR.slice')
+f(45,6043,65,1,'java.nio.DirectByteBufferR')
+f(35,6108,82,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(36,6108,82,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(37,6108,82,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(38,6108,82,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(39,6108,82,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(40,6108,8,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(41,6108,8,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(42,6108,8,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(43,6108,8,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(44,6108,8,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(45,6108,8,0,'java/nio/DirectByteBufferR.slice')
+f(46,6108,8,1,'java.nio.DirectByteBufferR')
+f(40,6116,74,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(41,6116,74,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(42,6116,74,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(43,6116,74,0,'java/nio/DirectByteBufferR.slice')
+f(44,6116,74,1,'java.nio.DirectByteBufferR')
+f(35,6190,448,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.next')
+f(36,6190,32,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(37,6190,32,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(38,6190,32,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(39,6190,32,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(40,6190,32,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(41,6190,32,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(42,6190,32,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(43,6190,32,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(44,6190,32,0,'java/nio/DirectByteBufferR.slice')
+f(45,6190,32,1,'java.nio.DirectByteBufferR')
+f(36,6222,416,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.peek')
+f(37,6222,36,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(38,6222,36,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(39,6222,36,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(40,6222,36,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(41,6222,36,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(42,6222,36,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(43,6222,36,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(44,6222,36,0,'java/nio/DirectByteBufferR.slice')
+f(45,6222,36,1,'java.nio.DirectByteBufferR')
+f(37,6258,380,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.next')
+f(38,6258,380,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.next')
+f(39,6258,34,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(40,6258,34,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(41,6258,34,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(42,6258,34,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(43,6258,34,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(44,6258,34,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(45,6258,34,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(46,6258,34,0,'java/nio/DirectByteBufferR.slice')
+f(47,6258,34,1,'java.nio.DirectByteBufferR')
+f(39,6292,32,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(40,6292,32,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(41,6292,32,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(42,6292,12,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(43,6292,12,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(44,6292,12,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(45,6292,12,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(46,6292,12,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(47,6292,12,0,'java/nio/DirectByteBufferR.slice')
+f(48,6292,12,1,'java.nio.DirectByteBufferR')
+f(42,6304,20,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(43,6304,20,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(44,6304,20,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(45,6304,20,0,'java/nio/DirectByteBufferR.slice')
+f(46,6304,20,1,'java.nio.DirectByteBufferR')
+f(39,6324,314,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.next')
+f(40,6324,24,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(41,6324,24,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(42,6324,24,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(43,6324,24,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(44,6324,24,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(45,6324,24,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(46,6324,24,0,'java/nio/DirectByteBufferR.slice')
+f(47,6324,24,1,'java.nio.DirectByteBufferR')
+f(40,6348,290,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.peek')
+f(41,6348,23,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(42,6348,23,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(43,6348,23,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(44,6348,23,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(45,6348,23,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(46,6348,23,0,'java/nio/DirectByteBufferR.slice')
+f(47,6348,23,1,'java.nio.DirectByteBufferR')
+f(41,6371,267,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.next')
+f(42,6371,267,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.next')
+f(43,6371,21,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(44,6371,21,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(45,6371,21,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(46,6371,21,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(47,6371,21,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(48,6371,21,0,'java/nio/DirectByteBufferR.slice')
+f(49,6371,21,1,'java.nio.DirectByteBufferR')
+f(43,6392,21,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(44,6392,21,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(45,6392,21,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(46,6392,21,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(47,6392,21,0,'java/nio/DirectByteBufferR.slice')
+f(48,6392,21,1,'java.nio.DirectByteBufferR')
+f(43,6413,225,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.next')
+f(44,6413,23,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(45,6413,23,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(46,6413,23,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(47,6413,23,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(48,6413,23,0,'java/nio/DirectByteBufferR.slice')
+f(49,6413,23,1,'java.nio.DirectByteBufferR')
+f(44,6436,202,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.peek')
+f(45,6436,29,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(46,6436,29,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(47,6436,29,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(48,6436,29,0,'java/nio/DirectByteBufferR.slice')
+f(49,6436,29,1,'java.nio.DirectByteBufferR')
+f(45,6465,173,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.next')
+f(46,6465,173,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.next')
+f(47,6465,81,0,'ru/mail/polis/lsm/Record.of')
+f(48,6465,33,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(49,6465,33,0,'java/nio/DirectByteBufferR.duplicate')
+f(50,6465,33,1,'java.nio.DirectByteBufferR')
+f(48,6498,13,1,'ru.mail.polis.lsm.Record')
+f(48,6511,35,0,'ru/mail/polis/lsm/Record.<init>')
+f(49,6511,35,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(50,6511,35,0,'java/nio/DirectByteBufferR.duplicate')
+f(51,6511,35,1,'java.nio.DirectByteBufferR')
+f(47,6546,72,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(48,6546,33,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(49,6546,33,0,'java/nio/DirectByteBufferR.duplicate')
+f(50,6546,33,1,'java.nio.DirectByteBufferR')
+f(48,6579,39,0,'java/nio/DirectByteBufferR.slice')
+f(49,6579,39,1,'java.nio.DirectByteBufferR')
+f(47,6618,20,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(48,6618,20,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(49,6618,20,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(50,6618,20,0,'java/nio/DirectByteBufferR.slice')
+f(51,6618,20,1,'java.nio.DirectByteBufferR')
+f(31,6638,2091,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.peek')
+f(32,6638,145,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(33,6638,145,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(34,6638,145,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(35,6638,145,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(36,6638,145,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(37,6638,145,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(38,6638,145,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(39,6638,145,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(40,6638,145,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(41,6638,145,0,'java/nio/DirectByteBufferR.slice')
+f(42,6638,145,1,'java.nio.DirectByteBufferR')
+f(32,6783,1946,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.next')
+f(33,6783,1946,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.next')
+f(34,6783,144,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(35,6783,144,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(36,6783,144,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(37,6783,144,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(38,6783,144,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(39,6783,144,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(40,6783,144,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(41,6783,144,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(42,6783,144,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(43,6783,144,0,'java/nio/DirectByteBufferR.slice')
+f(44,6783,144,1,'java.nio.DirectByteBufferR')
+f(34,6927,300,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(35,6927,300,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(36,6927,300,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(37,6927,300,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(38,6927,300,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(39,6927,61,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(40,6927,61,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(41,6927,61,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(42,6927,61,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(43,6927,61,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(44,6927,61,0,'java/nio/DirectByteBufferR.slice')
+f(45,6927,61,1,'java.nio.DirectByteBufferR')
+f(39,6988,239,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(40,6988,239,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(41,6988,239,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(42,6988,239,0,'java/nio/DirectByteBufferR.slice')
+f(43,6988,239,1,'java.nio.DirectByteBufferR')
+f(34,7227,1502,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.next')
+f(35,7227,94,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(36,7227,94,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(37,7227,94,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(38,7227,94,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(39,7227,94,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(40,7227,94,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(41,7227,94,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(42,7227,94,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(43,7227,94,0,'java/nio/DirectByteBufferR.slice')
+f(44,7227,94,1,'java.nio.DirectByteBufferR')
+f(35,7321,1408,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.peek')
+f(36,7321,97,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(37,7321,97,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(38,7321,97,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(39,7321,97,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(40,7321,97,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(41,7321,97,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(42,7321,97,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(43,7321,97,0,'java/nio/DirectByteBufferR.slice')
+f(44,7321,97,1,'java.nio.DirectByteBufferR')
+f(36,7418,1311,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.next')
+f(37,7418,1311,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.next')
+f(38,7418,82,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(39,7418,82,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(40,7418,82,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(41,7418,82,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(42,7418,82,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(43,7418,82,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(44,7418,82,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(45,7418,82,0,'java/nio/DirectByteBufferR.slice')
+f(46,7418,82,1,'java.nio.DirectByteBufferR')
+f(38,7500,152,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(39,7500,152,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(40,7500,152,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(41,7500,28,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(42,7500,28,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(43,7500,28,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(44,7500,28,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(45,7500,28,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(46,7500,28,0,'java/nio/DirectByteBufferR.slice')
+f(47,7500,28,1,'java.nio.DirectByteBufferR')
+f(41,7528,124,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(42,7528,124,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(43,7528,124,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(44,7528,124,0,'java/nio/DirectByteBufferR.slice')
+f(45,7528,124,1,'java.nio.DirectByteBufferR')
+f(38,7652,1077,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.next')
+f(39,7652,70,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(40,7652,70,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(41,7652,70,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(42,7652,70,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(43,7652,70,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(44,7652,70,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(45,7652,70,0,'java/nio/DirectByteBufferR.slice')
+f(46,7652,70,1,'java.nio.DirectByteBufferR')
+f(39,7722,1007,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.peek')
+f(40,7722,84,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(41,7722,84,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(42,7722,84,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(43,7722,84,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(44,7722,84,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(45,7722,84,0,'java/nio/DirectByteBufferR.slice')
+f(46,7722,84,1,'java.nio.DirectByteBufferR')
+f(40,7806,923,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.next')
+f(41,7806,923,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.next')
+f(42,7806,19,0,'ru/mail/polis/lsm/Record.getKey')
+f(43,7806,19,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(44,7806,19,0,'java/nio/DirectByteBufferR.duplicate')
+f(45,7806,19,1,'java.nio.DirectByteBufferR')
+f(42,7825,75,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/MergeIterator.hasNext')
+f(43,7825,75,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(44,7825,75,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(45,7825,75,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(46,7825,75,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(47,7825,75,0,'java/nio/DirectByteBufferR.slice')
+f(48,7825,75,1,'java.nio.DirectByteBufferR')
+f(42,7900,81,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(43,7900,81,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(44,7900,81,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(45,7900,81,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(46,7900,81,0,'java/nio/DirectByteBufferR.slice')
+f(47,7900,81,1,'java.nio.DirectByteBufferR')
+f(42,7981,605,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.next')
+f(43,7981,48,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.hasNext')
+f(44,7981,48,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(45,7981,48,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(46,7981,48,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(47,7981,48,0,'java/nio/DirectByteBufferR.slice')
+f(48,7981,48,1,'java.nio.DirectByteBufferR')
+f(43,8029,557,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.peek')
+f(44,8029,52,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(45,8029,52,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(46,8029,52,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(47,8029,52,0,'java/nio/DirectByteBufferR.slice')
+f(48,8029,52,1,'java.nio.DirectByteBufferR')
+f(44,8081,505,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.next')
+f(45,8081,505,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.next')
+f(46,8081,259,0,'ru/mail/polis/lsm/Record.of')
+f(47,8081,125,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(48,8081,125,0,'java/nio/DirectByteBufferR.duplicate')
+f(49,8081,125,1,'java.nio.DirectByteBufferR')
+f(47,8206,31,1,'ru.mail.polis.lsm.Record')
+f(47,8237,103,0,'ru/mail/polis/lsm/Record.<init>')
+f(48,8237,103,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(49,8237,103,0,'java/nio/DirectByteBufferR.duplicate')
+f(50,8237,103,1,'java.nio.DirectByteBufferR')
+f(46,8340,193,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(47,8340,93,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(48,8340,93,0,'java/nio/DirectByteBufferR.duplicate')
+f(49,8340,93,1,'java.nio.DirectByteBufferR')
+f(47,8433,100,0,'java/nio/DirectByteBufferR.slice')
+f(48,8433,100,1,'java.nio.DirectByteBufferR')
+f(46,8533,53,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(47,8533,53,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(48,8533,53,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(49,8533,53,0,'java/nio/DirectByteBufferR.slice')
+f(50,8533,53,1,'java.nio.DirectByteBufferR')
+f(42,8586,143,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/PeekingIterator.peek')
+f(43,8586,10,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(44,8586,10,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(45,8586,10,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(46,8586,10,0,'java/nio/DirectByteBufferR.slice')
+f(47,8586,10,1,'java.nio.DirectByteBufferR')
+f(43,8596,133,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.next')
+f(44,8596,133,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.next')
+f(45,8596,68,0,'ru/mail/polis/lsm/Record.of')
+f(46,8596,34,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(47,8596,34,0,'java/nio/DirectByteBufferR.duplicate')
+f(48,8596,34,1,'java.nio.DirectByteBufferR')
+f(46,8630,6,1,'ru.mail.polis.lsm.Record')
+f(46,8636,28,0,'ru/mail/polis/lsm/Record.<init>')
+f(47,8636,28,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(48,8636,28,0,'java/nio/DirectByteBufferR.duplicate')
+f(49,8636,28,1,'java.nio.DirectByteBufferR')
+f(45,8664,57,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(46,8664,26,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(47,8664,26,0,'java/nio/DirectByteBufferR.duplicate')
+f(48,8664,26,1,'java.nio.DirectByteBufferR')
+f(46,8690,31,0,'java/nio/DirectByteBufferR.slice')
+f(47,8690,31,1,'java.nio.DirectByteBufferR')
+f(45,8721,8,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.hasNext')
+f(46,8721,8,0,'ru/mail/polis/lsm/sachuk/ilya/iterators/SSTableIterator.getNextKey')
+f(47,8721,8,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(48,8721,8,0,'java/nio/DirectByteBufferR.slice')
+f(49,8721,8,1,'java.nio.DirectByteBufferR')
+f(13,8729,141,0,'java/util/stream/StreamSpliterators$WrappingSpliterator.initPartialTraversalState')
+f(14,8729,32,1,'java.util.stream.SpinedBuffer')
+f(14,8761,29,0,'java/lang/invoke/Invokers$Holder.linkToTargetMethod')
+f(15,8761,29,0,'java/lang/invoke/DirectMethodHandle$Holder.invokeStatic')
+f(16,8761,28,0,'java/util/stream/StreamSpliterators$WrappingSpliterator$$Lambda$75/45474570.get$Lambda')
+f(17,8761,28,1,'java.util.stream.StreamSpliterators$WrappingSpliterator$$Lambda$75')
+f(16,8789,1,0,'java/util/stream/StreamSpliterators$WrappingSpliterator$$Lambda$76/829188600.get$Lambda')
+f(17,8789,1,1,'java.util.stream.StreamSpliterators$WrappingSpliterator$$Lambda$76')
+f(14,8790,20,0,'java/util/stream/AbstractPipeline.wrapSink')
+f(15,8790,20,0,'java/util/stream/ReferencePipeline$2.opWrapSink')
+f(16,8790,20,1,'java.util.stream.ReferencePipeline$2$1')
+f(14,8810,60,0,'java/util/stream/SpinedBuffer.<init>')
+f(15,8810,60,1,'java.lang.Object[]')
+f(10,8870,10,1,'one.nio.http.Response')
+f(10,8880,69,0,'one/nio/http/Response.<init>')
+f(11,8880,34,1,'byte[]')
+f(11,8914,23,1,'java.lang.String[]')
+f(11,8937,12,1,'java.lang.String')
+f(10,8949,18,0,'ru/mail/polis/Utils.bytebufferToBytes')
+f(11,8949,18,1,'byte[]')
+f(10,8967,45,0,'ru/mail/polis/Utils.stringToBytebuffer')
+f(11,8967,13,0,'java/lang/String.getBytes')
+f(12,8967,13,0,'java/lang/StringCoding.encode')
+f(13,8967,13,0,'java/lang/StringCoding.encodeUTF8')
+f(14,8967,13,0,'java/util/Arrays.copyOf')
+f(15,8967,13,1,'byte[]')
+f(11,8980,32,0,'java/nio/ByteBuffer.wrap')
+f(12,8980,32,0,'java/nio/ByteBuffer.wrap')
+f(13,8980,32,1,'java.nio.HeapByteBuffer')
+f(10,9012,52,0,'ru/mail/polis/lsm/DAO.nextKey')
+f(11,9012,52,0,'java/nio/ByteBuffer.allocate')
+f(12,9012,34,1,'java.nio.HeapByteBuffer')
+f(12,9046,18,0,'java/nio/HeapByteBuffer.<init>')
+f(13,9046,18,1,'byte[]')
+f(10,9064,57,0,'ru/mail/polis/lsm/Record.getValue')
+f(11,9064,57,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(12,9064,57,0,'java/nio/DirectByteBufferR.duplicate')
+f(13,9064,57,1,'java.nio.DirectByteBufferR')
+f(10,9121,71697,0,'ru/mail/polis/lsm/sachuk/ilya/DaoImpl.range')
+f(11,9121,17,0,'java/util/Spliterators.spliteratorUnknownSize')
+f(12,9121,17,1,'java.util.Spliterators$IteratorSpliterator')
+f(11,9138,1,0,'java/util/concurrent/ConcurrentSkipListMap$SubMap.values')
+f(12,9138,1,1,'java.util.concurrent.ConcurrentSkipListMap$Values')
+f(11,9139,21,0,'java/util/concurrent/ConcurrentSkipListMap$Values.iterator')
+f(12,9139,21,1,'java.util.concurrent.ConcurrentSkipListMap$SubMap$SubMapValueIterator')
+f(11,9160,49,0,'java/util/stream/ReferencePipeline.filter')
+f(12,9160,49,1,'java.util.stream.ReferencePipeline$2')
+f(11,9209,60,0,'java/util/stream/ReferencePipeline.iterator')
+f(12,9209,12,0,'java/util/Spliterators.iterator')
+f(13,9209,12,1,'java.util.Spliterators$1Adapter')
+f(12,9221,48,0,'java/util/stream/AbstractPipeline.spliterator')
+f(13,9221,8,0,'java/lang/invoke/Invokers$Holder.linkToTargetMethod')
+f(14,9221,8,0,'java/lang/invoke/DirectMethodHandle$Holder.invokeStatic')
+f(15,9221,8,0,'java/util/stream/AbstractPipeline$$Lambda$74/431626198.get$Lambda')
+f(16,9221,8,1,'java.util.stream.AbstractPipeline$$Lambda$74')
+f(13,9229,40,0,'java/util/stream/ReferencePipeline.wrap')
+f(14,9229,40,1,'java.util.stream.StreamSpliterators$WrappingSpliterator')
+f(11,9269,39,0,'java/util/stream/StreamSupport.stream')
+f(12,9269,39,1,'java.util.stream.ReferencePipeline$Head')
+f(11,9308,30,0,'ru/mail/polis/lsm/sachuk/ilya/DaoImpl.map')
+f(12,9308,30,0,'java/util/concurrent/ConcurrentSkipListMap.subMap')
+f(13,9308,30,0,'java/util/concurrent/ConcurrentSkipListMap.subMap')
+f(14,9308,30,0,'java/util/concurrent/ConcurrentSkipListMap.subMap')
+f(15,9308,30,1,'java.util.concurrent.ConcurrentSkipListMap$SubMap')
+f(11,9338,62,0,'ru/mail/polis/lsm/sachuk/ilya/DaoImpl.mergeTwo')
+f(12,9338,21,1,'ru.mail.polis.lsm.sachuk.ilya.iterators.MergeIterator')
+f(12,9359,41,1,'ru.mail.polis.lsm.sachuk.ilya.iterators.PeekingIterator')
+f(11,9400,71418,0,'ru/mail/polis/lsm/sachuk/ilya/DaoImpl.ssTableRanges')
+f(12,9400,30,1,'java.util.ArrayList')
+f(12,9430,236,0,'java/util/ArrayList.<init>')
+f(13,9430,236,1,'java.lang.Object[]')
+f(12,9666,6109,0,'ru/mail/polis/lsm/sachuk/ilya/DaoImpl.merge')
+f(13,9666,35,0,'java/util/ArrayList.subList')
+f(14,9666,35,1,'java.util.ArrayList$SubList')
+f(13,9701,6032,0,'ru/mail/polis/lsm/sachuk/ilya/DaoImpl.merge')
+f(14,9701,141,0,'java/util/ArrayList$SubList.subList')
+f(15,9701,141,1,'java.util.ArrayList$SubList')
+f(14,9842,5771,0,'ru/mail/polis/lsm/sachuk/ilya/DaoImpl.merge')
+f(15,9842,199,0,'java/util/ArrayList$SubList.subList')
+f(16,9842,199,1,'java.util.ArrayList$SubList')
+f(15,10041,5333,0,'ru/mail/polis/lsm/sachuk/ilya/DaoImpl.merge')
+f(16,10041,402,0,'java/util/ArrayList$SubList.subList')
+f(17,10041,402,1,'java.util.ArrayList$SubList')
+f(16,10443,4484,0,'ru/mail/polis/lsm/sachuk/ilya/DaoImpl.merge')
+f(17,10443,800,0,'java/util/ArrayList$SubList.subList')
+f(18,10443,800,1,'java.util.ArrayList$SubList')
+f(17,11243,2735,0,'ru/mail/polis/lsm/sachuk/ilya/DaoImpl.merge')
+f(18,11243,397,0,'java/util/ArrayList$SubList.subList')
+f(19,11243,397,1,'java.util.ArrayList$SubList')
+f(18,11640,504,0,'ru/mail/polis/lsm/sachuk/ilya/DaoImpl.merge')
+f(19,11640,504,0,'ru/mail/polis/lsm/sachuk/ilya/DaoImpl.mergeTwo')
+f(20,11640,149,1,'ru.mail.polis.lsm.sachuk.ilya.iterators.MergeIterator')
+f(20,11789,355,1,'ru.mail.polis.lsm.sachuk.ilya.iterators.PeekingIterator')
+f(18,12144,1834,0,'ru/mail/polis/lsm/sachuk/ilya/DaoImpl.mergeTwo')
+f(19,12144,563,1,'ru.mail.polis.lsm.sachuk.ilya.iterators.MergeIterator')
+f(19,12707,1271,1,'ru.mail.polis.lsm.sachuk.ilya.iterators.PeekingIterator')
+f(17,13978,949,0,'ru/mail/polis/lsm/sachuk/ilya/DaoImpl.mergeTwo')
+f(18,13978,305,1,'ru.mail.polis.lsm.sachuk.ilya.iterators.MergeIterator')
+f(18,14283,644,1,'ru.mail.polis.lsm.sachuk.ilya.iterators.PeekingIterator')
+f(16,14927,447,0,'ru/mail/polis/lsm/sachuk/ilya/DaoImpl.mergeTwo')
+f(17,14927,136,1,'ru.mail.polis.lsm.sachuk.ilya.iterators.MergeIterator')
+f(17,15063,311,1,'ru.mail.polis.lsm.sachuk.ilya.iterators.PeekingIterator')
+f(15,15374,239,0,'ru/mail/polis/lsm/sachuk/ilya/DaoImpl.mergeTwo')
+f(16,15374,71,1,'ru.mail.polis.lsm.sachuk.ilya.iterators.MergeIterator')
+f(16,15445,168,1,'ru.mail.polis.lsm.sachuk.ilya.iterators.PeekingIterator')
+f(14,15613,120,0,'ru/mail/polis/lsm/sachuk/ilya/DaoImpl.mergeTwo')
+f(15,15613,40,1,'ru.mail.polis.lsm.sachuk.ilya.iterators.MergeIterator')
+f(15,15653,80,1,'ru.mail.polis.lsm.sachuk.ilya.iterators.PeekingIterator')
+f(13,15733,42,0,'ru/mail/polis/lsm/sachuk/ilya/DaoImpl.mergeTwo')
+f(14,15733,16,1,'ru.mail.polis.lsm.sachuk.ilya.iterators.MergeIterator')
+f(14,15749,26,1,'ru.mail.polis.lsm.sachuk.ilya.iterators.PeekingIterator')
+f(12,15775,65043,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.range')
+f(13,15775,973,1,'ru.mail.polis.lsm.sachuk.ilya.iterators.SSTableIterator')
+f(13,16748,64070,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.binarySearchKey')
+f(14,16748,64070,0,'ru/mail/polis/lsm/sachuk/ilya/SSTable.readFromFile')
+f(15,16748,64070,0,'java/nio/DirectByteBufferR.slice')
+f(16,16748,64070,1,'java.nio.DirectByteBufferR')
+f(7,80818,46,0,'one/nio/http/Request.getPath')
+f(8,80818,46,0,'java/lang/String.substring')
+f(9,80818,46,0,'java/lang/StringLatin1.newString')
+f(10,80818,10,1,'java.lang.String')
+f(10,80828,36,0,'java/util/Arrays.copyOfRange')
+f(11,80828,36,1,'byte[]')
+f(5,80864,198,0,'one/nio/http/HttpSession.parseRequest')
+f(6,80864,36,1,'one.nio.http.Request')
+f(6,80900,56,0,'one/nio/http/Request.<init>')
+f(7,80900,56,1,'java.lang.String[]')
+f(6,80956,106,0,'one/nio/util/Utf8.read')
+f(7,80956,106,0,'one/nio/util/Utf8.read')
+f(8,80956,58,1,'char[]')
+f(8,81014,29,1,'java.lang.String')
+f(8,81043,19,0,'java/lang/String.<init>')
+f(9,81043,19,0,'java/lang/String.<init>')
+f(10,81043,19,0,'java/lang/StringUTF16.compress')
+f(11,81043,19,1,'byte[]')
+f(5,81062,111,0,'one/nio/util/Utf8.read')
+f(6,81062,111,0,'one/nio/util/Utf8.read')
+f(7,81062,56,1,'char[]')
+f(7,81118,14,1,'java.lang.String')
+f(7,81132,41,0,'java/lang/String.<init>')
+f(8,81132,41,0,'java/lang/String.<init>')
+f(9,81132,41,0,'java/lang/StringUTF16.compress')
+f(10,81132,41,1,'byte[]')
+render();
+</script></body></html>
