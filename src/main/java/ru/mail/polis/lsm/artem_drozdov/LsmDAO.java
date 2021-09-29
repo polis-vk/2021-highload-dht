@@ -192,7 +192,7 @@ public class LsmDAO implements DAO {
             @Override
             public boolean hasNext() {
                 for (;;) {
-                    Record peek = delegate.next();;
+                    Record peek = delegate.peek();;
                     if (peek == null) {
                         return false;
                     }
