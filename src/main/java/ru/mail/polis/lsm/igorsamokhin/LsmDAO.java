@@ -54,6 +54,11 @@ public class LsmDAO implements DAO {
     @Override
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
         synchronized (this) {
+            try {
+                flush();
+            } catch (IOException e) {
+                throw new UncheckedIOException("Can't flush data", e);
+            }
             Iterator<Record> memoryRange = SSTable.getSubMap(memoryStorage, fromKey, toKey).values().iterator();
             Iterator<Record> sstableRanges = sstableRanges(fromKey, toKey);
             return LsmDAO.merge(List.of(sstableRanges, memoryRange));
