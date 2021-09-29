@@ -6,10 +6,10 @@ import java.util.Iterator;
 import java.util.NoSuchElementException;
 
 public class FilterTombstonesIterator implements Iterator<Record> {
-    private final LsmDAO.PeekingIterator delegate;
+    private final PeekingIterator delegate;
 
     FilterTombstonesIterator(final Iterator<Record> delegate) {
-        this.delegate = new LsmDAO.PeekingIterator(delegate);
+        this.delegate = new PeekingIterator(delegate);
     }
 
     @Override
