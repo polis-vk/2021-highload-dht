@@ -50,7 +50,7 @@ public class HttpRestService extends HttpServer implements Service {
         if (id.isBlank()) {
             return new Response(Response.BAD_REQUEST, Response.EMPTY);
            }
-        // We handle all 3 methods
+        // We handle all three methods
         switch (request.getMethod()) {
             case Request.METHOD_GET:
                 return get(id);
