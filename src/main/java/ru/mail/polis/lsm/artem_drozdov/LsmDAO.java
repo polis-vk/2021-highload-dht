@@ -8,8 +8,6 @@ import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.lang.ref.Cleaner;
-import java.lang.ref.PhantomReference;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.ArrayList;
