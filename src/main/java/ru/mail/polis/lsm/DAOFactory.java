@@ -1,6 +1,6 @@
 package ru.mail.polis.lsm;
 
-import ru.mail.polis.lsm.alyonazakharova.LmsDAO;
+import ru.mail.polis.lsm.artem_drozdov.LsmDAO;
 
 import java.io.IOException;
 
@@ -16,7 +16,7 @@ public final class DAOFactory {
     public static DAO create(DAOConfig config) throws IOException {
         assert config.dir.toFile().exists();
 
-        return new LmsDAO(config);
+        return new LsmDAO(config);
     }
 
 }
