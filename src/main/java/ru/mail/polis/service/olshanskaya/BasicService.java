@@ -1,6 +1,13 @@
 package ru.mail.polis.service.olshanskaya;
 
-import one.nio.http.*;
+
+import one.nio.http.HttpServer;
+import one.nio.http.HttpServerConfig;
+import one.nio.http.HttpSession;
+import one.nio.http.Request;
+import one.nio.http.Response;
+import one.nio.http.Path;
+import one.nio.http.Param;
 import one.nio.server.AcceptorConfig;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.Record;
@@ -14,7 +21,6 @@ import java.util.Iterator;
 public class BasicService extends HttpServer implements Service {
 
     private final DAO dao;
-
 
     public BasicService(final int port,
                         final DAO dao) throws IOException {
@@ -46,7 +52,7 @@ public class BasicService extends HttpServer implements Service {
             final Request request,
             @Param(value = "id", required = true) final String id) {
 
-        if(id.isBlank()) {
+        if(id.isBlank()){
             return new Response(Response.BAD_REQUEST, "Bad id".getBytes(StandardCharsets.UTF_8));
         }
 
@@ -60,7 +66,6 @@ public class BasicService extends HttpServer implements Service {
             default:
                 return new Response(Response.METHOD_NOT_ALLOWED, "Wrong method".getBytes(StandardCharsets.UTF_8));
         }
-
     }
 
     private static byte[] extractBytes(final ByteBuffer buffer) {
@@ -94,6 +99,4 @@ public class BasicService extends HttpServer implements Service {
             return new Response(Response.NOT_FOUND, Response.EMPTY);
         }
     }
-
-
 }
