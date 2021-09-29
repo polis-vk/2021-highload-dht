@@ -12,6 +12,7 @@ import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.service.Service;
 
 import java.io.IOException;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class HttpService extends HttpServer implements Service {
 
@@ -62,11 +63,12 @@ public class HttpService extends HttpServer implements Service {
     }
 
     private Response get(String id) {
-        byte[] entity = daoService.getEntity(id);
-        if (entity != null) {
-            return Response.ok(entity);
-        }
-        return new Response(Response.NOT_FOUND, Response.EMPTY);
+        AtomicReference<Response> response = new AtomicReference<>();
+        daoService.getEntity(id)
+                .ifPresentOrElse(
+                        bytes -> response.set(Response.ok(bytes)),
+                        () -> response.set(new Response(Response.NOT_FOUND, Response.EMPTY)));
+        return response.get();
     }
 
     private static HttpServerConfig createConfig(int port) {

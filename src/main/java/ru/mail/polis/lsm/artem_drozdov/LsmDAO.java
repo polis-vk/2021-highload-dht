@@ -1,8 +1,9 @@
-package ru.mail.polis.lsm.daoimpl;
+package ru.mail.polis.lsm.artem_drozdov;
 
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.DAOConfig;
 import ru.mail.polis.lsm.Record;
+import ru.mail.polis.lsm.artem_drozdov.table.SSTable;
 
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;

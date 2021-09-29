@@ -6,6 +6,7 @@ import ru.mail.polis.lsm.Record;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
+import java.util.Optional;
 
 public class DAOService {
 
@@ -15,14 +16,15 @@ public class DAOService {
         this.dao = dao;
     }
 
-    public byte[] getEntity(String id) {
+    public Optional<byte[]> getEntity(String id) {
         ByteBuffer key = byteBufferFromString(id);
         Iterator<Record> range = dao.range(key, DAO.nextKey(key));
+        Optional<byte []> byteArrayOpt = Optional.empty();
         if (range.hasNext()) {
             ByteBuffer value = range.next().getValue();
-            return arrayFromByteBuffer(value);
+            byteArrayOpt = Optional.of(arrayFromByteBuffer(value));
         }
-        return null;
+        return byteArrayOpt;
     }
 
     public void putEntity(String id, byte[] entity) {

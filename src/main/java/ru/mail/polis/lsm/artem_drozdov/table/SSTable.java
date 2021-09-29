@@ -1,4 +1,4 @@
-package ru.mail.polis.lsm.daoimpl;
+package ru.mail.polis.lsm.artem_drozdov.table;
 
 import ru.mail.polis.lsm.Record;
 
@@ -6,16 +6,12 @@ import javax.annotation.Nullable;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
-import java.nio.channels.WritableByteChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
-import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -23,22 +19,19 @@ import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.stream.Stream;
 
+import static ru.mail.polis.lsm.artem_drozdov.table.FileHelper.free;
+import static ru.mail.polis.lsm.artem_drozdov.table.FileHelper.getIndexFile;
+import static ru.mail.polis.lsm.artem_drozdov.table.FileHelper.getTmpFile;
+import static ru.mail.polis.lsm.artem_drozdov.table.FileHelper.open;
+import static ru.mail.polis.lsm.artem_drozdov.table.FileHelper.openForWrite;
+import static ru.mail.polis.lsm.artem_drozdov.table.FileHelper.rename;
+import static ru.mail.polis.lsm.artem_drozdov.table.FileHelper.writeInt;
+import static ru.mail.polis.lsm.artem_drozdov.table.FileHelper.writeValueWithSize;
+
 public class SSTable implements Closeable {
 
     public static final String SSTABLE_FILE_PREFIX = "file_";
     public static final String COMPACTION_FILE_NAME = "compaction";
-
-    private static final Method CLEAN;
-
-    static {
-        try {
-            Class<?> classObj = Class.forName("sun.nio.ch.FileChannelImpl");
-            CLEAN = classObj.getDeclaredMethod("unmap", MappedByteBuffer.class);
-            CLEAN.setAccessible(true);
-        } catch (Exception e) {
-            throw new IllegalStateException(e);
-        }
-    }
 
     private final MappedByteBuffer mmap;
     private final MappedByteBuffer idx;
@@ -173,15 +166,15 @@ public class SSTable implements Closeable {
         IOException exception = null;
         try {
             free(mmap);
-        } catch (Throwable t) {
-            exception = new IOException(t);
+        } catch (IOException t) {
+            exception = t;
         }
 
         try {
             free(idx);
-        } catch (Throwable t) {
+        } catch (IOException t) {
             if (exception == null) {
-                exception = new IOException(t);
+                exception = t;
             } else {
                 exception.addSuppressed(t);
             }
@@ -189,64 +182,6 @@ public class SSTable implements Closeable {
 
         if (exception != null) {
             throw exception;
-        }
-    }
-
-    private static Path resolveWithExt(Path file, String ext) {
-        return file.resolveSibling(file.getFileName() + ext);
-    }
-
-    private static Path getIndexFile(Path file) {
-        return resolveWithExt(file, ".idx");
-    }
-
-    private static Path getTmpFile(Path file) {
-        return resolveWithExt(file, ".tmp");
-    }
-
-    private static FileChannel openForWrite(Path tmpFileName) throws IOException {
-        return FileChannel.open(
-                tmpFileName,
-                StandardOpenOption.CREATE_NEW,
-                StandardOpenOption.WRITE,
-                StandardOpenOption.TRUNCATE_EXISTING
-        );
-    }
-
-    private static void writeValueWithSize(ByteBuffer value,
-                                           WritableByteChannel channel,
-                                           ByteBuffer tmp) throws IOException {
-        writeInt(value.remaining(), channel, tmp);
-        channel.write(tmp);
-        channel.write(value);
-    }
-
-    private static void writeInt(int value, WritableByteChannel channel, ByteBuffer tmp) throws IOException {
-        tmp.position(0);
-        tmp.putInt(value);
-        tmp.position(0);
-
-        channel.write(tmp);
-    }
-
-    private static void rename(Path file, Path tmpFile) throws IOException {
-        Files.deleteIfExists(file);
-        Files.move(tmpFile, file, StandardCopyOption.ATOMIC_MOVE);
-    }
-
-    private static MappedByteBuffer open(Path name) throws IOException {
-        try (
-                FileChannel channel = FileChannel.open(name, StandardOpenOption.READ)
-        ) {
-            return channel.map(FileChannel.MapMode.READ_ONLY, 0, channel.size());
-        }
-    }
-
-    private static void free(MappedByteBuffer buffer) throws IOException {
-        try {
-            CLEAN.invoke(null, buffer);
-        } catch (IllegalAccessException | InvocationTargetException e) {
-            throw new IOException(e);
         }
     }
 
