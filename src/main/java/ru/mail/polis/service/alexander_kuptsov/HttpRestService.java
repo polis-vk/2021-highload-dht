@@ -2,10 +2,10 @@ package ru.mail.polis.service.alexander_kuptsov;
 
 import one.nio.http.HttpServer;
 import one.nio.http.HttpSession;
+import one.nio.http.Param;
+import one.nio.http.Path;
 import one.nio.http.Request;
 import one.nio.http.Response;
-import one.nio.http.Path;
-import one.nio.http.Param;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.Record;
 import ru.mail.polis.service.Service;
@@ -30,7 +30,7 @@ public class HttpRestService extends HttpServer implements Service {
     }
 
     /**
-     * This method is part of HTTP REST API protocol. Implements status check
+     * This method is part of HTTP REST API protocol. Implements status check.
      *
      * @return HTTP code 200
      */
@@ -42,9 +42,9 @@ public class HttpRestService extends HttpServer implements Service {
     /**
      * This method is part of HTTP REST API protocol. Implements:
      * <pre>
-     * HTTP GET /v0/entity?id=<ID> -- get data by given key
-     * HTTP PUT /v0/entity?id=<ID> -- upsert data by given key
-     * HTTP DELETE /v0/entity?id=<ID> -- delete data by given key
+     * HTTP GET /v0/entity?id=ID -- get data by given key
+     * HTTP PUT /v0/entity?id=ID -- upsert data by given key
+     * HTTP DELETE /v0/entity?id=ID -- delete data by given key
      * </pre>
      *
      * @param request {@link Request}
@@ -77,7 +77,7 @@ public class HttpRestService extends HttpServer implements Service {
     }
 
     /**
-     * Implements HTTP GET /v0/entity?id=<ID> -- get data by given key
+     * Implements HTTP GET /v0/entity?id=ID -- get data by given key.
      *
      * @param id data key
      * @return <p> HTTP code 200 with data
@@ -95,7 +95,7 @@ public class HttpRestService extends HttpServer implements Service {
     }
 
     /**
-     * Implements HTTP PUT /v0/entity?id=<ID> -- upsert data by given key
+     * Implements HTTP PUT /v0/entity?id=ID -- upsert data by given key.
      *
      * @param id   data key
      * @param body array of bytes with given data
@@ -109,7 +109,7 @@ public class HttpRestService extends HttpServer implements Service {
     }
 
     /**
-     * Implements HTTP DELETE /v0/entity?id=<ID> -- delete data by given key
+     * Implements HTTP DELETE /v0/entity?id=ID -- delete data by given key.
      *
      * @param id data key
      * @return HTTP code 202
