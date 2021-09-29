@@ -13,6 +13,7 @@ import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.SortedMap;
@@ -92,6 +93,7 @@ class SSTable {
     public static List<SSTable> loadFromDir(Path dir) throws IOException {
         FileUtils.prepareDirectory(dir);
         File[] files = dir.toFile().listFiles();
+        Arrays.sort(files);
         ArrayList<SSTable> ssTables = new ArrayList<>();
         if ((files == null) || (files.length == 0)) {
             return ssTables;
@@ -157,6 +159,7 @@ class SSTable {
      */
     public static Path compact(Path dir, Iterator<Record> range) throws IOException {
         File[] files = dir.toFile().listFiles();
+        Arrays.sort(files);
         if (files.length == 0) {
             return null;
         }

@@ -8,6 +8,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
+import java.util.Arrays;
 
 final class FileUtils {
     public static final String TMP_FILE_EXT = ".tmp";
@@ -57,7 +58,9 @@ final class FileUtils {
     public static boolean prepareDirectory(Path dir) throws IOException {
         File[] files = dir.toFile().listFiles();
 
-        if ((files == null) || (files.length == 0) || !files[0].getName().startsWith(COMPACT_FILE_NAME)) {
+        Arrays.sort(files);
+
+        if ((files.length == 0) || !files[0].getName().startsWith(COMPACT_FILE_NAME)) {
             return false;
         }
 

@@ -22,7 +22,7 @@ public class LsmDAO implements DAO {
     private static final int MEMORY_LIMIT = 1024 * 1024 * 32;
     private static final String FILE_PREFIX = "SSTable_";
 
-    private final SortedMap<ByteBuffer, Record> memoryStorage = new ConcurrentSkipListMap<>();
+    private SortedMap<ByteBuffer, Record> memoryStorage = new ConcurrentSkipListMap<>();
     private final List<SSTable> ssTables;
     private final DAOConfig config;
     private int memoryConsumption;
@@ -54,11 +54,6 @@ public class LsmDAO implements DAO {
     @Override
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
         synchronized (this) {
-            try {
-                flush();
-            } catch (IOException e) {
-                throw new UncheckedIOException("Can't flush data", e);
-            }
             Iterator<Record> memoryRange = SSTable.getSubMap(memoryStorage, fromKey, toKey).values().iterator();
             Iterator<Record> sstableRanges = sstableRanges(fromKey, toKey);
             return LsmDAO.merge(List.of(sstableRanges, memoryRange));
@@ -96,7 +91,7 @@ public class LsmDAO implements DAO {
         SSTable.write(memoryStorage.values().iterator(), filePath);
         SSTable ssTable = SSTable.loadFromFile(filePath);
         ssTables.add(ssTable);
-        memoryStorage.clear();
+        memoryStorage = new ConcurrentSkipListMap<>();
         memoryConsumption = 0;
         filePath = getNewFileName();
     }
