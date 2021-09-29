@@ -119,14 +119,13 @@ public class SSTable implements Closeable {
 
     private static void finishCompaction(Path dir) throws IOException {
         try (Stream<Path> files = Files.list(dir)) {
-            files.filter(file -> file.getFileName().startsWith(SSTABLE_FILE_PREFIX))
-                    .forEach(path -> {
-                        try {
-                            Files.delete(path);
-                        } catch (IOException e) {
-                            throw new UncheckedIOException(e);
-                        }
-                    });
+            files.filter(file -> file.getFileName().startsWith(SSTABLE_FILE_PREFIX)).forEach(path -> {
+                try {
+                    Files.delete(path);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            });
         }
 
         Path compaction = dir.resolve(COMPACTION_FILE_NAME);
@@ -156,10 +155,7 @@ public class SSTable implements Closeable {
         int maxSize = mmap.remaining();
         int fromOffset = fromKey == null ? 0 : offset(buffer, fromKey);
         int toOffset = toKey == null ? maxSize : offset(buffer, toKey);
-        return range(
-                buffer,
-                fromOffset == -1 ? maxSize : fromOffset,
-                toOffset == -1 ? maxSize : toOffset
+        return range(buffer, fromOffset == -1 ? maxSize : fromOffset, toOffset == -1 ? maxSize : toOffset
         );
     }
 

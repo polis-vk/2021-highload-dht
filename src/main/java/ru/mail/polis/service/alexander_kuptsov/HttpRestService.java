@@ -49,12 +49,19 @@ public class HttpRestService extends HttpServer implements Service {
      *
      * @param request {@link Request}
      * @param id      data key
-     * @return <p>HTTP code 200 with data
-     * <p>HTTP code 201
-     * <p>HTTP code 202
-     * <p>HTTP code 400
-     * <p>HTTP code 404
-     * <p>HTTP code 405
+     * @return
+     * <p>
+     * HTTP code 200 with data
+     * <p>
+     * HTTP code 201
+     * <p>
+     * HTTP code 202
+     * <p>
+     * HTTP code 400
+     * <p>
+     * HTTP code 404
+     * <p>
+     * HTTP code 405
      */
     @Path("/v0/entity")
     public Response entity(final Request request,
@@ -80,8 +87,11 @@ public class HttpRestService extends HttpServer implements Service {
      * Implements HTTP GET /v0/entity?id=ID -- get data by given key.
      *
      * @param id data key
-     * @return <p>HTTP code 200 with data
-     * <p>HTTP code 404
+     * @return
+     * <p>
+     * HTTP code 200 with data
+     * <p>
+     * HTTP code 404
      */
     private Response get(String id) {
         final ByteBuffer key = HttpServiceUtils.wrapIdToBuffer(id);
