@@ -1,4 +1,4 @@
-package ru.mail.polis.lsm.shabinsky_dmitry;
+package ru.mail.polis.lsm.artem_drozdov;
 
 import ru.mail.polis.lsm.Record;
 
@@ -19,7 +19,6 @@ import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.NoSuchElementException;
 import java.util.Objects;
 import java.util.stream.Stream;
 
@@ -32,8 +31,8 @@ public class SSTable implements Closeable {
 
     static {
         try {
-            Class<?> aClass = Class.forName("sun.nio.ch.FileChannelImpl");
-            CLEAN = aClass.getDeclaredMethod("unmap", MappedByteBuffer.class);
+            Class<?> clz = Class.forName("sun.nio.ch.FileChannelImpl");
+            CLEAN = clz.getDeclaredMethod("unmap", MappedByteBuffer.class);
             CLEAN.setAccessible(true);
         } catch (Exception e) {
             throw new IllegalStateException(e);
@@ -42,6 +41,13 @@ public class SSTable implements Closeable {
 
     private final MappedByteBuffer mmap;
     private final MappedByteBuffer idx;
+
+    public SSTable(Path file) throws IOException {
+        Path indexFile = getIndexFile(file);
+
+        mmap = open(file);
+        idx = open(indexFile);
+    }
 
     public static List<SSTable> loadFromDir(Path dir) throws IOException {
         Path compaction = dir.resolve(COMPACTION_FILE_NAME);
@@ -140,56 +146,10 @@ public class SSTable implements Closeable {
         Files.move(compaction, file0, StandardCopyOption.ATOMIC_MOVE);
     }
 
-    public SSTable(Path file) throws IOException {
-        Path indexFile = getIndexFile(file);
-
-        mmap = open(file);
-        idx = open(indexFile);
-    }
-
     public static int sizeOf(Record record) {
         int keySize = Integer.BYTES + record.getKeySize();
         int valueSize = Integer.BYTES + record.getValueSize();
         return keySize + valueSize;
-    }
-
-    public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
-        ByteBuffer buffer = mmap.asReadOnlyBuffer();
-
-        int maxSize = mmap.remaining();
-
-        int fromOffset = fromKey == null ? 0 : offset(buffer, fromKey);
-        int toOffset = toKey == null ? maxSize : offset(buffer, toKey);
-
-        return range(
-                buffer,
-                fromOffset == -1 ? maxSize : fromOffset,
-                toOffset == -1 ? maxSize : toOffset
-        );
-    }
-
-    @Override
-    public void close() throws IOException {
-        IOException exception = null;
-        try {
-            free(mmap);
-        } catch (Throwable t) {
-            exception = new IOException(t);
-        }
-
-        try {
-            free(idx);
-        } catch (Throwable t) {
-            if (exception == null) {
-                exception = new IOException(t);
-            } else {
-                exception.addSuppressed(t);
-            }
-        }
-
-        if (exception != null) {
-            throw exception;
-        }
     }
 
     private static Path resolveWithExt(Path file, String ext) {
@@ -209,11 +169,13 @@ public class SSTable implements Closeable {
                 tmpFileName,
                 StandardOpenOption.CREATE_NEW,
                 StandardOpenOption.WRITE,
-                StandardOpenOption.TRUNCATE_EXISTING
-        );
+                StandardOpenOption.TRUNCATE_EXISTING);
     }
 
-    private static void writeValueWithSize(ByteBuffer value, WritableByteChannel channel, ByteBuffer tmp) throws IOException {
+    private static void writeValueWithSize(
+            ByteBuffer value,
+            WritableByteChannel channel,
+            ByteBuffer tmp) throws IOException {
         writeInt(value.remaining(), channel, tmp);
         channel.write(tmp);
         channel.write(value);
@@ -233,9 +195,7 @@ public class SSTable implements Closeable {
     }
 
     private static MappedByteBuffer open(Path name) throws IOException {
-        try (
-                FileChannel channel = FileChannel.open(name, StandardOpenOption.READ)
-        ) {
+        try (FileChannel channel = FileChannel.open(name, StandardOpenOption.READ)) {
             return channel.map(FileChannel.MapMode.READ_ONLY, 0, channel.size());
         }
     }
@@ -245,6 +205,45 @@ public class SSTable implements Closeable {
             CLEAN.invoke(null, buffer);
         } catch (IllegalAccessException | InvocationTargetException e) {
             throw new IOException(e);
+        }
+    }
+
+    public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
+        ByteBuffer buffer = mmap.asReadOnlyBuffer();
+
+        int maxSize = mmap.remaining();
+
+        int fromOffset = fromKey == null ? 0 : offset(buffer, fromKey);
+        int toOffset = toKey == null ? maxSize : offset(buffer, toKey);
+
+        return new ByteBufferRecordIterator(
+                buffer,
+                fromOffset == -1 ? maxSize : fromOffset,
+                toOffset == -1 ? maxSize : toOffset
+        );
+    }
+
+    @Override
+    public void close() throws IOException {
+        IOException exception = null;
+        try {
+            free(mmap);
+        } catch (IOException e) {
+            exception = e;
+        }
+
+        try {
+            free(idx);
+        } catch (IOException e) {
+            if (exception == null) {
+                exception = e;
+            } else {
+                exception.addSuppressed(e);
+            }
+        }
+
+        if (exception != null) {
+            throw exception;
         }
     }
 
@@ -262,7 +261,6 @@ public class SSTable implements Closeable {
             buffer.position(offset);
             int existingKeySize = buffer.getInt();
 
-            int result;
             int mismatchPos = buffer.mismatch(keyToFind);
             if (mismatchPos == -1) {
                 return offset;
@@ -272,6 +270,7 @@ public class SSTable implements Closeable {
                 return offset;
             }
 
+            final int result;
             if (mismatchPos < existingKeySize && mismatchPos < keyToFindSize) {
                 result = Byte.compare(
                         keyToFind.get(keyToFind.position() + mismatchPos),
@@ -297,38 +296,4 @@ public class SSTable implements Closeable {
         return idx.getInt(left * Integer.BYTES);
     }
 
-    private static Iterator<Record> range(ByteBuffer buffer, int fromOffset, int toOffset) {
-        buffer.position(fromOffset);
-
-        return new Iterator<>() {
-            @Override
-            public boolean hasNext() {
-                return buffer.position() < toOffset;
-            }
-
-            @Override
-            public Record next() {
-                if (!hasNext()) {
-                    throw new NoSuchElementException("Limit is reached");
-                }
-
-                int keySize = buffer.getInt();
-                ByteBuffer key = read(keySize);
-
-                int valueSize = buffer.getInt();
-                if (valueSize == -1) {
-                    return Record.tombstone(key);
-                }
-                ByteBuffer value = read(valueSize);
-
-                return Record.of(key, value);
-            }
-
-            private ByteBuffer read(int size) {
-                ByteBuffer result = buffer.slice().limit(size);
-                buffer.position(buffer.position() + size);
-                return result;
-            }
-        };
-    }
 }
