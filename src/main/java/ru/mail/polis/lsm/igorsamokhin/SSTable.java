@@ -21,6 +21,7 @@ import java.util.SortedMap;
 @SuppressWarnings("JdkObsolete")
 class SSTable {
     private static final Method CLEAN;
+    private static final int MAX_BUFFER_SIZE = 4096;
 
     private final MappedByteBuffer mmap;
     private final MappedByteBuffer idx;
@@ -120,17 +121,17 @@ class SSTable {
         try (FileChannel fileChannel = FileUtils.openForWrite(tmpFileName);
              FileChannel indexChannel = FileUtils.openForWrite(tmpIndexName)
         ) {
-            final ByteBuffer size = ByteBuffer.allocate(Integer.BYTES);
+            final ByteBuffer tmp = ByteBuffer.allocate(MAX_BUFFER_SIZE);
+            tmp.limit(tmp.capacity());
             while (records.hasNext()) {
                 long position = fileChannel.position();
                 if (position > Integer.MAX_VALUE) {
                     throw new IllegalStateException("File is too long");
                 }
-                ByteBufferUtils.writeInt((int) position, indexChannel, size);
+                ByteBufferUtils.writeInt((int) position, indexChannel, tmp);
 
                 Record record = records.next();
-                ByteBufferUtils.writeValue(record.getKey(), fileChannel, size);
-                ByteBufferUtils.writeValue(record.getValue(), fileChannel, size);
+                writeRecord(fileChannel, tmp, record);
             }
             fileChannel.force(false);
         }
@@ -139,11 +140,18 @@ class SSTable {
         FileUtils.rename(file, tmpFileName);
     }
 
+    private static void writeRecord(FileChannel fileChannel, ByteBuffer tmp, Record record) throws IOException {
+        ByteBuffer key = record.getKey();
+        ByteBuffer value = record.getValue();
+
+        ByteBufferUtils.writeBuffersWithSize(fileChannel, tmp, key, value);
+    }
+
     /**
      * Create sub map.
      */
     public static SortedMap<ByteBuffer, Record> getSubMap(SortedMap<ByteBuffer, Record> memoryStorage,
-                                                   @Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
+                                                          @Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
         if (fromKey == null && toKey == null) {
             return memoryStorage;
         } else if (fromKey == null) {

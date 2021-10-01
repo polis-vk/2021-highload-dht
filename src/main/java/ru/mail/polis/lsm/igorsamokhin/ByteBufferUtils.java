@@ -5,6 +5,7 @@ import javax.annotation.Nullable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
+import java.nio.channels.FileChannel;
 import java.nio.channels.WritableByteChannel;
 
 final class ByteBufferUtils {
@@ -26,22 +27,50 @@ final class ByteBufferUtils {
         return value;
     }
 
-    public static void writeValue(@Nullable ByteBuffer value, WritableByteChannel channel, ByteBuffer tmp)
-            throws IOException {
-        if (value == null) {
-            writeInt(-1, channel, tmp);
-            tmp.position(0);
+    public static void writeBuffersWithSize(FileChannel channel,
+                                            ByteBuffer tmp,
+                                            @Nullable ByteBuffer... buffers) throws IOException {
+        if (buffers == null) {
             return;
         }
-        writeInt(value.remaining(), channel, tmp);
-        channel.write(value);
+
+        tmp.position(0);
+        for (ByteBuffer buffer : buffers) {
+            int sizeToWrite = (buffer == null) ? Integer.BYTES : (Integer.BYTES + buffer.remaining());
+            if (tmp.remaining() < sizeToWrite) {
+                writeByteBuffer(channel, tmp);
+
+                if (tmp.limit() < sizeToWrite) {
+                    writeInt(buffer.remaining(), channel, tmp);
+                    channel.write(buffer);
+                    continue;
+                }
+            }
+
+            if (buffer == null) {
+                tmp.putInt(-1);
+            } else {
+                tmp.putInt(buffer.remaining());
+                tmp.put(buffer);
+            }
+        }
+
+        if (tmp.position() != 0) {
+            writeByteBuffer(channel, tmp);
+        }
+    }
+
+    private static void writeByteBuffer(WritableByteChannel channel, ByteBuffer tmp) throws IOException {
+        int limit = tmp.limit();
+        tmp.flip();
+        channel.write(tmp);
+        tmp.limit(limit);
+        tmp.position(0);
     }
 
     public static void writeInt(int value, WritableByteChannel channel, ByteBuffer tmp) throws IOException {
         tmp.position(0);
         tmp.putInt(value);
-        tmp.position(0);
-
-        channel.write(tmp);
+        writeByteBuffer(channel, tmp);
     }
 }
