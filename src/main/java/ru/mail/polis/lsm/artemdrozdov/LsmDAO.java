@@ -23,6 +23,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class LsmDAO implements DAO {
 
     private NavigableMap<ByteBuffer, Record> memoryStorage = newStorage();
+    private NavigableMap<ByteBuffer, Record> memoryStorageToFlush = newStorage();
     private final ConcurrentLinkedDeque<SSTable> tables = new ConcurrentLinkedDeque<>();
 
     @SuppressWarnings({"FieldCanBeLocal", "unused"})
@@ -46,8 +47,10 @@ public class LsmDAO implements DAO {
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
         synchronized (this) {
             Iterator<Record> sstableRanges = sstableRanges(fromKey, toKey);
-            Iterator<Record> memoryRange = map(fromKey, toKey).values().iterator();
-            Iterator<Record> iterator = mergeTwo(new PeekingIterator(sstableRanges), new PeekingIterator(memoryRange));
+            Iterator<Record> memoryRange = map(memoryStorage, fromKey, toKey).values().iterator();
+            Iterator<Record> flushMemoryRange = map(memoryStorageToFlush, fromKey, toKey).values().iterator();
+            Iterator<Record> memoryIterator = mergeTwo(new PeekingIterator(flushMemoryRange), new PeekingIterator(memoryRange));
+            Iterator<Record> iterator = mergeTwo(new PeekingIterator(sstableRanges), new PeekingIterator(memoryIterator));
             return filterTombstones(iterator);
         }
     }
@@ -59,9 +62,13 @@ public class LsmDAO implements DAO {
                 if (memoryConsumption.get() > config.memoryLimit) {
                     int prev = memoryConsumption.getAndSet(sizeOf(record));
                     try {
-                        flush();
+                        memoryStorageToFlush = new ConcurrentSkipListMap<>(memoryStorage);
+                        memoryStorage = newStorage();
+
+                        flush(memoryStorageToFlush);
                     } catch (IOException e) {
                         memoryConsumption.set(prev);
+                        memoryStorage.putAll(memoryStorageToFlush);
                         throw new UncheckedIOException(e);
                     }
                 }
@@ -97,17 +104,16 @@ public class LsmDAO implements DAO {
     @Override
     public void close() throws IOException {
         synchronized (this) {
-            flush();
+            flush(memoryStorage);
         }
     }
 
-    private void flush() throws IOException {
+    private void flush(NavigableMap<ByteBuffer, Record> data) throws IOException {
         Path dir = config.dir;
         Path file = dir.resolve(SSTable.SSTABLE_FILE_PREFIX + tables.size());
 
-        SSTable ssTable = SSTable.write(memoryStorage.values().iterator(), file);
+        SSTable ssTable = SSTable.write(data.values().iterator(), file);
         tables.add(ssTable);
-        memoryStorage = new ConcurrentSkipListMap<>();
     }
 
     private Iterator<Record> sstableRanges(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
@@ -118,17 +124,18 @@ public class LsmDAO implements DAO {
         return merge(iterators);
     }
 
-    private SortedMap<ByteBuffer, Record> map(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
+    private SortedMap<ByteBuffer, Record> map(NavigableMap<ByteBuffer, Record> map, @Nullable ByteBuffer fromKey,
+                                              @Nullable ByteBuffer toKey) {
         if (fromKey == null && toKey == null) {
-            return memoryStorage;
+            return map;
         }
         if (fromKey == null) {
-            return memoryStorage.headMap(toKey);
+            return map.headMap(toKey);
         }
         if (toKey == null) {
-            return memoryStorage.tailMap(fromKey);
+            return map.tailMap(fromKey);
         }
-        return memoryStorage.subMap(fromKey, toKey);
+        return map.subMap(fromKey, toKey);
     }
 
     private static Iterator<Record> merge(List<Iterator<Record>> iterators) {
