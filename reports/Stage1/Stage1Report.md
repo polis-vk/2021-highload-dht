@@ -151,7 +151,7 @@ Transfer/sec:     48.41KB
 
 #### Результаты
 
-[img/putCpu.png](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin/reports/Stage1/putCpu.html)
+[img/putCpu.png](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin-content/graphs/stage1/putCpu.html)
 
 ### Alloc
 
@@ -161,7 +161,7 @@ Transfer/sec:     48.41KB
 
 #### Результаты
 
-[putAlloc.png](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin/reports/Stage1/putAlloc.html)
+[putAlloc.png](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin-content/graphs/stage1/putAlloc.html)
 
 ## Нагрузочное тестирование `GET`-запросами
 
@@ -309,7 +309,7 @@ Transfer/sec:     70.82KB
 
 #### Результаты
 
-[getCpu](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin/reports/Stage1/getCpu.html)
+[getCpu](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin-content/graphs/stage1/getCpu.html)
 
 ### Alloc
 
@@ -319,7 +319,7 @@ Transfer/sec:     70.82KB
 
 #### Результаты
 
-[getAlloc](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin/reports/Stage1/getAlloc.html)
+[getAlloc](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin-content/graphs/stage1/getAlloc.html)
 
 ## Выводы
 
@@ -476,7 +476,7 @@ Transfer/sec:    327.15KB
 ./profiler.sh -e cpu -d 300 -f newPutCpu.html 2657
 ```
 
-[newPutCpu](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin/reports/Stage1/newPutCpu.html)
+[newPutCpu](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin-content/graphs/stage1/newPutCpu.html)
 
 ### Alloc
 
@@ -484,7 +484,7 @@ Transfer/sec:    327.15KB
 ./profiler.sh -e alloc -d 300 -f newPutAlloc.html 2657
 ```
 
-[newPutAlloc](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin/reports/Stage1/newPutAlloc.html)
+[newPutAlloc](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin-content/graphs/stage1/newPutAlloc.html)
 
 ## Нагрузочное тестирование `GET`-запросами
 
@@ -615,7 +615,7 @@ Transfer/sec:    363.17KB
 ./profiler.sh -e cpu -d 300 -f newGetCpu.html 2657
 ```
 
-[newGetCpu](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin/reports/Stage1/newGetCpu.html)
+[newGetCpu](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin-content/graphs/stage1/newGetCpu.html)
 
 ### Alloc
 
@@ -623,19 +623,19 @@ Transfer/sec:    363.17KB
 ./profiler.sh -e alloc -d 300 -f newGetAlloc.html 2657
 ```
 
-[newGetAlloc](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin/reports/Stage1/newGetAlloc.html)
+[newGetAlloc](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin-content/graphs/stage1/newGetAlloc.html)
 
-* на [newPutCpu](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin/reports/Stage1/newPutCpu.html) между вызовами entity и put есть небольшая полочка. Предположение - ненужная работа switch. Если проаннотировать все методы (get, put ...), то one-nio будет в состоянии довольно быстро выбирать обработчик запросов без помощи switch.
-* на [newPutAlloc](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin/reports/Stage1/newPutAlloc.html) после вызова upsert есть выделения памяти из метода getKey, необходимые только для подсчета размера буфера 
-* на [newGetAlloc](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin/reports/Stage1/newGetAlloc.html) после вызова LsmDAO.range и следующего вызова LsmDAO.merge видны аллокации в методе MergingIterator.clearQueue. Скорее всего они вызваны циклом while, который на каждой итерации выделяет память для проверки условия.
+* на [newPutCpu](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin-content/graphs/stage1/newPutCpu.html) между вызовами entity и put есть небольшая полочка. Предположение - ненужная работа switch. Если проаннотировать все методы (get, put ...), то one-nio будет в состоянии довольно быстро выбирать обработчик запросов без помощи switch.
+* на [newPutAlloc](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin-content/graphs/stage1/newPutAlloc.html) после вызова upsert есть выделения памяти из метода getKey, необходимые только для подсчета размера буфера 
+* на [newGetAlloc](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin-content/graphs/stage1/newGetAlloc.html) после вызова LsmDAO.range и следующего вызова LsmDAO.merge видны аллокации в методе MergingIterator.clearQueue. Скорее всего они вызваны циклом while, который на каждой итерации выделяет память для проверки условия.
 * Все они используются для того, чтобы получить сравнить два буфера или вычислить размер. Так как дальше полученные значения не используются, то можно эти действия проводить внутри Record. Это уберет лишние аллокации и время cpu, потраченное на выделение памяти.
 
 ### Выводы оптимизации
 
-[Проверка put - cpu](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin/reports/Stage1/newPutCpuCheck.html)
-[Проверка put - alloc](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin/reports/Stage1/newPutAllocCheck.html)
-[Проверка get - cpu](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin/reports/Stage1/newGetCpuCheck.html)
-[Проверка get - alloc](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin/reports/Stage1/newGetAllocCheck.html)
+[Проверка put - cpu](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin-content/graphs/stage1/newPutCpuCheck.html)
+[Проверка put - alloc](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin-content/graphs/stage1/newPutAllocCheck.html)
+[Проверка get - cpu](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin-content/graphs/stage1/newGetCpuCheck.html)
+[Проверка get - alloc](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin-content/graphs/stage1/newGetAllocCheck.html)
 
 Задержка при `PUT`
 
