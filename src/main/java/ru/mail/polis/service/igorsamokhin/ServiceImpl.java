@@ -6,6 +6,7 @@ import one.nio.http.HttpSession;
 import one.nio.http.Param;
 import one.nio.http.Path;
 import one.nio.http.Request;
+import one.nio.http.RequestMethod;
 import one.nio.http.Response;
 import one.nio.server.AcceptorConfig;
 import ru.mail.polis.lsm.DAO;
@@ -20,6 +21,8 @@ import java.util.Iterator;
 public class ServiceImpl extends HttpServer implements Service {
     private static final String ENDPOINT_V0_STATUS = "/v0/status";
     private static final String ENDPOINT_V0_ENTITY = "/v0/entity";
+
+    public static final String BAD_ID_RESPONSE = "Bad id";
 
     private final DAO dao;
     private boolean isWorking; //false by default
@@ -60,29 +63,15 @@ public class ServiceImpl extends HttpServer implements Service {
         return config;
     }
 
+    private Response badRequest(String message) {
+        return new Response(Response.BAD_REQUEST, message.getBytes(StandardCharsets.UTF_8));
+    }
+
     @Path(ENDPOINT_V0_STATUS)
     public Response status() {
         return Response.ok("I'm OK");
     }
 
-    @Path(ENDPOINT_V0_ENTITY)
-    public Response entity(@Param(value = "id", required = true) String id,
-                           Request request) {
-        if (id.isBlank()) {
-            return new Response(Response.BAD_REQUEST, "Bad id".getBytes(StandardCharsets.UTF_8));
-        }
-
-        switch (request.getMethod()) {
-            case Request.METHOD_GET:
-                return get(id);
-            case Request.METHOD_PUT:
-                return put(id, request.getBody());
-            case Request.METHOD_DELETE:
-                return delete(id);
-            default:
-                return new Response(Response.METHOD_NOT_ALLOWED, "Wrong body".getBytes(StandardCharsets.UTF_8));
-        }
-    }
 
     @Override
     public void handleDefault(
@@ -91,7 +80,13 @@ public class ServiceImpl extends HttpServer implements Service {
         session.sendResponse(new Response(Response.BAD_REQUEST, Response.EMPTY));
     }
 
-    private Response get(String id) {
+    @Path(ENDPOINT_V0_ENTITY)
+    @RequestMethod(Request.METHOD_GET)
+    public Response get(@Param(value = "id", required = true) String id) {
+        if (id.isBlank()) {
+            return badRequest(BAD_ID_RESPONSE);
+        }
+
         ByteBuffer fromKey = wrapString(id);
         ByteBuffer toKey = DAO.nextKey(fromKey);
 
@@ -104,13 +99,26 @@ public class ServiceImpl extends HttpServer implements Service {
         return new Response(Response.OK, value);
     }
 
-    private Response put(String id, byte[] body) {
-        Record record = Record.of(wrapString(id), ByteBuffer.wrap(body));
+    @Path(ENDPOINT_V0_ENTITY)
+    @RequestMethod(Request.METHOD_PUT)
+    public Response put(@Param(value = "id", required = true) String id,
+                        Request request) {
+        if (id.isBlank()) {
+            return badRequest(BAD_ID_RESPONSE);
+        }
+
+        Record record = Record.of(wrapString(id), ByteBuffer.wrap(request.getBody()));
         dao.upsert(record);
         return new Response(Response.CREATED, Response.EMPTY);
     }
 
-    private Response delete(String id) {
+    @Path(ENDPOINT_V0_ENTITY)
+    @RequestMethod(Request.METHOD_DELETE)
+    public Response delete(@Param(value = "id", required = true) String id) {
+        if (id.isBlank()) {
+            return badRequest(BAD_ID_RESPONSE);
+        }
+
         ByteBuffer key = wrapString(id);
         dao.upsert(Record.tombstone(key));
         return new Response(Response.ACCEPTED, Response.EMPTY);

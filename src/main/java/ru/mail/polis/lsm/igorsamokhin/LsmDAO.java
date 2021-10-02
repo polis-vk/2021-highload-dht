@@ -19,7 +19,6 @@ import java.util.concurrent.ConcurrentSkipListMap;
 
 @SuppressWarnings("JdkObsolete")
 public class LsmDAO implements DAO {
-    private static final int MEMORY_LIMIT = 1024 * 1024 * 32;
     private static final String FILE_PREFIX = "SSTable_";
 
     private SortedMap<ByteBuffer, Record> memoryStorage = new ConcurrentSkipListMap<>();
@@ -63,8 +62,8 @@ public class LsmDAO implements DAO {
     @Override
     public void upsert(Record record) {
         synchronized (this) {
-            int size = sizeOf(record);
-            if (memoryConsumption + size > MEMORY_LIMIT) {
+            int size = record.size();
+            if (memoryConsumption + size > config.memoryLimit) {
                 try {
                     flush();
                 } catch (IOException e) {

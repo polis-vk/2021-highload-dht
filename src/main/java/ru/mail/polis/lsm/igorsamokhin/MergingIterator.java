@@ -11,7 +11,7 @@ public class MergingIterator implements Iterator<Record> {
 
     MergingIterator(List<Iterator<Record>> iterators) {
         queue = new PriorityQueue<>((a, b) -> {
-            int compare = a.prevRecord.getKey().compareTo(b.prevRecord.getKey());
+            int compare = a.prevRecord.compareKeyWith(b.prevRecord);
             if (compare == 0) {
                 return a.order < b.order ? 1 : -1;
             }
@@ -55,7 +55,7 @@ public class MergingIterator implements Iterator<Record> {
      * Skip all first tombstones.
      */
     private void checkTombstones(PriorityQueue<Entry> queue) {
-        while (!queue.isEmpty() && (queue.peek().prevRecord.getValue() == null)) {
+        while (!queue.isEmpty() && (queue.peek().prevRecord.isTombstone())) {
             Entry head = queue.poll();
 
             clearQueue(queue, head);
@@ -70,7 +70,7 @@ public class MergingIterator implements Iterator<Record> {
      * Delete first N elements of the queue, which are equals with given.
      */
     private void clearQueue(PriorityQueue<Entry> queue, Entry entry) {
-        while (!queue.isEmpty() && (queue.peek().prevRecord.getKey().compareTo(entry.prevRecord.getKey()) == 0)) {
+        while (!queue.isEmpty() && (queue.peek().prevRecord.compareKeyWith(entry.prevRecord) == 0)) {
             Entry head = queue.poll();
 
             if (head != null && head.iterator.hasNext()) {
