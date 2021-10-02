@@ -75,13 +75,6 @@ public class LsmDAO implements DAO {
         }
     }
 
-    private int sizeOf(Record record) {
-        int keyCapacity = record.getKey().capacity();
-        ByteBuffer value = record.getValue();
-        int valueCapacity = (value == null) ? 0 : value.capacity();
-        return keyCapacity + valueCapacity;
-    }
-
     @GuardedBy("this")
     private void flush() throws IOException {
         if (memoryConsumption == 0) {

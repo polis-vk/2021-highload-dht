@@ -72,7 +72,6 @@ public class ServiceImpl extends HttpServer implements Service {
         return Response.ok("I'm OK");
     }
 
-
     @Override
     public void handleDefault(
             final Request request,

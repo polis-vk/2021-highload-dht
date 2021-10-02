@@ -40,7 +40,7 @@ final class ByteBufferUtils {
             if (tmp.remaining() < sizeToWrite) {
                 writeByteBuffer(channel, tmp);
 
-                if (tmp.limit() < sizeToWrite) {
+                if ((tmp.limit() < sizeToWrite) && (buffer != null)) {
                     writeInt(buffer.remaining(), channel, tmp);
                     channel.write(buffer);
                     continue;

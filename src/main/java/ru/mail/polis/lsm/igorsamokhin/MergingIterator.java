@@ -55,7 +55,7 @@ public class MergingIterator implements Iterator<Record> {
      * Skip all first tombstones.
      */
     private void checkTombstones(PriorityQueue<Entry> queue) {
-        while (!queue.isEmpty() && (queue.peek().prevRecord.isTombstone())) {
+        while (!queue.isEmpty() && queue.peek().prevRecord.isTombstone()) {
             Entry head = queue.poll();
 
             clearQueue(queue, head);
