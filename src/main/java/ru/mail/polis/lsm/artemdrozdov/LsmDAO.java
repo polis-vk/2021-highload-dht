@@ -18,11 +18,17 @@ import java.util.NoSuchElementException;
 import java.util.SortedMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class LsmDAO implements DAO {
 
+    private Future flushFuture = null;
     private NavigableMap<ByteBuffer, Record> memoryStorage = newStorage();
+    private ExecutorService flushExecutor = Executors.newSingleThreadExecutor();
     private NavigableMap<ByteBuffer, Record> memoryStorageToFlush = newStorage();
     private final ConcurrentLinkedDeque<SSTable> tables = new ConcurrentLinkedDeque<>();
 
@@ -57,20 +63,24 @@ public class LsmDAO implements DAO {
 
     @Override
     public void upsert(Record record) {
-        if (memoryConsumption.addAndGet(sizeOf(record)) > config.memoryLimit) {
+        if (memoryConsumption.addAndGet(sizeOf(record)) > config.memoryLimit &&
+                (flushFuture == null || flushFuture.isCancelled() || flushFuture.isDone())) {
             synchronized (this) {
-                if (memoryConsumption.get() > config.memoryLimit) {
+                if (memoryConsumption.get() > config.memoryLimit &&
+                        (flushFuture == null || flushFuture.isCancelled() || flushFuture.isDone())) {
                     int prev = memoryConsumption.getAndSet(sizeOf(record));
-                    try {
-                        memoryStorageToFlush = new ConcurrentSkipListMap<>(memoryStorage);
-                        memoryStorage = newStorage();
+                    memoryStorageToFlush = new ConcurrentSkipListMap<>(memoryStorage);
+                    memoryStorage = newStorage();
 
-                        flush(memoryStorageToFlush);
-                    } catch (IOException e) {
-                        memoryConsumption.set(prev);
-                        memoryStorage.putAll(memoryStorageToFlush);
-                        throw new UncheckedIOException(e);
-                    }
+                    flushFuture = flushExecutor.submit( () -> {
+                        try {
+                            flush(memoryStorageToFlush);
+                        } catch (IOException e) {
+                            memoryConsumption.set(prev);
+                            memoryStorage.putAll(memoryStorageToFlush);
+                            throw new UncheckedIOException(e);
+                        }
+                    });
                 }
             }
         }
@@ -104,6 +114,14 @@ public class LsmDAO implements DAO {
     @Override
     public void close() throws IOException {
         synchronized (this) {
+            if (flushFuture != null) {
+                try {
+                    flushFuture.get();
+                } catch (InterruptedException | ExecutionException e) {
+                    e.printStackTrace();
+                }
+            }
+
             flush(memoryStorage);
         }
     }
@@ -114,6 +132,7 @@ public class LsmDAO implements DAO {
 
         SSTable ssTable = SSTable.write(data.values().iterator(), file);
         tables.add(ssTable);
+        data.clear();
     }
 
     private Iterator<Record> sstableRanges(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
