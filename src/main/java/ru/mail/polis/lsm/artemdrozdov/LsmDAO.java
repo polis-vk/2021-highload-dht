@@ -124,6 +124,7 @@ public class LsmDAO implements DAO {
             }
 
             flush(memoryStorage);
+            flushExecutor.shutdown();
         }
     }
 
