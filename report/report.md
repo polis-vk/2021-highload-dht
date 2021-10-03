@@ -269,28 +269,28 @@ Transfer/sec:    330.93KB
 
 wrk -c 1 -t 1 -d 12m -R 2000 -L -s put.lua http://localhost:8080
 
-./profiler.sh -d 300 -f cpu3_put.html 712
-./profiler.sh -d 300 -e alloc -f alloc3_put.html 712
+./profiler.sh -d 300 -f cpu3_put.html 712  
+./profiler.sh -d 300 -e alloc -f alloc3_put.html 712  
 
-root@DESKTOP-E01FUOQ:~/wrk2# wrk -c 1 -t 1 -d 12m -R 2000 -L -s put.lua http://localhost:8080
-Running 12m test @ http://localhost:8080
-1 threads and 1 connections
-Thread calibration: mean lat.: 1.427ms, rate sampling interval: 10ms
-Thread Stats   Avg      Stdev     Max   +/- Stdev
-Latency    28.06ms  159.26ms   2.27s    96.55%
-Req/Sec     2.12k     0.87k   13.67k    94.67%
-Latency Distribution (HdrHistogram - Recorded Latency)
-50.000%    1.17ms
-75.000%    1.65ms
-90.000%    2.07ms
-99.000%  901.12ms
-99.900%    1.85s
-99.990%    2.22s
-99.999%    2.27s
-100.000%    2.27s
+root@DESKTOP-E01FUOQ:~/wrk2# wrk -c 1 -t 1 -d 12m -R 2000 -L -s put.lua http://localhost:8080  
+Running 12m test @ http://localhost:8080  
+1 threads and 1 connections  
+Thread calibration: mean lat.: 1.427ms, rate sampling interval: 10ms  
+Thread Stats   Avg      Stdev     Max   +/- Stdev  
+Latency    28.06ms  159.26ms   2.27s    96.55%  
+Req/Sec     2.12k     0.87k   13.67k    94.67%  
+Latency Distribution (HdrHistogram - Recorded Latency)  
+50.000%    1.17ms  
+75.000%    1.65ms  
+90.000%    2.07ms  
+99.000%  901.12ms  
+99.900%    1.85s  
+99.990%    2.22s  
+99.999%    2.27s  
+100.000%    2.27s  
 
 Detailed Percentile spectrum:  
-Value   Percentile   TotalCount 1/(1-Percentile)
+Value   Percentile   TotalCount 1/(1-Percentile)  
 
        0.068     0.000000            1         1.00
        0.415     0.100000       142183         1.11
@@ -397,14 +397,47 @@ Value   Percentile   TotalCount 1/(1-Percentile)
     2271.231     0.999999      1419992   1310720.00
     2273.279     0.999999      1419993   1497965.71
     2273.279     1.000000      1419993          inf
-#[Mean    =       28.060, StdDeviation   =      159.256]
-#[Max     =     2271.232, Total count    =      1419993]
-#[Buckets =           27, SubBuckets     =         2048]
+[Mean    =       28.060, StdDeviation   =      159.256]  
+[Max     =     2271.232, Total count    =      1419993]  
+[Buckets =           27, SubBuckets     =         2048]  
 ----------------------------------------------------------
-1439999 requests in 12.00m, 92.01MB read
-Requests/sec:   2000.00
-Transfer/sec:    130.86KB
+1439999 requests in 12.00m, 92.01MB read  
+Requests/sec:   2000.00  
+Transfer/sec:    130.86KB  
 
+
+###cpu_put
+[cpu2_put](secondTryProfiler/cpu3_put.html)
+
+
+###alloc_put
+[alloc2_put](secondTryProfiler/alloc3_put.html)
+
+Выводы:  
+Был снижен rate, т.к сервис не выдерживал. Было увеличено время нагрузочного тестирования, чтобы застать flush'и.  
+Из таблицы, выданной от wrk видно, что разница задержки от 50% до 90% практически незаметна, но уже между 90% и 99% происходит   
+сильный скачок. Т.е 99% запросов выполняются быстрее 901.12мс, остальной процент дольше, и это скорее всего связано со flush'ем,
+т.к на графике он занимает 11%.
+Между 99% и 99.9% тоже большой скачок, в 2 раза. Это может быть связано с GC, тк при его работе, он на какое-то время останавливает
+выполнение программы и собирает мусор. На графике, где представлены результат профилирования видно, что GC работает 5% времени.
+От 99.9% до 100% разброс незаметен, и это соответствует всему тому, что указано выше.
+
+Из графика alloc_put можно увидеть, что в методе upsert 133 раза(3.61%) берется getKey из sizeOf, хотя flush'ей было гораздо 
+меньше. Вместо обнуления и прибавления нового размера, можно сразу задавать новый размер и вызывать sizeOf 1 раз, 
+это уменьшит аллоцирование памяти, т.к мы всегда берем копию(это конечно не сильно что-то изменит, но все же).
+
+Можно уменьшит в методе выделение памяти, где создается ByteBuffer size, чтобы один раз аллоцировать память(вынести в 
+переменные класса) и просто его опустошать(а так же уменьшить кол-во системных вызовов), но если дальше будет флаш в 
+другом потоке, то т.к один bytebuffer, то он должен будет быть потокобезопасным, т.к вынесем из локальных переменных, и 
+она не будет уникальной у каждого потока. Так же уменьшить системные вызовы.
+
+Так же можно уменьшить аллоцирование ByteBuffer value = record.getValue() == null, которое занимает 3.50% 
+времени(просто проверяя на tombstone).
+
+Так же убрать лишнюю аллокацию в writeValue.
+
+
+doPut большое пространство
 
 
 
@@ -416,24 +449,24 @@ wrk -c 1 -t 1 -d 12m -R 3000 -L -s get.lua http://localhost:8080
 ./profiler.sh -d 300 -e alloc -f alloc3_get.html 712
 
 
-root@DESKTOP-E01FUOQ:~/wrk2# wrk -c 1 -t 1 -d 12m -R 3000 -L -s get.lua http://localhost:8080
-Running 12m test @ http://localhost:8080
-1 threads and 1 connections
-Thread calibration: mean lat.: 14.287ms, rate sampling interval: 32ms
-Thread Stats   Avg      Stdev     Max   +/- Stdev
-Latency    12.92ms  132.85ms   2.52s    99.16%
-Req/Sec     3.06k   531.44     9.39k    87.62%
-Latency Distribution (HdrHistogram - Recorded Latency)
-50.000%    1.07ms
-75.000%    1.64ms
-90.000%    6.17ms
-99.000%  105.73ms
-99.900%    2.32s
-99.990%    2.50s
-99.999%    2.51s
-100.000%    2.52s
+root@DESKTOP-E01FUOQ:~/wrk2# wrk -c 1 -t 1 -d 12m -R 3000 -L -s get.lua http://localhost:8080  
+Running 12m test @ http://localhost:8080  
+1 threads and 1 connections  
+Thread calibration: mean lat.: 14.287ms, rate sampling interval: 32ms  
+Thread Stats   Avg      Stdev     Max   +/- Stdev  
+Latency    12.92ms  132.85ms   2.52s    99.16%  
+Req/Sec     3.06k   531.44     9.39k    87.62%  
+Latency Distribution (HdrHistogram - Recorded Latency)  
+50.000%    1.07ms  
+75.000%    1.64ms  
+90.000%    6.17ms  
+99.000%  105.73ms  
+99.900%    2.32s  
+99.990%    2.50s  
+99.999%    2.51s  
+100.000%    2.52s  
 
-Detailed Percentile spectrum:
+Detailed Percentile spectrum:  
 Value   Percentile   TotalCount 1/(1-Percentile)
 
        0.051     0.000000            2         1.00
@@ -532,11 +565,22 @@ Value   Percentile   TotalCount 1/(1-Percentile)
     2516.991     0.999997      2129983    374491.43
     2519.039     0.999998      2129988    436906.67
     2519.039     1.000000      2129988          inf
-#[Mean    =       12.917, StdDeviation   =      132.854]
-#[Max     =     2516.992, Total count    =      2129988]
-#[Buckets =           27, SubBuckets     =         2048]
+[Mean    =       12.917, StdDeviation   =      132.854]  
+[Max     =     2516.992, Total count    =      2129988]  
+[Buckets =           27, SubBuckets     =         2048]  
 ----------------------------------------------------------
-2159996 requests in 12.00m, 150.41MB read
-Non-2xx or 3xx responses: 269240
-Requests/sec:   2999.99
-Transfer/sec:    213.91KB
+2159996 requests in 12.00m, 150.41MB read  
+Non-2xx or 3xx responses: 269240  
+Requests/sec:   2999.99  
+Transfer/sec:    213.91KB  
+
+###cpu_get
+[cpu2_get](secondTryProfiler/cpu3_get.html)
+
+
+###alloc_get
+[alloc2_get](secondTryProfiler/alloc3_get.html)
+Выводы:  
+Был снижен rate, т.к сервис не выдерживал. При get первый значительный скачок происходит тоже на 99%. 
+
+

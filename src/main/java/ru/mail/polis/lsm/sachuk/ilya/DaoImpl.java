@@ -72,7 +72,6 @@ public class DaoImpl implements DAO {
     @Override
     public void upsert(Record record) {
         synchronized (this) {
-            memoryConsumption += sizeOf(record);
             if (memoryConsumption > config.memoryLimit) {
                 try {
                     flush();

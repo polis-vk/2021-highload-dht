@@ -45,6 +45,8 @@ public class SSTable {
             NULL_VALUE.getBytes(StandardCharsets.UTF_8)
     );
 
+    private static final int MAX_BUFFER_SIZE = 1024;
+
     private final Path savePath;
     private final Path indexPath;
     private int[] indexes;
@@ -99,21 +101,21 @@ public class SSTable {
         try (FileChannel saveFileChannel = openFileChannel(tmpSavePath)) {
             try (FileChannel indexFileChanel = openFileChannel(tmpIndexPath)) {
 
-                ByteBuffer size = ByteBuffer.allocate(Integer.BYTES);
+                ByteBuffer size = ByteBuffer.allocate(Integer.BYTES + MAX_BUFFER_SIZE);
 
                 int counter = 0;
-                writeValue(indexFileChanel, counter);
+                writeInt(indexFileChanel, size, counter);
 
                 while (iterators.hasNext()) {
                     int indexPositionToRead = (int) saveFileChannel.position();
 
-                    writeValue(indexFileChanel, indexPositionToRead);
+                    writeInt(indexFileChanel, size, indexPositionToRead);
                     counter++;
 
                     Record record = iterators.next();
 
-                    ByteBuffer value = record.getValue() == null
-                            ? ByteBuffer.wrap(NULL_VALUE.getBytes(StandardCharsets.UTF_8))
+                    ByteBuffer value = record.isTombstone()
+                            ? BYTE_BUFFER_TOMBSTONE
                             : record.getValue();
 
                     writeSizeAndValue(record.getKey(), saveFileChannel, size);
@@ -124,7 +126,7 @@ public class SSTable {
 
                 indexFileChanel.position(0);
 
-                writeValue(indexFileChanel, counter);
+                writeInt(indexFileChanel, size, counter);
 
                 indexFileChanel.position(curPos);
 
@@ -248,19 +250,33 @@ public class SSTable {
             WritableByteChannel channel,
             ByteBuffer tmp
     ) throws IOException {
-        tmp.position(0);
-        tmp.putInt(value.remaining());
-        tmp.position(0);
-        channel.write(tmp);
+        tmp.limit(tmp.capacity());
+
+        if (tmp.capacity() > value.remaining() + Integer.BYTES) {
+            tmp.position(0);
+            tmp.putInt(value.remaining());
+            tmp.put(value);
+
+            tmp.flip();
+
+            channel.write(tmp);
+            tmp.limit(tmp.capacity());
+
+            return;
+        }
+
+        writeInt(channel, tmp, value.remaining());
+
         channel.write(value);
     }
 
-    private static void writeValue(FileChannel fileChannel, int value) throws IOException {
-        ByteBuffer byteBuffer = ByteBuffer.wrap(
-                ByteBuffer.allocate(Integer.BYTES).putInt(value).array()
-        );
+    private static void writeInt(WritableByteChannel fileChannel, ByteBuffer tmp, int value) throws IOException {
+        tmp.position(0);
+        tmp.putInt(value);
+        tmp.position(0);
+        tmp.limit(Integer.BYTES);
 
-        fileChannel.write(byteBuffer);
+        fileChannel.write(tmp);
     }
 
     private void clean(MappedByteBuffer mappedByteBuffer) throws IOException {
