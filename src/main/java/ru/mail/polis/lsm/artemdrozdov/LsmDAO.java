@@ -19,6 +19,9 @@ import java.util.NoSuchElementException;
 import java.util.SortedMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class LsmDAO implements DAO {
 
@@ -28,8 +31,8 @@ public class LsmDAO implements DAO {
     @SuppressWarnings({"FieldCanBeLocal", "unused"})
     private final DAOConfig config;
 
-    @GuardedBy("this")
-    private int memoryConsumption;
+    private final ExecutorService writeService = Executors.newSingleThreadExecutor();
+    private final AtomicInteger memoryConsumption = new AtomicInteger();
 
     public LsmDAO(DAOConfig config) throws IOException {
         this.config = config;
@@ -49,16 +52,19 @@ public class LsmDAO implements DAO {
 
     @Override
     public void upsert(Record record) {
-        synchronized (this) {
-            memoryConsumption += sizeOf(record);
-            if (memoryConsumption > config.memoryLimit) {
+        if (memoryConsumption.addAndGet(sizeOf(record)) > config.memoryLimit) {
+            memoryConsumption.set(sizeOf(record));
+//            long startTime = System.nanoTime();
+            writeService.submit(() -> {
                 try {
-                    flush();
+                    synchronized (this) {
+                        flush();
+                    }
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
-                memoryConsumption = sizeOf(record);
-            }
+            });
+//            System.out.println("Flush time = " + (System.nanoTime() - startTime));
         }
 
         memoryStorage.put(record.getKey(), record);
