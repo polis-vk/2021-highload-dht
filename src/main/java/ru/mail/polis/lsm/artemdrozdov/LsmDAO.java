@@ -133,7 +133,6 @@ public class LsmDAO implements DAO {
 
         SSTable ssTable = SSTable.write(data.values().iterator(), file);
         tables.add(ssTable);
-        data.clear();
     }
 
     private Iterator<Record> sstableRanges(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
