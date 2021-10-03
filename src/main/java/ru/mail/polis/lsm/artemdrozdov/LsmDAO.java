@@ -17,10 +17,7 @@ import java.util.List;
 import java.util.NavigableMap;
 import java.util.NoSuchElementException;
 import java.util.SortedMap;
-import java.util.concurrent.ConcurrentLinkedDeque;
-import java.util.concurrent.ConcurrentSkipListMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class LsmDAO implements DAO {
@@ -31,6 +28,7 @@ public class LsmDAO implements DAO {
     @SuppressWarnings({"FieldCanBeLocal", "unused"})
     private final DAOConfig config;
 
+    @GuardedBy("this")
     private final ExecutorService writeService = Executors.newSingleThreadExecutor();
     private final AtomicInteger memoryConsumption = new AtomicInteger();
 
@@ -54,17 +52,16 @@ public class LsmDAO implements DAO {
     public void upsert(Record record) {
         if (memoryConsumption.addAndGet(sizeOf(record)) > config.memoryLimit) {
             memoryConsumption.set(sizeOf(record));
-//            long startTime = System.nanoTime();
-            writeService.submit(() -> {
-                try {
-                    synchronized (this) {
+            synchronized (this) {
+                writeService.submit(() -> {//TODO add future error processing
+                    try {
                         flush();
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
                     }
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            });
-//            System.out.println("Flush time = " + (System.nanoTime() - startTime));
+                });
+
+            }
         }
 
         memoryStorage.put(record.getKey(), record);
@@ -100,7 +97,6 @@ public class LsmDAO implements DAO {
         }
     }
 
-    @GuardedBy("this")
     private void flush() throws IOException {
         Path dir = config.dir;
         Path file = dir.resolve(SSTable.SSTABLE_FILE_PREFIX + tables.size());
