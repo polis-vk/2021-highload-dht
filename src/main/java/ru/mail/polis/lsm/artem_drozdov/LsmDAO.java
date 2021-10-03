@@ -41,7 +41,7 @@ public class LsmDAO implements DAO {
     private final ArrayList<Future<?>> flushTaskList = new ArrayList<>();
 
     private final AtomicInteger ssTableIndex = new AtomicInteger();
-    private final ConcurrentLinkedDeque<FlushTable> flushQueue;
+    private final BlockingQueue<FlushTable> flushQueue;
 
     public LsmDAO(DAOConfig config) throws IOException {
         this.config = config;
@@ -50,7 +50,7 @@ public class LsmDAO implements DAO {
         ssTableIndex.set(tables.size());
         int cores = Runtime.getRuntime().availableProcessors() / 2;
         flushService = Executors.newFixedThreadPool(cores);
-        flushQueue = new ConcurrentLinkedDeque<>();
+        flushQueue = new ArrayBlockingQueue<>(cores + 1);
     }
 
     private static Iterator<Record> merge(List<Iterator<Record>> iterators) {
@@ -86,17 +86,18 @@ public class LsmDAO implements DAO {
         if (memoryConsumption.addAndGet(recordSize) > config.memoryLimit) {
             synchronized (this) {
                 if (memoryConsumption.get() > config.memoryLimit) {
-                    FlushTable tableToFlush = new FlushTable(ssTableIndex.getAndIncrement(), memoryStorage.values().iterator());
-                    flushQueue.add(tableToFlush);
-                    memoryStorage = newStorage();
+                    try {
+                        FlushTable tableToFlush = new FlushTable(ssTableIndex.getAndIncrement(), memoryStorage.values().iterator());
+                        flushQueue.put(tableToFlush);
+                        memoryStorage = newStorage();
+                    } catch (InterruptedException e) {
+                        LOGGER.error("Failed put FlushTask to queue!");
+                    }
 
                     int oldConsumption = memoryConsumption.getAndSet(recordSize);
                     flushTaskList.add(flushService.submit(() -> {
                         try {
-                            FlushTable flushTable = flushQueue.poll();
-                            if (flushTable != null) {
-                                flush(flushTable);
-                            }
+                            flush(flushQueue.take());
                         } catch (Exception e) {
                             memoryConsumption.addAndGet(oldConsumption);
                             LOGGER.error("Failed flush!");
