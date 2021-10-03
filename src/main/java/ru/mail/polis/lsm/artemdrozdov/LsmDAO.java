@@ -118,8 +118,8 @@ public class LsmDAO implements DAO {
             if (flushFuture != null) {
                 try {
                     flushFuture.get();
-                } catch (InterruptedException | ExecutionException ignore) {
-                    throw new IOException("Error waiting another task to finish");
+                } catch (InterruptedException | ExecutionException e) {
+                    throw new IOException("Error waiting another task to finish", e);
                 }
             }
 
