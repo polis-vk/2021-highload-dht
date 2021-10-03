@@ -29,7 +29,7 @@ public class LsmDAO implements DAO {
     @SuppressWarnings({"FieldCanBeLocal", "unused"})
     private final DAOConfig config;
 
-    private AtomicLong memoryConsumption;
+    private final AtomicLong memoryConsumption;
     private CompletableFuture<Void> completableFeature;
     private Boolean waitableFlag;
     private long rollbackSize;
@@ -42,7 +42,7 @@ public class LsmDAO implements DAO {
      */
     public LsmDAO(DAOConfig config) throws IOException {
         this.memoryConsumption = new AtomicLong();
-        this.completableFeature =  new CompletableFuture<Void>();
+        this.completableFeature = new CompletableFuture<Void>();
         this.waitableFlag = false;
         this.config = config;
         List<SSTable> ssTables = SSTable.loadFromDir(config.dir);
@@ -58,15 +58,14 @@ public class LsmDAO implements DAO {
         return filterTombstones(iterator);
     }
 
-
     public boolean greaterThanCAS(final int maxValue, final int size) {
         return (memoryConsumption.getAndUpdate(x -> (x + size) > maxValue ? size : x) + size) > maxValue;
     }
 
     @Override
     public void upsert(Record record) {
-        if (greaterThanCAS(config.memoryLimit, sizeOf(record))){
-            if (this.waitableFlag){
+        if (greaterThanCAS(config.memoryLimit, sizeOf(record))) {
+            if (this.waitableFlag) {
                 this.completableFeature.join();
             }
             this.waitableFlag = true;

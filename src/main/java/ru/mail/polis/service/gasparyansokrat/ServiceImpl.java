@@ -17,8 +17,11 @@ import java.util.concurrent.ThreadPoolExecutor;
 public class ServiceImpl extends HttpServer implements Service {
 
     private final ServiceDAO servDAO;
-    private ThreadPoolExecutor executor;
+    private final ThreadPoolExecutor executor;
 
+    /**
+     * some doc.
+     */
     public ServiceImpl(final int port, final DAO dao, final int poolSize) throws IOException {
         super(HttpConfigFactory.buildHttpConfig(port, "localhost"));
         this.executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(poolSize);

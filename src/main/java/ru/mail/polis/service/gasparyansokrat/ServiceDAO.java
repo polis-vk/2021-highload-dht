@@ -33,7 +33,7 @@ public class ServiceDAO {
 
         Iterator<Record> it = refDao.range(start, DAO.nextKey(start));
 
-        if (it.hasNext()){
+        if (it.hasNext()) {
             res = it.next();
             accept = true;
         }
