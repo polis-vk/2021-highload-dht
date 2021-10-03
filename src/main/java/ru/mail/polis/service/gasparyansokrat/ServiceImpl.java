@@ -10,13 +10,18 @@ import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.service.Service;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
 
 public class ServiceImpl extends HttpServer implements Service {
 
     private final ServiceDAO servDAO;
+    private ThreadPoolExecutor executor;
 
-    public ServiceImpl(final int port, final DAO dao) throws IOException {
+    public ServiceImpl(final int port, final DAO dao, final int poolSize) throws IOException {
         super(HttpConfigFactory.buildHttpConfig(port, "localhost"));
+        this.executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(poolSize);
         this.servDAO = new ServiceDAO(dao);
     }
 
@@ -27,29 +32,35 @@ public class ServiceImpl extends HttpServer implements Service {
 
     @Override
     public void handleDefault(Request request, HttpSession session) throws IOException {
-        session.sendResponse(new Response(Response.BAD_REQUEST, Response.EMPTY));
+        this.executor.execute(() -> {
+            try {
+                session.sendResponse(new Response(Response.BAD_REQUEST, Response.EMPTY));
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        });
+
     }
 
     /**
      * some doc.
      */
     @Path("/v0/entity")
-    public Response handleEntity(Request req,
+    public void handleEntity(Request req, HttpSession session,
                                 @Param(value = "id", required = true) String id) throws IOException {
-        Response resp = null;
 
-        try {
-
-            if (id.isEmpty()) {
-                resp = new Response(Response.BAD_REQUEST, Response.EMPTY);
-            } else {
-                resp = servDAO.handleRequest(req, id);
+        executor.execute(() -> {
+            Response resp = null;
+            try {
+                if (id.isEmpty()) {
+                    resp = new Response(Response.BAD_REQUEST, Response.EMPTY);
+                } else {
+                    resp = servDAO.handleRequest(req, id);
+                }
+                session.sendResponse(resp);
+            } catch (IOException e) {
+                throw new UncheckedIOException("Bad request", e);
             }
-
-        } catch (IOException e) {
-            throw new IOException("Bad request", e);
-        }
-
-        return resp;
+        });
     }
 }

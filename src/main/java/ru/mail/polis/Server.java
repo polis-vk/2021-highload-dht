@@ -70,7 +70,7 @@ public final class Server {
                         } catch (IOException e) {
                             throw new RuntimeException("Can't close dao", e);
                         }
-                    }));
+                    }, "Shutdown-thread"));
         }
     }
 }

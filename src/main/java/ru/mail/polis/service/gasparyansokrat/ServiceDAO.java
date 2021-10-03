@@ -31,11 +31,11 @@ public class ServiceDAO {
 
         boolean accept = false;
 
-        Iterator<Record> it = refDao.range(start, null); // DAO.nextKey(start)
+        Iterator<Record> it = refDao.range(start, DAO.nextKey(start));
 
-        while (it.hasNext() && !accept) {
+        if (it.hasNext()){
             res = it.next();
-            accept = res.getKey().equals(start);
+            accept = true;
         }
 
         if (accept) {

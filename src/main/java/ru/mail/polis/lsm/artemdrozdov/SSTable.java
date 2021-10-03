@@ -81,6 +81,7 @@ public class SSTable implements Closeable {
     }
 
     private static void writeImpl(Iterator<Record> records, Path file) throws IOException {
+
         Path indexFile = getFile(file, INDEX_FILE_EXT);
         Path tmpFileName = getFile(file, TMP_FILE_EXT);
         Path tmpIndexName = getFile(indexFile, TMP_FILE_EXT);
