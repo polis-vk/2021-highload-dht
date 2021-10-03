@@ -35,7 +35,7 @@ public class LsmDAO implements DAO {
     @SuppressWarnings({"FieldCanBeLocal", "unused"})
     private final DAOConfig config;
 
-    private AtomicInteger memoryConsumption = new AtomicInteger();
+    private final AtomicInteger memoryConsumption = new AtomicInteger();
 
     /**
      *  Create LsmDAO from config.
@@ -55,24 +55,26 @@ public class LsmDAO implements DAO {
             Iterator<Record> sstableRanges = sstableRanges(fromKey, toKey);
             Iterator<Record> memoryRange = map(memoryStorage, fromKey, toKey).values().iterator();
             Iterator<Record> flushMemoryRange = map(memoryStorageToFlush, fromKey, toKey).values().iterator();
-            Iterator<Record> memoryIterator = mergeTwo(new PeekingIterator(flushMemoryRange), new PeekingIterator(memoryRange));
-            Iterator<Record> iterator = mergeTwo(new PeekingIterator(sstableRanges), new PeekingIterator(memoryIterator));
+            Iterator<Record> memoryIterator = mergeTwo(new PeekingIterator(flushMemoryRange),
+                    new PeekingIterator(memoryRange));
+            Iterator<Record> iterator = mergeTwo(new PeekingIterator(sstableRanges),
+                    new PeekingIterator(memoryIterator));
             return filterTombstones(iterator);
         }
     }
 
     @Override
     public void upsert(Record record) {
-        if (memoryConsumption.addAndGet(sizeOf(record)) > config.memoryLimit &&
-                (flushFuture == null || flushFuture.isCancelled() || flushFuture.isDone())) {
+        if (memoryConsumption.addAndGet(sizeOf(record)) > config.memoryLimit
+                && (flushFuture == null || flushFuture.isCancelled() || flushFuture.isDone())) {
             synchronized (this) {
-                if (memoryConsumption.get() > config.memoryLimit &&
-                        (flushFuture == null || flushFuture.isCancelled() || flushFuture.isDone())) {
+                if (memoryConsumption.get() > config.memoryLimit
+                        && (flushFuture == null || flushFuture.isCancelled() || flushFuture.isDone())) {
                     int prev = memoryConsumption.getAndSet(sizeOf(record));
                     memoryStorageToFlush = new ConcurrentSkipListMap<>(memoryStorage);
                     memoryStorage = newStorage();
 
-                    flushFuture = flushExecutor.submit( () -> {
+                    flushFuture = flushExecutor.submit(() -> {
                         try {
                             flush(memoryStorageToFlush);
                         } catch (IOException e) {
@@ -117,8 +119,8 @@ public class LsmDAO implements DAO {
             if (flushFuture != null) {
                 try {
                     flushFuture.get();
-                } catch (InterruptedException | ExecutionException e) {
-                    e.printStackTrace();
+                } catch (InterruptedException | ExecutionException ignore) {
+
                 }
             }
 
@@ -143,18 +145,18 @@ public class LsmDAO implements DAO {
         return merge(iterators);
     }
 
-    private SortedMap<ByteBuffer, Record> map(NavigableMap<ByteBuffer, Record> map, @Nullable ByteBuffer fromKey,
+    private NavigableMap<ByteBuffer, Record> map(NavigableMap<ByteBuffer, Record> map, @Nullable ByteBuffer fromKey,
                                               @Nullable ByteBuffer toKey) {
         if (fromKey == null && toKey == null) {
             return map;
         }
         if (fromKey == null) {
-            return map.headMap(toKey);
+            return (NavigableMap<ByteBuffer, Record>) map.headMap(toKey);
         }
         if (toKey == null) {
-            return map.tailMap(fromKey);
+            return (NavigableMap<ByteBuffer, Record>) map.tailMap(fromKey);
         }
-        return map.subMap(fromKey, toKey);
+        return (NavigableMap<ByteBuffer, Record>) map.subMap(fromKey, toKey);
     }
 
     private static Iterator<Record> merge(List<Iterator<Record>> iterators) {
