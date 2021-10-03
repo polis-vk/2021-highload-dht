@@ -1,11 +1,13 @@
 package ru.mail.polis.lsm.artem_drozdov;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.DAOConfig;
 import ru.mail.polis.lsm.Record;
+import ru.mail.polis.lsm.alex.FlushTable;
 
 import javax.annotation.Nullable;
-import javax.annotation.concurrent.GuardedBy;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
@@ -15,22 +17,40 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NavigableMap;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class LsmDAO implements DAO {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(LsmDAO.class);
 
     private final ConcurrentLinkedDeque<SSTable> tables = new ConcurrentLinkedDeque<>();
     @SuppressWarnings({"FieldCanBeLocal", "unused"})
     private final DAOConfig config;
     private NavigableMap<ByteBuffer, Record> memoryStorage = newStorage();
-    @GuardedBy("this")
-    private int memoryConsumption;
+    private final AtomicInteger memoryConsumption = new AtomicInteger();
+
+    private final ExecutorService flushService;
+    private final ArrayList<Future<?>> flushTaskList = new ArrayList<>();
+
+    private final AtomicInteger ssTableIndex = new AtomicInteger();
+    private final BlockingQueue<FlushTable> flushQueue;
 
     public LsmDAO(DAOConfig config) throws IOException {
         this.config = config;
         List<SSTable> ssTables = SSTable.loadFromDir(config.dir);
         tables.addAll(ssTables);
+        ssTableIndex.set(tables.size());
+        int cores = Runtime.getRuntime().availableProcessors() / 2;
+        flushService = Executors.newFixedThreadPool(cores);
+        flushQueue = new ArrayBlockingQueue<>(cores + 1);
     }
 
     private static Iterator<Record> merge(List<Iterator<Record>> iterators) {
@@ -64,18 +84,30 @@ public class LsmDAO implements DAO {
 
     @Override
     public void upsert(Record record) {
-        synchronized (this) {
-            memoryConsumption += sizeOf(record);
-            if (memoryConsumption > config.memoryLimit) {
-                try {
-                    flush();
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
+        int recordSize = sizeOf(record);
+        if (memoryConsumption.addAndGet(recordSize) > config.memoryLimit) {
+            synchronized (this) {
+                if (memoryConsumption.get() > config.memoryLimit) {
+                    try {
+                        FlushTable tableToFlush = new FlushTable(ssTableIndex.getAndIncrement(), memoryStorage.values().iterator());
+                        flushQueue.put(tableToFlush);
+                        memoryStorage = newStorage();
+                    } catch (InterruptedException e) {
+                        LOGGER.error("Failed put FlushTask to queue!");
+                    }
+
+                    int oldConsumption = memoryConsumption.getAndSet(recordSize);
+                    flushTaskList.add(flushService.submit(() -> {
+                        try {
+                            flush(flushQueue.take());
+                        } catch (Exception e) {
+                            memoryConsumption.addAndGet(oldConsumption);
+                            LOGGER.error("Failed flush!");
+                        }
+                    }));
                 }
-                memoryConsumption = sizeOf(record);
             }
         }
-
         memoryStorage.put(record.getKey(), record);
     }
 
@@ -91,6 +123,7 @@ public class LsmDAO implements DAO {
             tables.clear();
             tables.add(table);
             memoryStorage = newStorage();
+            waitFlushTasks();
         }
     }
 
@@ -105,18 +138,28 @@ public class LsmDAO implements DAO {
     @Override
     public void close() throws IOException {
         synchronized (this) {
-            flush();
+            flush(new FlushTable(ssTableIndex.getAndIncrement(), memoryStorage.values().iterator()));
+            memoryStorage = newStorage();
+            waitFlushTasks();
         }
     }
 
-    @GuardedBy("this")
-    private void flush() throws IOException {
-        Path dir = config.dir;
-        Path file = dir.resolve(SSTable.SSTABLE_FILE_PREFIX + tables.size());
+    private void waitFlushTasks() {
+        for (Future<?> task : flushTaskList) {
+            try {
+                task.get();
+            } catch (InterruptedException | ExecutionException e) {
+                LOGGER.error("Failed execution flush task!");
+            }
+        }
+    }
 
-        SSTable ssTable = SSTable.write(memoryStorage.values().iterator(), file);
+    private void flush(FlushTable flushTable) throws IOException {
+        Path dir = config.dir;
+        Path file = dir.resolve(SSTable.SSTABLE_FILE_PREFIX + flushTable.getIndex());
+
+        SSTable ssTable = SSTable.write(flushTable.getRecords(), file);
         tables.add(ssTable);
-        memoryStorage = new ConcurrentSkipListMap<>();
     }
 
     private Iterator<Record> sstableRanges(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
