@@ -23,6 +23,8 @@ plugins:
         - "java-unnecessary"
         - "java-unusedcode"
     checks:
+      AvoidCatchingGenericException:
+        enabled: false
       AvoidInstantiatingObjectsInLoops:
         enabled: false
       AvoidSynchronizedAtMethodLevel:
@@ -36,6 +38,8 @@ plugins:
       MethodArgumentCouldBeFinal:
         enabled: false
       LocalVariableCouldBeFinal:
+        enabled: false
+      PrematureDeclaration:
         enabled: false
   sonar-java:
     enabled: true
