@@ -1,0 +1,814 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<title>Tree view</title>
+<meta charset="utf-8"/>
+<style>
+body {
+    font-family: Arial;
+}
+ul.tree li {
+    list-style-type: none;
+    position: relative;
+}
+ul.tree ul {
+    margin-left: 20px; padding-left: 0;
+}
+ul.tree li ul {
+    display: none;
+}
+ul.tree li.open > ul {
+    display: block;
+}
+ul.tree li div:before {
+    height: 1em;
+    padding:0 .1em;
+    font-size: .8em;
+    display: block;
+    position: absolute;
+    left: -1.3em;
+    top: .2em;
+}
+ul.tree li > div:not(:nth-last-child(2)):before {
+    content: '+';
+}
+ul.tree li.open > div:not(:nth-last-child(2)):before {
+    content: '-';
+}
+.sc {
+    text-decoration: underline;
+    text-decoration-color: black;
+    font-weight: bold;
+    background-color: #D9D9D9;
+}
+.green {
+    color: #32c832;
+}
+.aqua {
+    color: #32a5a5;
+}
+.brown {
+    color: #be5a00;
+}
+.yellow {
+    color: #afaf32;
+}
+.red {
+    color: #c83232;
+}
+ul.tree li > div {
+    display: inline;
+    cursor: pointer;
+    color: black;
+    text-decoration: none;
+}
+</style>
+<script>
+function treeView(opt) {
+    var tree = document.querySelectorAll('ul.tree div:not(:last-child)');
+    for(var i = 0; i < tree.length; i++){
+        var parent = tree[i].parentElement;
+        var classList = parent.classList;
+        if(opt == 0) {
+            classList.add('open');
+        } else {
+            classList.remove('open');
+        }
+    }
+}
+function openParent(p,t) {
+    if(p.parentElement.classList.contains("tree")) {
+        return;
+    }
+    p.parentElement.classList.add('open');
+    openParent(p.parentElement,t);
+}
+function search() {
+    var tree = document.querySelectorAll('ul.tree span');
+    var check = document.getElementById('check');
+    for(var i = 0; i < tree.length; i++){
+        tree[i].classList.remove('sc');
+        if(tree[i].innerHTML.includes(document.getElementById("search").value)) {
+            tree[i].classList.add('sc');
+            openParent(tree[i].parentElement,tree);
+        }
+    }
+}
+function openUL(n) {
+    var children = n.children;
+    if(children.length == 1) {
+        openNode(children[0]);
+    }
+}
+function openNode(n) {
+    var children = n.children;
+    for(var i = 0; i < children.length; i++){
+        if(children[i].nodeName == 'UL') {
+            n.classList.add('open');
+            openUL(children[i]);
+        }
+    }
+}
+function addClickActions() {
+var tree = document.querySelectorAll('ul.tree div:not(:last-child)');
+for(var i = 0; i < tree.length; i++){
+    tree[i].addEventListener('click', function(e) {
+        var parent = e.target.parentElement;
+        var classList = parent.classList;
+        if(classList.contains("open")) {
+            classList.remove('open');
+            var opensubs = parent.querySelectorAll(':scope .open');
+            for(var i = 0; i < opensubs.length; i++){
+                opensubs[i].classList.remove('open');
+            }
+        } else {
+            if(e.altKey) {
+                classList.add('open');
+                var opensubs = parent.querySelectorAll('li');
+                for(var i = 0; i < opensubs.length; i++){
+                    opensubs[i].classList.add('open');
+                }
+            } else {
+                openNode(parent);
+            }
+        }
+    });
+}
+}
+</script>
+</head>
+<body>
+<div style="padding-left: 25px;">Call tree view, total samples: 367,297 </div>
+<div style="padding-left: 25px;"><button type='button' onclick='treeView(0)'>++</button><button type='button' onclick='treeView(1)'>--</button>
+<input type='text' id='search' value='' size='35' onkeypress="if(event.keyCode == 13) document.getElementById('searchBtn').click()">
+<button type='button' id='searchBtn' onclick='search()'>search</button></div>
+<ul class="tree">
+<li><div>[0] 100.00% 367,297 self: 0.00% 0</div><span class="green"> one/nio/server/SelectorThread.run</span>
+<ul>
+<li><div>[1] 99.86% 366,765 self: 0.00% 0</div><span class="green"> one/nio/net/Session.process</span>
+<ul>
+<li><div>[2] 99.86% 366,765 self: 0.00% 0</div><span class="green"> one/nio/http/HttpSession.processRead</span>
+<ul>
+<li><div>[3] 99.86% 366,765 self: 0.00% 0</div><span class="green"> one/nio/http/HttpSession.processHttpBuffer</span>
+<ul>
+<li><div>[4] 97.11% 356,700 self: 0.00% 0</div><span class="green"> one/nio/http/HttpSession.handleParsedRequest</span>
+<ul>
+<li><div>[5] 97.11% 356,700 self: 0.00% 0</div><span class="green"> one/nio/http/HttpServer.handleRequest</span>
+<ul>
+<li><div>[6] 96.87% 355,793 self: 0.00% 0</div><span class="green"> RequestHandler1_entity.handleRequest</span>
+<ul>
+<li><div>[7] 95.94% 352,399 self: 0.00% 0</div><span class="green"> ru/mail/polis/service/medalexey/ServiceImpl.entity</span>
+<ul>
+<li><div>[8] 95.94% 352,399 self: 0.00% 0</div><span class="green"> ru/mail/polis/service/medalexey/ServiceImpl.get</span>
+<ul>
+<li><div>[9] 92.49% 339,728 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/LsmDAO.range</span>
+<ul>
+<li><div>[10] 90.68% 333,077 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/LsmDAO.sstableRanges</span>
+<ul>
+<li><div>[11] 48.81% 179,284 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/LsmDAO.merge</span>
+<ul>
+<li><div>[12] 48.18% 176,981 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/LsmDAO.merge</span>
+<ul>
+<li><div>[13] 46.85% 172,087 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/LsmDAO.merge</span>
+<ul>
+<li><div>[14] 44.22% 162,418 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/LsmDAO.merge</span>
+<ul>
+<li><div>[15] 38.89% 142,824 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/LsmDAO.merge</span>
+<ul>
+<li><div>[16] 28.39% 104,275 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/LsmDAO.merge</span>
+<ul>
+<li><div>[17] 9.20% 33,809 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/LsmDAO.merge</span>
+<ul>
+<li><div>[18] 6.09% 22,381 self: 6.09% 22,381</div><span class="aqua"> ru.mail.polis.lsm.artemdrozdov.PeekingIterator</span>
+<li><div>[18] 3.11% 11,428 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/LsmDAO.mergeTwo</span>
+<ul>
+<li><div>[19] 3.11% 11,428 self: 3.11% 11,428</div><span class="aqua"> ru.mail.polis.lsm.artemdrozdov.MergeIterator</span>
+</ul>
+</ul>
+<li><div>[17] 7.97% 29,272 self: 0.00% 0</div><span class="green"> java/util/ArrayList$SubList.subList</span>
+<ul>
+<li><div>[18] 7.97% 29,272 self: 7.97% 29,272</div><span class="aqua"> java.util.ArrayList$SubList</span>
+</ul>
+<li><div>[17] 7.46% 27,388 self: 7.46% 27,388</div><span class="aqua"> ru.mail.polis.lsm.artemdrozdov.PeekingIterator</span>
+<li><div>[17] 3.76% 13,806 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/LsmDAO.mergeTwo</span>
+<ul>
+<li><div>[18] 3.76% 13,806 self: 3.76% 13,806</div><span class="aqua"> ru.mail.polis.lsm.artemdrozdov.MergeIterator</span>
+</ul>
+</ul>
+<li><div>[16] 5.01% 18,385 self: 0.00% 0</div><span class="green"> java/util/ArrayList$SubList.subList</span>
+<ul>
+<li><div>[17] 5.01% 18,385 self: 5.01% 18,385</div><span class="aqua"> java.util.ArrayList$SubList</span>
+</ul>
+<li><div>[16] 3.68% 13,518 self: 3.68% 13,518</div><span class="aqua"> ru.mail.polis.lsm.artemdrozdov.PeekingIterator</span>
+<li><div>[16] 1.81% 6,646 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/LsmDAO.mergeTwo</span>
+<ul>
+<li><div>[17] 1.81% 6,646 self: 1.81% 6,646</div><span class="aqua"> ru.mail.polis.lsm.artemdrozdov.MergeIterator</span>
+</ul>
+</ul>
+<li><div>[15] 2.52% 9,253 self: 0.00% 0</div><span class="green"> java/util/ArrayList$SubList.subList</span>
+<ul>
+<li><div>[16] 2.52% 9,253 self: 2.52% 9,253</div><span class="aqua"> java.util.ArrayList$SubList</span>
+</ul>
+<li><div>[15] 1.89% 6,954 self: 1.89% 6,954</div><span class="aqua"> ru.mail.polis.lsm.artemdrozdov.PeekingIterator</span>
+<li><div>[15] 0.92% 3,387 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/LsmDAO.mergeTwo</span>
+<ul>
+<li><div>[16] 0.92% 3,387 self: 0.92% 3,387</div><span class="aqua"> ru.mail.polis.lsm.artemdrozdov.MergeIterator</span>
+</ul>
+</ul>
+<li><div>[14] 1.23% 4,507 self: 0.00% 0</div><span class="green"> java/util/ArrayList$SubList.subList</span>
+<ul>
+<li><div>[15] 1.23% 4,507 self: 1.23% 4,507</div><span class="aqua"> java.util.ArrayList$SubList</span>
+</ul>
+<li><div>[14] 0.93% 3,405 self: 0.93% 3,405</div><span class="aqua"> ru.mail.polis.lsm.artemdrozdov.PeekingIterator</span>
+<li><div>[14] 0.48% 1,757 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/LsmDAO.mergeTwo</span>
+<ul>
+<li><div>[15] 0.48% 1,757 self: 0.48% 1,757</div><span class="aqua"> ru.mail.polis.lsm.artemdrozdov.MergeIterator</span>
+</ul>
+</ul>
+<li><div>[13] 0.63% 2,329 self: 0.00% 0</div><span class="green"> java/util/ArrayList$SubList.subList</span>
+<ul>
+<li><div>[14] 0.63% 2,329 self: 0.63% 2,329</div><span class="aqua"> java.util.ArrayList$SubList</span>
+</ul>
+<li><div>[13] 0.47% 1,718 self: 0.47% 1,718</div><span class="aqua"> ru.mail.polis.lsm.artemdrozdov.PeekingIterator</span>
+<li><div>[13] 0.23% 847 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/LsmDAO.mergeTwo</span>
+<ul>
+<li><div>[14] 0.23% 847 self: 0.23% 847</div><span class="aqua"> ru.mail.polis.lsm.artemdrozdov.MergeIterator</span>
+</ul>
+</ul>
+<li><div>[12] 0.29% 1,068 self: 0.00% 0</div><span class="green"> java/util/ArrayList.subList</span>
+<ul>
+<li><div>[13] 0.29% 1,068 self: 0.29% 1,068</div><span class="aqua"> java.util.ArrayList$SubList</span>
+</ul>
+<li><div>[12] 0.23% 848 self: 0.23% 848</div><span class="aqua"> ru.mail.polis.lsm.artemdrozdov.PeekingIterator</span>
+<li><div>[12] 0.11% 387 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/LsmDAO.mergeTwo</span>
+<ul>
+<li><div>[13] 0.11% 387 self: 0.11% 387</div><span class="aqua"> ru.mail.polis.lsm.artemdrozdov.MergeIterator</span>
+</ul>
+</ul>
+<li><div>[11] 38.46% 141,262 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/SSTable.range</span>
+<ul>
+<li><div>[12] 27.67% 101,622 self: 0.00% 0</div><span class="green"> java/nio/DirectByteBufferR.asReadOnlyBuffer</span>
+<ul>
+<li><div>[13] 27.67% 101,622 self: 0.00% 0</div><span class="green"> java/nio/DirectByteBufferR.duplicate</span>
+<ul>
+<li><div>[14] 27.67% 101,622 self: 27.67% 101,622</div><span class="aqua"> java.nio.DirectByteBufferR</span>
+</ul>
+</ul>
+<li><div>[12] 10.79% 39,640 self: 10.79% 39,640</div><span class="aqua"> ru.mail.polis.lsm.artemdrozdov.RangeIterator</span>
+</ul>
+<li><div>[11] 1.76% 6,464 self: 0.00% 0</div><span class="green"> java/util/ArrayList.&lt;init&gt;</span>
+<ul>
+<li><div>[12] 1.76% 6,464 self: 1.76% 6,464</div><span class="aqua"> java.lang.Object[]</span>
+</ul>
+<li><div>[11] 1.65% 6,067 self: 1.65% 6,067</div><span class="aqua"> java.util.ArrayList</span>
+</ul>
+<li><div>[10] 0.47% 1,710 self: 0.47% 1,710</div><span class="aqua"> ru.mail.polis.lsm.artemdrozdov.PeekingIterator</span>
+<li><div>[10] 0.46% 1,679 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/LsmDAO.map</span>
+<ul>
+<li><div>[11] 0.46% 1,679 self: 0.00% 0</div><span class="green"> java/util/concurrent/ConcurrentSkipListMap.subMap</span>
+<ul>
+<li><div>[12] 0.46% 1,679 self: 0.00% 0</div><span class="green"> java/util/concurrent/ConcurrentSkipListMap.subMap</span>
+<ul>
+<li><div>[13] 0.46% 1,679 self: 0.00% 0</div><span class="green"> java/util/concurrent/ConcurrentSkipListMap.subMap</span>
+<ul>
+<li><div>[14] 0.46% 1,679 self: 0.46% 1,679</div><span class="aqua"> java.util.concurrent.ConcurrentSkipListMap$SubMap</span>
+</ul>
+</ul>
+</ul>
+</ul>
+<li><div>[10] 0.30% 1,110 self: 0.00% 0</div><span class="green"> java/util/concurrent/ConcurrentSkipListMap$Values.iterator</span>
+<ul>
+<li><div>[11] 0.30% 1,110 self: 0.30% 1,110</div><span class="aqua"> java.util.concurrent.ConcurrentSkipListMap$SubMap$SubMapValueIterator</span>
+</ul>
+<li><div>[10] 0.24% 897 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/LsmDAO.mergeTwo</span>
+<ul>
+<li><div>[11] 0.24% 897 self: 0.24% 897</div><span class="aqua"> ru.mail.polis.lsm.artemdrozdov.MergeIterator</span>
+</ul>
+<li><div>[10] 0.18% 675 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/LsmDAO.filterTombstones</span>
+<ul>
+<li><div>[11] 0.13% 462 self: 0.13% 462</div><span class="aqua"> ru.mail.polis.lsm.artemdrozdov.PeekingIterator</span>
+<li><div>[11] 0.06% 213 self: 0.06% 213</div><span class="aqua"> ru.mail.polis.lsm.artemdrozdov.LsmDAO$1</span>
+</ul>
+<li><div>[10] 0.16% 580 self: 0.00% 0</div><span class="green"> java/util/concurrent/ConcurrentSkipListMap$SubMap.values</span>
+<ul>
+<li><div>[11] 0.16% 580 self: 0.16% 580</div><span class="aqua"> java.util.concurrent.ConcurrentSkipListMap$Values</span>
+</ul>
+</ul>
+<li><div>[9] 1.69% 6,225 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/LsmDAO$1.hasNext</span>
+<ul>
+<li><div>[10] 1.69% 6,225 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/PeekingIterator.peek</span>
+<ul>
+<li><div>[11] 1.69% 6,225 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/MergeIterator.next</span>
+<ul>
+<li><div>[12] 1.69% 6,225 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/MergeIterator.next</span>
+<ul>
+<li><div>[13] 1.69% 6,225 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/PeekingIterator.next</span>
+<ul>
+<li><div>[14] 1.69% 6,225 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/PeekingIterator.peek</span>
+<ul>
+<li><div>[15] 1.69% 6,225 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/MergeIterator.next</span>
+<ul>
+<li><div>[16] 1.69% 6,225 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/MergeIterator.next</span>
+<ul>
+<li><div>[17] 1.14% 4,197 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/PeekingIterator.next</span>
+<ul>
+<li><div>[18] 1.14% 4,197 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/PeekingIterator.peek</span>
+<ul>
+<li><div>[19] 1.14% 4,197 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/MergeIterator.next</span>
+<ul>
+<li><div>[20] 1.14% 4,197 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/MergeIterator.next</span>
+<ul>
+<li><div>[21] 1.14% 4,197 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/PeekingIterator.next</span>
+<ul>
+<li><div>[22] 1.14% 4,197 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/PeekingIterator.peek</span>
+<ul>
+<li><div>[23] 1.14% 4,197 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/MergeIterator.next</span>
+<ul>
+<li><div>[24] 1.14% 4,197 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/MergeIterator.next</span>
+<ul>
+<li><div>[25] 1.14% 4,197 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/PeekingIterator.next</span>
+<ul>
+<li><div>[26] 1.14% 4,197 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/PeekingIterator.peek</span>
+<ul>
+<li><div>[27] 1.14% 4,197 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/MergeIterator.next</span>
+<ul>
+<li><div>[28] 1.14% 4,197 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/MergeIterator.next</span>
+<ul>
+<li><div>[29] 1.14% 4,197 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/PeekingIterator.next</span>
+<ul>
+<li><div>[30] 1.14% 4,197 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/PeekingIterator.peek</span>
+<ul>
+<li><div>[31] 1.14% 4,197 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/MergeIterator.next</span>
+<ul>
+<li><div>[32] 1.14% 4,197 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/MergeIterator.next</span>
+<ul>
+<li><div>[33] 1.14% 4,197 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/PeekingIterator.next</span>
+<ul>
+<li><div>[34] 1.14% 4,197 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/PeekingIterator.peek</span>
+<ul>
+<li><div>[35] 1.14% 4,197 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/MergeIterator.next</span>
+<ul>
+<li><div>[36] 1.14% 4,197 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/MergeIterator.next</span>
+<ul>
+<li><div>[37] 1.14% 4,197 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/PeekingIterator.next</span>
+<ul>
+<li><div>[38] 1.14% 4,197 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/PeekingIterator.peek</span>
+<ul>
+<li><div>[39] 0.76% 2,791 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/MergeIterator.next</span>
+<ul>
+<li><div>[40] 0.76% 2,791 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/MergeIterator.next</span>
+<ul>
+<li><div>[41] 0.76% 2,790 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/PeekingIterator.next</span>
+<ul>
+<li><div>[42] 0.76% 2,790 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/PeekingIterator.peek</span>
+<ul>
+<li><div>[43] 0.76% 2,790 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/RangeIterator.next</span>
+<ul>
+<li><div>[44] 0.76% 2,790 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/RangeIterator.next</span>
+<ul>
+<li><div>[45] 0.53% 1,930 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/Record.of</span>
+<ul>
+<li><div>[46] 0.25% 910 self: 0.00% 0</div><span class="green"> java/nio/DirectByteBufferR.asReadOnlyBuffer</span>
+<ul>
+<li><div>[47] 0.25% 910 self: 0.00% 0</div><span class="green"> java/nio/DirectByteBufferR.duplicate</span>
+<ul>
+<li><div>[48] 0.25% 910 self: 0.25% 910</div><span class="aqua"> java.nio.DirectByteBufferR</span>
+</ul>
+</ul>
+<li><div>[46] 0.24% 885 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/Record.&lt;init&gt;</span>
+<ul>
+<li><div>[47] 0.24% 885 self: 0.00% 0</div><span class="green"> java/nio/DirectByteBufferR.asReadOnlyBuffer</span>
+<ul>
+<li><div>[48] 0.24% 885 self: 0.00% 0</div><span class="green"> java/nio/DirectByteBufferR.duplicate</span>
+<ul>
+<li><div>[49] 0.24% 885 self: 0.24% 885</div><span class="aqua"> java.nio.DirectByteBufferR</span>
+</ul>
+</ul>
+</ul>
+<li><div>[46] 0.04% 135 self: 0.04% 135</div><span class="aqua"> ru.mail.polis.lsm.Record</span>
+</ul>
+<li><div>[45] 0.23% 860 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/RangeIterator.read</span>
+<ul>
+<li><div>[46] 0.23% 860 self: 0.00% 0</div><span class="green"> java/nio/DirectByteBufferR.slice</span>
+<ul>
+<li><div>[47] 0.23% 860 self: 0.23% 860</div><span class="aqua"> java.nio.DirectByteBufferR</span>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+<li><div>[41] 0.00% 1 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/PeekingIterator.peek</span>
+<ul>
+<li>...
+</ul>
+</ul>
+</ul>
+<li><div>[39] 0.38% 1,406 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/RangeIterator.next</span>
+<ul>
+<li><div>[40] 0.38% 1,406 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/RangeIterator.next</span>
+<ul>
+<li><div>[41] 0.26% 957 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/Record.of</span>
+<ul>
+<li><div>[42] 0.12% 455 self: 0.00% 0</div><span class="green"> java/nio/DirectByteBufferR.asReadOnlyBuffer</span>
+<ul>
+<li><div>[43] 0.12% 455 self: 0.00% 0</div><span class="green"> java/nio/DirectByteBufferR.duplicate</span>
+<ul>
+<li><div>[44] 0.12% 455 self: 0.12% 455</div><span class="aqua"> java.nio.DirectByteBufferR</span>
+</ul>
+</ul>
+<li><div>[42] 0.12% 429 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/Record.&lt;init&gt;</span>
+<ul>
+<li><div>[43] 0.12% 429 self: 0.00% 0</div><span class="green"> java/nio/DirectByteBufferR.asReadOnlyBuffer</span>
+<ul>
+<li><div>[44] 0.12% 429 self: 0.00% 0</div><span class="green"> java/nio/DirectByteBufferR.duplicate</span>
+<ul>
+<li><div>[45] 0.12% 429 self: 0.12% 429</div><span class="aqua"> java.nio.DirectByteBufferR</span>
+</ul>
+</ul>
+</ul>
+<li><div>[42] 0.02% 73 self: 0.02% 73</div><span class="aqua"> ru.mail.polis.lsm.Record</span>
+</ul>
+<li><div>[41] 0.12% 449 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/RangeIterator.read</span>
+<ul>
+<li><div>[42] 0.12% 449 self: 0.00% 0</div><span class="green"> java/nio/DirectByteBufferR.slice</span>
+<ul>
+<li><div>[43] 0.12% 449 self: 0.12% 449</div><span class="aqua"> java.nio.DirectByteBufferR</span>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+<li><div>[17] 0.48% 1,764 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/PeekingIterator.peek</span>
+<ul>
+<li><div>[18] 0.48% 1,764 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/MergeIterator.next</span>
+<ul>
+<li><div>[19] 0.48% 1,764 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/MergeIterator.next</span>
+<ul>
+<li><div>[20] 0.48% 1,764 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/PeekingIterator.next</span>
+<ul>
+<li><div>[21] 0.48% 1,764 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/PeekingIterator.peek</span>
+<ul>
+<li><div>[22] 0.48% 1,764 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/MergeIterator.next</span>
+<ul>
+<li><div>[23] 0.48% 1,764 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/MergeIterator.next</span>
+<ul>
+<li><div>[24] 0.48% 1,764 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/PeekingIterator.next</span>
+<ul>
+<li><div>[25] 0.48% 1,764 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/PeekingIterator.peek</span>
+<ul>
+<li><div>[26] 0.48% 1,764 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/MergeIterator.next</span>
+<ul>
+<li><div>[27] 0.48% 1,764 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/MergeIterator.next</span>
+<ul>
+<li><div>[28] 0.48% 1,764 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/PeekingIterator.next</span>
+<ul>
+<li><div>[29] 0.48% 1,764 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/PeekingIterator.peek</span>
+<ul>
+<li><div>[30] 0.48% 1,764 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/MergeIterator.next</span>
+<ul>
+<li><div>[31] 0.48% 1,764 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/MergeIterator.next</span>
+<ul>
+<li><div>[32] 0.48% 1,764 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/PeekingIterator.next</span>
+<ul>
+<li><div>[33] 0.48% 1,764 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/PeekingIterator.peek</span>
+<ul>
+<li><div>[34] 0.48% 1,764 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/MergeIterator.next</span>
+<ul>
+<li><div>[35] 0.48% 1,764 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/MergeIterator.next</span>
+<ul>
+<li><div>[36] 0.48% 1,764 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/PeekingIterator.next</span>
+<ul>
+<li><div>[37] 0.48% 1,764 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/PeekingIterator.peek</span>
+<ul>
+<li><div>[38] 0.27% 992 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/MergeIterator.next</span>
+<ul>
+<li><div>[39] 0.27% 992 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/MergeIterator.next</span>
+<ul>
+<li><div>[40] 0.27% 992 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/PeekingIterator.next</span>
+<ul>
+<li><div>[41] 0.27% 992 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/PeekingIterator.peek</span>
+<ul>
+<li><div>[42] 0.27% 992 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/RangeIterator.next</span>
+<ul>
+<li><div>[43] 0.27% 992 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/RangeIterator.next</span>
+<ul>
+<li><div>[44] 0.18% 647 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/Record.of</span>
+<ul>
+<li><div>[45] 0.08% 291 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/Record.&lt;init&gt;</span>
+<ul>
+<li><div>[46] 0.08% 291 self: 0.00% 0</div><span class="green"> java/nio/DirectByteBufferR.asReadOnlyBuffer</span>
+<ul>
+<li><div>[47] 0.08% 291 self: 0.00% 0</div><span class="green"> java/nio/DirectByteBufferR.duplicate</span>
+<ul>
+<li><div>[48] 0.08% 291 self: 0.08% 291</div><span class="aqua"> java.nio.DirectByteBufferR</span>
+</ul>
+</ul>
+</ul>
+<li><div>[45] 0.08% 290 self: 0.00% 0</div><span class="green"> java/nio/DirectByteBufferR.asReadOnlyBuffer</span>
+<ul>
+<li><div>[46] 0.08% 290 self: 0.00% 0</div><span class="green"> java/nio/DirectByteBufferR.duplicate</span>
+<ul>
+<li><div>[47] 0.08% 290 self: 0.08% 290</div><span class="aqua"> java.nio.DirectByteBufferR</span>
+</ul>
+</ul>
+<li><div>[45] 0.02% 66 self: 0.02% 66</div><span class="aqua"> ru.mail.polis.lsm.Record</span>
+</ul>
+<li><div>[44] 0.09% 345 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/RangeIterator.read</span>
+<ul>
+<li><div>[45] 0.09% 345 self: 0.00% 0</div><span class="green"> java/nio/DirectByteBufferR.slice</span>
+<ul>
+<li><div>[46] 0.09% 345 self: 0.09% 345</div><span class="aqua"> java.nio.DirectByteBufferR</span>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+<li><div>[38] 0.21% 772 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/RangeIterator.next</span>
+<ul>
+<li><div>[39] 0.21% 772 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/RangeIterator.next</span>
+<ul>
+<li><div>[40] 0.14% 518 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/Record.of</span>
+<ul>
+<li><div>[41] 0.07% 245 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/Record.&lt;init&gt;</span>
+<ul>
+<li><div>[42] 0.07% 245 self: 0.00% 0</div><span class="green"> java/nio/DirectByteBufferR.asReadOnlyBuffer</span>
+<ul>
+<li><div>[43] 0.07% 245 self: 0.00% 0</div><span class="green"> java/nio/DirectByteBufferR.duplicate</span>
+<ul>
+<li><div>[44] 0.07% 245 self: 0.07% 245</div><span class="aqua"> java.nio.DirectByteBufferR</span>
+</ul>
+</ul>
+</ul>
+<li><div>[41] 0.06% 234 self: 0.00% 0</div><span class="green"> java/nio/DirectByteBufferR.asReadOnlyBuffer</span>
+<ul>
+<li><div>[42] 0.06% 234 self: 0.00% 0</div><span class="green"> java/nio/DirectByteBufferR.duplicate</span>
+<ul>
+<li><div>[43] 0.06% 234 self: 0.06% 234</div><span class="aqua"> java.nio.DirectByteBufferR</span>
+</ul>
+</ul>
+<li><div>[41] 0.01% 39 self: 0.01% 39</div><span class="aqua"> ru.mail.polis.lsm.Record</span>
+</ul>
+<li><div>[40] 0.07% 254 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/RangeIterator.read</span>
+<ul>
+<li><div>[41] 0.07% 254 self: 0.00% 0</div><span class="green"> java/nio/DirectByteBufferR.slice</span>
+<ul>
+<li><div>[42] 0.07% 254 self: 0.07% 254</div><span class="aqua"> java.nio.DirectByteBufferR</span>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+<li><div>[17] 0.07% 264 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/Record.getKey</span>
+<ul>
+<li><div>[18] 0.07% 264 self: 0.00% 0</div><span class="green"> java/nio/DirectByteBufferR.asReadOnlyBuffer</span>
+<ul>
+<li><div>[19] 0.07% 264 self: 0.00% 0</div><span class="green"> java/nio/DirectByteBufferR.duplicate</span>
+<ul>
+<li><div>[20] 0.07% 264 self: 0.07% 264</div><span class="aqua"> java.nio.DirectByteBufferR</span>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+<li><div>[9] 0.46% 1,700 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/DAO.nextKey</span>
+<ul>
+<li><div>[10] 0.46% 1,700 self: 0.00% 0</div><span class="green"> java/nio/ByteBuffer.allocate</span>
+<ul>
+<li><div>[11] 0.28% 1,043 self: 0.28% 1,043</div><span class="aqua"> java.nio.HeapByteBuffer</span>
+<li><div>[11] 0.18% 657 self: 0.00% 0</div><span class="green"> java/nio/HeapByteBuffer.&lt;init&gt;</span>
+<ul>
+<li><div>[12] 0.18% 657 self: 0.18% 657</div><span class="aqua"> byte[]</span>
+</ul>
+</ul>
+</ul>
+<li><div>[9] 0.45% 1,646 self: 0.00% 0</div><span class="green"> one/nio/http/Response.&lt;init&gt;</span>
+<ul>
+<li><div>[10] 0.18% 669 self: 0.18% 669</div><span class="aqua"> byte[]</span>
+<li><div>[10] 0.15% 553 self: 0.15% 553</div><span class="aqua"> java.lang.String[]</span>
+<li><div>[10] 0.12% 424 self: 0.12% 424</div><span class="aqua"> java.lang.String</span>
+</ul>
+<li><div>[9] 0.28% 1,012 self: 0.00% 0</div><span class="green"> java/nio/ByteBuffer.wrap</span>
+<ul>
+<li><div>[10] 0.28% 1,012 self: 0.00% 0</div><span class="green"> java/nio/ByteBuffer.wrap</span>
+<ul>
+<li><div>[11] 0.28% 1,012 self: 0.28% 1,012</div><span class="aqua"> java.nio.HeapByteBuffer</span>
+</ul>
+</ul>
+<li><div>[9] 0.20% 748 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/Record.getValue</span>
+<ul>
+<li><div>[10] 0.20% 746 self: 0.00% 0</div><span class="green"> java/nio/DirectByteBufferR.asReadOnlyBuffer</span>
+<ul>
+<li><div>[11] 0.20% 746 self: 0.00% 0</div><span class="green"> java/nio/DirectByteBufferR.duplicate</span>
+<ul>
+<li><div>[12] 0.20% 746 self: 0.20% 746</div><span class="aqua"> java.nio.DirectByteBufferR</span>
+</ul>
+</ul>
+<li><div>[10] 0.00% 2 self: 0.00% 0</div><span class="green"> java/nio/HeapByteBufferR.asReadOnlyBuffer</span>
+<ul>
+<li>...
+</ul>
+</ul>
+<li><div>[9] 0.14% 525 self: 0.00% 0</div><span class="green"> java/lang/String.getBytes</span>
+<ul>
+<li><div>[10] 0.14% 525 self: 0.00% 0</div><span class="green"> java/lang/StringCoding.encode</span>
+<ul>
+<li><div>[11] 0.14% 525 self: 0.00% 0</div><span class="green"> java/lang/StringCoding.encodeUTF8</span>
+<ul>
+<li><div>[12] 0.14% 525 self: 0.00% 0</div><span class="green"> java/util/Arrays.copyOf</span>
+<ul>
+<li><div>[13] 0.14% 525 self: 0.14% 525</div><span class="aqua"> byte[]</span>
+</ul>
+</ul>
+</ul>
+</ul>
+<li><div>[9] 0.12% 429 self: 0.12% 429</div><span class="aqua"> one.nio.http.Response</span>
+<li><div>[9] 0.11% 386 self: 0.00% 0</div><span class="green"> ru/mail/polis/service/medalexey/ServiceImpl.extractBytes</span>
+<ul>
+<li><div>[10] 0.11% 386 self: 0.11% 386</div><span class="aqua"> byte[]</span>
+</ul>
+</ul>
+</ul>
+<li><div>[7] 0.64% 2,362 self: 0.00% 0</div><span class="green"> one/nio/http/HttpSession.sendResponse</span>
+<ul>
+<li><div>[8] 0.64% 2,362 self: 0.00% 0</div><span class="green"> one/nio/http/HttpSession.writeResponse</span>
+<ul>
+<li><div>[9] 0.44% 1,615 self: 0.00% 0</div><span class="green"> one/nio/http/Response.toBytes</span>
+<ul>
+<li><div>[10] 0.44% 1,615 self: 0.00% 0</div><span class="green"> one/nio/util/ByteArrayBuilder.&lt;init&gt;</span>
+<ul>
+<li><div>[11] 0.44% 1,615 self: 0.44% 1,615</div><span class="aqua"> byte[]</span>
+</ul>
+</ul>
+<li><div>[9] 0.20% 747 self: 0.00% 0</div><span class="green"> one/nio/net/Session.write</span>
+<ul>
+<li><div>[10] 0.20% 747 self: 0.20% 747</div><span class="aqua"> one.nio.net.Session$ArrayQueueItem</span>
+</ul>
+</ul>
+</ul>
+<li><div>[7] 0.28% 1,032 self: 0.00% 0</div><span class="green"> one/nio/http/Request.getRequiredParameter</span>
+<ul>
+<li><div>[8] 0.28% 1,032 self: 0.00% 0</div><span class="green"> one/nio/http/Request.getParameter</span>
+<ul>
+<li><div>[9] 0.28% 1,032 self: 0.00% 0</div><span class="green"> java/lang/String.substring</span>
+<ul>
+<li><div>[10] 0.28% 1,032 self: 0.00% 0</div><span class="green"> java/lang/String.substring</span>
+<ul>
+<li><div>[11] 0.28% 1,032 self: 0.00% 0</div><span class="green"> java/lang/StringLatin1.newString</span>
+<ul>
+<li><div>[12] 0.16% 572 self: 0.00% 0</div><span class="green"> java/util/Arrays.copyOfRange</span>
+<ul>
+<li><div>[13] 0.16% 572 self: 0.16% 572</div><span class="aqua"> byte[]</span>
+</ul>
+<li><div>[12] 0.13% 460 self: 0.13% 460</div><span class="aqua"> java.lang.String</span>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+<li><div>[6] 0.25% 907 self: 0.00% 0</div><span class="green"> one/nio/http/Request.getPath</span>
+<ul>
+<li><div>[7] 0.25% 907 self: 0.00% 0</div><span class="green"> java/lang/String.substring</span>
+<ul>
+<li><div>[8] 0.25% 907 self: 0.00% 0</div><span class="green"> java/lang/StringLatin1.newString</span>
+<ul>
+<li><div>[9] 0.14% 498 self: 0.00% 0</div><span class="green"> java/util/Arrays.copyOfRange</span>
+<ul>
+<li><div>[10] 0.14% 498 self: 0.14% 498</div><span class="aqua"> byte[]</span>
+</ul>
+<li><div>[9] 0.11% 409 self: 0.11% 409</div><span class="aqua"> java.lang.String</span>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+<li><div>[4] 1.22% 4,472 self: 0.00% 0</div><span class="green"> one/nio/http/HttpSession.parseRequest</span>
+<ul>
+<li><div>[5] 0.64% 2,350 self: 0.00% 0</div><span class="green"> one/nio/util/Utf8.read</span>
+<ul>
+<li><div>[6] 0.64% 2,350 self: 0.00% 0</div><span class="green"> one/nio/util/Utf8.read</span>
+<ul>
+<li><div>[7] 0.32% 1,178 self: 0.32% 1,178</div><span class="aqua"> char[]</span>
+<li><div>[7] 0.20% 729 self: 0.00% 0</div><span class="green"> java/lang/String.&lt;init&gt;</span>
+<ul>
+<li><div>[8] 0.20% 729 self: 0.00% 0</div><span class="green"> java/lang/String.&lt;init&gt;</span>
+<ul>
+<li><div>[9] 0.20% 729 self: 0.00% 0</div><span class="green"> java/lang/StringUTF16.compress</span>
+<ul>
+<li><div>[10] 0.20% 729 self: 0.20% 729</div><span class="aqua"> byte[]</span>
+</ul>
+</ul>
+</ul>
+<li><div>[7] 0.12% 443 self: 0.12% 443</div><span class="aqua"> java.lang.String</span>
+</ul>
+</ul>
+<li><div>[5] 0.38% 1,413 self: 0.00% 0</div><span class="green"> one/nio/http/Request.&lt;init&gt;</span>
+<ul>
+<li><div>[6] 0.38% 1,413 self: 0.38% 1,413</div><span class="aqua"> java.lang.String[]</span>
+</ul>
+<li><div>[5] 0.19% 709 self: 0.19% 709</div><span class="aqua"> one.nio.http.Request</span>
+</ul>
+<li><div>[4] 1.16% 4,244 self: 0.00% 0</div><span class="green"> one/nio/util/Utf8.read</span>
+<ul>
+<li><div>[5] 1.16% 4,244 self: 0.00% 0</div><span class="green"> one/nio/util/Utf8.read</span>
+<ul>
+<li><div>[6] 0.56% 2,040 self: 0.56% 2,040</div><span class="aqua"> char[]</span>
+<li><div>[6] 0.39% 1,447 self: 0.00% 0</div><span class="green"> java/lang/String.&lt;init&gt;</span>
+<ul>
+<li><div>[7] 0.39% 1,447 self: 0.00% 0</div><span class="green"> java/lang/String.&lt;init&gt;</span>
+<ul>
+<li><div>[8] 0.39% 1,447 self: 0.00% 0</div><span class="green"> java/lang/StringUTF16.compress</span>
+<ul>
+<li><div>[9] 0.39% 1,447 self: 0.39% 1,447</div><span class="aqua"> byte[]</span>
+</ul>
+</ul>
+</ul>
+<li><div>[6] 0.21% 757 self: 0.21% 757</div><span class="aqua"> java.lang.String</span>
+</ul>
+</ul>
+<li><div>[4] 0.22% 820 self: 0.00% 0</div><span class="green"> one/nio/http/Request.getHeader</span>
+<ul>
+<li><div>[5] 0.22% 820 self: 0.00% 0</div><span class="green"> one/nio/http/Request.trim</span>
+<ul>
+<li><div>[6] 0.22% 820 self: 0.00% 0</div><span class="green"> java/lang/String.substring</span>
+<ul>
+<li><div>[7] 0.22% 820 self: 0.00% 0</div><span class="green"> java/lang/StringLatin1.newString</span>
+<ul>
+<li><div>[8] 0.11% 412 self: 0.00% 0</div><span class="green"> java/util/Arrays.copyOfRange</span>
+<ul>
+<li><div>[9] 0.11% 412 self: 0.11% 412</div><span class="aqua"> byte[]</span>
+</ul>
+<li><div>[8] 0.11% 408 self: 0.11% 408</div><span class="aqua"> java.lang.String</span>
+</ul>
+</ul>
+</ul>
+</ul>
+<li><div>[4] 0.14% 529 self: 0.00% 0</div><span class="green"> one/nio/http/HttpSession.startParsingRequestBody</span>
+<ul>
+<li><div>[5] 0.14% 529 self: 0.14% 529</div><span class="aqua"> byte[]</span>
+</ul>
+</ul>
+</ul>
+</ul>
+<li><div>[1] 0.14% 532 self: 0.00% 0</div><span class="green"> one/nio/net/NativeSelector.select</span>
+<ul>
+<li><div>[2] 0.14% 532 self: 0.14% 532</div><span class="aqua"> one.nio.net.NativeSelector$2</span>
+</ul>
+</ul>
+<script>
+addClickActions();
+</script>
+</ul>
+</body>
+</html>

@@ -1,0 +1,2911 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<title>Tree view</title>
+<meta charset="utf-8"/>
+<style>
+body {
+    font-family: Arial;
+}
+ul.tree li {
+    list-style-type: none;
+    position: relative;
+}
+ul.tree ul {
+    margin-left: 20px; padding-left: 0;
+}
+ul.tree li ul {
+    display: none;
+}
+ul.tree li.open > ul {
+    display: block;
+}
+ul.tree li div:before {
+    height: 1em;
+    padding:0 .1em;
+    font-size: .8em;
+    display: block;
+    position: absolute;
+    left: -1.3em;
+    top: .2em;
+}
+ul.tree li > div:not(:nth-last-child(2)):before {
+    content: '+';
+}
+ul.tree li.open > div:not(:nth-last-child(2)):before {
+    content: '-';
+}
+.sc {
+    text-decoration: underline;
+    text-decoration-color: black;
+    font-weight: bold;
+    background-color: #D9D9D9;
+}
+.green {
+    color: #32c832;
+}
+.aqua {
+    color: #32a5a5;
+}
+.brown {
+    color: #be5a00;
+}
+.yellow {
+    color: #afaf32;
+}
+.red {
+    color: #c83232;
+}
+ul.tree li > div {
+    display: inline;
+    cursor: pointer;
+    color: black;
+    text-decoration: none;
+}
+</style>
+<script>
+function treeView(opt) {
+    var tree = document.querySelectorAll('ul.tree div:not(:last-child)');
+    for(var i = 0; i < tree.length; i++){
+        var parent = tree[i].parentElement;
+        var classList = parent.classList;
+        if(opt == 0) {
+            classList.add('open');
+        } else {
+            classList.remove('open');
+        }
+    }
+}
+function openParent(p,t) {
+    if(p.parentElement.classList.contains("tree")) {
+        return;
+    }
+    p.parentElement.classList.add('open');
+    openParent(p.parentElement,t);
+}
+function search() {
+    var tree = document.querySelectorAll('ul.tree span');
+    var check = document.getElementById('check');
+    for(var i = 0; i < tree.length; i++){
+        tree[i].classList.remove('sc');
+        if(tree[i].innerHTML.includes(document.getElementById("search").value)) {
+            tree[i].classList.add('sc');
+            openParent(tree[i].parentElement,tree);
+        }
+    }
+}
+function openUL(n) {
+    var children = n.children;
+    if(children.length == 1) {
+        openNode(children[0]);
+    }
+}
+function openNode(n) {
+    var children = n.children;
+    for(var i = 0; i < children.length; i++){
+        if(children[i].nodeName == 'UL') {
+            n.classList.add('open');
+            openUL(children[i]);
+        }
+    }
+}
+function addClickActions() {
+var tree = document.querySelectorAll('ul.tree div:not(:last-child)');
+for(var i = 0; i < tree.length; i++){
+    tree[i].addEventListener('click', function(e) {
+        var parent = e.target.parentElement;
+        var classList = parent.classList;
+        if(classList.contains("open")) {
+            classList.remove('open');
+            var opensubs = parent.querySelectorAll(':scope .open');
+            for(var i = 0; i < opensubs.length; i++){
+                opensubs[i].classList.remove('open');
+            }
+        } else {
+            if(e.altKey) {
+                classList.add('open');
+                var opensubs = parent.querySelectorAll('li');
+                for(var i = 0; i < opensubs.length; i++){
+                    opensubs[i].classList.add('open');
+                }
+            } else {
+                openNode(parent);
+            }
+        }
+    });
+}
+}
+</script>
+</head>
+<body>
+<div style="padding-left: 25px;">Call tree view, total samples: 9,634 </div>
+<div style="padding-left: 25px;"><button type='button' onclick='treeView(0)'>++</button><button type='button' onclick='treeView(1)'>--</button>
+<input type='text' id='search' value='' size='35' onkeypress="if(event.keyCode == 13) document.getElementById('searchBtn').click()">
+<button type='button' id='searchBtn' onclick='search()'>search</button></div>
+<ul class="tree">
+<li><div>[0] 91.62% 8,827 self: 0.03% 3</div><span class="green"> one/nio/server/SelectorThread.run</span>
+<ul>
+<li><div>[1] 78.46% 7,559 self: 0.18% 17</div><span class="green"> one/nio/net/Session.process</span>
+<ul>
+<li><div>[2] 78.23% 7,537 self: 0.07% 7</div><span class="green"> one/nio/http/HttpSession.processRead</span>
+<ul>
+<li><div>[3] 61.54% 5,929 self: 0.35% 34</div><span class="green"> one/nio/http/HttpSession.processHttpBuffer</span>
+<ul>
+<li><div>[4] 55.55% 5,352 self: 0.00% 0</div><span class="green"> one/nio/http/HttpSession.handleParsedRequest</span>
+<ul>
+<li><div>[5] 55.55% 5,352 self: 0.00% 0</div><span class="green"> one/nio/http/HttpServer.handleRequest</span>
+<ul>
+<li><div>[6] 54.44% 5,245 self: 0.49% 47</div><span class="green"> RequestHandler1_entity.handleRequest</span>
+<ul>
+<li><div>[7] 45.90% 4,422 self: 0.00% 0</div><span class="green"> one/nio/http/HttpSession.sendResponse</span>
+<ul>
+<li><div>[8] 44.41% 4,278 self: 0.06% 6</div><span class="green"> one/nio/http/HttpSession.writeResponse</span>
+<ul>
+<li><div>[9] 43.06% 4,148 self: 0.00% 0</div><span class="green"> one/nio/net/Session.write</span>
+<ul>
+<li><div>[10] 43.04% 4,146 self: 0.12% 12</div><span class="green"> one/nio/net/Session.write</span>
+<ul>
+<li><div>[11] 42.64% 4,108 self: 0.00% 0</div><span class="green"> one/nio/net/Session$ArrayQueueItem.write</span>
+<ul>
+<li><div>[12] 42.64% 4,108 self: 0.30% 29</div><span class="green"> one/nio/net/NativeSocket.write</span>
+<ul>
+<li><div>[13] 41.40% 3,988 self: 1.74% 168</div><span class="red"> __send</span>
+<ul>
+<li><div>[14] 39.65% 3,820 self: 0.00% 0</div><span class="brown"> entry_SYSCALL_64_after_hwframe</span>
+<ul>
+<li><div>[15] 39.49% 3,804 self: 0.07% 7</div><span class="brown"> do_syscall_64</span>
+<ul>
+<li><div>[16] 38.90% 3,748 self: 0.05% 5</div><span class="brown"> __x64_sys_sendto</span>
+<ul>
+<li><div>[17] 38.78% 3,736 self: 0.07% 7</div><span class="brown"> __sys_sendto</span>
+<ul>
+<li><div>[18] 38.40% 3,699 self: 0.07% 7</div><span class="brown"> sock_sendmsg</span>
+<ul>
+<li><div>[19] 37.73% 3,635 self: 0.10% 10</div><span class="brown"> inet6_sendmsg</span>
+<ul>
+<li><div>[20] 37.51% 3,614 self: 0.04% 4</div><span class="brown"> tcp_sendmsg</span>
+<ul>
+<li><div>[21] 36.79% 3,544 self: 0.72% 69</div><span class="brown"> tcp_sendmsg_locked</span>
+<ul>
+<li><div>[22] 32.36% 3,118 self: 0.04% 4</div><span class="brown"> tcp_push</span>
+<ul>
+<li><div>[23] 32.28% 3,110 self: 0.05% 5</div><span class="brown"> __tcp_push_pending_frames</span>
+<ul>
+<li><div>[24] 31.96% 3,079 self: 0.57% 55</div><span class="brown"> tcp_write_xmit</span>
+<ul>
+<li><div>[25] 29.89% 2,880 self: 0.80% 77</div><span class="brown"> __tcp_transmit_skb</span>
+<ul>
+<li><div>[26] 28.48% 2,744 self: 0.01% 1</div><span class="brown"> ip_queue_xmit</span>
+<ul>
+<li><div>[27] 28.34% 2,730 self: 0.30% 29</div><span class="brown"> __ip_queue_xmit</span>
+<ul>
+<li><div>[28] 27.78% 2,676 self: 0.05% 5</div><span class="brown"> ip_local_out</span>
+<ul>
+<li><div>[29] 21.76% 2,096 self: 0.12% 12</div><span class="brown"> ip_output</span>
+<ul>
+<li><div>[30] 20.78% 2,002 self: 0.19% 18</div><span class="brown"> ip_finish_output</span>
+<ul>
+<li><div>[31] 20.14% 1,940 self: 0.13% 13</div><span class="brown"> __ip_finish_output</span>
+<ul>
+<li><div>[32] 19.95% 1,922 self: 0.76% 73</div><span class="brown"> ip_finish_output2</span>
+<ul>
+<li><div>[33] 17.02% 1,640 self: 0.05% 5</div><span class="brown"> __local_bh_enable_ip</span>
+<ul>
+<li><div>[34] 16.97% 1,635 self: 0.32% 31</div><span class="brown"> do_softirq</span>
+<ul>
+<li><div>[35] 16.65% 1,604 self: 0.00% 0</div><span class="brown"> do_softirq_own_stack</span>
+<ul>
+<li><div>[36] 16.65% 1,604 self: 0.00% 0</div><span class="brown"> asm_call_sysvec_on_stack</span>
+<ul>
+<li><div>[37] 16.59% 1,598 self: 0.61% 59</div><span class="brown"> __softirqentry_text_start</span>
+<ul>
+<li><div>[38] 15.80% 1,522 self: 0.16% 15</div><span class="brown"> net_rx_action</span>
+<ul>
+<li><div>[39] 15.58% 1,501 self: 0.25% 24</div><span class="brown"> process_backlog</span>
+<ul>
+<li><div>[40] 15.30% 1,474 self: 0.00% 0</div><span class="brown"> __netif_receive_skb</span>
+<ul>
+<li><div>[41] 15.23% 1,467 self: 0.05% 5</div><span class="brown"> __netif_receive_skb_one_core</span>
+<ul>
+<li><div>[42] 14.36% 1,383 self: 0.16% 15</div><span class="brown"> ip_rcv</span>
+<ul>
+<li><div>[43] 13.09% 1,261 self: 0.06% 6</div><span class="brown"> ip_rcv_finish</span>
+<ul>
+<li><div>[44] 12.76% 1,229 self: 0.15% 14</div><span class="brown"> ip_local_deliver</span>
+<ul>
+<li><div>[45] 11.86% 1,143 self: 0.03% 3</div><span class="brown"> ip_local_deliver_finish</span>
+<ul>
+<li><div>[46] 11.81% 1,138 self: 0.20% 19</div><span class="brown"> ip_protocol_deliver_rcu</span>
+<ul>
+<li><div>[47] 11.38% 1,096 self: 0.51% 49</div><span class="brown"> tcp_v4_rcv</span>
+<ul>
+<li><div>[48] 9.59% 924 self: 0.05% 5</div><span class="brown"> tcp_v4_do_rcv</span>
+<ul>
+<li><div>[49] 9.20% 886 self: 0.47% 45</div><span class="brown"> tcp_rcv_established</span>
+<ul>
+<li><div>[50] 3.66% 353 self: 0.69% 66</div><span class="brown"> tcp_ack</span>
+<ul>
+<li><div>[51] 2.07% 199 self: 0.42% 40</div><span class="brown"> tcp_clean_rtx_queue</span>
+<ul>
+<li><div>[52] 1.16% 112 self: 0.03% 3</div><span class="brown"> __kfree_skb</span>
+<ul>
+<li><div>[53] 0.86% 83 self: 0.00% 0</div><span class="brown"> skb_release_all</span>
+<ul>
+<li><div>[54] 0.81% 78 self: 0.24% 23</div><span class="brown"> skb_release_data</span>
+<ul>
+<li><div>[55] 0.52% 50 self: 0.00% 0</div><span class="brown"> skb_free_head</span>
+<ul>
+<li><div>[56] 0.52% 50 self: 0.40% 39</div><span class="brown"> kfree</span>
+<ul>
+<li><div>[57] 0.11% 11 self: 0.11% 11</div><span class="brown"> __slab_free</span>
+</ul>
+</ul>
+<li><div>[55] 0.05% 5 self: 0.05% 5</div><span class="brown"> kfree</span>
+</ul>
+<li><div>[54] 0.03% 3 self: 0.03% 3</div><span class="brown"> skb_release_head_state</span>
+<li><div>[54] 0.02% 2 self: 0.02% 2</div><span class="brown"> skb_free_head</span>
+</ul>
+<li><div>[53] 0.25% 24 self: 0.00% 0</div><span class="brown"> kfree_skbmem</span>
+<ul>
+<li><div>[54] 0.24% 23 self: 0.16% 15</div><span class="brown"> kmem_cache_free</span>
+<ul>
+<li><div>[55] 0.08% 8 self: 0.08% 8</div><span class="brown"> __slab_free</span>
+</ul>
+<li><div>[54] 0.01% 1 self: 0.01% 1</div><span class="brown"> __slab_free</span>
+</ul>
+<li><div>[53] 0.01% 1 self: 0.01% 1</div><span class="brown"> kmem_cache_free</span>
+<li><div>[53] 0.01% 1 self: 0.01% 1</div><span class="brown"> skb_release_data</span>
+</ul>
+<li><div>[52] 0.18% 17 self: 0.18% 17</div><span class="brown"> tcp_ack_update_rtt.isra.0</span>
+<li><div>[52] 0.07% 7 self: 0.07% 7</div><span class="brown"> bictcp_acked</span>
+<li><div>[52] 0.04% 4 self: 0.04% 4</div><span class="brown"> __usecs_to_jiffies</span>
+<li><div>[52] 0.04% 4 self: 0.04% 4</div><span class="brown"> tcp_chrono_stop</span>
+<li><div>[52] 0.04% 4 self: 0.04% 4</div><span class="brown"> tcp_rack_advance</span>
+<li><div>[52] 0.03% 3 self: 0.03% 3</div><span class="brown"> kfree_skbmem</span>
+<li><div>[52] 0.03% 3 self: 0.03% 3</div><span class="brown"> skb_release_all</span>
+<li><div>[52] 0.03% 3 self: 0.03% 3</div><span class="brown"> tcp_rate_skb_delivered</span>
+<li><div>[52] 0.02% 2 self: 0.02% 2</div><span class="brown"> jiffies_to_usecs</span>
+</ul>
+<li><div>[51] 0.25% 24 self: 0.25% 24</div><span class="brown"> tcp_rate_gen</span>
+<li><div>[51] 0.08% 8 self: 0.08% 8</div><span class="brown"> tcp_rearm_rto</span>
+<li><div>[51] 0.08% 8 self: 0.08% 8</div><span class="brown"> rb_first</span>
+<li><div>[51] 0.07% 7 self: 0.07% 7</div><span class="brown"> tcp_update_pacing_rate</span>
+<li><div>[51] 0.06% 6 self: 0.06% 6</div><span class="brown"> bictcp_cong_avoid</span>
+<li><div>[51] 0.05% 5 self: 0.05% 5</div><span class="brown"> bictcp_acked</span>
+<li><div>[51] 0.05% 5 self: 0.05% 5</div><span class="brown"> tcp_ack_tstamp</span>
+<li><div>[51] 0.04% 4 self: 0.04% 4</div><span class="brown"> tcp_newly_delivered</span>
+<li><div>[51] 0.04% 4 self: 0.04% 4</div><span class="brown"> tcp_ack_update_rtt.isra.0</span>
+<li><div>[51] 0.04% 4 self: 0.04% 4</div><span class="brown"> rb_next</span>
+<li><div>[51] 0.04% 4 self: 0.04% 4</div><span class="brown"> __kfree_skb</span>
+<li><div>[51] 0.03% 3 self: 0.03% 3</div><span class="brown"> tcp_rate_skb_delivered</span>
+<li><div>[51] 0.02% 2 self: 0.02% 2</div><span class="brown"> tcp_rack_advance</span>
+<li><div>[51] 0.02% 2 self: 0.02% 2</div><span class="brown"> tcp_schedule_loss_probe</span>
+<li><div>[51] 0.01% 1 self: 0.01% 1</div><span class="brown"> tcp_chrono_stop</span>
+<li><div>[51] 0.01% 1 self: 0.01% 1</div><span class="brown"> rb_erase</span>
+</ul>
+<li><div>[50] 3.39% 327 self: 0.02% 2</div><span class="brown"> tcp_data_ready</span>
+<ul>
+<li><div>[51] 3.36% 324 self: 0.09% 9</div><span class="brown"> sock_def_readable</span>
+<ul>
+<li><div>[52] 3.25% 313 self: 0.01% 1</div><span class="brown"> __wake_up_sync_key</span>
+<ul>
+<li><div>[53] 3.23% 311 self: 0.02% 2</div><span class="brown"> __wake_up_common_lock</span>
+<ul>
+<li><div>[54] 3.21% 309 self: 3.21% 309</div><span class="brown"> __lock_text_start</span>
+</ul>
+<li><div>[53] 0.01% 1 self: 0.01% 1</div><span class="brown"> _raw_spin_lock_irqsave</span>
+</ul>
+<li><div>[52] 0.02% 2 self: 0.02% 2</div><span class="brown"> __wake_up_common_lock</span>
+</ul>
+<li><div>[51] 0.01% 1 self: 0.01% 1</div><span class="brown"> rcu_read_unlock_strict</span>
+</ul>
+<li><div>[50] 0.57% 55 self: 0.06% 6</div><span class="brown"> __tcp_ack_snd_check</span>
+<ul>
+<li><div>[51] 0.48% 46 self: 0.06% 6</div><span class="brown"> tcp_send_delayed_ack</span>
+<ul>
+<li><div>[52] 0.35% 34 self: 0.00% 0</div><span class="brown"> sk_reset_timer</span>
+<ul>
+<li><div>[53] 0.35% 34 self: 0.05% 5</div><span class="brown"> mod_timer</span>
+<ul>
+<li><div>[54] 0.29% 28 self: 0.29% 28</div><span class="brown"> __lock_text_start</span>
+<li><div>[54] 0.01% 1 self: 0.01% 1</div><span class="brown"> lock_timer_base</span>
+</ul>
+</ul>
+<li><div>[52] 0.06% 6 self: 0.06% 6</div><span class="brown"> mod_timer</span>
+</ul>
+<li><div>[51] 0.03% 3 self: 0.03% 3</div><span class="brown"> sk_reset_timer</span>
+</ul>
+<li><div>[50] 0.24% 23 self: 0.24% 23</div><span class="brown"> tcp_queue_rcv</span>
+<li><div>[50] 0.20% 19 self: 0.20% 19</div><span class="brown"> tcp_event_data_recv</span>
+<li><div>[50] 0.17% 16 self: 0.02% 2</div><span class="brown"> tcp_mstamp_refresh</span>
+<ul>
+<li><div>[51] 0.09% 9 self: 0.09% 9</div><span class="brown"> read_tsc</span>
+<li><div>[51] 0.03% 3 self: 0.03% 3</div><span class="brown"> ktime_get</span>
+<li><div>[51] 0.01% 1 self: 0.01% 1</div><span class="brown"> __x86_indirect_thunk_rax</span>
+<li><div>[51] 0.01% 1 self: 0.01% 1</div><span class="brown"> __x86_retpoline_rax</span>
+</ul>
+<li><div>[50] 0.08% 8 self: 0.08% 8</div><span class="brown"> tcp_rearm_rto</span>
+<li><div>[50] 0.07% 7 self: 0.07% 7</div><span class="brown"> sock_def_readable</span>
+<li><div>[50] 0.07% 7 self: 0.07% 7</div><span class="brown"> bictcp_cong_avoid</span>
+<li><div>[50] 0.07% 7 self: 0.07% 7</div><span class="brown"> tcp_schedule_loss_probe</span>
+<li><div>[50] 0.06% 6 self: 0.06% 6</div><span class="brown"> ktime_get_seconds</span>
+<li><div>[50] 0.04% 4 self: 0.04% 4</div><span class="brown"> tcp_newly_delivered</span>
+<li><div>[50] 0.02% 2 self: 0.02% 2</div><span class="brown"> __x86_retpoline_rax</span>
+<li><div>[50] 0.02% 2 self: 0.02% 2</div><span class="brown"> tcp_rack_update_reo_wnd</span>
+<li><div>[50] 0.02% 2 self: 0.02% 2</div><span class="brown"> tcp_update_pacing_rate</span>
+<li><div>[50] 0.01% 1 self: 0.01% 1</div><span class="brown"> tcp_clean_rtx_queue</span>
+<li><div>[50] 0.01% 1 self: 0.01% 1</div><span class="brown"> tcp_rate_gen</span>
+<li><div>[50] 0.01% 1 self: 0.01% 1</div><span class="brown"> tcp_send_delayed_ack</span>
+</ul>
+<li><div>[49] 0.23% 22 self: 0.23% 22</div><span class="brown"> tcp_check_space</span>
+<li><div>[49] 0.04% 4 self: 0.04% 4</div><span class="brown"> tcp_data_ready</span>
+<li><div>[49] 0.03% 3 self: 0.03% 3</div><span class="brown"> tcp_ack</span>
+<li><div>[49] 0.02% 2 self: 0.02% 2</div><span class="brown"> ipv4_dst_check</span>
+<li><div>[49] 0.02% 2 self: 0.02% 2</div><span class="brown"> ktime_get_seconds</span>
+</ul>
+<li><div>[48] 0.52% 50 self: 0.05% 5</div><span class="brown"> sk_filter_trim_cap</span>
+<ul>
+<li><div>[49] 0.26% 25 self: 0.18% 17</div><span class="brown"> __cgroup_bpf_run_filter_skb</span>
+<ul>
+<li><div>[50] 0.06% 6 self: 0.06% 6</div><span class="brown"> migrate_enable</span>
+<li><div>[50] 0.02% 2 self: 0.02% 2</div><span class="brown"> migrate_disable</span>
+</ul>
+<li><div>[49] 0.10% 10 self: 0.10% 10</div><span class="brown"> security_sock_rcv_skb</span>
+<li><div>[49] 0.06% 6 self: 0.06% 6</div><span class="brown"> apparmor_socket_sock_rcv_skb</span>
+<li><div>[49] 0.01% 1 self: 0.01% 1</div><span class="brown"> __x86_indirect_thunk_rax</span>
+<li><div>[49] 0.01% 1 self: 0.01% 1</div><span class="brown"> __x86_retpoline_rax</span>
+<li><div>[49] 0.01% 1 self: 0.01% 1</div><span class="brown"> migrate_enable</span>
+<li><div>[49] 0.01% 1 self: 0.01% 1</div><span class="brown"> rcu_read_unlock_strict</span>
+</ul>
+<li><div>[48] 0.43% 41 self: 0.40% 39</div><span class="brown"> __inet_lookup_established</span>
+<ul>
+<li><div>[49] 0.02% 2 self: 0.02% 2</div><span class="brown"> inet_ehashfn</span>
+</ul>
+<li><div>[48] 0.05% 5 self: 0.05% 5</div><span class="brown"> ipv4_dst_check</span>
+<li><div>[48] 0.05% 5 self: 0.05% 5</div><span class="brown"> security_sock_rcv_skb</span>
+<li><div>[48] 0.05% 5 self: 0.05% 5</div><span class="brown"> tcp_v4_fill_cb</span>
+<li><div>[48] 0.04% 4 self: 0.03% 3</div><span class="brown"> tcp_v4_inbound_md5_hash</span>
+<ul>
+<li><div>[49] 0.01% 1 self: 0.01% 1</div><span class="brown"> tcp_parse_md5sig_option</span>
+</ul>
+<li><div>[48] 0.03% 3 self: 0.03% 3</div><span class="brown"> __cgroup_bpf_run_filter_skb</span>
+<li><div>[48] 0.03% 3 self: 0.03% 3</div><span class="brown"> sock_put</span>
+<li><div>[48] 0.02% 2 self: 0.02% 2</div><span class="brown"> rcu_read_unlock_strict</span>
+<li><div>[48] 0.02% 2 self: 0.02% 2</div><span class="brown"> tcp_parse_md5sig_option</span>
+<li><div>[48] 0.01% 1 self: 0.01% 1</div><span class="brown"> __x86_indirect_thunk_rax</span>
+<li><div>[48] 0.01% 1 self: 0.01% 1</div><span class="brown"> inet_ehashfn</span>
+<li><div>[48] 0.01% 1 self: 0.01% 1</div><span class="brown"> tcp_rcv_established</span>
+</ul>
+<li><div>[47] 0.08% 8 self: 0.08% 8</div><span class="brown"> raw_local_deliver</span>
+<li><div>[47] 0.04% 4 self: 0.04% 4</div><span class="brown"> __inet_lookup_established</span>
+<li><div>[47] 0.04% 4 self: 0.04% 4</div><span class="brown"> sock_put</span>
+<li><div>[47] 0.02% 2 self: 0.02% 2</div><span class="brown"> _raw_spin_lock</span>
+<li><div>[47] 0.02% 2 self: 0.02% 2</div><span class="brown"> sk_filter_trim_cap</span>
+<li><div>[47] 0.01% 1 self: 0.01% 1</div><span class="brown"> tcp_v4_do_rcv</span>
+<li><div>[47] 0.01% 1 self: 0.01% 1</div><span class="brown"> tcp_v4_fill_cb</span>
+<li><div>[47] 0.01% 1 self: 0.01% 1</div><span class="brown"> tcp_v4_inbound_md5_hash</span>
+</ul>
+<li><div>[46] 0.02% 2 self: 0.02% 2</div><span class="brown"> raw_local_deliver</span>
+</ul>
+<li><div>[45] 0.48% 46 self: 0.10% 10</div><span class="brown"> nf_hook_slow</span>
+<ul>
+<li><div>[46] 0.16% 15 self: 0.00% 0</div><span class="brown"> iptable_filter_hook?[iptable_filter]</span>
+<ul>
+<li><div>[47] 0.16% 15 self: 0.16% 15</div><span class="brown"> ipt_do_table?[ip_tables]</span>
+</ul>
+<li><div>[46] 0.13% 13 self: 0.01% 1</div><span class="brown"> ipv4_confirm?[nf_conntrack]</span>
+<ul>
+<li><div>[47] 0.10% 10 self: 0.02% 2</div><span class="brown"> nf_confirm?[nf_conntrack]</span>
+<ul>
+<li><div>[48] 0.08% 8 self: 0.08% 8</div><span class="brown"> nf_ct_deliver_cached_events?[nf_conntrack]</span>
+</ul>
+<li><div>[47] 0.02% 2 self: 0.02% 2</div><span class="brown"> nf_ct_deliver_cached_events?[nf_conntrack]</span>
+</ul>
+<li><div>[46] 0.07% 7 self: 0.05% 5</div><span class="brown"> nf_nat_ipv4_local_in?[nf_nat]</span>
+<ul>
+<li><div>[47] 0.02% 2 self: 0.00% 0</div><span class="brown"> nf_nat_ipv4_fn?[nf_nat]</span>
+<ul>
+<li>...
+</ul>
+</ul>
+<li><div>[46] 0.01% 1 self: 0.01% 1</div><span class="brown"> nf_nat_ipv4_fn?[nf_nat]</span>
+</ul>
+<li><div>[45] 0.06% 6 self: 0.06% 6</div><span class="brown"> __x86_retpoline_rax</span>
+<li><div>[45] 0.06% 6 self: 0.06% 6</div><span class="brown"> ip_protocol_deliver_rcu</span>
+<li><div>[45] 0.06% 6 self: 0.06% 6</div><span class="brown"> iptable_filter_hook?[iptable_filter]</span>
+<li><div>[45] 0.04% 4 self: 0.04% 4</div><span class="brown"> ipv4_confirm?[nf_conntrack]</span>
+<li><div>[45] 0.03% 3 self: 0.03% 3</div><span class="brown"> rcu_read_unlock_strict</span>
+<li><div>[45] 0.01% 1 self: 0.01% 1</div><span class="brown"> nf_nat_ipv4_local_in?[nf_nat]</span>
+</ul>
+<li><div>[44] 0.15% 14 self: 0.15% 14</div><span class="brown"> ip_rcv_finish_core.isra.0</span>
+<li><div>[44] 0.06% 6 self: 0.06% 6</div><span class="brown"> nf_hook_slow</span>
+<li><div>[44] 0.05% 5 self: 0.05% 5</div><span class="brown"> ip_local_deliver_finish</span>
+<li><div>[44] 0.01% 1 self: 0.01% 1</div><span class="brown"> rcu_read_unlock_strict</span>
+</ul>
+<li><div>[43] 0.49% 47 self: 0.15% 14</div><span class="brown"> nf_hook_slow</span>
+<ul>
+<li><div>[44] 0.18% 17 self: 0.06% 6</div><span class="brown"> nf_nat_ipv4_pre_routing?[nf_nat]</span>
+<ul>
+<li><div>[45] 0.10% 10 self: 0.01% 1</div><span class="brown"> nf_nat_ipv4_fn?[nf_nat]</span>
+<ul>
+<li><div>[46] 0.08% 8 self: 0.08% 8</div><span class="brown"> nf_nat_inet_fn?[nf_nat]</span>
+<li><div>[46] 0.01% 1 self: 0.01% 1</div><span class="brown"> nf_nat_packet?[nf_nat]</span>
+</ul>
+<li><div>[45] 0.01% 1 self: 0.01% 1</div><span class="brown"> nf_nat_inet_fn?[nf_nat]</span>
+</ul>
+<li><div>[44] 0.07% 7 self: 0.00% 0</div><span class="brown"> ipv4_conntrack_in?[nf_conntrack]</span>
+<ul>
+<li><div>[45] 0.07% 7 self: 0.07% 7</div><span class="brown"> nf_conntrack_in?[nf_conntrack]</span>
+</ul>
+<li><div>[44] 0.05% 5 self: 0.05% 5</div><span class="brown"> nf_conntrack_in?[nf_conntrack]</span>
+<li><div>[44] 0.03% 3 self: 0.03% 3</div><span class="brown"> nf_nat_ipv4_fn?[nf_nat]</span>
+<li><div>[44] 0.01% 1 self: 0.01% 1</div><span class="brown"> ipv4_conntrack_defrag?[nf_defrag_ipv4]</span>
+</ul>
+<li><div>[43] 0.13% 13 self: 0.13% 13</div><span class="brown"> ip_sabotage_in?[br_netfilter]</span>
+<li><div>[43] 0.12% 12 self: 0.12% 12</div><span class="brown"> ip_rcv_core.isra.0</span>
+<li><div>[43] 0.07% 7 self: 0.07% 7</div><span class="brown"> ipv4_conntrack_in?[nf_conntrack]</span>
+<li><div>[43] 0.06% 6 self: 0.06% 6</div><span class="brown"> __x86_retpoline_rax</span>
+<li><div>[43] 0.06% 6 self: 0.06% 6</div><span class="brown"> ip_local_deliver</span>
+<li><div>[43] 0.06% 6 self: 0.06% 6</div><span class="brown"> ip_rcv_finish_core.isra.0</span>
+<li><div>[43] 0.05% 5 self: 0.05% 5</div><span class="brown"> ipv4_conntrack_defrag?[nf_defrag_ipv4]</span>
+<li><div>[43] 0.05% 5 self: 0.05% 5</div><span class="brown"> nf_nat_ipv4_pre_routing?[nf_nat]</span>
+</ul>
+<li><div>[42] 0.64% 62 self: 0.64% 62</div><span class="brown"> __netif_receive_skb_core</span>
+<li><div>[42] 0.06% 6 self: 0.06% 6</div><span class="brown"> ip_rcv_finish</span>
+<li><div>[42] 0.04% 4 self: 0.04% 4</div><span class="brown"> ip_rcv_core.isra.0</span>
+<li><div>[42] 0.04% 4 self: 0.04% 4</div><span class="brown"> nf_hook_slow</span>
+<li><div>[42] 0.03% 3 self: 0.03% 3</div><span class="brown"> rcu_read_unlock_strict</span>
+</ul>
+<li><div>[41] 0.04% 4 self: 0.04% 4</div><span class="brown"> __netif_receive_skb_core</span>
+<li><div>[41] 0.03% 3 self: 0.03% 3</div><span class="brown"> ip_rcv</span>
+</ul>
+<li><div>[40] 0.03% 3 self: 0.03% 3</div><span class="brown"> __netif_receive_skb_one_core</span>
+</ul>
+<li><div>[39] 0.04% 4 self: 0.04% 4</div><span class="brown"> __kfree_skb_flush</span>
+<li><div>[39] 0.01% 1 self: 0.01% 1</div><span class="brown"> __netif_receive_skb</span>
+<li><div>[39] 0.01% 1 self: 0.01% 1</div><span class="brown"> rcu_read_unlock_strict</span>
+</ul>
+<li><div>[38] 0.06% 6 self: 0.06% 6</div><span class="brown"> __kfree_skb_flush</span>
+<li><div>[38] 0.06% 6 self: 0.06% 6</div><span class="brown"> process_backlog</span>
+<li><div>[38] 0.04% 4 self: 0.04% 4</div><span class="brown"> __usecs_to_jiffies</span>
+<li><div>[38] 0.01% 1 self: 0.01% 1</div><span class="brown"> __x86_indirect_thunk_rax</span>
+</ul>
+<li><div>[37] 0.06% 6 self: 0.06% 6</div><span class="brown"> net_rx_action</span>
+</ul>
+</ul>
+</ul>
+</ul>
+<li><div>[33] 2.14% 206 self: 0.00% 0</div><span class="brown"> dev_queue_xmit</span>
+<ul>
+<li><div>[34] 2.07% 199 self: 0.42% 40</div><span class="brown"> __dev_queue_xmit</span>
+<ul>
+<li><div>[35] 1.06% 102 self: 0.05% 5</div><span class="brown"> dev_hard_start_xmit</span>
+<ul>
+<li><div>[36] 0.83% 80 self: 0.22% 21</div><span class="brown"> loopback_xmit</span>
+<ul>
+<li><div>[37] 0.29% 28 self: 0.00% 0</div><span class="brown"> netif_rx</span>
+<ul>
+<li><div>[38] 0.25% 24 self: 0.03% 3</div><span class="brown"> netif_rx_internal</span>
+<ul>
+<li><div>[39] 0.22% 21 self: 0.22% 21</div><span class="brown"> enqueue_to_backlog</span>
+</ul>
+<li><div>[38] 0.04% 4 self: 0.04% 4</div><span class="brown"> enqueue_to_backlog</span>
+</ul>
+<li><div>[37] 0.20% 19 self: 0.20% 19</div><span class="brown"> eth_type_trans</span>
+<li><div>[37] 0.09% 9 self: 0.06% 6</div><span class="brown"> tcp_wfree</span>
+<ul>
+<li><div>[38] 0.03% 3 self: 0.03% 3</div><span class="brown"> sk_free</span>
+</ul>
+<li><div>[37] 0.02% 2 self: 0.02% 2</div><span class="brown"> sk_free</span>
+<li><div>[37] 0.01% 1 self: 0.01% 1</div><span class="brown"> skb_clone_tx_timestamp</span>
+</ul>
+<li><div>[36] 0.05% 5 self: 0.05% 5</div><span class="brown"> eth_type_trans</span>
+<li><div>[36] 0.05% 5 self: 0.05% 5</div><span class="brown"> tcp_wfree</span>
+<li><div>[36] 0.03% 3 self: 0.03% 3</div><span class="brown"> __x86_retpoline_rax</span>
+<li><div>[36] 0.03% 3 self: 0.03% 3</div><span class="brown"> skb_clone_tx_timestamp</span>
+<li><div>[36] 0.01% 1 self: 0.01% 1</div><span class="brown"> netif_rx</span>
+</ul>
+<li><div>[35] 0.39% 38 self: 0.20% 19</div><span class="brown"> validate_xmit_skb</span>
+<ul>
+<li><div>[36] 0.13% 13 self: 0.10% 10</div><span class="brown"> netif_skb_features</span>
+<ul>
+<li><div>[37] 0.03% 3 self: 0.03% 3</div><span class="brown"> skb_network_protocol</span>
+</ul>
+<li><div>[36] 0.05% 5 self: 0.05% 5</div><span class="brown"> validate_xmit_xfrm</span>
+<li><div>[36] 0.01% 1 self: 0.01% 1</div><span class="brown"> skb_csum_hwoffload_help</span>
+</ul>
+<li><div>[35] 0.06% 6 self: 0.06% 6</div><span class="brown"> loopback_xmit</span>
+<li><div>[35] 0.06% 6 self: 0.06% 6</div><span class="brown"> validate_xmit_xfrm</span>
+<li><div>[35] 0.04% 4 self: 0.04% 4</div><span class="brown"> skb_csum_hwoffload_help</span>
+<li><div>[35] 0.02% 2 self: 0.02% 2</div><span class="brown"> __local_bh_enable_ip</span>
+<li><div>[35] 0.01% 1 self: 0.01% 1</div><span class="brown"> __x86_retpoline_rax</span>
+</ul>
+<li><div>[34] 0.04% 4 self: 0.04% 4</div><span class="brown"> dev_hard_start_xmit</span>
+<li><div>[34] 0.03% 3 self: 0.03% 3</div><span class="brown"> __local_bh_enable_ip</span>
+</ul>
+<li><div>[33] 0.03% 3 self: 0.03% 3</div><span class="brown"> do_softirq</span>
+</ul>
+<li><div>[32] 0.03% 3 self: 0.03% 3</div><span class="brown"> __local_bh_enable_ip</span>
+<li><div>[32] 0.02% 2 self: 0.02% 2</div><span class="brown"> ipv4_mtu</span>
+</ul>
+<li><div>[31] 0.32% 31 self: 0.27% 26</div><span class="brown"> __cgroup_bpf_run_filter_skb</span>
+<ul>
+<li><div>[32] 0.03% 3 self: 0.03% 3</div><span class="brown"> migrate_disable</span>
+<li><div>[32] 0.02% 2 self: 0.02% 2</div><span class="brown"> migrate_enable</span>
+</ul>
+<li><div>[31] 0.04% 4 self: 0.04% 4</div><span class="brown"> ip_finish_output2</span>
+<li><div>[31] 0.04% 4 self: 0.04% 4</div><span class="brown"> ipv4_mtu</span>
+<li><div>[31] 0.04% 4 self: 0.04% 4</div><span class="brown"> migrate_disable</span>
+<li><div>[31] 0.01% 1 self: 0.01% 1</div><span class="brown"> migrate_enable</span>
+</ul>
+<li><div>[30] 0.54% 52 self: 0.06% 6</div><span class="brown"> nf_hook_slow</span>
+<ul>
+<li><div>[31] 0.34% 33 self: 0.02% 2</div><span class="brown"> ipv4_confirm?[nf_conntrack]</span>
+<ul>
+<li><div>[32] 0.23% 22 self: 0.08% 8</div><span class="brown"> nf_confirm?[nf_conntrack]</span>
+<ul>
+<li><div>[33] 0.15% 14 self: 0.13% 13</div><span class="brown"> nf_ct_deliver_cached_events?[nf_conntrack]</span>
+<ul>
+<li><div>[34] 0.01% 1 self: 0.01% 1</div><span class="brown"> rcu_read_unlock_strict</span>
+</ul>
+</ul>
+<li><div>[32] 0.09% 9 self: 0.09% 9</div><span class="brown"> nf_ct_deliver_cached_events?[nf_conntrack]</span>
+</ul>
+<li><div>[31] 0.06% 6 self: 0.06% 6</div><span class="brown"> apparmor_ip_postroute.isra.0</span>
+<li><div>[31] 0.04% 4 self: 0.01% 1</div><span class="brown"> nf_nat_ipv4_out?[nf_nat]</span>
+<ul>
+<li><div>[32] 0.02% 2 self: 0.00% 0</div><span class="brown"> nf_nat_ipv4_fn?[nf_nat]</span>
+<ul>
+<li>...
+</ul>
+<li><div>[32] 0.01% 1 self: 0.01% 1</div><span class="brown"> nf_nat_inet_fn?[nf_nat]</span>
+</ul>
+<li><div>[31] 0.02% 2 self: 0.02% 2</div><span class="brown"> apparmor_ipv4_postroute</span>
+<li><div>[31] 0.01% 1 self: 0.01% 1</div><span class="brown"> nf_nat_ipv4_fn?[nf_nat]</span>
+</ul>
+<li><div>[30] 0.08% 8 self: 0.08% 8</div><span class="brown"> apparmor_ipv4_postroute</span>
+<li><div>[30] 0.08% 8 self: 0.08% 8</div><span class="brown"> ipv4_confirm?[nf_conntrack]</span>
+<li><div>[30] 0.05% 5 self: 0.05% 5</div><span class="brown"> __ip_finish_output</span>
+<li><div>[30] 0.04% 4 self: 0.04% 4</div><span class="brown"> __cgroup_bpf_run_filter_skb</span>
+<li><div>[30] 0.03% 3 self: 0.03% 3</div><span class="brown"> __x86_retpoline_rax</span>
+<li><div>[30] 0.02% 2 self: 0.02% 2</div><span class="brown"> nf_nat_ipv4_out?[nf_nat]</span>
+</ul>
+<li><div>[29] 5.64% 543 self: 0.06% 6</div><span class="brown"> __ip_local_out</span>
+<ul>
+<li><div>[30] 4.72% 455 self: 0.16% 15</div><span class="brown"> nf_hook_slow</span>
+<ul>
+<li><div>[31] 3.18% 306 self: 0.01% 1</div><span class="brown"> ipv4_conntrack_local?[nf_conntrack]</span>
+<ul>
+<li><div>[32] 2.88% 277 self: 0.35% 34</div><span class="brown"> nf_conntrack_in?[nf_conntrack]</span>
+<ul>
+<li><div>[33] 1.28% 123 self: 0.51% 49</div><span class="brown"> nf_conntrack_tcp_packet?[nf_conntrack]</span>
+<ul>
+<li><div>[34] 0.60% 58 self: 0.37% 36</div><span class="brown"> tcp_in_window?[nf_conntrack]</span>
+<ul>
+<li><div>[35] 0.23% 22 self: 0.23% 22</div><span class="brown"> nf_ct_seq_offset?[nf_conntrack]</span>
+</ul>
+<li><div>[34] 0.09% 9 self: 0.09% 9</div><span class="brown"> nf_ct_seq_offset?[nf_conntrack]</span>
+<li><div>[34] 0.04% 4 self: 0.04% 4</div><span class="brown"> nf_ct_acct_add?[nf_conntrack]</span>
+<li><div>[34] 0.02% 2 self: 0.00% 0</div><span class="brown"> _raw_spin_unlock_bh</span>
+<ul>
+<li>...
+</ul>
+<li><div>[34] 0.01% 1 self: 0.00% 0</div><span class="brown"> __nf_ct_refresh_acct?[nf_conntrack]</span>
+<ul>
+<li>...
+</ul>
+</ul>
+<li><div>[33] 0.56% 54 self: 0.56% 54</div><span class="brown"> __nf_conntrack_find_get?[nf_conntrack]</span>
+<li><div>[33] 0.23% 22 self: 0.23% 22</div><span class="brown"> nf_ct_get_tuple?[nf_conntrack]</span>
+<li><div>[33] 0.19% 18 self: 0.19% 18</div><span class="brown"> hash_conntrack_raw?[nf_conntrack]</span>
+<li><div>[33] 0.15% 14 self: 0.15% 14</div><span class="brown"> get_l4proto?[nf_conntrack]</span>
+<li><div>[33] 0.05% 5 self: 0.05% 5</div><span class="brown"> __nf_ct_refresh_acct?[nf_conntrack]</span>
+<li><div>[33] 0.03% 3 self: 0.03% 3</div><span class="brown"> _raw_spin_lock_bh</span>
+<li><div>[33] 0.02% 2 self: 0.02% 2</div><span class="brown"> _raw_spin_unlock_bh</span>
+<li><div>[33] 0.02% 2 self: 0.02% 2</div><span class="brown"> tcp_in_window?[nf_conntrack]</span>
+</ul>
+<li><div>[32] 0.16% 15 self: 0.16% 15</div><span class="brown"> get_l4proto?[nf_conntrack]</span>
+<li><div>[32] 0.05% 5 self: 0.05% 5</div><span class="brown"> nf_conntrack_tcp_packet?[nf_conntrack]</span>
+<li><div>[32] 0.04% 4 self: 0.04% 4</div><span class="brown"> nf_ct_get_tuple?[nf_conntrack]</span>
+<li><div>[32] 0.03% 3 self: 0.03% 3</div><span class="brown"> hash_conntrack_raw?[nf_conntrack]</span>
+<li><div>[32] 0.01% 1 self: 0.01% 1</div><span class="brown"> __nf_conntrack_find_get?[nf_conntrack]</span>
+</ul>
+<li><div>[31] 0.67% 65 self: 0.00% 0</div><span class="brown"> iptable_filter_hook?[iptable_filter]</span>
+<ul>
+<li><div>[32] 0.66% 64 self: 0.66% 64</div><span class="brown"> ipt_do_table?[ip_tables]</span>
+<li><div>[32] 0.01% 1 self: 0.01% 1</div><span class="brown"> __local_bh_enable_ip</span>
+</ul>
+<li><div>[31] 0.43% 41 self: 0.04% 4</div><span class="brown"> nf_nat_ipv4_local_fn?[nf_nat]</span>
+<ul>
+<li><div>[32] 0.27% 26 self: 0.00% 0</div><span class="brown"> nf_nat_ipv4_fn?[nf_nat]</span>
+<ul>
+<li><div>[33] 0.15% 14 self: 0.15% 14</div><span class="brown"> nf_nat_packet?[nf_nat]</span>
+<li><div>[33] 0.12% 12 self: 0.12% 12</div><span class="brown"> nf_nat_inet_fn?[nf_nat]</span>
+</ul>
+<li><div>[32] 0.11% 11 self: 0.11% 11</div><span class="brown"> nf_nat_inet_fn?[nf_nat]</span>
+</ul>
+<li><div>[31] 0.13% 13 self: 0.13% 13</div><span class="brown"> ipv4_conntrack_defrag?[nf_defrag_ipv4]</span>
+<li><div>[31] 0.12% 12 self: 0.12% 12</div><span class="brown"> ipt_do_table?[ip_tables]</span>
+<li><div>[31] 0.03% 3 self: 0.03% 3</div><span class="brown"> nf_conntrack_in?[nf_conntrack]</span>
+</ul>
+<li><div>[30] 0.27% 26 self: 0.27% 26</div><span class="brown"> iptable_filter_hook?[iptable_filter]</span>
+<li><div>[30] 0.22% 21 self: 0.22% 21</div><span class="brown"> ipv4_conntrack_defrag?[nf_defrag_ipv4]</span>
+<li><div>[30] 0.21% 20 self: 0.21% 20</div><span class="brown"> ipv4_conntrack_local?[nf_conntrack]</span>
+<li><div>[30] 0.09% 9 self: 0.09% 9</div><span class="brown"> nf_nat_ipv4_local_fn?[nf_nat]</span>
+<li><div>[30] 0.05% 5 self: 0.05% 5</div><span class="brown"> ip_send_check</span>
+<li><div>[30] 0.01% 1 self: 0.01% 1</div><span class="brown"> __x86_retpoline_rax</span>
+</ul>
+<li><div>[29] 0.18% 17 self: 0.18% 17</div><span class="brown"> nf_hook_slow</span>
+<li><div>[29] 0.07% 7 self: 0.07% 7</div><span class="brown"> ip_send_check</span>
+<li><div>[29] 0.06% 6 self: 0.06% 6</div><span class="brown"> ip_finish_output</span>
+<li><div>[29] 0.02% 2 self: 0.02% 2</div><span class="brown"> rcu_read_unlock_strict</span>
+</ul>
+<li><div>[28] 0.12% 12 self: 0.02% 2</div><span class="brown"> __sk_dst_check</span>
+<ul>
+<li><div>[29] 0.10% 10 self: 0.10% 10</div><span class="brown"> ipv4_dst_check</span>
+</ul>
+<li><div>[28] 0.05% 5 self: 0.05% 5</div><span class="brown"> ip_output</span>
+<li><div>[28] 0.04% 4 self: 0.04% 4</div><span class="brown"> ipv4_dst_check</span>
+<li><div>[28] 0.03% 3 self: 0.03% 3</div><span class="brown"> __ip_local_out</span>
+<li><div>[28] 0.01% 1 self: 0.01% 1</div><span class="brown"> __x86_retpoline_rax</span>
+</ul>
+<li><div>[27] 0.05% 5 self: 0.05% 5</div><span class="brown"> ip_local_out</span>
+<li><div>[27] 0.04% 4 self: 0.04% 4</div><span class="brown"> __sk_dst_check</span>
+<li><div>[27] 0.02% 2 self: 0.02% 2</div><span class="brown"> ip_copy_addrs</span>
+<li><div>[27] 0.01% 1 self: 0.01% 1</div><span class="brown"> rcu_read_unlock_strict</span>
+<li><div>[27] 0.01% 1 self: 0.01% 1</div><span class="brown"> skb_push</span>
+</ul>
+<li><div>[26] 0.30% 29 self: 0.06% 6</div><span class="brown"> skb_clone</span>
+<ul>
+<li><div>[27] 0.20% 19 self: 0.13% 13</div><span class="brown"> __skb_clone</span>
+<ul>
+<li><div>[28] 0.06% 6 self: 0.06% 6</div><span class="brown"> __copy_skb_header</span>
+</ul>
+<li><div>[27] 0.04% 4 self: 0.04% 4</div><span class="brown"> __copy_skb_header</span>
+</ul>
+<li><div>[26] 0.07% 7 self: 0.07% 7</div><span class="brown"> __skb_clone</span>
+<li><div>[26] 0.05% 5 self: 0.05% 5</div><span class="brown"> __tcp_select_window</span>
+<li><div>[26] 0.04% 4 self: 0.04% 4</div><span class="brown"> __tcp_v4_send_check</span>
+<li><div>[26] 0.04% 4 self: 0.04% 4</div><span class="brown"> tcp_options_write</span>
+<li><div>[26] 0.03% 3 self: 0.03% 3</div><span class="brown"> tcp_established_options</span>
+<li><div>[26] 0.02% 2 self: 0.02% 2</div><span class="brown"> bictcp_cwnd_event</span>
+<li><div>[26] 0.02% 2 self: 0.02% 2</div><span class="brown"> tcp_rate_skb_sent</span>
+<li><div>[26] 0.01% 1 self: 0.01% 1</div><span class="brown"> __ip_queue_xmit</span>
+<li><div>[26] 0.01% 1 self: 0.01% 1</div><span class="brown"> bpf_skops_write_hdr_opt.isra.0</span>
+<li><div>[26] 0.01% 1 self: 0.01% 1</div><span class="brown"> tcp_update_skb_after_send</span>
+</ul>
+<li><div>[25] 0.46% 44 self: 0.11% 11</div><span class="brown"> tcp_event_new_data_sent</span>
+<ul>
+<li><div>[26] 0.26% 25 self: 0.04% 4</div><span class="brown"> tcp_rearm_rto</span>
+<ul>
+<li><div>[27] 0.22% 21 self: 0.00% 0</div><span class="brown"> sk_reset_timer</span>
+<ul>
+<li><div>[28] 0.22% 21 self: 0.08% 8</div><span class="brown"> mod_timer</span>
+<ul>
+<li><div>[29] 0.12% 12 self: 0.12% 12</div><span class="brown"> __lock_text_start</span>
+<li><div>[29] 0.01% 1 self: 0.01% 1</div><span class="brown"> lock_timer_base</span>
+</ul>
+</ul>
+</ul>
+<li><div>[26] 0.04% 4 self: 0.04% 4</div><span class="brown"> rb_insert_color</span>
+<li><div>[26] 0.04% 4 self: 0.04% 4</div><span class="brown"> tcp_rbtree_insert</span>
+</ul>
+<li><div>[25] 0.13% 13 self: 0.10% 10</div><span class="brown"> tcp_schedule_loss_probe</span>
+<ul>
+<li><div>[26] 0.02% 2 self: 0.00% 0</div><span class="brown"> sk_reset_timer</span>
+<ul>
+<li>...
+</ul>
+<li><div>[26] 0.01% 1 self: 0.01% 1</div><span class="brown"> __usecs_to_jiffies</span>
+</ul>
+<li><div>[25] 0.09% 9 self: 0.09% 9</div><span class="brown"> bpf_skops_write_hdr_opt.isra.0</span>
+<li><div>[25] 0.09% 9 self: 0.09% 9</div><span class="brown"> read_tsc</span>
+<li><div>[25] 0.07% 7 self: 0.07% 7</div><span class="brown"> bictcp_cwnd_event</span>
+<li><div>[25] 0.07% 7 self: 0.07% 7</div><span class="brown"> tcp_rearm_rto</span>
+<li><div>[25] 0.06% 6 self: 0.06% 6</div><span class="brown"> tcp_update_skb_after_send</span>
+<li><div>[25] 0.06% 6 self: 0.06% 6</div><span class="brown"> ip_queue_xmit</span>
+<li><div>[25] 0.06% 6 self: 0.06% 6</div><span class="brown"> skb_clone</span>
+<li><div>[25] 0.05% 5 self: 0.05% 5</div><span class="brown"> tcp_v4_send_check</span>
+<li><div>[25] 0.05% 5 self: 0.05% 5</div><span class="brown"> ktime_get</span>
+<li><div>[25] 0.04% 4 self: 0.04% 4</div><span class="brown"> jiffies_to_usecs</span>
+<li><div>[25] 0.04% 4 self: 0.04% 4</div><span class="brown"> __usecs_to_jiffies</span>
+<li><div>[25] 0.03% 3 self: 0.03% 3</div><span class="brown"> tcp_options_write</span>
+<li><div>[25] 0.03% 3 self: 0.03% 3</div><span class="brown"> tcp_rate_skb_sent</span>
+<li><div>[25] 0.03% 3 self: 0.03% 3</div><span class="brown"> tcp_small_queue_check.isra.0</span>
+<li><div>[25] 0.02% 2 self: 0.02% 2</div><span class="brown"> rb_first</span>
+<li><div>[25] 0.02% 2 self: 0.02% 2</div><span class="brown"> skb_push</span>
+<li><div>[25] 0.02% 2 self: 0.02% 2</div><span class="brown"> tcp_established_options</span>
+<li><div>[25] 0.02% 2 self: 0.02% 2</div><span class="brown"> __x86_retpoline_rax</span>
+<li><div>[25] 0.01% 1 self: 0.01% 1</div><span class="brown"> tcp_mtu_probe</span>
+<li><div>[25] 0.01% 1 self: 0.01% 1</div><span class="brown"> __tcp_select_window</span>
+</ul>
+<li><div>[24] 0.08% 8 self: 0.08% 8</div><span class="brown"> tcp_event_new_data_sent</span>
+<li><div>[24] 0.06% 6 self: 0.06% 6</div><span class="brown"> tcp_mtu_probe</span>
+<li><div>[24] 0.05% 5 self: 0.05% 5</div><span class="brown"> __tcp_transmit_skb</span>
+<li><div>[24] 0.03% 3 self: 0.03% 3</div><span class="brown"> tcp_chrono_stop</span>
+<li><div>[24] 0.02% 2 self: 0.02% 2</div><span class="brown"> ktime_get</span>
+<li><div>[24] 0.01% 1 self: 0.01% 1</div><span class="brown"> tcp_schedule_loss_probe</span>
+<li><div>[24] 0.01% 1 self: 0.01% 1</div><span class="brown"> tcp_small_queue_check.isra.0</span>
+</ul>
+<li><div>[23] 0.04% 4 self: 0.04% 4</div><span class="brown"> tcp_write_xmit</span>
+</ul>
+<li><div>[22] 2.06% 198 self: 0.15% 14</div><span class="brown"> sk_stream_alloc_skb</span>
+<ul>
+<li><div>[23] 1.82% 175 self: 0.19% 18</div><span class="brown"> __alloc_skb</span>
+<ul>
+<li><div>[24] 0.70% 67 self: 0.02% 2</div><span class="brown"> __kmalloc_reserve.isra.0</span>
+<ul>
+<li><div>[25] 0.50% 48 self: 0.32% 31</div><span class="brown"> __kmalloc_node_track_caller</span>
+<ul>
+<li><div>[26] 0.11% 11 self: 0.11% 11</div><span class="brown"> kmalloc_slab</span>
+<li><div>[26] 0.04% 4 self: 0.04% 4</div><span class="brown"> __slab_alloc</span>
+<li><div>[26] 0.02% 2 self: 0.02% 2</div><span class="brown"> rcu_all_qs</span>
+</ul>
+<li><div>[25] 0.09% 9 self: 0.09% 9</div><span class="brown"> memset_erms</span>
+<li><div>[25] 0.05% 5 self: 0.05% 5</div><span class="brown"> _cond_resched</span>
+<li><div>[25] 0.02% 2 self: 0.02% 2</div><span class="brown"> should_failslab</span>
+<li><div>[25] 0.01% 1 self: 0.01% 1</div><span class="brown"> kmalloc_slab</span>
+</ul>
+<li><div>[24] 0.51% 49 self: 0.50% 48</div><span class="brown"> kmem_cache_alloc_node</span>
+<ul>
+<li><div>[25] 0.01% 1 self: 0.01% 1</div><span class="brown"> rcu_all_qs</span>
+</ul>
+<li><div>[24] 0.26% 25 self: 0.00% 0</div><span class="brown"> ksize</span>
+<ul>
+<li><div>[25] 0.26% 25 self: 0.26% 25</div><span class="brown"> __ksize</span>
+</ul>
+<li><div>[24] 0.06% 6 self: 0.06% 6</div><span class="brown"> __ksize</span>
+<li><div>[24] 0.03% 3 self: 0.03% 3</div><span class="brown"> memset_erms</span>
+<li><div>[24] 0.03% 3 self: 0.03% 3</div><span class="brown"> should_failslab</span>
+<li><div>[24] 0.02% 2 self: 0.02% 2</div><span class="brown"> __kmalloc_node_track_caller</span>
+<li><div>[24] 0.01% 1 self: 0.01% 1</div><span class="brown"> __slab_alloc</span>
+<li><div>[24] 0.01% 1 self: 0.01% 1</div><span class="brown"> _cond_resched</span>
+</ul>
+<li><div>[23] 0.05% 5 self: 0.05% 5</div><span class="brown"> __kmalloc_reserve.isra.0</span>
+<li><div>[23] 0.04% 4 self: 0.04% 4</div><span class="brown"> ksize</span>
+</ul>
+<li><div>[22] 0.48% 46 self: 0.01% 1</div><span class="brown"> tcp_send_mss</span>
+<ul>
+<li><div>[23] 0.38% 37 self: 0.20% 19</div><span class="brown"> tcp_current_mss</span>
+<ul>
+<li><div>[24] 0.16% 15 self: 0.16% 15</div><span class="brown"> ipv4_mtu</span>
+<li><div>[24] 0.03% 3 self: 0.03% 3</div><span class="brown"> tcp_established_options</span>
+</ul>
+<li><div>[23] 0.06% 6 self: 0.06% 6</div><span class="brown"> ipv4_mtu</span>
+<li><div>[23] 0.01% 1 self: 0.01% 1</div><span class="brown"> __x86_retpoline_rax</span>
+<li><div>[23] 0.01% 1 self: 0.01% 1</div><span class="brown"> tcp_established_options</span>
+</ul>
+<li><div>[22] 0.34% 33 self: 0.29% 28</div><span class="brown"> skb_entail</span>
+<ul>
+<li><div>[23] 0.05% 5 self: 0.05% 5</div><span class="brown"> tcp_chrono_start</span>
+</ul>
+<li><div>[22] 0.23% 22 self: 0.03% 3</div><span class="brown"> _copy_from_iter_full</span>
+<ul>
+<li><div>[23] 0.15% 14 self: 0.15% 14</div><span class="brown"> copy_user_enhanced_fast_string</span>
+<li><div>[23] 0.05% 5 self: 0.05% 5</div><span class="brown"> iov_iter_advance</span>
+</ul>
+<li><div>[22] 0.22% 21 self: 0.01% 1</div><span class="brown"> sk_page_frag_refill</span>
+<ul>
+<li><div>[23] 0.21% 20 self: 0.20% 19</div><span class="brown"> skb_page_frag_refill</span>
+<ul>
+<li><div>[24] 0.01% 1 self: 0.00% 0</div><span class="brown"> alloc_pages_current</span>
+<ul>
+<li>...
+</ul>
+</ul>
+</ul>
+<li><div>[22] 0.13% 13 self: 0.06% 6</div><span class="brown"> __check_object_size</span>
+<ul>
+<li><div>[23] 0.07% 7 self: 0.07% 7</div><span class="brown"> __virt_addr_valid</span>
+</ul>
+<li><div>[22] 0.04% 4 self: 0.04% 4</div><span class="brown"> sk_forced_mem_schedule</span>
+<li><div>[22] 0.04% 4 self: 0.04% 4</div><span class="brown"> copyin</span>
+<li><div>[22] 0.04% 4 self: 0.04% 4</div><span class="brown"> tcp_rate_check_app_limited</span>
+<li><div>[22] 0.03% 3 self: 0.03% 3</div><span class="brown"> check_stack_object</span>
+<li><div>[22] 0.02% 2 self: 0.02% 2</div><span class="brown"> skb_page_frag_refill</span>
+<li><div>[22] 0.02% 2 self: 0.02% 2</div><span class="brown"> tcp_chrono_start</span>
+<li><div>[22] 0.02% 2 self: 0.02% 2</div><span class="brown"> tcp_stream_memory_free</span>
+<li><div>[22] 0.01% 1 self: 0.01% 1</div><span class="brown"> tcp_current_mss</span>
+<li><div>[22] 0.01% 1 self: 0.01% 1</div><span class="brown"> __tcp_push_pending_frames</span>
+<li><div>[22] 0.01% 1 self: 0.01% 1</div><span class="brown"> tcp_tx_timestamp</span>
+</ul>
+<li><div>[21] 0.15% 14 self: 0.15% 14</div><span class="brown"> tcp_push</span>
+<li><div>[21] 0.09% 9 self: 0.04% 4</div><span class="brown"> release_sock</span>
+<ul>
+<li><div>[22] 0.04% 4 self: 0.01% 1</div><span class="brown"> _raw_spin_unlock_bh</span>
+<ul>
+<li><div>[23] 0.03% 3 self: 0.03% 3</div><span class="brown"> __local_bh_enable_ip</span>
+</ul>
+<li><div>[22] 0.01% 1 self: 0.01% 1</div><span class="brown"> tcp_release_cb</span>
+</ul>
+<li><div>[21] 0.07% 7 self: 0.07% 7</div><span class="brown"> _raw_spin_lock_bh</span>
+<li><div>[21] 0.07% 7 self: 0.07% 7</div><span class="brown"> sock_zerocopy_put</span>
+<li><div>[21] 0.06% 6 self: 0.06% 6</div><span class="brown"> tcp_release_cb</span>
+<li><div>[21] 0.05% 5 self: 0.05% 5</div><span class="brown"> sk_stream_alloc_skb</span>
+<li><div>[21] 0.04% 4 self: 0.02% 2</div><span class="brown"> lock_sock_nested</span>
+<ul>
+<li><div>[22] 0.01% 1 self: 0.01% 1</div><span class="brown"> __local_bh_enable_ip</span>
+<li><div>[22] 0.01% 1 self: 0.01% 1</div><span class="brown"> rcu_all_qs</span>
+</ul>
+<li><div>[21] 0.04% 4 self: 0.04% 4</div><span class="brown"> sk_page_frag_refill</span>
+<li><div>[21] 0.04% 4 self: 0.04% 4</div><span class="brown"> tcp_tx_timestamp</span>
+<li><div>[21] 0.01% 1 self: 0.01% 1</div><span class="brown"> __local_bh_enable_ip</span>
+<li><div>[21] 0.01% 1 self: 0.01% 1</div><span class="brown"> _copy_from_iter_full</span>
+<li><div>[21] 0.01% 1 self: 0.01% 1</div><span class="brown"> _raw_spin_unlock_bh</span>
+<li><div>[21] 0.01% 1 self: 0.01% 1</div><span class="brown"> skb_entail</span>
+<li><div>[21] 0.01% 1 self: 0.01% 1</div><span class="brown"> tcp_rate_check_app_limited</span>
+<li><div>[21] 0.01% 1 self: 0.01% 1</div><span class="brown"> tcp_stream_memory_free</span>
+</ul>
+<li><div>[20] 0.07% 7 self: 0.07% 7</div><span class="brown"> release_sock</span>
+<li><div>[20] 0.03% 3 self: 0.03% 3</div><span class="brown"> lock_sock_nested</span>
+<li><div>[20] 0.01% 1 self: 0.01% 1</div><span class="brown"> tcp_sendmsg_locked</span>
+</ul>
+<li><div>[19] 0.48% 46 self: 0.08% 8</div><span class="brown"> security_socket_sendmsg</span>
+<ul>
+<li><div>[20] 0.37% 36 self: 0.00% 0</div><span class="brown"> apparmor_socket_sendmsg</span>
+<ul>
+<li><div>[21] 0.37% 36 self: 0.08% 8</div><span class="brown"> aa_sk_perm</span>
+<ul>
+<li><div>[22] 0.25% 24 self: 0.09% 9</div><span class="brown"> aa_label_sk_perm.part.0</span>
+<ul>
+<li><div>[23] 0.11% 11 self: 0.06% 6</div><span class="brown"> aa_profile_af_perm</span>
+<ul>
+<li><div>[24] 0.03% 3 self: 0.03% 3</div><span class="brown"> aa_check_perms</span>
+<li><div>[24] 0.02% 2 self: 0.02% 2</div><span class="brown"> aa_apply_modes_to_perms</span>
+</ul>
+<li><div>[23] 0.02% 2 self: 0.02% 2</div><span class="brown"> aa_check_perms</span>
+<li><div>[23] 0.01% 1 self: 0.01% 1</div><span class="brown"> aa_apply_modes_to_perms</span>
+<li><div>[23] 0.01% 1 self: 0.01% 1</div><span class="brown"> aa_label_next_confined</span>
+</ul>
+<li><div>[22] 0.03% 3 self: 0.03% 3</div><span class="brown"> aa_label_next_confined</span>
+<li><div>[22] 0.01% 1 self: 0.01% 1</div><span class="brown"> aa_profile_af_perm</span>
+</ul>
+</ul>
+<li><div>[20] 0.02% 2 self: 0.02% 2</div><span class="brown"> aa_sk_perm</span>
+</ul>
+<li><div>[19] 0.07% 7 self: 0.07% 7</div><span class="brown"> apparmor_socket_sendmsg</span>
+<li><div>[19] 0.02% 2 self: 0.02% 2</div><span class="brown"> inet_send_prepare</span>
+<li><div>[19] 0.02% 2 self: 0.02% 2</div><span class="brown"> tcp_sendmsg</span>
+</ul>
+<li><div>[18] 0.16% 15 self: 0.00% 0</div><span class="brown"> sockfd_lookup_light</span>
+<ul>
+<li><div>[19] 0.12% 12 self: 0.00% 0</div><span class="brown"> __fdget</span>
+<ul>
+<li><div>[20] 0.12% 12 self: 0.00% 0</div><span class="brown"> __fget_light</span>
+<ul>
+<li><div>[21] 0.10% 10 self: 0.10% 10</div><span class="brown"> __fget_files</span>
+<li><div>[21] 0.02% 2 self: 0.02% 2</div><span class="brown"> rcu_read_unlock_strict</span>
+</ul>
+</ul>
+<li><div>[19] 0.03% 3 self: 0.03% 3</div><span class="brown"> __fget_light</span>
+</ul>
+<li><div>[18] 0.07% 7 self: 0.07% 7</div><span class="brown"> fput_many</span>
+<li><div>[18] 0.04% 4 self: 0.04% 4</div><span class="brown"> inet6_sendmsg</span>
+<li><div>[18] 0.02% 2 self: 0.02% 2</div><span class="brown"> __fdget</span>
+<li><div>[18] 0.01% 1 self: 0.01% 1</div><span class="brown"> fput</span>
+<li><div>[18] 0.01% 1 self: 0.01% 1</div><span class="brown"> security_socket_sendmsg</span>
+</ul>
+<li><div>[17] 0.04% 4 self: 0.04% 4</div><span class="brown"> fput</span>
+<li><div>[17] 0.02% 2 self: 0.02% 2</div><span class="brown"> import_single_range</span>
+<li><div>[17] 0.01% 1 self: 0.01% 1</div><span class="brown"> sock_sendmsg</span>
+</ul>
+<li><div>[16] 0.40% 39 self: 0.40% 39</div><span class="brown"> syscall_enter_from_user_mode</span>
+<li><div>[16] 0.06% 6 self: 0.06% 6</div><span class="brown"> __sys_sendto</span>
+<li><div>[16] 0.04% 4 self: 0.02% 2</div><span class="brown"> syscall_exit_to_user_mode</span>
+<ul>
+<li><div>[17] 0.02% 2 self: 0.01% 1</div><span class="brown"> exit_to_user_mode_prepare</span>
+<ul>
+<li>...
+</ul>
+</ul>
+</ul>
+<li><div>[15] 0.10% 10 self: 0.10% 10</div><span class="brown"> __x64_sys_sendto</span>
+<li><div>[15] 0.06% 6 self: 0.06% 6</div><span class="brown"> syscall_exit_to_user_mode</span>
+</ul>
+</ul>
+<li><div>[13] 0.74% 71 self: 0.16% 15</div><span class="red"> Java_one_nio_net_NativeSocket_write</span>
+<ul>
+<li><div>[14] 0.37% 36 self: 0.15% 14</div><span class="red"> jni_GetByteArrayRegion</span>
+<ul>
+<li><div>[15] 0.11% 11 self: 0.06% 6</div><span class="red"> check_bounds(int, int, int, Thread*)</span>
+<ul>
+<li><div>[16] 0.05% 5 self: 0.05% 5</div><span class="yellow"> ResourceMark::reset_to_mark()</span>
+</ul>
+<li><div>[15] 0.08% 8 self: 0.08% 8</div><span class="yellow"> ThreadStateTransition::transition_from_native(JavaThread*, JavaThreadState) [clone .constprop.0]</span>
+<li><div>[15] 0.03% 3 self: 0.03% 3</div><span class="yellow"> HandleMark::pop_and_restore()</span>
+</ul>
+<li><div>[14] 0.08% 8 self: 0.08% 8</div><span class="red"> /usr/lib/x86_64-linux-gnu/libc-2.31.so</span>
+<li><div>[14] 0.04% 4 self: 0.04% 4</div><span class="yellow"> AccessInternal::PostRuntimeDispatch&lt;G1BarrierSet::AccessBarrier&lt;548980ul, G1BarrierSet&gt;, (AccessInternal::BarrierType)2, 548980ul&gt;::oop_access_barrier(void*)</span>
+<li><div>[14] 0.03% 3 self: 0.03% 3</div><span class="yellow"> HandleMark::pop_and_restore()</span>
+<li><div>[14] 0.03% 3 self: 0.03% 3</div><span class="yellow"> void AccessInternal::arraycopy_conjoint&lt;signed char&gt;(signed char*, signed char*, unsigned long)</span>
+<li><div>[14] 0.02% 2 self: 0.02% 2</div><span class="yellow"> ThreadStateTransition::transition_from_native(JavaThread*, JavaThreadState) [clone .constprop.0]</span>
+</ul>
+<li><div>[13] 0.09% 9 self: 0.09% 9</div><span class="red"> __pthread_disable_asynccancel</span>
+<li><div>[13] 0.06% 6 self: 0.06% 6</div><span class="red"> jni_GetByteArrayRegion</span>
+<li><div>[13] 0.05% 5 self: 0.05% 5</div><span class="red"> __pthread_enable_asynccancel</span>
+</ul>
+</ul>
+<li><div>[11] 0.17% 16 self: 0.17% 16</div><span class="green"> one/nio/http/Response.toBytes</span>
+<li><div>[11] 0.10% 10 self: 0.10% 10</div><span class="green"> one/nio/net/NativeSocket.write</span>
+</ul>
+<li><div>[10] 0.01% 1 self: 0.00% 0</div><span class="yellow"> OptoRuntime::new_instance_C(Klass*, JavaThread*)</span>
+<ul>
+<li>...
+</ul>
+<li><div>[10] 0.01% 1 self: 0.00% 0</div><span class="red"> __pthread_cond_signal</span>
+<ul>
+<li>...
+</ul>
+</ul>
+<li><div>[9] 1.29% 124 self: 0.17% 16</div><span class="green"> one/nio/http/Response.toBytes</span>
+<ul>
+<li><div>[10] 1.09% 105 self: 0.00% 0</div><span class="green"> one/nio/util/ByteArrayBuilder.append</span>
+<ul>
+<li><div>[11] 0.61% 59 self: 0.47% 45</div><span class="green"> one/nio/util/Utf8.length</span>
+<ul>
+<li><div>[12] 0.15% 14 self: 0.15% 14</div><span class="red"> jbyte_disjoint_arraycopy</span>
+</ul>
+<li><div>[11] 0.48% 46 self: 0.00% 0</div><span class="green"> one/nio/util/Utf8.write</span>
+<ul>
+<li><div>[12] 0.48% 46 self: 0.00% 0</div><span class="green"> one/nio/util/Utf8.write</span>
+<ul>
+<li><div>[13] 0.48% 46 self: 0.47% 45</div><span class="green"> one/nio/util/Utf8.write</span>
+<ul>
+<li><div>[14] 0.01% 1 self: 0.00% 0</div><span class="brown"> asm_sysvec_apic_timer_interrupt</span>
+<ul>
+<li>...
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+<li><div>[10] 0.02% 2 self: 0.01% 1</div><span class="green"> one/nio/util/ByteArrayBuilder.&lt;init&gt;</span>
+<ul>
+<li>...
+</ul>
+<li><div>[10] 0.01% 1 self: 0.01% 1</div><span class="red"> _new_array_Java</span>
+</ul>
+</ul>
+<li><div>[8] 1.00% 96 self: 0.27% 26</div><span class="green"> one/nio/http/Request.getHeader</span>
+<ul>
+<li><div>[9] 0.72% 69 self: 0.07% 7</div><span class="green"> java/lang/String.regionMatches</span>
+<ul>
+<li><div>[10] 0.64% 62 self: 0.64% 62</div><span class="green"> java/lang/StringLatin1.regionMatchesCI</span>
+</ul>
+<li><div>[9] 0.01% 1 self: 0.01% 1</div><span class="green"> one/nio/http/Request.trim</span>
+</ul>
+<li><div>[8] 0.50% 48 self: 0.12% 12</div><span class="green"> java/lang/String.equalsIgnoreCase</span>
+<ul>
+<li><div>[9] 0.30% 29 self: 0.30% 29</div><span class="yellow"> os::javaTimeMillis()</span>
+<li><div>[9] 0.07% 7 self: 0.07% 7</div><span class="red"> clock_gettime</span>
+</ul>
+</ul>
+<li><div>[7] 7.19% 693 self: 0.21% 20</div><span class="green"> ru/mail/polis/service/medalexey/ServiceImpl.entity</span>
+<ul>
+<li><div>[8] 6.92% 667 self: 0.01% 1</div><span class="green"> ru/mail/polis/service/medalexey/ServiceImpl.put</span>
+<ul>
+<li><div>[9] 5.98% 576 self: 0.16% 15</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/LsmDAO.upsert</span>
+<ul>
+<li><div>[10] 5.75% 554 self: 0.00% 0</div><span class="green"> java/util/concurrent/ConcurrentSkipListMap.put</span>
+<ul>
+<li><div>[11] 5.75% 554 self: 0.49% 47</div><span class="green"> java/util/concurrent/ConcurrentSkipListMap.doPut</span>
+<ul>
+<li><div>[12] 2.37% 228 self: 0.01% 1</div><span class="green"> java/lang/invoke/VarHandleGuards.guard_LLL_Z</span>
+<ul>
+<li><div>[13] 2.36% 227 self: 2.09% 201</div><span class="green"> java/lang/invoke/VarHandleReferences$FieldInstanceReadWrite.compareAndSet</span>
+<ul>
+<li><div>[14] 0.26% 25 self: 0.26% 25</div><span class="green"> java/nio/ByteBuffer.compareTo</span>
+<li><div>[14] 0.01% 1 self: 0.00% 0</div><span class="brown"> asm_sysvec_apic_timer_interrupt</span>
+<ul>
+<li>...
+</ul>
+</ul>
+</ul>
+<li><div>[12] 2.12% 204 self: 0.04% 4</div><span class="green"> java/util/concurrent/ConcurrentSkipListMap.cpr</span>
+<ul>
+<li><div>[13] 2.08% 200 self: 0.03% 3</div><span class="green"> java/nio/ByteBuffer.compareTo</span>
+<ul>
+<li><div>[14] 2.03% 196 self: 0.20% 19</div><span class="green"> java/nio/ByteBuffer.compareTo</span>
+<ul>
+<li><div>[15] 1.58% 152 self: 0.34% 33</div><span class="green"> java/nio/BufferMismatch.mismatch</span>
+<ul>
+<li><div>[16] 0.65% 63 self: 0.65% 63</div><span class="red"> vectorizedMismatch</span>
+<li><div>[16] 0.58% 56 self: 0.27% 26</div><span class="green"> java/nio/HeapByteBuffer.get</span>
+<ul>
+<li><div>[17] 0.25% 24 self: 0.25% 24</div><span class="green"> java/nio/Buffer.checkIndex</span>
+<li><div>[17] 0.03% 3 self: 0.03% 3</div><span class="green"> java/nio/Buffer.checkSegment</span>
+<li><div>[17] 0.03% 3 self: 0.03% 3</div><span class="green"> java/nio/HeapByteBuffer.ix</span>
+</ul>
+</ul>
+<li><div>[15] 0.17% 16 self: 0.08% 8</div><span class="green"> java/nio/HeapByteBuffer.get</span>
+<ul>
+<li><div>[16] 0.05% 5 self: 0.05% 5</div><span class="green"> java/nio/Buffer.checkSegment</span>
+<li><div>[16] 0.03% 3 self: 0.03% 3</div><span class="green"> java/nio/Buffer.checkIndex</span>
+</ul>
+<li><div>[15] 0.09% 9 self: 0.09% 9</div><span class="green"> java/nio/Buffer.position</span>
+</ul>
+<li><div>[14] 0.01% 1 self: 0.01% 1</div><span class="green"> java/util/concurrent/atomic/Striped64.casBase</span>
+</ul>
+</ul>
+<li><div>[12] 0.63% 61 self: 0.03% 3</div><span class="green"> java/util/concurrent/ConcurrentSkipListMap.addIndices</span>
+<ul>
+<li><div>[13] 0.54% 52 self: 0.51% 49</div><span class="green"> java/util/concurrent/ConcurrentSkipListMap.addIndices</span>
+<ul>
+<li><div>[14] 0.02% 2 self: 0.00% 0</div><span class="green"> java/util/concurrent/ConcurrentSkipListMap.addIndices</span>
+<ul>
+<li>...
+</ul>
+<li><div>[14] 0.01% 1 self: 0.00% 0</div><span class="brown"> asm_sysvec_reschedule_ipi</span>
+<ul>
+<li>...
+</ul>
+</ul>
+<li><div>[13] 0.06% 6 self: 0.00% 0</div><span class="green"> java/util/concurrent/ConcurrentSkipListMap.cpr</span>
+<ul>
+<li><div>[14] 0.06% 6 self: 0.00% 0</div><span class="green"> java/nio/ByteBuffer.compareTo</span>
+<ul>
+<li><div>[15] 0.06% 6 self: 0.01% 1</div><span class="green"> java/nio/ByteBuffer.compareTo</span>
+<ul>
+<li><div>[16] 0.04% 4 self: 0.00% 0</div><span class="green"> java/nio/BufferMismatch.mismatch</span>
+<ul>
+<li><div>[17] 0.02% 2 self: 0.01% 1</div><span class="green"> java/nio/HeapByteBuffer.get</span>
+<ul>
+<li>...
+</ul>
+<li><div>[17] 0.02% 2 self: 0.02% 2</div><span class="red"> vectorizedMismatch</span>
+</ul>
+<li><div>[16] 0.01% 1 self: 0.01% 1</div><span class="green"> java/nio/HeapByteBuffer.get</span>
+</ul>
+</ul>
+</ul>
+</ul>
+<li><div>[12] 0.06% 6 self: 0.01% 1</div><span class="green"> java/util/concurrent/ConcurrentSkipListMap$Index.&lt;init&gt;</span>
+<ul>
+<li><div>[13] 0.05% 5 self: 0.05% 5</div><span class="green"> java/lang/Object.&lt;init&gt;</span>
+</ul>
+<li><div>[12] 0.06% 6 self: 0.06% 6</div><span class="green"> java/util/concurrent/ConcurrentSkipListMap$Node.&lt;init&gt;</span>
+<li><div>[12] 0.01% 1 self: 0.00% 0</div><span class="yellow"> OptoRuntime::new_instance_C(Klass*, JavaThread*)</span>
+<ul>
+<li>...
+</ul>
+<li><div>[12] 0.01% 1 self: 0.00% 0</div><span class="brown"> asm_sysvec_apic_timer_interrupt</span>
+<ul>
+<li>...
+</ul>
+</ul>
+</ul>
+<li><div>[10] 0.04% 4 self: 0.00% 0</div><span class="green"> java/util/concurrent/ConcurrentSkipListMap.&lt;init&gt;</span>
+<ul>
+<li><div>[11] 0.04% 4 self: 0.00% 0</div><span class="green"> java/util/concurrent/ConcurrentSkipListMap.buildFromSorted</span>
+<ul>
+<li><div>[12] 0.03% 3 self: 0.03% 3</div><span class="green"> java/util/concurrent/ConcurrentSkipListMap.doPut</span>
+<li><div>[12] 0.01% 1 self: 0.00% 0</div><span class="green"> java/util/concurrent/ConcurrentSkipListMap$EntrySet.iterator</span>
+<ul>
+<li>...
+</ul>
+</ul>
+</ul>
+<li><div>[10] 0.03% 3 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/LsmDAO.sizeOf</span>
+<ul>
+<li><div>[11] 0.03% 3 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/SSTable.sizeOf</span>
+<ul>
+<li><div>[12] 0.02% 2 self: 0.02% 2</div><span class="green"> ru/mail/polis/lsm/Record.getValueSize</span>
+<li><div>[12] 0.01% 1 self: 0.01% 1</div><span class="green"> ru/mail/polis/lsm/Record.getKeySize</span>
+</ul>
+</ul>
+</ul>
+<li><div>[9] 0.62% 60 self: 0.00% 0</div><span class="green"> java/nio/ByteBuffer.wrap</span>
+<ul>
+<li><div>[10] 0.62% 60 self: 0.05% 5</div><span class="green"> java/nio/ByteBuffer.wrap</span>
+<ul>
+<li><div>[11] 0.57% 55 self: 0.01% 1</div><span class="green"> java/nio/HeapByteBuffer.&lt;init&gt;</span>
+<ul>
+<li><div>[12] 0.56% 54 self: 0.01% 1</div><span class="green"> java/nio/ByteBuffer.&lt;init&gt;</span>
+<ul>
+<li><div>[13] 0.55% 53 self: 0.07% 7</div><span class="green"> java/nio/Buffer.&lt;init&gt;</span>
+<ul>
+<li><div>[14] 0.25% 24 self: 0.05% 5</div><span class="green"> java/lang/Object.&lt;init&gt;</span>
+<ul>
+<li><div>[15] 0.20% 19 self: 0.20% 19</div><span class="red"> jlong_disjoint_arraycopy</span>
+</ul>
+<li><div>[14] 0.23% 22 self: 0.19% 18</div><span class="green"> java/nio/ByteBuffer.limit</span>
+<ul>
+<li><div>[15] 0.04% 4 self: 0.03% 3</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/LsmDAO.upsert</span>
+<ul>
+<li><div>[16] 0.01% 1 self: 0.00% 0</div><span class="green"> java/util/concurrent/ConcurrentSkipListMap.&lt;init&gt;</span>
+<ul>
+<li>...
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+<li><div>[9] 0.19% 18 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/Record.of</span>
+<ul>
+<li><div>[10] 0.18% 17 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/Record.&lt;init&gt;</span>
+<ul>
+<li><div>[11] 0.18% 17 self: 0.00% 0</div><span class="green"> java/nio/HeapByteBufferR.asReadOnlyBuffer</span>
+<ul>
+<li><div>[12] 0.18% 17 self: 0.00% 0</div><span class="green"> java/nio/HeapByteBufferR.duplicate</span>
+<ul>
+<li><div>[13] 0.15% 14 self: 0.00% 0</div><span class="green"> java/nio/HeapByteBufferR.&lt;init&gt;</span>
+<ul>
+<li><div>[14] 0.15% 14 self: 0.00% 0</div><span class="green"> java/nio/HeapByteBuffer.&lt;init&gt;</span>
+<ul>
+<li><div>[15] 0.15% 14 self: 0.03% 3</div><span class="green"> java/nio/ByteBuffer.&lt;init&gt;</span>
+<ul>
+<li><div>[16] 0.11% 11 self: 0.02% 2</div><span class="green"> java/nio/Buffer.&lt;init&gt;</span>
+<ul>
+<li><div>[17] 0.07% 7 self: 0.07% 7</div><span class="red"> jbyte_disjoint_arraycopy</span>
+<li><div>[17] 0.02% 2 self: 0.00% 0</div><span class="green"> java/nio/ByteBuffer.limit</span>
+<ul>
+<li>...
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+<li><div>[13] 0.03% 3 self: 0.00% 0</div><span class="yellow"> OptoRuntime::new_instance_C(Klass*, JavaThread*)</span>
+<ul>
+<li><div>[14] 0.03% 3 self: 0.00% 0</div><span class="yellow"> InstanceKlass::allocate_instance(Thread*)</span>
+<ul>
+<li><div>[15] 0.03% 3 self: 0.00% 0</div><span class="yellow"> MemAllocator::allocate() const</span>
+<ul>
+<li><div>[16] 0.02% 2 self: 0.00% 0</div><span class="yellow"> MemAllocator::allocate_inside_tlab_slow(MemAllocator::Allocation&amp;) const</span>
+<ul>
+<li>...
+</ul>
+<li><div>[16] 0.01% 1 self: 0.01% 1</div><span class="yellow"> JfrAllocationTracer::JfrAllocationTracer(HeapWordImpl**, unsigned long, Thread*)</span>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+<li><div>[10] 0.01% 1 self: 0.00% 0</div><span class="green"> java/nio/HeapByteBuffer.asReadOnlyBuffer</span>
+<ul>
+<li>...
+</ul>
+</ul>
+<li><div>[9] 0.08% 8 self: 0.00% 0</div><span class="green"> java/lang/String.getBytes</span>
+<ul>
+<li><div>[10] 0.08% 8 self: 0.07% 7</div><span class="green"> java/lang/StringCoding.encode</span>
+<ul>
+<li><div>[11] 0.01% 1 self: 0.01% 1</div><span class="green"> java/lang/StringCoding.encodeUTF8</span>
+</ul>
+</ul>
+<li><div>[9] 0.03% 3 self: 0.00% 0</div><span class="green"> one/nio/http/Response.&lt;init&gt;</span>
+<ul>
+<li><div>[10] 0.01% 1 self: 0.00% 0</div><span class="yellow"> OptoRuntime::new_array_C(Klass*, int, JavaThread*)</span>
+<ul>
+<li>...
+</ul>
+<li><div>[10] 0.01% 1 self: 0.01% 1</div><span class="yellow"> OptoRuntime::new_instance_C(Klass*, JavaThread*)</span>
+<li><div>[10] 0.01% 1 self: 0.00% 0</div><span class="red"> [unknown]</span>
+<ul>
+<li>...
+</ul>
+</ul>
+<li><div>[9] 0.01% 1 self: 0.01% 1</div><span class="green"> java/util/concurrent/ConcurrentSkipListMap.doPut</span>
+</ul>
+<li><div>[8] 0.06% 6 self: 0.00% 0</div><span class="green"> java/lang/String.isBlank</span>
+<ul>
+<li><div>[9] 0.06% 6 self: 0.01% 1</div><span class="green"> java/lang/String.indexOfNonWhitespace</span>
+<ul>
+<li><div>[10] 0.05% 5 self: 0.02% 2</div><span class="green"> java/lang/StringLatin1.indexOfNonWhitespace</span>
+<ul>
+<li><div>[11] 0.03% 3 self: 0.03% 3</div><span class="green"> java/lang/CharacterDataLatin1.isWhitespace</span>
+</ul>
+</ul>
+</ul>
+</ul>
+<li><div>[7] 0.86% 83 self: 0.07% 7</div><span class="green"> one/nio/http/Request.getRequiredParameter</span>
+<ul>
+<li><div>[8] 0.79% 76 self: 0.23% 22</div><span class="green"> one/nio/http/Request.getParameter</span>
+<ul>
+<li><div>[9] 0.34% 33 self: 0.00% 0</div><span class="green"> java/lang/String.substring</span>
+<ul>
+<li><div>[10] 0.34% 33 self: 0.00% 0</div><span class="green"> java/lang/String.substring</span>
+<ul>
+<li><div>[11] 0.34% 33 self: 0.21% 20</div><span class="green"> java/lang/StringLatin1.newString</span>
+<ul>
+<li><div>[12] 0.09% 9 self: 0.09% 9</div><span class="green"> one/nio/util/URLEncoder.decode</span>
+<li><div>[12] 0.02% 2 self: 0.00% 0</div><span class="yellow"> OptoRuntime::new_instance_C(Klass*, JavaThread*)</span>
+<ul>
+<li>...
+</ul>
+<li><div>[12] 0.02% 2 self: 0.01% 1</div><span class="green"> java/util/Arrays.copyOfRange</span>
+<ul>
+<li>...
+</ul>
+</ul>
+</ul>
+</ul>
+<li><div>[9] 0.09% 9 self: 0.00% 0</div><span class="green"> java/lang/String.indexOf</span>
+<ul>
+<li><div>[10] 0.09% 9 self: 0.09% 9</div><span class="green"> java/lang/StringLatin1.indexOf</span>
+</ul>
+<li><div>[9] 0.06% 6 self: 0.01% 1</div><span class="green"> one/nio/util/URLEncoder.decode</span>
+<ul>
+<li><div>[10] 0.05% 5 self: 0.00% 0</div><span class="green"> java/lang/String.indexOf</span>
+<ul>
+<li><div>[11] 0.05% 5 self: 0.00% 0</div><span class="green"> java/lang/String.indexOf</span>
+<ul>
+<li><div>[12] 0.05% 5 self: 0.05% 5</div><span class="green"> java/lang/StringLatin1.indexOf</span>
+</ul>
+</ul>
+</ul>
+<li><div>[9] 0.03% 3 self: 0.03% 3</div><span class="red"> jbyte_arraycopy</span>
+<li><div>[9] 0.03% 3 self: 0.03% 3</div><span class="red"> jbyte_disjoint_arraycopy</span>
+</ul>
+</ul>
+</ul>
+<li><div>[6] 0.50% 48 self: 0.03% 3</div><span class="green"> one/nio/http/PathMapper.find</span>
+<ul>
+<li><div>[7] 0.47% 45 self: 0.00% 0</div><span class="green"> java/util/HashMap.get</span>
+<ul>
+<li><div>[8] 0.47% 45 self: 0.15% 14</div><span class="green"> java/util/HashMap.getNode</span>
+<ul>
+<li><div>[9] 0.19% 18 self: 0.19% 18</div><span class="green"> java/lang/String.indexOf</span>
+<li><div>[9] 0.13% 13 self: 0.00% 0</div><span class="green"> java/util/HashMap.hash</span>
+<ul>
+<li><div>[10] 0.13% 13 self: 0.00% 0</div><span class="green"> java/lang/String.hashCode</span>
+<ul>
+<li><div>[11] 0.13% 13 self: 0.07% 7</div><span class="green"> java/lang/StringLatin1.hashCode</span>
+<ul>
+<li><div>[12] 0.06% 6 self: 0.06% 6</div><span class="green"> java/lang/String.substring</span>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+<li><div>[6] 0.36% 35 self: 0.21% 20</div><span class="green"> one/nio/http/HttpServer.findHandlerByHost</span>
+<ul>
+<li><div>[7] 0.08% 8 self: 0.08% 8</div><span class="green"> java/lang/Integer.parseInt</span>
+<li><div>[7] 0.05% 5 self: 0.05% 5</div><span class="red"> jbyte_disjoint_arraycopy</span>
+<li><div>[7] 0.02% 2 self: 0.02% 2</div><span class="green"> java/util/HashMap.isEmpty</span>
+</ul>
+<li><div>[6] 0.25% 24 self: 0.02% 2</div><span class="green"> one/nio/http/Request.getPath</span>
+<ul>
+<li><div>[7] 0.16% 15 self: 0.00% 0</div><span class="green"> java/lang/String.substring</span>
+<ul>
+<li><div>[8] 0.16% 15 self: 0.03% 3</div><span class="green"> java/lang/StringLatin1.newString</span>
+<ul>
+<li><div>[9] 0.07% 7 self: 0.07% 7</div><span class="red"> jbyte_arraycopy</span>
+<li><div>[9] 0.04% 4 self: 0.04% 4</div><span class="red"> jbyte_disjoint_arraycopy</span>
+<li><div>[9] 0.01% 1 self: 0.00% 0</div><span class="yellow"> OptoRuntime::new_instance_C(Klass*, JavaThread*)</span>
+<ul>
+<li>...
+</ul>
+</ul>
+</ul>
+<li><div>[7] 0.07% 7 self: 0.07% 7</div><span class="green"> java/util/HashMap.isEmpty</span>
+</ul>
+</ul>
+</ul>
+<li><div>[4] 2.25% 217 self: 1.44% 139</div><span class="green"> one/nio/util/Utf8.read</span>
+<ul>
+<li><div>[5] 0.81% 78 self: 0.69% 66</div><span class="green"> one/nio/util/Utf8.read</span>
+<ul>
+<li><div>[6] 0.06% 6 self: 0.00% 0</div><span class="green"> java/lang/String.&lt;init&gt;</span>
+<ul>
+<li><div>[7] 0.06% 6 self: 0.00% 0</div><span class="green"> java/lang/String.&lt;init&gt;</span>
+<ul>
+<li><div>[8] 0.06% 6 self: 0.00% 0</div><span class="green"> java/lang/StringUTF16.compress</span>
+<ul>
+<li><div>[9] 0.05% 5 self: 0.00% 0</div><span class="yellow"> OptoRuntime::new_array_nozero_C(Klass*, int, JavaThread*)</span>
+<ul>
+<li><div>[10] 0.05% 5 self: 0.00% 0</div><span class="yellow"> TypeArrayKlass::allocate_common(int, bool, Thread*)</span>
+<ul>
+<li><div>[11] 0.04% 4 self: 0.00% 0</div><span class="yellow"> MemAllocator::allocate() const</span>
+<ul>
+<li><div>[12] 0.04% 4 self: 0.00% 0</div><span class="yellow"> MemAllocator::allocate_inside_tlab_slow(MemAllocator::Allocation&amp;) const</span>
+<ul>
+<li><div>[13] 0.02% 2 self: 0.01% 1</div><span class="yellow"> G1CollectedHeap::allocate_new_tlab(unsigned long, unsigned long, unsigned long*)</span>
+<ul>
+<li>...
+</ul>
+<li><div>[13] 0.01% 1 self: 0.01% 1</div><span class="red"> /usr/lib/x86_64-linux-gnu/libc-2.31.so</span>
+<li><div>[13] 0.01% 1 self: 0.01% 1</div><span class="yellow"> G1CardTable::g1_mark_as_young(MemRegion const&amp;)</span>
+</ul>
+</ul>
+<li><div>[11] 0.01% 1 self: 0.01% 1</div><span class="yellow"> ObjArrayAllocator::initialize(HeapWordImpl**) const</span>
+</ul>
+</ul>
+<li><div>[9] 0.01% 1 self: 0.00% 0</div><span class="red"> [unknown]</span>
+<ul>
+<li>...
+</ul>
+</ul>
+</ul>
+</ul>
+<li><div>[6] 0.03% 3 self: 0.00% 0</div><span class="yellow"> OptoRuntime::new_array_C(Klass*, int, JavaThread*)</span>
+<ul>
+<li><div>[7] 0.03% 3 self: 0.00% 0</div><span class="yellow"> TypeArrayKlass::allocate_common(int, bool, Thread*)</span>
+<ul>
+<li><div>[8] 0.03% 3 self: 0.00% 0</div><span class="yellow"> MemAllocator::allocate() const</span>
+<ul>
+<li><div>[9] 0.03% 3 self: 0.00% 0</div><span class="yellow"> MemAllocator::allocate_inside_tlab_slow(MemAllocator::Allocation&amp;) const</span>
+<ul>
+<li><div>[10] 0.01% 1 self: 0.01% 1</div><span class="yellow"> G1Allocator::unsafe_max_tlab_alloc()</span>
+<li><div>[10] 0.01% 1 self: 0.01% 1</div><span class="yellow"> G1CollectedHeap::allocate_new_tlab(unsigned long, unsigned long, unsigned long*)</span>
+<li><div>[10] 0.01% 1 self: 0.01% 1</div><span class="yellow"> ThreadLocalAllocBuffer::fill(HeapWordImpl**, HeapWordImpl**, unsigned long)</span>
+</ul>
+</ul>
+</ul>
+</ul>
+<li><div>[6] 0.01% 1 self: 0.00% 0</div><span class="yellow"> OptoRuntime::new_instance_C(Klass*, JavaThread*)</span>
+<ul>
+<li>...
+</ul>
+<li><div>[6] 0.01% 1 self: 0.00% 0</div><span class="red"> [unknown]</span>
+<ul>
+<li>...
+</ul>
+<li><div>[6] 0.01% 1 self: 0.01% 1</div><span class="yellow"> oopFactory::new_typeArray(BasicType, int, Thread*)</span>
+</ul>
+</ul>
+<li><div>[4] 1.64% 158 self: 0.08% 8</div><span class="green"> one/nio/http/HttpSession.parseRequest</span>
+<ul>
+<li><div>[5] 0.76% 73 self: 0.02% 2</div><span class="green"> one/nio/util/Utf8.read</span>
+<ul>
+<li><div>[6] 0.74% 71 self: 0.71% 68</div><span class="green"> one/nio/util/Utf8.read</span>
+<ul>
+<li><div>[7] 0.02% 2 self: 0.00% 0</div><span class="yellow"> OptoRuntime::new_array_C(Klass*, int, JavaThread*)</span>
+<ul>
+<li>...
+</ul>
+<li><div>[7] 0.01% 1 self: 0.00% 0</div><span class="green"> java/lang/String.&lt;init&gt;</span>
+<ul>
+<li>...
+</ul>
+</ul>
+</ul>
+<li><div>[5] 0.56% 54 self: 0.56% 54</div><span class="green"> one/nio/util/Utf8.startsWith</span>
+<li><div>[5] 0.21% 20 self: 0.04% 4</div><span class="green"> one/nio/http/Request.&lt;init&gt;</span>
+<ul>
+<li><div>[6] 0.07% 7 self: 0.00% 0</div><span class="green"> java/lang/String.indexOf</span>
+<ul>
+<li><div>[7] 0.07% 7 self: 0.00% 0</div><span class="green"> java/lang/String.indexOf</span>
+<ul>
+<li><div>[8] 0.07% 7 self: 0.07% 7</div><span class="green"> java/lang/StringLatin1.indexOf</span>
+</ul>
+</ul>
+<li><div>[6] 0.05% 5 self: 0.00% 0</div><span class="yellow"> OptoRuntime::new_array_C(Klass*, int, JavaThread*)</span>
+<ul>
+<li><div>[7] 0.04% 4 self: 0.01% 1</div><span class="yellow"> InstanceKlass::allocate_objArray(int, int, Thread*)</span>
+<ul>
+<li><div>[8] 0.02% 2 self: 0.00% 0</div><span class="yellow"> MemAllocator::allocate() const</span>
+<ul>
+<li>...
+</ul>
+<li><div>[8] 0.01% 1 self: 0.01% 1</div><span class="yellow"> ObjArrayKlass::array_klass_impl(bool, int, Thread*)</span>
+</ul>
+<li><div>[7] 0.01% 1 self: 0.01% 1</div><span class="yellow"> InstanceKlass::array_klass_impl(bool, int, Thread*)</span>
+</ul>
+<li><div>[6] 0.04% 4 self: 0.04% 4</div><span class="green"> one/nio/util/Utf8.read</span>
+</ul>
+<li><div>[5] 0.03% 3 self: 0.01% 1</div><span class="yellow"> OptoRuntime::new_instance_C(Klass*, JavaThread*)</span>
+<ul>
+<li><div>[6] 0.02% 2 self: 0.00% 0</div><span class="yellow"> InstanceKlass::allocate_instance(Thread*)</span>
+<ul>
+<li>...
+</ul>
+</ul>
+</ul>
+<li><div>[4] 0.87% 84 self: 0.03% 3</div><span class="green"> one/nio/http/HttpSession.startParsingRequestBody</span>
+<ul>
+<li><div>[5] 0.83% 80 self: 0.22% 21</div><span class="green"> java/lang/Integer.parseInt</span>
+<ul>
+<li><div>[6] 0.24% 23 self: 0.24% 23</div><span class="green"> java/lang/Integer.parseInt</span>
+<li><div>[6] 0.22% 21 self: 0.22% 21</div><span class="red"> jbyte_arraycopy</span>
+<li><div>[6] 0.16% 15 self: 0.16% 15</div><span class="red"> jbyte_disjoint_arraycopy</span>
+</ul>
+<li><div>[5] 0.01% 1 self: 0.00% 0</div><span class="yellow"> OptoRuntime::new_array_nozero_C(Klass*, int, JavaThread*)</span>
+<ul>
+<li>...
+</ul>
+</ul>
+<li><div>[4] 0.77% 74 self: 0.13% 13</div><span class="green"> one/nio/http/Request.getHeader</span>
+<ul>
+<li><div>[5] 0.40% 39 self: 0.00% 0</div><span class="green"> java/lang/String.regionMatches</span>
+<ul>
+<li><div>[6] 0.40% 39 self: 0.40% 39</div><span class="green"> java/lang/StringLatin1.regionMatchesCI</span>
+</ul>
+<li><div>[5] 0.18% 17 self: 0.17% 16</div><span class="green"> one/nio/http/Request.trim</span>
+<ul>
+<li><div>[6] 0.01% 1 self: 0.00% 0</div><span class="green"> java/lang/String.substring</span>
+<ul>
+<li>...
+</ul>
+</ul>
+<li><div>[5] 0.05% 5 self: 0.05% 5</div><span class="green"> one/nio/util/Utf8.read</span>
+</ul>
+<li><div>[4] 0.10% 10 self: 0.10% 10</div><span class="green"> one/nio/http/HttpSession.sendResponse</span>
+</ul>
+<li><div>[3] 16.59% 1,598 self: 0.03% 3</div><span class="green"> one/nio/net/Session.read</span>
+<ul>
+<li><div>[4] 16.54% 1,593 self: 0.35% 34</div><span class="green"> one/nio/net/NativeSocket.read</span>
+<ul>
+<li><div>[5] 13.12% 1,264 self: 2.39% 230</div><span class="red"> recv</span>
+<ul>
+<li><div>[6] 10.73% 1,034 self: 0.00% 0</div><span class="brown"> entry_SYSCALL_64_after_hwframe</span>
+<ul>
+<li><div>[7] 10.58% 1,019 self: 0.12% 12</div><span class="brown"> do_syscall_64</span>
+<ul>
+<li><div>[8] 9.78% 942 self: 0.00% 0</div><span class="brown"> __x64_sys_recvfrom</span>
+<ul>
+<li><div>[9] 9.60% 925 self: 0.13% 13</div><span class="brown"> __sys_recvfrom</span>
+<ul>
+<li><div>[10] 8.63% 831 self: 0.09% 9</div><span class="brown"> sock_recvmsg</span>
+<ul>
+<li><div>[11] 6.64% 640 self: 0.12% 12</div><span class="brown"> inet6_recvmsg</span>
+<ul>
+<li><div>[12] 6.25% 602 self: 0.05% 5</div><span class="brown"> tcp_recvmsg</span>
+<ul>
+<li><div>[13] 5.20% 501 self: 1.14% 110</div><span class="brown"> tcp_recvmsg_locked</span>
+<ul>
+<li><div>[14] 1.97% 190 self: 0.04% 4</div><span class="brown"> skb_copy_datagram_iter</span>
+<ul>
+<li><div>[15] 1.93% 186 self: 0.63% 61</div><span class="brown"> __skb_datagram_iter</span>
+<ul>
+<li><div>[16] 1.28% 123 self: 0.01% 1</div><span class="brown"> simple_copy_to_iter</span>
+<ul>
+<li><div>[17] 0.69% 66 self: 0.19% 18</div><span class="brown"> __check_object_size</span>
+<ul>
+<li><div>[18] 0.50% 48 self: 0.50% 48</div><span class="brown"> __virt_addr_valid</span>
+</ul>
+<li><div>[17] 0.48% 46 self: 0.06% 6</div><span class="brown"> _copy_to_iter</span>
+<ul>
+<li><div>[18] 0.42% 40 self: 0.42% 40</div><span class="brown"> copy_user_enhanced_fast_string</span>
+</ul>
+<li><div>[17] 0.07% 7 self: 0.07% 7</div><span class="brown"> __virt_addr_valid</span>
+<li><div>[17] 0.03% 3 self: 0.03% 3</div><span class="brown"> check_stack_object</span>
+</ul>
+<li><div>[16] 0.01% 1 self: 0.01% 1</div><span class="brown"> __check_object_size</span>
+<li><div>[16] 0.01% 1 self: 0.01% 1</div><span class="brown"> _cond_resched</span>
+</ul>
+</ul>
+<li><div>[14] 1.25% 120 self: 0.01% 1</div><span class="brown"> __kfree_skb</span>
+<ul>
+<li><div>[15] 1.08% 104 self: 0.05% 5</div><span class="brown"> skb_release_all</span>
+<ul>
+<li><div>[16] 0.53% 51 self: 0.06% 6</div><span class="brown"> skb_release_head_state</span>
+<ul>
+<li><div>[17] 0.47% 45 self: 0.47% 45</div><span class="brown"> dst_release</span>
+</ul>
+<li><div>[16] 0.24% 23 self: 0.24% 23</div><span class="brown"> skb_release_data</span>
+<li><div>[16] 0.21% 20 self: 0.21% 20</div><span class="brown"> sock_rfree</span>
+<li><div>[16] 0.05% 5 self: 0.05% 5</div><span class="brown"> dst_release</span>
+</ul>
+<li><div>[15] 0.09% 9 self: 0.09% 9</div><span class="brown"> kfree_skbmem</span>
+<li><div>[15] 0.03% 3 self: 0.03% 3</div><span class="brown"> skb_release_data</span>
+<li><div>[15] 0.03% 3 self: 0.03% 3</div><span class="brown"> skb_release_head_state</span>
+</ul>
+<li><div>[14] 0.43% 41 self: 0.23% 22</div><span class="brown"> tcp_rcv_space_adjust</span>
+<ul>
+<li><div>[15] 0.11% 11 self: 0.00% 0</div><span class="brown"> tcp_mstamp_refresh</span>
+<ul>
+<li><div>[16] 0.07% 7 self: 0.07% 7</div><span class="brown"> read_tsc</span>
+<li><div>[16] 0.03% 3 self: 0.03% 3</div><span class="brown"> ktime_get</span>
+<li><div>[16] 0.01% 1 self: 0.01% 1</div><span class="brown"> __x86_retpoline_rax</span>
+</ul>
+<li><div>[15] 0.08% 8 self: 0.08% 8</div><span class="brown"> ktime_get</span>
+</ul>
+<li><div>[14] 0.24% 23 self: 0.12% 12</div><span class="brown"> tcp_cleanup_rbuf</span>
+<ul>
+<li><div>[15] 0.11% 11 self: 0.11% 11</div><span class="brown"> __tcp_select_window</span>
+</ul>
+<li><div>[14] 0.05% 5 self: 0.05% 5</div><span class="brown"> tcp_mstamp_refresh</span>
+<li><div>[14] 0.04% 4 self: 0.04% 4</div><span class="brown"> __skb_datagram_iter</span>
+<li><div>[14] 0.03% 3 self: 0.03% 3</div><span class="brown"> __tcp_select_window</span>
+<li><div>[14] 0.03% 3 self: 0.03% 3</div><span class="brown"> skb_release_all</span>
+<li><div>[14] 0.02% 2 self: 0.02% 2</div><span class="brown"> kfree_skbmem</span>
+</ul>
+<li><div>[13] 0.32% 31 self: 0.32% 31</div><span class="brown"> _raw_spin_lock_bh</span>
+<li><div>[13] 0.27% 26 self: 0.12% 12</div><span class="brown"> release_sock</span>
+<ul>
+<li><div>[14] 0.05% 5 self: 0.01% 1</div><span class="brown"> _raw_spin_unlock_bh</span>
+<ul>
+<li><div>[15] 0.04% 4 self: 0.04% 4</div><span class="brown"> __local_bh_enable_ip</span>
+</ul>
+<li><div>[14] 0.05% 5 self: 0.05% 5</div><span class="brown"> tcp_release_cb</span>
+<li><div>[14] 0.04% 4 self: 0.04% 4</div><span class="brown"> __local_bh_enable_ip</span>
+</ul>
+<li><div>[13] 0.11% 11 self: 0.04% 4</div><span class="brown"> lock_sock_nested</span>
+<ul>
+<li><div>[14] 0.07% 7 self: 0.07% 7</div><span class="brown"> __local_bh_enable_ip</span>
+</ul>
+<li><div>[13] 0.09% 9 self: 0.09% 9</div><span class="brown"> tcp_release_cb</span>
+<li><div>[13] 0.06% 6 self: 0.06% 6</div><span class="brown"> tcp_cleanup_rbuf</span>
+<li><div>[13] 0.06% 6 self: 0.06% 6</div><span class="brown"> tcp_rcv_space_adjust</span>
+<li><div>[13] 0.04% 4 self: 0.04% 4</div><span class="brown"> skb_copy_datagram_iter</span>
+<li><div>[13] 0.02% 2 self: 0.02% 2</div><span class="brown"> _cond_resched</span>
+<li><div>[13] 0.01% 1 self: 0.01% 1</div><span class="brown"> __kfree_skb</span>
+</ul>
+<li><div>[12] 0.10% 10 self: 0.10% 10</div><span class="brown"> tcp_recvmsg_locked</span>
+<li><div>[12] 0.09% 9 self: 0.09% 9</div><span class="brown"> lock_sock_nested</span>
+<li><div>[12] 0.07% 7 self: 0.07% 7</div><span class="brown"> release_sock</span>
+</ul>
+<li><div>[11] 1.77% 171 self: 0.29% 28</div><span class="brown"> security_socket_recvmsg</span>
+<ul>
+<li><div>[12] 1.42% 137 self: 0.01% 1</div><span class="brown"> apparmor_socket_recvmsg</span>
+<ul>
+<li><div>[13] 1.40% 135 self: 0.75% 72</div><span class="brown"> aa_sk_perm</span>
+<ul>
+<li><div>[14] 0.52% 50 self: 0.10% 10</div><span class="brown"> aa_label_sk_perm.part.0</span>
+<ul>
+<li><div>[15] 0.29% 28 self: 0.28% 27</div><span class="brown"> aa_profile_af_perm</span>
+<ul>
+<li><div>[16] 0.01% 1 self: 0.01% 1</div><span class="brown"> aa_check_perms</span>
+</ul>
+<li><div>[15] 0.11% 11 self: 0.11% 11</div><span class="brown"> aa_label_next_confined</span>
+<li><div>[15] 0.01% 1 self: 0.01% 1</div><span class="brown"> aa_check_perms</span>
+</ul>
+<li><div>[14] 0.10% 10 self: 0.10% 10</div><span class="brown"> aa_label_next_confined</span>
+<li><div>[14] 0.03% 3 self: 0.03% 3</div><span class="brown"> aa_profile_af_perm</span>
+</ul>
+<li><div>[13] 0.01% 1 self: 0.01% 1</div><span class="brown"> aa_label_sk_perm.part.0</span>
+</ul>
+<li><div>[12] 0.06% 6 self: 0.06% 6</div><span class="brown"> aa_sk_perm</span>
+</ul>
+<li><div>[11] 0.11% 11 self: 0.11% 11</div><span class="brown"> apparmor_socket_recvmsg</span>
+</ul>
+<li><div>[10] 0.71% 68 self: 0.01% 1</div><span class="brown"> sockfd_lookup_light</span>
+<ul>
+<li><div>[11] 0.40% 39 self: 0.00% 0</div><span class="brown"> __fdget</span>
+<ul>
+<li><div>[12] 0.40% 39 self: 0.00% 0</div><span class="brown"> __fget_light</span>
+<ul>
+<li><div>[13] 0.40% 39 self: 0.40% 39</div><span class="brown"> __fget_files</span>
+</ul>
+</ul>
+<li><div>[11] 0.29% 28 self: 0.28% 27</div><span class="brown"> __fget_light</span>
+<ul>
+<li><div>[12] 0.01% 1 self: 0.00% 0</div><span class="brown"> asm_sysvec_apic_timer_interrupt</span>
+<ul>
+<li>...
+</ul>
+</ul>
+</ul>
+<li><div>[10] 0.05% 5 self: 0.05% 5</div><span class="brown"> fput_many</span>
+<li><div>[10] 0.05% 5 self: 0.05% 5</div><span class="brown"> inet6_recvmsg</span>
+<li><div>[10] 0.02% 2 self: 0.02% 2</div><span class="brown"> __fdget</span>
+<li><div>[10] 0.01% 1 self: 0.01% 1</div><span class="brown"> security_socket_recvmsg</span>
+</ul>
+<li><div>[9] 0.05% 5 self: 0.05% 5</div><span class="brown"> import_single_range</span>
+<li><div>[9] 0.05% 5 self: 0.05% 5</div><span class="brown"> sockfd_lookup_light</span>
+<li><div>[9] 0.04% 4 self: 0.04% 4</div><span class="brown"> fput</span>
+<li><div>[9] 0.03% 3 self: 0.03% 3</div><span class="brown"> sock_recvmsg</span>
+</ul>
+<li><div>[8] 0.59% 57 self: 0.59% 57</div><span class="brown"> syscall_enter_from_user_mode</span>
+<li><div>[8] 0.07% 7 self: 0.07% 7</div><span class="brown"> __sys_recvfrom</span>
+<li><div>[8] 0.01% 1 self: 0.01% 1</div><span class="brown"> syscall_exit_to_user_mode</span>
+</ul>
+<li><div>[7] 0.13% 13 self: 0.13% 13</div><span class="brown"> __x64_sys_recvfrom</span>
+<li><div>[7] 0.02% 2 self: 0.02% 2</div><span class="brown"> syscall_exit_to_user_mode</span>
+</ul>
+</ul>
+<li><div>[5] 2.64% 254 self: 0.23% 22</div><span class="red"> Java_one_nio_net_NativeSocket_read</span>
+<ul>
+<li><div>[6] 0.91% 88 self: 0.20% 19</div><span class="red"> jni_SetByteArrayRegion</span>
+<ul>
+<li><div>[7] 0.30% 29 self: 0.09% 9</div><span class="red"> check_bounds(int, int, int, Thread*)</span>
+<ul>
+<li><div>[8] 0.21% 20 self: 0.21% 20</div><span class="yellow"> ResourceMark::reset_to_mark()</span>
+</ul>
+<li><div>[7] 0.21% 20 self: 0.21% 20</div><span class="yellow"> ThreadStateTransition::transition_from_native(JavaThread*, JavaThreadState) [clone .constprop.0]</span>
+<li><div>[7] 0.15% 14 self: 0.15% 14</div><span class="yellow"> HandleMark::pop_and_restore()</span>
+<li><div>[7] 0.06% 6 self: 0.06% 6</div><span class="yellow"> ResourceMark::reset_to_mark()</span>
+</ul>
+<li><div>[6] 0.48% 46 self: 0.48% 46</div><span class="red"> /usr/lib/x86_64-linux-gnu/libc-2.31.so</span>
+<li><div>[6] 0.44% 42 self: 0.44% 42</div><span class="yellow"> AccessInternal::PostRuntimeDispatch&lt;G1BarrierSet::AccessBarrier&lt;548980ul, G1BarrierSet&gt;, (AccessInternal::BarrierType)2, 548980ul&gt;::oop_access_barrier(void*)</span>
+<li><div>[6] 0.21% 20 self: 0.21% 20</div><span class="red"> check_bounds(int, int, int, Thread*)</span>
+<li><div>[6] 0.18% 17 self: 0.18% 17</div><span class="yellow"> HandleMark::pop_and_restore()</span>
+<li><div>[6] 0.11% 11 self: 0.11% 11</div><span class="yellow"> ThreadStateTransition::transition_from_native(JavaThread*, JavaThreadState) [clone .constprop.0]</span>
+<li><div>[6] 0.07% 7 self: 0.07% 7</div><span class="yellow"> void AccessInternal::arraycopy_conjoint&lt;signed char&gt;(signed char*, signed char*, unsigned long)</span>
+<li><div>[6] 0.01% 1 self: 0.01% 1</div><span class="red"> memmove@plt</span>
+</ul>
+<li><div>[5] 0.30% 29 self: 0.30% 29</div><span class="red"> jni_SetByteArrayRegion</span>
+<li><div>[5] 0.07% 7 self: 0.07% 7</div><span class="red"> __pthread_enable_asynccancel</span>
+<li><div>[5] 0.05% 5 self: 0.05% 5</div><span class="red"> __pthread_disable_asynccancel</span>
+</ul>
+<li><div>[4] 0.02% 2 self: 0.02% 2</div><span class="green"> one/nio/net/Session.listen</span>
+</ul>
+<li><div>[3] 0.03% 3 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/LsmDAO.upsert</span>
+<ul>
+<li><div>[4] 0.03% 3 self: 0.00% 0</div><span class="green"> java/util/concurrent/ConcurrentSkipListMap.&lt;init&gt;</span>
+<ul>
+<li><div>[5] 0.03% 3 self: 0.03% 3</div><span class="green"> java/util/concurrent/ConcurrentSkipListMap.buildFromSorted</span>
+</ul>
+</ul>
+</ul>
+<li><div>[2] 0.03% 3 self: 0.03% 3</div><span class="yellow"> os::javaTimeMillis()</span>
+<li><div>[2] 0.02% 2 self: 0.02% 2</div><span class="red"> clock_gettime</span>
+</ul>
+<li><div>[1] 12.69% 1,223 self: 0.21% 20</div><span class="green"> one/nio/net/NativeSelector.select</span>
+<ul>
+<li><div>[2] 12.24% 1,179 self: 0.51% 49</div><span class="green"> one/nio/net/NativeSelector.epollWait</span>
+<ul>
+<li><div>[3] 10.15% 978 self: 2.29% 221</div><span class="red"> epoll_wait</span>
+<ul>
+<li><div>[4] 7.86% 757 self: 0.00% 0</div><span class="brown"> entry_SYSCALL_64_after_hwframe</span>
+<ul>
+<li><div>[5] 7.68% 740 self: 0.02% 2</div><span class="brown"> do_syscall_64</span>
+<ul>
+<li><div>[6] 7.20% 694 self: 0.08% 8</div><span class="brown"> __x64_sys_epoll_wait</span>
+<ul>
+<li><div>[7] 7.03% 677 self: 0.13% 13</div><span class="brown"> do_epoll_wait</span>
+<ul>
+<li><div>[8] 6.06% 584 self: 0.73% 70</div><span class="brown"> ep_poll</span>
+<ul>
+<li><div>[9] 2.83% 273 self: 0.04% 4</div><span class="brown"> schedule_hrtimeout_range</span>
+<ul>
+<li><div>[10] 2.76% 266 self: 0.29% 28</div><span class="brown"> schedule_hrtimeout_range_clock</span>
+<ul>
+<li><div>[11] 2.45% 236 self: 0.20% 19</div><span class="brown"> schedule</span>
+<ul>
+<li><div>[12] 2.25% 217 self: 0.22% 21</div><span class="brown"> __sched_text_start</span>
+<ul>
+<li><div>[13] 2.03% 196 self: 2.00% 193</div><span class="brown"> finish_task_switch</span>
+<ul>
+<li><div>[14] 0.03% 3 self: 0.00% 0</div><span class="brown"> asm_sysvec_apic_timer_interrupt</span>
+<ul>
+<li><div>[15] 0.03% 3 self: 0.00% 0</div><span class="brown"> sysvec_apic_timer_interrupt</span>
+<ul>
+<li><div>[16] 0.03% 3 self: 0.00% 0</div><span class="brown"> irq_exit_rcu</span>
+<ul>
+<li><div>[17] 0.03% 3 self: 0.00% 0</div><span class="brown"> do_softirq_own_stack</span>
+<ul>
+<li><div>[18] 0.03% 3 self: 0.00% 0</div><span class="brown"> asm_call_sysvec_on_stack</span>
+<ul>
+<li><div>[19] 0.03% 3 self: 0.00% 0</div><span class="brown"> __softirqentry_text_start</span>
+<ul>
+<li><div>[20] 0.03% 3 self: 0.00% 0</div><span class="brown"> run_rebalance_domains</span>
+<ul>
+<li><div>[21] 0.02% 2 self: 0.00% 0</div><span class="brown"> update_blocked_averages</span>
+<ul>
+<li>...
+</ul>
+<li><div>[21] 0.01% 1 self: 0.01% 1</div><span class="brown"> rebalance_domains</span>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+<li><div>[11] 0.02% 2 self: 0.02% 2</div><span class="brown"> __sched_text_start</span>
+</ul>
+<li><div>[10] 0.03% 3 self: 0.03% 3</div><span class="brown"> schedule</span>
+</ul>
+<li><div>[9] 1.35% 130 self: 0.31% 30</div><span class="brown"> ep_item_poll.isra.0</span>
+<ul>
+<li><div>[10] 0.93% 90 self: 0.49% 47</div><span class="brown"> sock_poll</span>
+<ul>
+<li><div>[11] 0.42% 40 self: 0.38% 37</div><span class="brown"> tcp_poll</span>
+<ul>
+<li><div>[12] 0.03% 3 self: 0.03% 3</div><span class="brown"> tcp_stream_memory_free</span>
+</ul>
+<li><div>[11] 0.03% 3 self: 0.03% 3</div><span class="brown"> tcp_stream_memory_free</span>
+</ul>
+<li><div>[10] 0.05% 5 self: 0.05% 5</div><span class="brown"> tcp_poll</span>
+<li><div>[10] 0.02% 2 self: 0.02% 2</div><span class="brown"> __x86_indirect_thunk_rax</span>
+<li><div>[10] 0.02% 2 self: 0.02% 2</div><span class="brown"> __x86_retpoline_rax</span>
+<li><div>[10] 0.01% 1 self: 0.00% 0</div><span class="brown"> asm_sysvec_apic_timer_interrupt</span>
+<ul>
+<li>...
+</ul>
+</ul>
+<li><div>[9] 0.55% 53 self: 0.51% 49</div><span class="brown"> mutex_lock</span>
+<ul>
+<li><div>[10] 0.03% 3 self: 0.03% 3</div><span class="brown"> rcu_all_qs</span>
+<li><div>[10] 0.01% 1 self: 0.01% 1</div><span class="brown"> _cond_resched</span>
+</ul>
+<li><div>[9] 0.19% 18 self: 0.19% 18</div><span class="brown"> ep_start_scan</span>
+<li><div>[9] 0.15% 14 self: 0.15% 14</div><span class="brown"> ep_done_scan</span>
+<li><div>[9] 0.15% 14 self: 0.15% 14</div><span class="brown"> sock_poll</span>
+<li><div>[9] 0.05% 5 self: 0.05% 5</div><span class="brown"> schedule_hrtimeout_range_clock</span>
+<li><div>[9] 0.03% 3 self: 0.03% 3</div><span class="brown"> _cond_resched</span>
+<li><div>[9] 0.02% 2 self: 0.02% 2</div><span class="brown"> __x86_retpoline_rax</span>
+<li><div>[9] 0.02% 2 self: 0.02% 2</div><span class="brown"> _raw_write_lock_irq</span>
+</ul>
+<li><div>[8] 0.19% 18 self: 0.19% 18</div><span class="brown"> __put_user_nocheck_4</span>
+<li><div>[8] 0.17% 16 self: 0.16% 15</div><span class="brown"> mutex_unlock</span>
+<ul>
+<li><div>[9] 0.01% 1 self: 0.00% 0</div><span class="brown"> asm_sysvec_apic_timer_interrupt</span>
+<ul>
+<li>...
+</ul>
+</ul>
+<li><div>[8] 0.15% 14 self: 0.00% 0</div><span class="brown"> __fdget</span>
+<ul>
+<li><div>[9] 0.15% 14 self: 0.01% 1</div><span class="brown"> __fget_light</span>
+<ul>
+<li><div>[10] 0.13% 13 self: 0.13% 13</div><span class="brown"> __fget_files</span>
+</ul>
+</ul>
+<li><div>[8] 0.13% 13 self: 0.13% 13</div><span class="brown"> fput_many</span>
+<li><div>[8] 0.07% 7 self: 0.07% 7</div><span class="brown"> __fget_light</span>
+<li><div>[8] 0.05% 5 self: 0.05% 5</div><span class="brown"> schedule_hrtimeout_range</span>
+<li><div>[8] 0.03% 3 self: 0.03% 3</div><span class="brown"> mutex_lock</span>
+<li><div>[8] 0.02% 2 self: 0.02% 2</div><span class="brown"> __put_user_nocheck_8</span>
+<li><div>[8] 0.01% 1 self: 0.01% 1</div><span class="brown"> ep_item_poll.isra.0</span>
+<li><div>[8] 0.01% 1 self: 0.01% 1</div><span class="brown"> ep_start_scan</span>
+</ul>
+<li><div>[7] 0.05% 5 self: 0.05% 5</div><span class="brown"> fput</span>
+<li><div>[7] 0.03% 3 self: 0.03% 3</div><span class="brown"> __fdget</span>
+<li><div>[7] 0.01% 1 self: 0.01% 1</div><span class="brown"> ep_poll</span>
+</ul>
+<li><div>[6] 0.37% 36 self: 0.37% 36</div><span class="brown"> syscall_enter_from_user_mode</span>
+<li><div>[6] 0.06% 6 self: 0.06% 6</div><span class="brown"> do_epoll_wait</span>
+<li><div>[6] 0.02% 2 self: 0.02% 2</div><span class="brown"> syscall_exit_to_user_mode</span>
+</ul>
+<li><div>[5] 0.11% 11 self: 0.11% 11</div><span class="brown"> __x64_sys_epoll_wait</span>
+<li><div>[5] 0.06% 6 self: 0.06% 6</div><span class="brown"> syscall_exit_to_user_mode</span>
+</ul>
+</ul>
+<li><div>[3] 0.77% 74 self: 0.57% 55</div><span class="red"> clock_gettime</span>
+<ul>
+<li><div>[4] 0.19% 18 self: 0.19% 18</div><span class="red"> __vdso_clock_gettime</span>
+<li><div>[4] 0.01% 1 self: 0.00% 0</div><span class="brown"> asm_common_interrupt</span>
+<ul>
+<li>...
+</ul>
+</ul>
+<li><div>[3] 0.27% 26 self: 0.27% 26</div><span class="red"> Java_one_nio_net_NativeSelector_epollWait</span>
+<li><div>[3] 0.23% 22 self: 0.23% 22</div><span class="red"> /usr/lib/x86_64-linux-gnu/libc-2.31.so</span>
+<li><div>[3] 0.23% 22 self: 0.23% 22</div><span class="red"> __vdso_clock_gettime</span>
+<li><div>[3] 0.05% 5 self: 0.05% 5</div><span class="red"> clock_gettime@plt</span>
+<li><div>[3] 0.02% 2 self: 0.02% 2</div><span class="red"> epoll_wait@plt</span>
+<li><div>[3] 0.01% 1 self: 0.00% 0</div><span class="yellow"> JavaThread::check_special_condition_for_native_trans(JavaThread*)</span>
+<ul>
+<li>...
+</ul>
+</ul>
+<li><div>[2] 0.24% 23 self: 0.06% 6</div><span class="green"> one/nio/net/NativeSelector$2.&lt;init&gt;</span>
+<ul>
+<li><div>[3] 0.15% 14 self: 0.15% 14</div><span class="green"> one/nio/net/NativeSelector$2.findNext</span>
+<li><div>[3] 0.03% 3 self: 0.03% 3</div><span class="green"> one/nio/net/NativeSelector.access$100</span>
+</ul>
+<li><div>[2] 0.01% 1 self: 0.00% 0</div><span class="yellow"> OptoRuntime::new_instance_C(Klass*, JavaThread*)</span>
+<ul>
+<li>...
+</ul>
+</ul>
+<li><div>[1] 0.42% 40 self: 0.00% 0</div><span class="green"> one/nio/net/NativeSelector$2.next</span>
+<ul>
+<li><div>[2] 0.42% 40 self: 0.32% 31</div><span class="green"> one/nio/net/NativeSelector$2.next</span>
+<ul>
+<li><div>[3] 0.06% 6 self: 0.06% 6</div><span class="green"> one/nio/net/NativeSelector$2.findNext</span>
+<li><div>[3] 0.03% 3 self: 0.03% 3</div><span class="green"> one/nio/net/NativeSelector.epollWait</span>
+</ul>
+</ul>
+<li><div>[1] 0.02% 2 self: 0.02% 2</div><span class="green"> one/nio/net/NativeSelector.isOpen</span>
+</ul>
+<li><div>[0] 4.92% 474 self: 0.00% 0</div><span class="green"> java/lang/Thread.run</span>
+<ul>
+<li><div>[1] 4.92% 474 self: 0.00% 0</div><span class="green"> java/util/concurrent/ThreadPoolExecutor$Worker.run</span>
+<ul>
+<li><div>[2] 4.92% 474 self: 0.00% 0</div><span class="green"> java/util/concurrent/ThreadPoolExecutor.runWorker</span>
+<ul>
+<li><div>[3] 4.92% 474 self: 0.00% 0</div><span class="green"> java/util/concurrent/FutureTask.run</span>
+<ul>
+<li><div>[4] 4.92% 474 self: 0.00% 0</div><span class="green"> java/util/concurrent/Executors$RunnableAdapter.call</span>
+<ul>
+<li><div>[5] 4.92% 474 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/LsmDAO$$Lambda$91.0x0000000800bea0f0.run</span>
+<ul>
+<li><div>[6] 4.92% 474 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/LsmDAO.lambda$upsert$0</span>
+<ul>
+<li><div>[7] 4.92% 474 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/LsmDAO.flush</span>
+<ul>
+<li><div>[8] 4.90% 472 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/SSTable.write</span>
+<ul>
+<li><div>[9] 4.90% 472 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/SSTable.writeImpl</span>
+<ul>
+<li><div>[10] 3.72% 358 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/SSTable.writeValueWithSize</span>
+<ul>
+<li><div>[11] 2.09% 201 self: 0.03% 3</div><span class="green"> sun/nio/ch/FileChannelImpl.write</span>
+<ul>
+<li><div>[12] 1.81% 174 self: 0.00% 0</div><span class="green"> sun/nio/ch/IOUtil.write</span>
+<ul>
+<li><div>[13] 1.68% 162 self: 0.00% 0</div><span class="green"> sun/nio/ch/IOUtil.writeFromNativeBuffer</span>
+<ul>
+<li><div>[14] 1.68% 162 self: 0.00% 0</div><span class="green"> sun/nio/ch/FileDispatcherImpl.write</span>
+<ul>
+<li><div>[15] 1.68% 162 self: 0.03% 3</div><span class="green"> sun/nio/ch/FileDispatcherImpl.write0</span>
+<ul>
+<li><div>[16] 1.62% 156 self: 0.42% 40</div><span class="red"> __libc_write</span>
+<ul>
+<li><div>[17] 1.20% 116 self: 0.00% 0</div><span class="brown"> entry_SYSCALL_64_after_hwframe</span>
+<ul>
+<li><div>[18] 1.19% 115 self: 0.00% 0</div><span class="brown"> do_syscall_64</span>
+<ul>
+<li><div>[19] 1.11% 107 self: 0.01% 1</div><span class="brown"> __x64_sys_write</span>
+<ul>
+<li><div>[20] 1.09% 105 self: 0.00% 0</div><span class="brown"> ksys_write</span>
+<ul>
+<li><div>[21] 1.05% 101 self: 0.03% 3</div><span class="brown"> vfs_write</span>
+<ul>
+<li><div>[22] 0.95% 92 self: 0.00% 0</div><span class="brown"> new_sync_write</span>
+<ul>
+<li><div>[23] 0.95% 92 self: 0.00% 0</div><span class="brown"> ext4_file_write_iter</span>
+<ul>
+<li><div>[24] 0.95% 92 self: 0.03% 3</div><span class="brown"> ext4_buffered_write_iter</span>
+<ul>
+<li><div>[25] 0.82% 79 self: 0.01% 1</div><span class="brown"> generic_perform_write</span>
+<ul>
+<li><div>[26] 0.60% 58 self: 0.00% 0</div><span class="brown"> ext4_da_write_end</span>
+<ul>
+<li><div>[27] 0.55% 53 self: 0.01% 1</div><span class="brown"> generic_write_end</span>
+<ul>
+<li><div>[28] 0.53% 51 self: 0.01% 1</div><span class="brown"> __mark_inode_dirty</span>
+<ul>
+<li><div>[29] 0.52% 50 self: 0.00% 0</div><span class="brown"> ext4_dirty_inode</span>
+<ul>
+<li><div>[30] 0.50% 48 self: 0.03% 3</div><span class="brown"> __ext4_mark_inode_dirty</span>
+<ul>
+<li><div>[31] 0.35% 34 self: 0.01% 1</div><span class="brown"> ext4_mark_iloc_dirty</span>
+<ul>
+<li><div>[32] 0.29% 28 self: 0.08% 8</div><span class="brown"> ext4_do_update_inode</span>
+<ul>
+<li><div>[33] 0.21% 20 self: 0.00% 0</div><span class="brown"> ext4_inode_csum_set</span>
+<ul>
+<li><div>[34] 0.19% 18 self: 0.06% 6</div><span class="brown"> ext4_inode_csum.isra.0</span>
+<ul>
+<li><div>[35] 0.06% 6 self: 0.06% 6</div><span class="brown"> crc32c_pcl_intel_update</span>
+<li><div>[35] 0.06% 6 self: 0.00% 0</div><span class="brown"> crypto_shash_update</span>
+<ul>
+<li><div>[36] 0.06% 6 self: 0.06% 6</div><span class="brown"> crc32c_pcl_intel_update</span>
+</ul>
+</ul>
+<li><div>[34] 0.02% 2 self: 0.02% 2</div><span class="brown"> crypto_shash_update</span>
+</ul>
+</ul>
+<li><div>[32] 0.04% 4 self: 0.02% 2</div><span class="brown"> ext4_fc_track_inode</span>
+<ul>
+<li><div>[33] 0.01% 1 self: 0.01% 1</div><span class="brown"> ext4_fc_track_template.isra.0</span>
+<li><div>[33] 0.01% 1 self: 0.01% 1</div><span class="brown"> ext4_inode_journal_mode</span>
+</ul>
+<li><div>[32] 0.01% 1 self: 0.01% 1</div><span class="brown"> __brelse</span>
+</ul>
+<li><div>[31] 0.11% 11 self: 0.01% 1</div><span class="brown"> ext4_reserve_inode_write</span>
+<ul>
+<li><div>[32] 0.07% 7 self: 0.01% 1</div><span class="brown"> ext4_get_inode_loc</span>
+<ul>
+<li><div>[33] 0.06% 6 self: 0.05% 5</div><span class="brown"> __ext4_get_inode_loc</span>
+<ul>
+<li><div>[34] 0.01% 1 self: 0.00% 0</div><span class="brown"> __getblk_gfp</span>
+<ul>
+<li>...
+</ul>
+</ul>
+</ul>
+<li><div>[32] 0.03% 3 self: 0.01% 1</div><span class="brown"> __ext4_journal_get_write_access</span>
+<ul>
+<li><div>[33] 0.02% 2 self: 0.00% 0</div><span class="brown"> jbd2_journal_get_write_access</span>
+<ul>
+<li>...
+</ul>
+</ul>
+</ul>
+</ul>
+<li><div>[30] 0.01% 1 self: 0.00% 0</div><span class="brown"> __ext4_journal_start_sb</span>
+<ul>
+<li>...
+</ul>
+<li><div>[30] 0.01% 1 self: 0.00% 0</div><span class="brown"> __ext4_journal_stop</span>
+<ul>
+<li>...
+</ul>
+</ul>
+</ul>
+<li><div>[28] 0.01% 1 self: 0.00% 0</div><span class="brown"> block_write_end</span>
+<ul>
+<li>...
+</ul>
+</ul>
+<li><div>[27] 0.05% 5 self: 0.00% 0</div><span class="brown"> __ext4_journal_stop</span>
+<ul>
+<li><div>[28] 0.05% 5 self: 0.00% 0</div><span class="brown"> jbd2_journal_stop</span>
+<ul>
+<li><div>[29] 0.05% 5 self: 0.00% 0</div><span class="brown"> stop_this_handle</span>
+<ul>
+<li><div>[30] 0.05% 5 self: 0.00% 0</div><span class="brown"> __wake_up</span>
+<ul>
+<li><div>[31] 0.05% 5 self: 0.00% 0</div><span class="brown"> __wake_up_common_lock</span>
+<ul>
+<li><div>[32] 0.04% 4 self: 0.04% 4</div><span class="brown"> __lock_text_start</span>
+<li><div>[32] 0.01% 1 self: 0.01% 1</div><span class="brown"> _raw_spin_lock_irqsave</span>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+<li><div>[26] 0.16% 15 self: 0.01% 1</div><span class="brown"> ext4_da_write_begin</span>
+<ul>
+<li><div>[27] 0.09% 9 self: 0.01% 1</div><span class="brown"> __ext4_journal_start_sb</span>
+<ul>
+<li><div>[28] 0.08% 8 self: 0.01% 1</div><span class="brown"> jbd2__journal_start</span>
+<ul>
+<li><div>[29] 0.05% 5 self: 0.04% 4</div><span class="brown"> start_this_handle</span>
+<ul>
+<li><div>[30] 0.01% 1 self: 0.01% 1</div><span class="brown"> add_transaction_credits</span>
+</ul>
+<li><div>[29] 0.01% 1 self: 0.01% 1</div><span class="brown"> _raw_read_lock</span>
+<li><div>[29] 0.01% 1 self: 0.01% 1</div><span class="brown"> kmem_cache_alloc</span>
+</ul>
+</ul>
+<li><div>[27] 0.03% 3 self: 0.00% 0</div><span class="brown"> grab_cache_page_write_begin</span>
+<ul>
+<li><div>[28] 0.03% 3 self: 0.00% 0</div><span class="brown"> pagecache_get_page</span>
+<ul>
+<li><div>[29] 0.03% 3 self: 0.00% 0</div><span class="brown"> find_get_entry</span>
+<ul>
+<li><div>[30] 0.02% 2 self: 0.02% 2</div><span class="brown"> xas_load</span>
+<li><div>[30] 0.01% 1 self: 0.01% 1</div><span class="brown"> xas_start</span>
+</ul>
+</ul>
+</ul>
+<li><div>[27] 0.01% 1 self: 0.00% 0</div><span class="brown"> ext4_block_write_begin</span>
+<ul>
+<li>...
+</ul>
+<li><div>[27] 0.01% 1 self: 0.01% 1</div><span class="brown"> ext4_journal_check_start</span>
+</ul>
+<li><div>[26] 0.02% 2 self: 0.02% 2</div><span class="brown"> iov_iter_advance</span>
+<li><div>[26] 0.02% 2 self: 0.02% 2</div><span class="brown"> unlock_page</span>
+<li><div>[26] 0.01% 1 self: 0.01% 1</div><span class="brown"> balance_dirty_pages_ratelimited</span>
+</ul>
+<li><div>[25] 0.04% 4 self: 0.04% 4</div><span class="brown"> ext4_da_write_end</span>
+<li><div>[25] 0.04% 4 self: 0.00% 0</div><span class="brown"> ext4_write_checks</span>
+<ul>
+<li><div>[26] 0.03% 3 self: 0.00% 0</div><span class="brown"> ext4_generic_write_checks</span>
+<ul>
+<li><div>[27] 0.03% 3 self: 0.03% 3</div><span class="brown"> generic_write_checks</span>
+</ul>
+<li><div>[26] 0.01% 1 self: 0.00% 0</div><span class="brown"> file_modified</span>
+<ul>
+<li>...
+</ul>
+</ul>
+<li><div>[25] 0.01% 1 self: 0.01% 1</div><span class="brown"> _cond_resched</span>
+<li><div>[25] 0.01% 1 self: 0.01% 1</div><span class="brown"> down_write</span>
+</ul>
+</ul>
+</ul>
+<li><div>[22] 0.05% 5 self: 0.00% 0</div><span class="brown"> rw_verify_area</span>
+<ul>
+<li><div>[23] 0.04% 4 self: 0.00% 0</div><span class="brown"> security_file_permission</span>
+<ul>
+<li><div>[24] 0.03% 3 self: 0.00% 0</div><span class="brown"> apparmor_file_permission</span>
+<ul>
+<li><div>[25] 0.03% 3 self: 0.03% 3</div><span class="brown"> common_file_perm</span>
+</ul>
+<li><div>[24] 0.01% 1 self: 0.01% 1</div><span class="brown"> common_file_perm</span>
+</ul>
+<li><div>[23] 0.01% 1 self: 0.01% 1</div><span class="brown"> apparmor_file_permission</span>
+</ul>
+<li><div>[22] 0.01% 1 self: 0.01% 1</div><span class="brown"> ext4_file_write_iter</span>
+</ul>
+<li><div>[21] 0.02% 2 self: 0.00% 0</div><span class="brown"> __fdget_pos</span>
+<ul>
+<li>...
+</ul>
+<li><div>[21] 0.02% 2 self: 0.02% 2</div><span class="brown"> __fget_light</span>
+</ul>
+<li><div>[20] 0.01% 1 self: 0.01% 1</div><span class="brown"> fput</span>
+</ul>
+<li><div>[19] 0.08% 8 self: 0.08% 8</div><span class="brown"> syscall_enter_from_user_mode</span>
+</ul>
+<li><div>[18] 0.01% 1 self: 0.01% 1</div><span class="brown"> __x64_sys_write</span>
+</ul>
+</ul>
+<li><div>[16] 0.02% 2 self: 0.02% 2</div><span class="red"> Java_sun_nio_ch_FileDispatcherImpl_write0</span>
+<li><div>[16] 0.01% 1 self: 0.01% 1</div><span class="red"> __pthread_enable_asynccancel</span>
+</ul>
+</ul>
+</ul>
+<li><div>[13] 0.10% 10 self: 0.00% 0</div><span class="green"> sun/nio/ch/Util.getTemporaryDirectBuffer</span>
+<ul>
+<li><div>[14] 0.09% 9 self: 0.07% 7</div><span class="green"> sun/nio/ch/Util$BufferCache.get</span>
+<ul>
+<li><div>[15] 0.01% 1 self: 0.01% 1</div><span class="red"> jbyte_disjoint_arraycopy</span>
+<li><div>[15] 0.01% 1 self: 0.01% 1</div><span class="green"> sun/nio/ch/FileDispatcherImpl.write0</span>
+</ul>
+<li><div>[14] 0.01% 1 self: 0.00% 0</div><span class="green"> java/lang/ThreadLocal.get</span>
+<ul>
+<li>...
+</ul>
+</ul>
+<li><div>[13] 0.02% 2 self: 0.00% 0</div><span class="green"> java/nio/DirectByteBuffer.put</span>
+<ul>
+<li>...
+</ul>
+</ul>
+<li><div>[12] 0.06% 6 self: 0.00% 0</div><span class="green"> sun/nio/ch/FileChannelImpl.beginBlocking</span>
+<ul>
+<li><div>[13] 0.06% 6 self: 0.03% 3</div><span class="green"> java/nio/channels/spi/AbstractInterruptibleChannel.begin</span>
+<ul>
+<li><div>[14] 0.02% 2 self: 0.00% 0</div><span class="green"> java/nio/channels/spi/AbstractInterruptibleChannel.blockedOn</span>
+<ul>
+<li>...
+</ul>
+<li><div>[14] 0.01% 1 self: 0.01% 1</div><span class="green"> java/lang/Thread.isInterrupted</span>
+</ul>
+</ul>
+<li><div>[12] 0.06% 6 self: 0.03% 3</div><span class="green"> sun/nio/ch/FileChannelImpl.endBlocking</span>
+<ul>
+<li><div>[13] 0.03% 3 self: 0.03% 3</div><span class="green"> java/nio/channels/spi/AbstractInterruptibleChannel.end</span>
+</ul>
+<li><div>[12] 0.05% 5 self: 0.05% 5</div><span class="green"> java/nio/channels/spi/AbstractInterruptibleChannel.isOpen</span>
+<li><div>[12] 0.05% 5 self: 0.01% 1</div><span class="green"> sun/nio/ch/NativeThreadSet.add</span>
+<ul>
+<li><div>[13] 0.04% 4 self: 0.04% 4</div><span class="green"> sun/nio/ch/NativeThread.current</span>
+</ul>
+<li><div>[12] 0.01% 1 self: 0.00% 0</div><span class="green"> sun/nio/ch/FileChannelImpl.ensureOpen</span>
+<ul>
+<li>...
+</ul>
+<li><div>[12] 0.01% 1 self: 0.01% 1</div><span class="green"> sun/nio/ch/NativeThreadSet.remove</span>
+</ul>
+<li><div>[11] 1.63% 157 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/SSTable.writeInt</span>
+<ul>
+<li><div>[12] 1.63% 157 self: 0.02% 2</div><span class="green"> sun/nio/ch/FileChannelImpl.write</span>
+<ul>
+<li><div>[13] 1.51% 145 self: 0.00% 0</div><span class="green"> sun/nio/ch/IOUtil.write</span>
+<ul>
+<li><div>[14] 1.42% 137 self: 0.00% 0</div><span class="green"> sun/nio/ch/IOUtil.writeFromNativeBuffer</span>
+<ul>
+<li><div>[15] 1.42% 137 self: 0.00% 0</div><span class="green"> sun/nio/ch/FileDispatcherImpl.write</span>
+<ul>
+<li><div>[16] 1.42% 137 self: 0.03% 3</div><span class="green"> sun/nio/ch/FileDispatcherImpl.write0</span>
+<ul>
+<li><div>[17] 1.37% 132 self: 0.27% 26</div><span class="red"> __libc_write</span>
+<ul>
+<li><div>[18] 1.10% 106 self: 0.00% 0</div><span class="brown"> entry_SYSCALL_64_after_hwframe</span>
+<ul>
+<li><div>[19] 1.10% 106 self: 0.00% 0</div><span class="brown"> do_syscall_64</span>
+<ul>
+<li><div>[20] 0.99% 95 self: 0.00% 0</div><span class="brown"> __x64_sys_write</span>
+<ul>
+<li><div>[21] 0.99% 95 self: 0.00% 0</div><span class="brown"> ksys_write</span>
+<ul>
+<li><div>[22] 0.94% 91 self: 0.02% 2</div><span class="brown"> vfs_write</span>
+<ul>
+<li><div>[23] 0.86% 83 self: 0.01% 1</div><span class="brown"> new_sync_write</span>
+<ul>
+<li><div>[24] 0.85% 82 self: 0.00% 0</div><span class="brown"> ext4_file_write_iter</span>
+<ul>
+<li><div>[25] 0.85% 82 self: 0.02% 2</div><span class="brown"> ext4_buffered_write_iter</span>
+<ul>
+<li><div>[26] 0.79% 76 self: 0.00% 0</div><span class="brown"> generic_perform_write</span>
+<ul>
+<li><div>[27] 0.66% 64 self: 0.00% 0</div><span class="brown"> ext4_da_write_end</span>
+<ul>
+<li><div>[28] 0.59% 57 self: 0.01% 1</div><span class="brown"> generic_write_end</span>
+<ul>
+<li><div>[29] 0.53% 51 self: 0.00% 0</div><span class="brown"> __mark_inode_dirty</span>
+<ul>
+<li><div>[30] 0.53% 51 self: 0.01% 1</div><span class="brown"> ext4_dirty_inode</span>
+<ul>
+<li><div>[31] 0.48% 46 self: 0.00% 0</div><span class="brown"> __ext4_mark_inode_dirty</span>
+<ul>
+<li><div>[32] 0.33% 32 self: 0.00% 0</div><span class="brown"> ext4_mark_iloc_dirty</span>
+<ul>
+<li><div>[33] 0.31% 30 self: 0.10% 10</div><span class="brown"> ext4_do_update_inode</span>
+<ul>
+<li><div>[34] 0.17% 16 self: 0.01% 1</div><span class="brown"> ext4_inode_csum_set</span>
+<ul>
+<li><div>[35] 0.15% 14 self: 0.03% 3</div><span class="brown"> ext4_inode_csum.isra.0</span>
+<ul>
+<li><div>[36] 0.05% 5 self: 0.05% 5</div><span class="brown"> crc32c_pcl_intel_update</span>
+<li><div>[36] 0.05% 5 self: 0.00% 0</div><span class="brown"> crypto_shash_update</span>
+<ul>
+<li><div>[37] 0.05% 5 self: 0.05% 5</div><span class="brown"> crc32c_pcl_intel_update</span>
+</ul>
+<li><div>[36] 0.01% 1 self: 0.01% 1</div><span class="brown"> __x86_retpoline_rax</span>
+</ul>
+<li><div>[35] 0.01% 1 self: 0.01% 1</div><span class="brown"> crypto_shash_update</span>
+</ul>
+<li><div>[34] 0.02% 2 self: 0.02% 2</div><span class="brown"> map_id_up</span>
+<li><div>[34] 0.01% 1 self: 0.00% 0</div><span class="brown"> from_kgid</span>
+<ul>
+<li>...
+</ul>
+<li><div>[34] 0.01% 1 self: 0.00% 0</div><span class="brown"> from_kuid</span>
+<ul>
+<li>...
+</ul>
+</ul>
+<li><div>[33] 0.01% 1 self: 0.01% 1</div><span class="brown"> __brelse</span>
+<li><div>[33] 0.01% 1 self: 0.01% 1</div><span class="brown"> _raw_spin_lock</span>
+</ul>
+<li><div>[32] 0.13% 13 self: 0.01% 1</div><span class="brown"> ext4_reserve_inode_write</span>
+<ul>
+<li><div>[33] 0.09% 9 self: 0.00% 0</div><span class="brown"> ext4_get_inode_loc</span>
+<ul>
+<li><div>[34] 0.09% 9 self: 0.06% 6</div><span class="brown"> __ext4_get_inode_loc</span>
+<ul>
+<li><div>[35] 0.02% 2 self: 0.00% 0</div><span class="brown"> __getblk_gfp</span>
+<ul>
+<li>...
+</ul>
+<li><div>[35] 0.01% 1 self: 0.01% 1</div><span class="brown"> ext4_get_group_desc</span>
+</ul>
+</ul>
+<li><div>[33] 0.03% 3 self: 0.00% 0</div><span class="brown"> __ext4_journal_get_write_access</span>
+<ul>
+<li><div>[34] 0.03% 3 self: 0.00% 0</div><span class="brown"> jbd2_journal_get_write_access</span>
+<ul>
+<li><div>[35] 0.03% 3 self: 0.02% 2</div><span class="brown"> jbd2_write_access_granted.part.0</span>
+<ul>
+<li><div>[36] 0.01% 1 self: 0.01% 1</div><span class="brown"> rcu_read_unlock_strict</span>
+</ul>
+</ul>
+</ul>
+</ul>
+<li><div>[32] 0.01% 1 self: 0.01% 1</div><span class="brown"> rcu_all_qs</span>
+</ul>
+<li><div>[31] 0.02% 2 self: 0.02% 2</div><span class="brown"> _cond_resched</span>
+<li><div>[31] 0.01% 1 self: 0.01% 1</div><span class="brown"> __ext4_journal_stop</span>
+<li><div>[31] 0.01% 1 self: 0.01% 1</div><span class="brown"> jbd2__journal_start</span>
+</ul>
+</ul>
+<li><div>[29] 0.05% 5 self: 0.01% 1</div><span class="brown"> block_write_end</span>
+<ul>
+<li><div>[30] 0.04% 4 self: 0.03% 3</div><span class="brown"> __block_commit_write.isra.0</span>
+<ul>
+<li><div>[31] 0.01% 1 self: 0.00% 0</div><span class="brown"> mark_buffer_dirty</span>
+<ul>
+<li>...
+</ul>
+</ul>
+</ul>
+</ul>
+<li><div>[28] 0.06% 6 self: 0.00% 0</div><span class="brown"> __ext4_journal_stop</span>
+<ul>
+<li><div>[29] 0.06% 6 self: 0.01% 1</div><span class="brown"> jbd2_journal_stop</span>
+<ul>
+<li><div>[30] 0.03% 3 self: 0.02% 2</div><span class="brown"> stop_this_handle</span>
+<ul>
+<li><div>[31] 0.01% 1 self: 0.00% 0</div><span class="brown"> __wake_up</span>
+<ul>
+<li>...
+</ul>
+</ul>
+<li><div>[30] 0.02% 2 self: 0.02% 2</div><span class="brown"> kmem_cache_free</span>
+</ul>
+</ul>
+<li><div>[28] 0.01% 1 self: 0.01% 1</div><span class="brown"> unlock_page</span>
+</ul>
+<li><div>[27] 0.07% 7 self: 0.02% 2</div><span class="brown"> ext4_da_write_begin</span>
+<ul>
+<li><div>[28] 0.03% 3 self: 0.00% 0</div><span class="brown"> __ext4_journal_start_sb</span>
+<ul>
+<li><div>[29] 0.03% 3 self: 0.00% 0</div><span class="brown"> jbd2__journal_start</span>
+<ul>
+<li><div>[30] 0.02% 2 self: 0.02% 2</div><span class="brown"> start_this_handle</span>
+<li><div>[30] 0.01% 1 self: 0.01% 1</div><span class="brown"> _raw_read_lock</span>
+</ul>
+</ul>
+<li><div>[28] 0.01% 1 self: 0.01% 1</div><span class="brown"> _cond_resched</span>
+<li><div>[28] 0.01% 1 self: 0.00% 0</div><span class="brown"> grab_cache_page_write_begin</span>
+<ul>
+<li>...
+</ul>
+</ul>
+<li><div>[27] 0.01% 1 self: 0.01% 1</div><span class="brown"> _cond_resched</span>
+<li><div>[27] 0.01% 1 self: 0.01% 1</div><span class="brown"> balance_dirty_pages_ratelimited</span>
+<li><div>[27] 0.01% 1 self: 0.01% 1</div><span class="brown"> iov_iter_fault_in_readable</span>
+<li><div>[27] 0.01% 1 self: 0.01% 1</div><span class="brown"> unlock_page</span>
+<li><div>[27] 0.01% 1 self: 0.01% 1</div><span class="brown"> wait_for_stable_page</span>
+</ul>
+<li><div>[26] 0.01% 1 self: 0.01% 1</div><span class="brown"> down_write</span>
+<li><div>[26] 0.01% 1 self: 0.01% 1</div><span class="brown"> ext4_da_write_begin</span>
+<li><div>[26] 0.01% 1 self: 0.01% 1</div><span class="brown"> ext4_fc_start_update</span>
+<li><div>[26] 0.01% 1 self: 0.00% 0</div><span class="brown"> ext4_write_checks</span>
+<ul>
+<li>...
+</ul>
+</ul>
+</ul>
+</ul>
+<li><div>[23] 0.06% 6 self: 0.01% 1</div><span class="brown"> rw_verify_area</span>
+<ul>
+<li><div>[24] 0.05% 5 self: 0.00% 0</div><span class="brown"> security_file_permission</span>
+<ul>
+<li><div>[25] 0.04% 4 self: 0.00% 0</div><span class="brown"> apparmor_file_permission</span>
+<ul>
+<li><div>[26] 0.04% 4 self: 0.03% 3</div><span class="brown"> common_file_perm</span>
+<ul>
+<li><div>[27] 0.01% 1 self: 0.01% 1</div><span class="brown"> aa_file_perm</span>
+</ul>
+</ul>
+<li><div>[25] 0.01% 1 self: 0.01% 1</div><span class="brown"> common_file_perm</span>
+</ul>
+</ul>
+</ul>
+<li><div>[22] 0.02% 2 self: 0.00% 0</div><span class="brown"> __fdget_pos</span>
+<ul>
+<li>...
+</ul>
+<li><div>[22] 0.01% 1 self: 0.01% 1</div><span class="brown"> __fget_light</span>
+<li><div>[22] 0.01% 1 self: 0.01% 1</div><span class="brown"> fput_many</span>
+</ul>
+</ul>
+<li><div>[20] 0.10% 10 self: 0.10% 10</div><span class="brown"> syscall_enter_from_user_mode</span>
+<li><div>[20] 0.01% 1 self: 0.01% 1</div><span class="brown"> ksys_write</span>
+</ul>
+</ul>
+</ul>
+<li><div>[17] 0.01% 1 self: 0.01% 1</div><span class="red"> __pthread_disable_asynccancel</span>
+<li><div>[17] 0.01% 1 self: 0.01% 1</div><span class="red"> fdval</span>
+</ul>
+</ul>
+</ul>
+<li><div>[14] 0.05% 5 self: 0.00% 0</div><span class="green"> sun/nio/ch/Util.getTemporaryDirectBuffer</span>
+<ul>
+<li><div>[15] 0.03% 3 self: 0.02% 2</div><span class="green"> sun/nio/ch/Util$BufferCache.get</span>
+<ul>
+<li><div>[16] 0.01% 1 self: 0.01% 1</div><span class="red"> jint_disjoint_arraycopy</span>
+</ul>
+<li><div>[15] 0.02% 2 self: 0.02% 2</div><span class="green"> java/lang/ThreadLocal.get</span>
+</ul>
+<li><div>[14] 0.03% 3 self: 0.00% 0</div><span class="green"> java/nio/DirectByteBuffer.put</span>
+<ul>
+<li><div>[15] 0.03% 3 self: 0.00% 0</div><span class="green"> java/nio/ByteBuffer.put</span>
+<ul>
+<li><div>[16] 0.03% 3 self: 0.00% 0</div><span class="green"> jdk/internal/misc/Unsafe.copyMemory</span>
+<ul>
+<li><div>[17] 0.03% 3 self: 0.00% 0</div><span class="green"> jdk/internal/misc/Unsafe.copyMemoryChecks</span>
+<ul>
+<li><div>[18] 0.03% 3 self: 0.03% 3</div><span class="green"> jdk/internal/misc/Unsafe.checkSize</span>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+<li><div>[13] 0.04% 4 self: 0.00% 0</div><span class="green"> sun/nio/ch/FileChannelImpl.beginBlocking</span>
+<ul>
+<li><div>[14] 0.04% 4 self: 0.01% 1</div><span class="green"> java/nio/channels/spi/AbstractInterruptibleChannel.begin</span>
+<ul>
+<li><div>[15] 0.02% 2 self: 0.00% 0</div><span class="green"> java/nio/channels/spi/AbstractInterruptibleChannel.blockedOn</span>
+<ul>
+<li>...
+</ul>
+<li><div>[15] 0.01% 1 self: 0.01% 1</div><span class="green"> java/lang/Thread.isInterrupted</span>
+</ul>
+</ul>
+<li><div>[13] 0.02% 2 self: 0.00% 0</div><span class="green"> sun/nio/ch/FileChannelImpl.endBlocking</span>
+<ul>
+<li>...
+</ul>
+<li><div>[13] 0.02% 2 self: 0.02% 2</div><span class="green"> sun/nio/ch/NativeThreadSet.add</span>
+<li><div>[13] 0.01% 1 self: 0.01% 1</div><span class="green"> java/nio/channels/spi/AbstractInterruptibleChannel.isOpen</span>
+<li><div>[13] 0.01% 1 self: 0.01% 1</div><span class="green"> sun/nio/ch/NativeThreadSet.remove</span>
+</ul>
+</ul>
+</ul>
+<li><div>[10] 0.84% 81 self: 0.01% 1</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/SSTable.writeInt</span>
+<ul>
+<li><div>[11] 0.79% 76 self: 0.00% 0</div><span class="green"> sun/nio/ch/FileChannelImpl.write</span>
+<ul>
+<li><div>[12] 0.75% 72 self: 0.00% 0</div><span class="green"> sun/nio/ch/IOUtil.write</span>
+<ul>
+<li><div>[13] 0.74% 71 self: 0.00% 0</div><span class="green"> sun/nio/ch/IOUtil.writeFromNativeBuffer</span>
+<ul>
+<li><div>[14] 0.74% 71 self: 0.00% 0</div><span class="green"> sun/nio/ch/FileDispatcherImpl.write</span>
+<ul>
+<li><div>[15] 0.74% 71 self: 0.01% 1</div><span class="green"> sun/nio/ch/FileDispatcherImpl.write0</span>
+<ul>
+<li><div>[16] 0.73% 70 self: 0.12% 12</div><span class="red"> __libc_write</span>
+<ul>
+<li><div>[17] 0.60% 58 self: 0.00% 0</div><span class="brown"> entry_SYSCALL_64_after_hwframe</span>
+<ul>
+<li><div>[18] 0.59% 57 self: 0.02% 2</div><span class="brown"> do_syscall_64</span>
+<ul>
+<li><div>[19] 0.53% 51 self: 0.00% 0</div><span class="brown"> __x64_sys_write</span>
+<ul>
+<li><div>[20] 0.53% 51 self: 0.00% 0</div><span class="brown"> ksys_write</span>
+<ul>
+<li><div>[21] 0.52% 50 self: 0.01% 1</div><span class="brown"> vfs_write</span>
+<ul>
+<li><div>[22] 0.51% 49 self: 0.00% 0</div><span class="brown"> new_sync_write</span>
+<ul>
+<li><div>[23] 0.51% 49 self: 0.00% 0</div><span class="brown"> ext4_file_write_iter</span>
+<ul>
+<li><div>[24] 0.50% 48 self: 0.00% 0</div><span class="brown"> ext4_buffered_write_iter</span>
+<ul>
+<li><div>[25] 0.45% 43 self: 0.01% 1</div><span class="brown"> generic_perform_write</span>
+<ul>
+<li><div>[26] 0.29% 28 self: 0.01% 1</div><span class="brown"> ext4_da_write_end</span>
+<ul>
+<li><div>[27] 0.24% 23 self: 0.00% 0</div><span class="brown"> generic_write_end</span>
+<ul>
+<li><div>[28] 0.23% 22 self: 0.00% 0</div><span class="brown"> __mark_inode_dirty</span>
+<ul>
+<li><div>[29] 0.22% 21 self: 0.00% 0</div><span class="brown"> ext4_dirty_inode</span>
+<ul>
+<li><div>[30] 0.20% 19 self: 0.00% 0</div><span class="brown"> __ext4_mark_inode_dirty</span>
+<ul>
+<li><div>[31] 0.17% 16 self: 0.01% 1</div><span class="brown"> ext4_mark_iloc_dirty</span>
+<ul>
+<li><div>[32] 0.13% 13 self: 0.04% 4</div><span class="brown"> ext4_do_update_inode</span>
+<ul>
+<li><div>[33] 0.08% 8 self: 0.00% 0</div><span class="brown"> ext4_inode_csum_set</span>
+<ul>
+<li><div>[34] 0.07% 7 self: 0.00% 0</div><span class="brown"> ext4_inode_csum.isra.0</span>
+<ul>
+<li><div>[35] 0.03% 3 self: 0.03% 3</div><span class="brown"> crc32c_pcl_intel_update</span>
+<li><div>[35] 0.03% 3 self: 0.01% 1</div><span class="brown"> crypto_shash_update</span>
+<ul>
+<li><div>[36] 0.02% 2 self: 0.02% 2</div><span class="brown"> crc32c_pcl_intel_update</span>
+</ul>
+<li><div>[35] 0.01% 1 self: 0.01% 1</div><span class="brown"> __x86_retpoline_rax</span>
+</ul>
+<li><div>[34] 0.01% 1 self: 0.01% 1</div><span class="brown"> crypto_shash_update</span>
+</ul>
+<li><div>[33] 0.01% 1 self: 0.00% 0</div><span class="brown"> from_kprojid</span>
+<ul>
+<li>...
+</ul>
+</ul>
+<li><div>[32] 0.01% 1 self: 0.01% 1</div><span class="brown"> __brelse</span>
+<li><div>[32] 0.01% 1 self: 0.01% 1</div><span class="brown"> ext4_inode_csum_set</span>
+</ul>
+<li><div>[31] 0.03% 3 self: 0.00% 0</div><span class="brown"> ext4_reserve_inode_write</span>
+<ul>
+<li><div>[32] 0.02% 2 self: 0.00% 0</div><span class="brown"> ext4_get_inode_loc</span>
+<ul>
+<li>...
+</ul>
+<li><div>[32] 0.01% 1 self: 0.01% 1</div><span class="brown"> jbd2_journal_get_write_access</span>
+</ul>
+</ul>
+<li><div>[30] 0.02% 2 self: 0.00% 0</div><span class="brown"> __ext4_journal_start_sb</span>
+<ul>
+<li>...
+</ul>
+</ul>
+<li><div>[29] 0.01% 1 self: 0.01% 1</div><span class="brown"> __ext4_mark_inode_dirty</span>
+</ul>
+<li><div>[28] 0.01% 1 self: 0.00% 0</div><span class="brown"> block_write_end</span>
+<ul>
+<li>...
+</ul>
+</ul>
+<li><div>[27] 0.03% 3 self: 0.00% 0</div><span class="brown"> __ext4_journal_stop</span>
+<ul>
+<li><div>[28] 0.03% 3 self: 0.00% 0</div><span class="brown"> jbd2_journal_stop</span>
+<ul>
+<li><div>[29] 0.02% 2 self: 0.01% 1</div><span class="brown"> stop_this_handle</span>
+<ul>
+<li>...
+</ul>
+<li><div>[29] 0.01% 1 self: 0.01% 1</div><span class="brown"> __wake_up</span>
+</ul>
+</ul>
+<li><div>[27] 0.01% 1 self: 0.01% 1</div><span class="brown"> unlock_page</span>
+</ul>
+<li><div>[26] 0.09% 9 self: 0.02% 2</div><span class="brown"> ext4_da_write_begin</span>
+<ul>
+<li><div>[27] 0.05% 5 self: 0.00% 0</div><span class="brown"> grab_cache_page_write_begin</span>
+<ul>
+<li><div>[28] 0.05% 5 self: 0.03% 3</div><span class="brown"> pagecache_get_page</span>
+<ul>
+<li><div>[29] 0.02% 2 self: 0.01% 1</div><span class="brown"> find_get_entry</span>
+<ul>
+<li>...
+</ul>
+</ul>
+</ul>
+<li><div>[27] 0.01% 1 self: 0.01% 1</div><span class="brown"> ext4_block_write_begin</span>
+<li><div>[27] 0.01% 1 self: 0.01% 1</div><span class="brown"> rcu_all_qs</span>
+</ul>
+<li><div>[26] 0.01% 1 self: 0.01% 1</div><span class="brown"> __ext4_journal_stop</span>
+<li><div>[26] 0.01% 1 self: 0.01% 1</div><span class="brown"> __get_user_nocheck_1</span>
+<li><div>[26] 0.01% 1 self: 0.01% 1</div><span class="brown"> balance_dirty_pages_ratelimited</span>
+<li><div>[26] 0.01% 1 self: 0.01% 1</div><span class="brown"> ext4_nonda_switch</span>
+<li><div>[26] 0.01% 1 self: 0.01% 1</div><span class="brown"> iov_iter_fault_in_readable</span>
+</ul>
+<li><div>[25] 0.02% 2 self: 0.00% 0</div><span class="brown"> ext4_write_checks</span>
+<ul>
+<li>...
+</ul>
+<li><div>[25] 0.01% 1 self: 0.01% 1</div><span class="brown"> ext4_da_write_begin</span>
+<li><div>[25] 0.01% 1 self: 0.01% 1</div><span class="brown"> ext4_fc_start_update</span>
+<li><div>[25] 0.01% 1 self: 0.01% 1</div><span class="brown"> iov_iter_fault_in_readable</span>
+</ul>
+<li><div>[24] 0.01% 1 self: 0.01% 1</div><span class="brown"> up_write</span>
+</ul>
+</ul>
+</ul>
+<li><div>[21] 0.01% 1 self: 0.00% 0</div><span class="brown"> __fdget_pos</span>
+<ul>
+<li>...
+</ul>
+</ul>
+</ul>
+<li><div>[19] 0.04% 4 self: 0.04% 4</div><span class="brown"> syscall_enter_from_user_mode</span>
+</ul>
+<li><div>[18] 0.01% 1 self: 0.01% 1</div><span class="brown"> __x64_sys_write</span>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+<li><div>[13] 0.01% 1 self: 0.01% 1</div><span class="green"> sun/nio/ch/Util.getTemporaryDirectBuffer</span>
+</ul>
+<li><div>[12] 0.01% 1 self: 0.00% 0</div><span class="green"> sun/nio/ch/FileChannelImpl.beginBlocking</span>
+<ul>
+<li>...
+</ul>
+<li><div>[12] 0.01% 1 self: 0.00% 0</div><span class="green"> sun/nio/ch/FileChannelImpl.endBlocking</span>
+<ul>
+<li>...
+</ul>
+<li><div>[12] 0.01% 1 self: 0.01% 1</div><span class="green"> sun/nio/ch/NativeThreadSet.add</span>
+<li><div>[12] 0.01% 1 self: 0.01% 1</div><span class="green"> sun/nio/ch/NativeThreadSet.remove</span>
+</ul>
+<li><div>[11] 0.04% 4 self: 0.00% 0</div><span class="green"> java/nio/ByteBuffer.position</span>
+<ul>
+<li><div>[12] 0.04% 4 self: 0.04% 4</div><span class="green"> java/nio/Buffer.position</span>
+</ul>
+</ul>
+<li><div>[10] 0.31% 30 self: 0.00% 0</div><span class="green"> sun/nio/ch/FileChannelImpl.position</span>
+<ul>
+<li><div>[11] 0.28% 27 self: 0.00% 0</div><span class="green"> sun/nio/ch/FileDispatcherImpl.seek</span>
+<ul>
+<li><div>[12] 0.28% 27 self: 0.00% 0</div><span class="green"> sun/nio/ch/FileDispatcherImpl.seek0</span>
+<ul>
+<li><div>[13] 0.27% 26 self: 0.16% 15</div><span class="red"> __libc_lseek</span>
+<ul>
+<li><div>[14] 0.11% 11 self: 0.00% 0</div><span class="brown"> entry_SYSCALL_64_after_hwframe</span>
+<ul>
+<li><div>[15] 0.11% 11 self: 0.00% 0</div><span class="brown"> do_syscall_64</span>
+<ul>
+<li><div>[16] 0.06% 6 self: 0.06% 6</div><span class="brown"> syscall_enter_from_user_mode</span>
+<li><div>[16] 0.04% 4 self: 0.00% 0</div><span class="brown"> __x64_sys_lseek</span>
+<ul>
+<li><div>[17] 0.04% 4 self: 0.01% 1</div><span class="brown"> ksys_lseek</span>
+<ul>
+<li><div>[18] 0.02% 2 self: 0.02% 2</div><span class="brown"> fput_many</span>
+<li><div>[18] 0.01% 1 self: 0.01% 1</div><span class="brown"> __fdget_pos</span>
+</ul>
+</ul>
+<li><div>[16] 0.01% 1 self: 0.01% 1</div><span class="brown"> ksys_lseek</span>
+</ul>
+</ul>
+</ul>
+<li><div>[13] 0.01% 1 self: 0.01% 1</div><span class="red"> Java_sun_nio_ch_FileDispatcherImpl_seek0</span>
+</ul>
+</ul>
+<li><div>[11] 0.02% 2 self: 0.00% 0</div><span class="green"> sun/nio/ch/FileChannelImpl.beginBlocking</span>
+<ul>
+<li>...
+</ul>
+<li><div>[11] 0.01% 1 self: 0.01% 1</div><span class="green"> sun/nio/ch/NativeThreadSet.add</span>
+</ul>
+<li><div>[10] 0.02% 2 self: 0.00% 0</div><span class="green"> java/util/concurrent/ConcurrentSkipListMap$ValueIterator.next</span>
+<ul>
+<li>...
+</ul>
+<li><div>[10] 0.01% 1 self: 0.00% 0</div><span class="green"> sun/nio/ch/FileChannelImpl.force</span>
+<ul>
+<li>...
+</ul>
+</ul>
+</ul>
+<li><div>[8] 0.02% 2 self: 0.00% 0</div><span class="green"> java/util/concurrent/ConcurrentSkipListMap.clear</span>
+<ul>
+<li>...
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+<li><div>[0] 2.80% 270 self: 0.00% 0</div><span class="red"> start_thread</span>
+<ul>
+<li><div>[1] 2.80% 270 self: 0.00% 0</div><span class="red"> thread_native_entry(Thread*)</span>
+<ul>
+<li><div>[2] 2.80% 270 self: 0.00% 0</div><span class="yellow"> Thread::call_run()</span>
+<ul>
+<li><div>[3] 2.67% 257 self: 0.00% 0</div><span class="yellow"> GangWorker::loop()</span>
+<ul>
+<li><div>[4] 2.37% 228 self: 0.01% 1</div><span class="yellow"> G1EvacuateRegionsBaseTask::work(unsigned int)</span>
+<ul>
+<li><div>[5] 1.97% 190 self: 0.00% 0</div><span class="yellow"> G1EvacuateRegionsTask::evacuate_live_objects(G1ParScanThreadState*, unsigned int)</span>
+<ul>
+<li><div>[6] 1.97% 190 self: 0.04% 4</div><span class="yellow"> G1ParEvacuateFollowersClosure::do_void()</span>
+<ul>
+<li><div>[7] 1.84% 177 self: 0.46% 44</div><span class="yellow"> G1ParScanThreadState::trim_queue()</span>
+<ul>
+<li><div>[8] 1.33% 128 self: 0.98% 94</div><span class="yellow"> G1ParScanThreadState::copy_to_survivor_space(G1HeapRegionAttr, oopDesc*, markWord)</span>
+<ul>
+<li><div>[9] 0.32% 31 self: 0.32% 31</div><span class="yellow"> void OopOopIterateBackwardsDispatch&lt;G1ScanEvacuatedObjClosure&gt;::Table::oop_oop_iterate_backwards&lt;InstanceKlass, unsigned int&gt;(G1ScanEvacuatedObjClosure*, oopDesc*, Klass*)</span>
+<li><div>[9] 0.02% 2 self: 0.01% 1</div><span class="yellow"> G1PLABAllocator::allocate_direct_or_new_plab(G1HeapRegionAttr, unsigned long, bool*, unsigned int)</span>
+<ul>
+<li>...
+</ul>
+<li><div>[9] 0.01% 1 self: 0.00% 0</div><span class="brown"> asm_sysvec_apic_timer_interrupt</span>
+<ul>
+<li>...
+</ul>
+</ul>
+<li><div>[8] 0.04% 4 self: 0.04% 4</div><span class="yellow"> void OopOopIterateBackwardsDispatch&lt;G1ScanEvacuatedObjClosure&gt;::Table::oop_oop_iterate_backwards&lt;InstanceKlass, unsigned int&gt;(G1ScanEvacuatedObjClosure*, oopDesc*, Klass*)</span>
+<li><div>[8] 0.01% 1 self: 0.01% 1</div><span class="yellow"> void OopOopIterateBackwardsDispatch&lt;G1ScanEvacuatedObjClosure&gt;::Table::oop_oop_iterate_backwards&lt;TypeArrayKlass, unsigned int&gt;(G1ScanEvacuatedObjClosure*, oopDesc*, Klass*)</span>
+</ul>
+<li><div>[7] 0.04% 4 self: 0.01% 1</div><span class="red"> __pthread_mutex_unlock</span>
+<ul>
+<li><div>[8] 0.03% 3 self: 0.00% 0</div><span class="brown"> entry_SYSCALL_64_after_hwframe</span>
+<ul>
+<li><div>[9] 0.03% 3 self: 0.00% 0</div><span class="brown"> do_syscall_64</span>
+<ul>
+<li><div>[10] 0.03% 3 self: 0.00% 0</div><span class="brown"> __x64_sys_futex</span>
+<ul>
+<li><div>[11] 0.03% 3 self: 0.00% 0</div><span class="brown"> do_futex</span>
+<ul>
+<li><div>[12] 0.03% 3 self: 0.01% 1</div><span class="brown"> futex_wake</span>
+<ul>
+<li><div>[13] 0.02% 2 self: 0.00% 0</div><span class="brown"> wake_up_q</span>
+<ul>
+<li>...
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+<li><div>[7] 0.03% 3 self: 0.00% 0</div><span class="yellow"> TaskTerminator::offer_termination(TerminatorTerminator*)</span>
+<ul>
+<li><div>[8] 0.02% 2 self: 0.01% 1</div><span class="red"> __lll_lock_wait</span>
+<ul>
+<li>...
+</ul>
+<li><div>[8] 0.01% 1 self: 0.01% 1</div><span class="red"> SpinPause</span>
+</ul>
+<li><div>[7] 0.02% 2 self: 0.02% 2</div><span class="yellow"> G1ParScanThreadState::copy_to_survivor_space(G1HeapRegionAttr, oopDesc*, markWord)</span>
+</ul>
+</ul>
+<li><div>[5] 0.38% 37 self: 0.00% 0</div><span class="yellow"> G1EvacuateRegionsTask::scan_roots(G1ParScanThreadState*, unsigned int)</span>
+<ul>
+<li><div>[6] 0.31% 30 self: 0.00% 0</div><span class="yellow"> G1RemSet::scan_heap_roots(G1ParScanThreadState*, unsigned int, G1GCPhaseTimes::GCParPhases, G1GCPhaseTimes::GCParPhases)</span>
+<ul>
+<li><div>[7] 0.30% 29 self: 0.00% 0</div><span class="yellow"> G1ScanHRForRegionClosure::scan_heap_roots(HeapRegion*)</span>
+<ul>
+<li><div>[8] 0.18% 17 self: 0.11% 11</div><span class="yellow"> G1ParScanThreadState::trim_queue_partially()</span>
+<ul>
+<li><div>[9] 0.06% 6 self: 0.04% 4</div><span class="yellow"> G1ParScanThreadState::copy_to_survivor_space(G1HeapRegionAttr, oopDesc*, markWord)</span>
+<ul>
+<li><div>[10] 0.01% 1 self: 0.01% 1</div><span class="yellow"> void OopOopIterateBackwardsDispatch&lt;G1ScanEvacuatedObjClosure&gt;::Table::oop_oop_iterate_backwards&lt;InstanceKlass, unsigned int&gt;(G1ScanEvacuatedObjClosure*, oopDesc*, Klass*)</span>
+<li><div>[10] 0.01% 1 self: 0.00% 0</div><span class="yellow"> void OopOopIterateBackwardsDispatch&lt;G1ScanEvacuatedObjClosure&gt;::Table::oop_oop_iterate_backwards&lt;InstanceRefKlass, unsigned int&gt;(G1ScanEvacuatedObjClosure*, oopDesc*, Klass*)</span>
+<ul>
+<li>...
+</ul>
+</ul>
+</ul>
+<li><div>[8] 0.06% 6 self: 0.01% 1</div><span class="yellow"> void OopOopIterateDispatch&lt;G1ScanCardClosure&gt;::Table::oop_oop_iterate&lt;InstanceKlass, unsigned int&gt;(G1ScanCardClosure*, oopDesc*, Klass*)</span>
+<ul>
+<li><div>[9] 0.05% 5 self: 0.05% 5</div><span class="yellow"> void G1ScanCardClosure::do_oop_work&lt;unsigned int&gt;(unsigned int*)</span>
+</ul>
+<li><div>[8] 0.02% 2 self: 0.02% 2</div><span class="yellow"> G1BlockOffsetTablePart::forward_to_block_containing_addr_slow(HeapWordImpl**, HeapWordImpl**, void const*)</span>
+<li><div>[8] 0.02% 2 self: 0.02% 2</div><span class="yellow"> void G1ScanCardClosure::do_oop_work&lt;unsigned int&gt;(unsigned int*)</span>
+<li><div>[8] 0.01% 1 self: 0.00% 0</div><span class="yellow"> void OopOopIterateBoundedDispatch&lt;G1ScanCardClosure&gt;::Table::oop_oop_iterate_bounded&lt;ObjArrayKlass, unsigned int&gt;(G1ScanCardClosure*, oopDesc*, Klass*, MemRegion)</span>
+<ul>
+<li>...
+</ul>
+<li><div>[8] 0.01% 1 self: 0.00% 0</div><span class="yellow"> void OopOopIterateDispatch&lt;G1ScanCardClosure&gt;::Table::oop_oop_iterate&lt;InstanceRefKlass, unsigned int&gt;(G1ScanCardClosure*, oopDesc*, Klass*)</span>
+<ul>
+<li>...
+</ul>
+</ul>
+<li><div>[7] 0.01% 1 self: 0.01% 1</div><span class="yellow"> void OopOopIterateDispatch&lt;G1ScanCardClosure&gt;::Table::oop_oop_iterate&lt;InstanceKlass, unsigned int&gt;(G1ScanCardClosure*, oopDesc*, Klass*)</span>
+</ul>
+<li><div>[6] 0.07% 7 self: 0.00% 0</div><span class="yellow"> G1RootProcessor::evacuate_roots(G1ParScanThreadState*, unsigned int)</span>
+<ul>
+<li><div>[7] 0.04% 4 self: 0.00% 0</div><span class="yellow"> G1RootProcessor::process_java_roots(G1RootClosures*, G1GCPhaseTimes*, unsigned int)</span>
+<ul>
+<li><div>[8] 0.03% 3 self: 0.00% 0</div><span class="yellow"> Threads::possibly_parallel_oops_do(bool, OopClosure*, CodeBlobClosure*)</span>
+<ul>
+<li><div>[9] 0.03% 3 self: 0.00% 0</div><span class="yellow"> JavaThread::oops_do(OopClosure*, CodeBlobClosure*)</span>
+<ul>
+<li><div>[10] 0.01% 1 self: 0.00% 0</div><span class="yellow"> G1CodeBlobClosure::do_code_blob(CodeBlob*)</span>
+<ul>
+<li>...
+</ul>
+<li><div>[10] 0.01% 1 self: 0.00% 0</div><span class="yellow"> StackFrameStream::StackFrameStream(JavaThread*, bool)</span>
+<ul>
+<li>...
+</ul>
+<li><div>[10] 0.01% 1 self: 0.01% 1</div><span class="yellow"> frame::oops_interpreted_do(OopClosure*, RegisterMap const*, bool)</span>
+</ul>
+</ul>
+<li><div>[8] 0.01% 1 self: 0.00% 0</div><span class="yellow"> ClassLoaderDataGraph::roots_cld_do(CLDClosure*, CLDClosure*)</span>
+<ul>
+<li>...
+</ul>
+</ul>
+<li><div>[7] 0.02% 2 self: 0.00% 0</div><span class="yellow"> G1RootProcessor::process_vm_roots(G1RootClosures*, G1GCPhaseTimes*, unsigned int)</span>
+<ul>
+<li>...
+</ul>
+<li><div>[7] 0.01% 1 self: 0.01% 1</div><span class="yellow"> G1GCParPhaseTimesTracker::G1GCParPhaseTimesTracker(G1GCPhaseTimes*, G1GCPhaseTimes::GCParPhases, unsigned int, bool)</span>
+</ul>
+</ul>
+</ul>
+<li><div>[4] 0.15% 14 self: 0.00% 0</div><span class="yellow"> G1CMConcurrentMarkingTask::work(unsigned int)</span>
+<ul>
+<li><div>[5] 0.15% 14 self: 0.00% 0</div><span class="yellow"> G1CMTask::do_marking_step(double, bool, bool)</span>
+<ul>
+<li><div>[6] 0.10% 10 self: 0.02% 2</div><span class="yellow"> G1CMBitMapClosure::do_addr(HeapWordImpl**)</span>
+<ul>
+<li><div>[7] 0.05% 5 self: 0.02% 2</div><span class="yellow"> void G1CMTask::process_grey_task_entry&lt;true&gt;(G1TaskQueueEntry)</span>
+<ul>
+<li><div>[8] 0.02% 2 self: 0.02% 2</div><span class="yellow"> void OopOopIterateDispatch&lt;G1CMOopClosure&gt;::Table::oop_oop_iterate&lt;InstanceMirrorKlass, unsigned int&gt;(G1CMOopClosure*, oopDesc*, Klass*)</span>
+<li><div>[8] 0.01% 1 self: 0.01% 1</div><span class="yellow"> void OopOopIterateDispatch&lt;G1CMOopClosure&gt;::Table::oop_oop_iterate&lt;InstanceKlass, unsigned int&gt;(G1CMOopClosure*, oopDesc*, Klass*)</span>
+</ul>
+<li><div>[7] 0.03% 3 self: 0.00% 0</div><span class="yellow"> G1CMTask::drain_local_queue(bool) [clone .part.0] [clone .constprop.0]</span>
+<ul>
+<li><div>[8] 0.03% 3 self: 0.00% 0</div><span class="yellow"> void G1CMTask::process_grey_task_entry&lt;true&gt;(G1TaskQueueEntry)</span>
+<ul>
+<li><div>[9] 0.03% 3 self: 0.03% 3</div><span class="yellow"> void OopOopIterateDispatch&lt;G1CMOopClosure&gt;::Table::oop_oop_iterate&lt;InstanceKlass, unsigned int&gt;(G1CMOopClosure*, oopDesc*, Klass*)</span>
+</ul>
+</ul>
+</ul>
+<li><div>[6] 0.02% 2 self: 0.01% 1</div><span class="yellow"> G1CMTask::drain_local_queue(bool) [clone .part.0] [clone .constprop.0]</span>
+<ul>
+<li>...
+</ul>
+<li><div>[6] 0.02% 2 self: 0.00% 0</div><span class="yellow"> G1CMTask::drain_local_queue(bool) [clone .part.0] [clone .constprop.1]</span>
+<ul>
+<li>...
+</ul>
+</ul>
+</ul>
+<li><div>[4] 0.08% 8 self: 0.00% 0</div><span class="yellow"> G1RebuildRemSetTask::work(unsigned int)</span>
+<ul>
+<li><div>[5] 0.08% 8 self: 0.00% 0</div><span class="yellow"> HeapRegionManager::par_iterate(HeapRegionClosure*, HeapRegionClaimer*, unsigned int) const</span>
+<ul>
+<li><div>[6] 0.08% 8 self: 0.05% 5</div><span class="yellow"> G1RebuildRemSetTask::G1RebuildRemSetHeapRegionClosure::do_heap_region(HeapRegion*)</span>
+<ul>
+<li><div>[7] 0.02% 2 self: 0.02% 2</div><span class="yellow"> void G1RebuildRemSetClosure::do_oop_work&lt;unsigned int&gt;(unsigned int*)</span>
+<li><div>[7] 0.01% 1 self: 0.01% 1</div><span class="yellow"> void OopOopIterateDispatch&lt;G1RebuildRemSetClosure&gt;::Table::oop_oop_iterate&lt;InstanceKlass, unsigned int&gt;(G1RebuildRemSetClosure*, oopDesc*, Klass*)</span>
+</ul>
+</ul>
+</ul>
+<li><div>[4] 0.02% 2 self: 0.01% 1</div><span class="red"> sem_post@@GLIBC_2.2.5</span>
+<ul>
+<li>...
+</ul>
+<li><div>[4] 0.01% 1 self: 0.00% 0</div><span class="yellow"> G1CMRemarkTask::work(unsigned int)</span>
+<ul>
+<li>...
+</ul>
+<li><div>[4] 0.01% 1 self: 0.00% 0</div><span class="yellow"> G1FreeCollectionSetTask::work(unsigned int)</span>
+<ul>
+<li>...
+</ul>
+<li><div>[4] 0.01% 1 self: 0.00% 0</div><span class="yellow"> G1ParallelCleaningTask::work(unsigned int)</span>
+<ul>
+<li>...
+</ul>
+<li><div>[4] 0.01% 1 self: 0.00% 0</div><span class="yellow"> G1PrepareEvacuationTask::work(unsigned int)</span>
+<ul>
+<li>...
+</ul>
+<li><div>[4] 0.01% 1 self: 0.01% 1</div><span class="yellow"> GCIdMark::~GCIdMark()</span>
+</ul>
+<li><div>[3] 0.08% 8 self: 0.00% 0</div><span class="yellow"> VMThread::run()</span>
+<ul>
+<li><div>[4] 0.08% 8 self: 0.00% 0</div><span class="yellow"> VMThread::loop()</span>
+<ul>
+<li><div>[5] 0.06% 6 self: 0.00% 0</div><span class="yellow"> VMThread::evaluate_operation(VM_Operation*) [clone .constprop.0]</span>
+<ul>
+<li><div>[6] 0.06% 6 self: 0.00% 0</div><span class="yellow"> VM_Operation::evaluate()</span>
+<ul>
+<li><div>[7] 0.06% 6 self: 0.00% 0</div><span class="yellow"> VM_G1CollectForAllocation::doit()</span>
+<ul>
+<li><div>[8] 0.06% 6 self: 0.00% 0</div><span class="yellow"> G1CollectedHeap::do_collection_pause_at_safepoint(double)</span>
+<ul>
+<li><div>[9] 0.06% 6 self: 0.00% 0</div><span class="yellow"> G1CollectedHeap::do_collection_pause_at_safepoint_helper(double)</span>
+<ul>
+<li><div>[10] 0.02% 2 self: 0.00% 0</div><span class="yellow"> G1CollectedHeap::gc_prologue(bool)</span>
+<ul>
+<li>...
+</ul>
+<li><div>[10] 0.01% 1 self: 0.00% 0</div><span class="yellow"> G1CollectedHeap::evacuate_initial_collection_set(G1ParScanThreadStateSet*)</span>
+<ul>
+<li>...
+</ul>
+<li><div>[10] 0.01% 1 self: 0.00% 0</div><span class="yellow"> G1CollectedHeap::post_evacuate_collection_set(G1EvacuationInfo&amp;, G1RedirtyCardsQueueSet*, G1ParScanThreadStateSet*)</span>
+<ul>
+<li>...
+</ul>
+<li><div>[10] 0.01% 1 self: 0.00% 0</div><span class="yellow"> G1CollectionSet::finalize_initial_collection_set(double, G1SurvivorRegions*)</span>
+<ul>
+<li>...
+</ul>
+<li><div>[10] 0.01% 1 self: 0.00% 0</div><span class="yellow"> GCHeapLog::log_heap(CollectedHeap*, bool) [clone .part.0]</span>
+<ul>
+<li>...
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+<li><div>[5] 0.02% 2 self: 0.00% 0</div><span class="yellow"> SafepointSynchronize::begin()</span>
+<ul>
+<li>...
+</ul>
+</ul>
+</ul>
+<li><div>[3] 0.03% 3 self: 0.00% 0</div><span class="yellow"> WatcherThread::run()</span>
+<ul>
+<li><div>[4] 0.01% 1 self: 0.00% 0</div><span class="yellow"> PeriodicTask::real_time_tick(int)</span>
+<ul>
+<li>...
+</ul>
+<li><div>[4] 0.01% 1 self: 0.01% 1</div><span class="yellow"> WatcherThread::sleep() const</span>
+<li><div>[4] 0.01% 1 self: 0.01% 1</div><span class="red"> __pthread_mutex_unlock</span>
+</ul>
+<li><div>[3] 0.01% 1 self: 0.00% 0</div><span class="yellow"> ConcurrentGCThread::run()</span>
+<ul>
+<li>...
+</ul>
+<li><div>[3] 0.01% 1 self: 0.01% 1</div><span class="yellow"> SemaphoreGangTaskDispatcher::worker_done_with_task()</span>
+</ul>
+</ul>
+</ul>
+<li><div>[0] 0.36% 35 self: 0.00% 0</div><span class="red"> [unknown_Java]</span>
+<ul>
+<li><div>[1] 0.23% 22 self: 0.09% 9</div><span class="red"> clock_gettime</span>
+<ul>
+<li><div>[2] 0.13% 13 self: 0.13% 13</div><span class="red"> __vdso_clock_gettime</span>
+</ul>
+<li><div>[1] 0.10% 10 self: 0.10% 10</div><span class="red"> __vdso_clock_gettime</span>
+<li><div>[1] 0.01% 1 self: 0.01% 1</div><span class="yellow"> CardTableBarrierSet::on_slowpath_allocation_exit(JavaThread*, oopDesc*)</span>
+<li><div>[1] 0.01% 1 self: 0.01% 1</div><span class="red"> Interpreter</span>
+<li><div>[1] 0.01% 1 self: 0.01% 1</div><span class="yellow"> SharedRuntime::on_slowpath_allocation_exit(JavaThread*)</span>
+</ul>
+<li><div>[0] 0.19% 18 self: 0.00% 0</div><span class="red"> [unknown]</span>
+<ul>
+<li><div>[1] 0.05% 5 self: 0.00% 0</div><span class="red"> [unknown]</span>
+<ul>
+<li><div>[2] 0.05% 5 self: 0.03% 3</div><span class="red"> do_futex_wait.constprop.0</span>
+<ul>
+<li><div>[3] 0.02% 2 self: 0.00% 0</div><span class="brown"> entry_SYSCALL_64_after_hwframe</span>
+<ul>
+<li>...
+</ul>
+</ul>
+</ul>
+<li><div>[1] 0.04% 4 self: 0.01% 1</div><span class="red"> do_futex_wait.constprop.0</span>
+<ul>
+<li><div>[2] 0.03% 3 self: 0.00% 0</div><span class="brown"> entry_SYSCALL_64_after_hwframe</span>
+<ul>
+<li><div>[3] 0.03% 3 self: 0.00% 0</div><span class="brown"> do_syscall_64</span>
+<ul>
+<li><div>[4] 0.03% 3 self: 0.00% 0</div><span class="brown"> __x64_sys_futex</span>
+<ul>
+<li><div>[5] 0.03% 3 self: 0.00% 0</div><span class="brown"> do_futex</span>
+<ul>
+<li><div>[6] 0.03% 3 self: 0.00% 0</div><span class="brown"> futex_wait</span>
+<ul>
+<li><div>[7] 0.03% 3 self: 0.00% 0</div><span class="brown"> futex_wait_queue_me</span>
+<ul>
+<li><div>[8] 0.02% 2 self: 0.00% 0</div><span class="brown"> schedule</span>
+<ul>
+<li>...
+</ul>
+<li><div>[8] 0.01% 1 self: 0.01% 1</div><span class="brown"> __sched_text_start</span>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+<li><div>[1] 0.03% 3 self: 0.00% 0</div><span class="red"> pthread_cond_timedwait@@GLIBC_2.3.2</span>
+<ul>
+<li><div>[2] 0.03% 3 self: 0.00% 0</div><span class="brown"> entry_SYSCALL_64_after_hwframe</span>
+<ul>
+<li><div>[3] 0.03% 3 self: 0.00% 0</div><span class="brown"> do_syscall_64</span>
+<ul>
+<li><div>[4] 0.03% 3 self: 0.00% 0</div><span class="brown"> __x64_sys_futex</span>
+<ul>
+<li><div>[5] 0.03% 3 self: 0.00% 0</div><span class="brown"> do_futex</span>
+<ul>
+<li><div>[6] 0.03% 3 self: 0.00% 0</div><span class="brown"> futex_wait</span>
+<ul>
+<li><div>[7] 0.02% 2 self: 0.00% 0</div><span class="brown"> futex_wait_queue_me</span>
+<ul>
+<li>...
+</ul>
+<li><div>[7] 0.01% 1 self: 0.01% 1</div><span class="brown"> __get_user_nocheck_4</span>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+<li><div>[1] 0.02% 2 self: 0.00% 0</div><span class="red"> /usr/lib/x86_64-linux-gnu/libc-2.31.so</span>
+<ul>
+<li>...
+</ul>
+<li><div>[1] 0.01% 1 self: 0.01% 1</div><span class="red"> /usr/lib/x86_64-linux-gnu/ld-2.31.so</span>
+<li><div>[1] 0.01% 1 self: 0.01% 1</div><span class="red"> __pthread_cond_wait</span>
+<li><div>[1] 0.01% 1 self: 0.01% 1</div><span class="red"> __pthread_disable_asynccancel</span>
+<li><div>[1] 0.01% 1 self: 0.00% 0</div><span class="red"> __pthread_mutex_unlock_usercnt</span>
+<ul>
+<li>...
+</ul>
+</ul>
+<li><div>[0] 0.03% 3 self: 0.00% 0</div><span class="red"> [not_walkable_Java]</span>
+<ul>
+<li><div>[1] 0.02% 2 self: 0.00% 0</div><span class="yellow"> OptoRuntime::new_array_nozero_C(Klass*, int, JavaThread*)</span>
+<ul>
+<li>...
+</ul>
+<li><div>[1] 0.01% 1 self: 0.00% 0</div><span class="red"> [unknown]</span>
+<ul>
+<li>...
+</ul>
+</ul>
+<li><div>[0] 0.03% 3 self: 0.00% 0</div><span class="green"> one/nio/http/HttpSession.processHttpBuffer</span>
+<ul>
+<li><div>[1] 0.02% 2 self: 0.00% 0</div><span class="green"> one/nio/http/HttpSession.handleParsedRequest</span>
+<ul>
+<li>...
+</ul>
+<li><div>[1] 0.01% 1 self: 0.00% 0</div><span class="green"> one/nio/http/HttpSession.startParsingRequestBody</span>
+<ul>
+<li>...
+</ul>
+</ul>
+<li><div>[0] 0.02% 2 self: 0.00% 0</div><span class="red"> __pthread_cond_broadcast</span>
+<ul>
+<li>...
+</ul>
+<li><div>[0] 0.01% 1 self: 0.01% 1</div><span class="red"> /usr/lib/x86_64-linux-gnu/libc-2.31.so</span>
+<li><div>[0] 0.01% 1 self: 0.01% 1</div><span class="red"> _IO_setb</span>
+<script>
+addClickActions();
+</script>
+</ul>
+</body>
+</html>
