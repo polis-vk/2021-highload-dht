@@ -15,7 +15,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.NavigableMap;
 import java.util.NoSuchElementException;
-import java.util.SortedMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.ExecutionException;
@@ -26,10 +25,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class LsmDAO implements DAO {
 
-    private Future flushFuture = null;
+    private Future<?> flushFuture;
     private NavigableMap<ByteBuffer, Record> memoryStorage = newStorage();
-    private ExecutorService flushExecutor = Executors.newSingleThreadExecutor();
     private NavigableMap<ByteBuffer, Record> memoryStorageToFlush = newStorage();
+    private final ExecutorService flushExecutor = Executors.newSingleThreadExecutor();
     private final ConcurrentLinkedDeque<SSTable> tables = new ConcurrentLinkedDeque<>();
 
     @SuppressWarnings({"FieldCanBeLocal", "unused"})
@@ -120,7 +119,7 @@ public class LsmDAO implements DAO {
                 try {
                     flushFuture.get();
                 } catch (InterruptedException | ExecutionException ignore) {
-
+                    throw new IOException("Error waiting another task to finish");
                 }
             }
 
