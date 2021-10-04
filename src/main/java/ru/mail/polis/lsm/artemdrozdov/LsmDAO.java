@@ -32,10 +32,10 @@ public class LsmDAO implements DAO {
     private final DAOConfig config;
 
     private final AtomicLong memoryConsumption;
-    private AtomicInteger semaphoreAvailablePermits;
-    private AtomicBoolean wantToClose;
-    private AtomicLong tableSize;
-    private Semaphore semaphore;
+    private final AtomicInteger semaphoreAvailablePermits;
+    private final AtomicBoolean wantToClose;
+    private final AtomicLong tableSize;
+    private final Semaphore semaphore;
 
     /**
      *  Create LsmDAO from config.
