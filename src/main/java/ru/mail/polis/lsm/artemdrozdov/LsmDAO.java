@@ -73,7 +73,7 @@ public class LsmDAO implements DAO {
             try {
                 this.semaphore.acquire();
             } catch (InterruptedException e) {
-                System.out.println(e.getMessage());
+                Thread.currentThread().interrupt();
             }
 
             NavigableMap<ByteBuffer, Record> flushStorage = newStorage();
@@ -101,7 +101,6 @@ public class LsmDAO implements DAO {
         } else {
             memoryConsumption.addAndGet(sizeOf(record));
         }
-
 
         memoryStorage.put(record.getKey(), record);
     }
@@ -140,7 +139,7 @@ public class LsmDAO implements DAO {
                         this.semaphore.wait();
                     }
                 } catch (InterruptedException e) {
-                    throw new IOException(e);
+                    Thread.currentThread().interrupt();
                 }
             }
         }
