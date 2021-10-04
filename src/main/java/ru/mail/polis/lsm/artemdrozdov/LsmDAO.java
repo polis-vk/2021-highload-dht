@@ -1,5 +1,7 @@
 package ru.mail.polis.lsm.artemdrozdov;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.DAOConfig;
 import ru.mail.polis.lsm.Record;
@@ -30,6 +32,7 @@ public class LsmDAO implements DAO {
     private NavigableMap<ByteBuffer, Record> memoryStorageToFlush = newStorage();
     private final ExecutorService flushExecutor = Executors.newSingleThreadExecutor();
     private final ConcurrentLinkedDeque<SSTable> tables = new ConcurrentLinkedDeque<>();
+    Logger logger = LoggerFactory.getLogger(LsmDAO.class);
 
     @SuppressWarnings({"FieldCanBeLocal", "unused"})
     private final DAOConfig config;
@@ -64,11 +67,17 @@ public class LsmDAO implements DAO {
 
     @Override
     public void upsert(Record record) {
-        if (memoryConsumption.addAndGet(sizeOf(record)) > config.memoryLimit
-                && (flushFuture == null || flushFuture.isCancelled() || flushFuture.isDone())) {
+        if (memoryConsumption.addAndGet(sizeOf(record)) > config.memoryLimit) {
             synchronized (this) {
-                if (memoryConsumption.get() > config.memoryLimit
-                        && (flushFuture == null || flushFuture.isCancelled() || flushFuture.isDone())) {
+                if (memoryConsumption.get() > config.memoryLimit) {
+                    if (flushFuture != null) {
+                        try {
+                            flushFuture.get();
+                        } catch (InterruptedException | ExecutionException e) {
+                            logger.error(e.getMessage());
+                        }
+                    }
+
                     int prev = memoryConsumption.getAndSet(sizeOf(record));
                     memoryStorageToFlush = new ConcurrentSkipListMap<>(memoryStorage);
                     memoryStorage = newStorage();
@@ -113,18 +122,16 @@ public class LsmDAO implements DAO {
 
     @Override
     public void close() throws IOException {
-        synchronized (this) {
-            if (flushFuture != null) {
-                try {
-                    flushFuture.get();
-                } catch (InterruptedException | ExecutionException e) {
-                    throw new IOException("Error waiting another task to finish", e);
-                }
+        if (flushFuture != null) {
+            try {
+                flushFuture.get();
+            } catch (InterruptedException | ExecutionException e) {
+                logger.error(e.getMessage());
             }
-
-            flush(memoryStorage);
-            flushExecutor.shutdown();
         }
+
+        flush(memoryStorage);
+        flushExecutor.shutdown();
     }
 
     private void flush(NavigableMap<ByteBuffer, Record> data) throws IOException {
