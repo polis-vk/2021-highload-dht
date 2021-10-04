@@ -25,7 +25,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class LsmDAO implements DAO {
 
-    private Future<?> flushFuture;
+    private volatile Future<?> flushFuture;
     private NavigableMap<ByteBuffer, Record> memoryStorage = newStorage();
     private NavigableMap<ByteBuffer, Record> memoryStorageToFlush = newStorage();
     private final ExecutorService flushExecutor = Executors.newSingleThreadExecutor();
