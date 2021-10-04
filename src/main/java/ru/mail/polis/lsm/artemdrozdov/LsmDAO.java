@@ -79,7 +79,6 @@ public class LsmDAO implements DAO {
                         } catch (IOException e) {
                             memoryConsumption.addAndGet(prev);
                             memoryStorage.putAll(memoryStorageToFlush);
-                            throw new UncheckedIOException(e);
                         }
                     });
                 }
