@@ -9,12 +9,12 @@ final class HttpConfigFactory {
 
     }
 
-    public static HttpServerConfig buildHttpConfig(final int port, final int pool_size, final String address) {
+    public static HttpServerConfig buildHttpConfig(final int port, final int poolSize, final String address) {
         AcceptorConfig accConf = new AcceptorConfig();
         accConf.port = port;
         accConf.address = address;
         accConf.reusePort = true;
-        accConf.threads = pool_size;
+        accConf.threads = poolSize;
         HttpServerConfig config = new HttpServerConfig();
         config.acceptors = new AcceptorConfig[]{accConf};
         return config;
