@@ -45,14 +45,14 @@ public class SSTable {
             NULL_VALUE.getBytes(StandardCharsets.UTF_8)
     );
 
-    private static final int MAX_BUFFER_SIZE = 1024;
-
     private final Path savePath;
     private final Path indexPath;
     private int[] indexes;
 
     private MappedByteBuffer mappedByteBuffer;
     private MappedByteBuffer indexByteBuffer;
+    private static final ByteBuffer size = ByteBuffer.allocate(Integer.BYTES);
+
 
     SSTable(Path savePath, Path indexPath) throws IOException {
         this.savePath = savePath;
@@ -100,8 +100,6 @@ public class SSTable {
 
         try (FileChannel saveFileChannel = openFileChannel(tmpSavePath)) {
             try (FileChannel indexFileChanel = openFileChannel(tmpIndexPath)) {
-
-                ByteBuffer size = ByteBuffer.allocate(Integer.BYTES + MAX_BUFFER_SIZE);
 
                 int counter = 0;
                 writeInt(indexFileChanel, size, counter);
@@ -250,23 +248,11 @@ public class SSTable {
             WritableByteChannel channel,
             ByteBuffer tmp
     ) throws IOException {
-        tmp.limit(tmp.capacity());
+        tmp.position(0);
+        tmp.putInt(value.remaining());
+        tmp.position(0);
 
-        if (tmp.capacity() > value.remaining() + Integer.BYTES) {
-            tmp.position(0);
-            tmp.putInt(value.remaining());
-            tmp.put(value);
-
-            tmp.flip();
-
-            channel.write(tmp);
-            tmp.limit(tmp.capacity());
-
-            return;
-        }
-
-        writeInt(channel, tmp, value.remaining());
-
+        channel.write(tmp);
         channel.write(value);
     }
 
@@ -274,7 +260,6 @@ public class SSTable {
         tmp.position(0);
         tmp.putInt(value);
         tmp.position(0);
-        tmp.limit(Integer.BYTES);
 
         fileChannel.write(tmp);
     }
