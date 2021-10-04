@@ -31,7 +31,6 @@ public class LsmDAO implements DAO {
     private final AtomicLong memoryConsumption;
     private volatile CompletableFuture<Void> completableFeature;
     private volatile boolean waitableFlag;
-    private long rollbackSize;
 
     /**
      *  Create LsmDAO from config.
@@ -46,7 +45,6 @@ public class LsmDAO implements DAO {
         this.config = config;
         List<SSTable> ssTables = SSTable.loadFromDir(config.dir);
         tables.addAll(ssTables);
-        rollbackSize = 0;
     }
 
     @Override
@@ -68,14 +66,15 @@ public class LsmDAO implements DAO {
                 this.completableFeature.join();
             }
             this.waitableFlag = true;
-            rollbackSize = sizeOf(record);
             NavigableMap<ByteBuffer, Record> flushStorage = newStorage();
             flushStorage.putAll(memoryStorage);
 
             this.completableFeature = CompletableFuture.supplyAsync(() -> {
+                final int rollbackSize = sizeOf(record);
                 try {
                     this.flush(flushStorage);
-                    memoryStorage.keySet().removeAll(flushStorage.keySet());
+                    flushStorage.keySet().retainAll(memoryStorage.keySet());
+                    memoryStorage.values().removeAll(flushStorage.values());
                 } catch (IOException e) {
                     memoryConsumption.addAndGet(-rollbackSize);
                     memoryStorage.putAll(flushStorage); // restore data + new data
