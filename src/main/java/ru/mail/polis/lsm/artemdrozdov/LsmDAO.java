@@ -32,7 +32,7 @@ public class LsmDAO implements DAO {
     private NavigableMap<ByteBuffer, Record> memoryStorageToFlush = newStorage();
     private final ExecutorService flushExecutor = Executors.newSingleThreadExecutor();
     private final ConcurrentLinkedDeque<SSTable> tables = new ConcurrentLinkedDeque<>();
-    Logger logger = LoggerFactory.getLogger(LsmDAO.class);
+    private final Logger logger = LoggerFactory.getLogger(LsmDAO.class);
 
     @SuppressWarnings({"FieldCanBeLocal", "unused"})
     private final DAOConfig config;
