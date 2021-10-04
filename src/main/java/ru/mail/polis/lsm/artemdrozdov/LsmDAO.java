@@ -24,7 +24,7 @@ public class LsmDAO implements DAO {
 
     private NavigableMap<ByteBuffer, Record> memoryStorage = newStorage();
     private final ConcurrentLinkedDeque<SSTable> tables = new ConcurrentLinkedDeque<>();
-
+    private volatile boolean flushDone = false;//for not to flush twice
     @SuppressWarnings({"FieldCanBeLocal", "unused"})
     private final DAOConfig config;
 
@@ -49,16 +49,20 @@ public class LsmDAO implements DAO {
     @Override
     public void upsert(Record record) {
         if (memoryConsumption.addAndGet(sizeOf(record)) > config.memoryLimit) {
-            memoryConsumption.set(sizeOf(record));
+            int oldMemoryConsumption = memoryConsumption.get();//save for future IOException processing
+            memoryConsumption.set(sizeOf(record));//set to close if
+            flushDone = false;
             synchronized (this) {
-                writeService.submit(() -> {//TODO add future error processing
-                    try {
-                        flush();
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
-                });
-
+                if (!flushDone) {//twice flushing handling
+                    writeService.submit(() -> {
+                        try {
+                            flush();
+                            flushDone = true;
+                        } catch (IOException e) {
+                            memoryConsumption.set(oldMemoryConsumption);//exception processing instead of deferred future analyzing
+                        }
+                    });
+                }
             }
         }
 
