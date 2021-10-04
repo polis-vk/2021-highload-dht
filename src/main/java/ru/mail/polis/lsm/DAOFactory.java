@@ -6,6 +6,8 @@ import java.io.IOException;
 
 public final class DAOFactory {
 
+    private static final int SEMAPHORE_SIZE = 4;
+
     private DAOFactory() {
         // Only static methods
     }
@@ -16,7 +18,7 @@ public final class DAOFactory {
     public static DAO create(DAOConfig config) throws IOException {
         assert config.dir.toFile().exists();
 
-        return new LsmDAO(config);
+        return new LsmDAO(config, SEMAPHORE_SIZE);
     }
 
 }

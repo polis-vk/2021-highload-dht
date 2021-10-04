@@ -19,6 +19,9 @@ import java.util.SortedMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class LsmDAO implements DAO {
@@ -29,8 +32,11 @@ public class LsmDAO implements DAO {
     private final DAOConfig config;
 
     private final AtomicLong memoryConsumption;
-    private volatile CompletableFuture<Void> completableFeature;
-    private volatile boolean waitableFlag;
+    private volatile AtomicInteger semaphoreAvailablePermits;
+    private volatile AtomicBoolean wantToClose;
+    private volatile AtomicLong tableSize;
+    private volatile Semaphore semaphore;
+
 
     /**
      *  Create LsmDAO from config.
@@ -38,13 +44,15 @@ public class LsmDAO implements DAO {
      * @param config - LamDAo config
      * @throws IOException - in case of io exception
      */
-    public LsmDAO(DAOConfig config) throws IOException {
+    public LsmDAO(DAOConfig config, final int semaphorePermit) throws IOException {
         this.memoryConsumption = new AtomicLong();
-        this.completableFeature = new CompletableFuture<>();
-        this.waitableFlag = false;
+        this.wantToClose = new AtomicBoolean(false);
+        this.semaphoreAvailablePermits = new AtomicInteger(semaphorePermit);
+        this.semaphore = new Semaphore(semaphorePermit);
         this.config = config;
         List<SSTable> ssTables = SSTable.loadFromDir(config.dir);
         tables.addAll(ssTables);
+        tableSize = new AtomicLong(tables.size());
     }
 
     @Override
@@ -61,15 +69,18 @@ public class LsmDAO implements DAO {
 
     @Override
     public void upsert(Record record) {
-        if (greaterThanCAS(config.memoryLimit, sizeOf(record))) {
-            if (this.waitableFlag) {
-                this.completableFeature.join();
+        if (greaterThanCAS(config.memoryLimit, sizeOf(record)) && !this.wantToClose.get()) {
+
+            try {
+                this.semaphore.acquire();
+            } catch (InterruptedException e) {
+                e.printStackTrace();
             }
-            this.waitableFlag = true;
+
             NavigableMap<ByteBuffer, Record> flushStorage = newStorage();
             flushStorage.putAll(memoryStorage);
 
-            this.completableFeature = CompletableFuture.supplyAsync(() -> {
+            CompletableFuture.runAsync(() -> {
                 final int rollbackSize = sizeOf(record);
                 try {
                     this.flush(flushStorage);
@@ -79,13 +90,19 @@ public class LsmDAO implements DAO {
                     memoryConsumption.addAndGet(-rollbackSize);
                     memoryStorage.putAll(flushStorage); // restore data + new data
                 } finally {
-                    waitableFlag = false;
+                    this.semaphore.release();
+                    if (this.wantToClose.get() &&
+                            this.semaphoreAvailablePermits.compareAndSet(this.semaphore.availablePermits(), 0)) {
+                        synchronized (this.semaphore) {
+                            this.semaphore.notifyAll();
+                        }
+                    }
                 }
-                return null;
             });
         } else {
             memoryConsumption.addAndGet(sizeOf(record));
         }
+
 
         memoryStorage.put(record.getKey(), record);
     }
@@ -115,15 +132,22 @@ public class LsmDAO implements DAO {
 
     @Override
     public void close() throws IOException {
-        if (this.waitableFlag) {
-            this.completableFeature.join();
+        this.wantToClose.set(true);
+        if (this.semaphoreAvailablePermits.get() != this.semaphore.availablePermits()) {
+            synchronized (this.semaphore) {
+                try {
+                    this.semaphore.wait();
+                } catch(InterruptedException e){
+                    e.printStackTrace();
+                }
+            }
         }
         flush(memoryStorage);
     }
 
     private void flush(NavigableMap<ByteBuffer, Record> flushStorage) throws IOException {
         Path dir = config.dir;
-        Path file = dir.resolve(SSTable.SSTABLE_FILE_PREFIX + tables.size());
+        Path file = dir.resolve(SSTable.SSTABLE_FILE_PREFIX + tableSize.getAndAdd(1));
         SSTable ssTable = SSTable.write(flushStorage.values().iterator(), file);
         tables.add(ssTable);
     }
