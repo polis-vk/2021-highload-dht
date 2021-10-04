@@ -6,12 +6,12 @@ import ru.mail.polis.lsm.sachuk.ilya.SSTable;
 import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
 import java.util.Iterator;
-import java.util.NoSuchElementException;
 
 public class SSTableIterator implements Iterator<Record> {
     private final ByteBuffer keyToRead;
     private final boolean readToEnd;
     private final MappedByteBuffer mappedByteBuffer;
+    private ByteBuffer nextKey;
 
     public SSTableIterator(int positionToStartRead, ByteBuffer keyToRead, MappedByteBuffer mappedByteBuffer) {
         this.keyToRead = keyToRead;
@@ -25,6 +25,8 @@ public class SSTableIterator implements Iterator<Record> {
         } else {
             mappedByteBuffer.position(positionToStartRead);
         }
+
+        nextKey = mappedByteBuffer.hasRemaining() ? getNextKey() : null;
     }
 
     @Override
@@ -33,16 +35,11 @@ public class SSTableIterator implements Iterator<Record> {
             return mappedByteBuffer.hasRemaining();
         }
 
-        return mappedByteBuffer.hasRemaining() && getNextKey().compareTo(keyToRead) < 0;
+        return mappedByteBuffer.hasRemaining() && nextKey != null && nextKey.compareTo(keyToRead) < 0;
     }
 
     @Override
     public Record next() {
-
-        if (!hasNext()) {
-            throw new NoSuchElementException();
-        }
-
         ByteBuffer key = SSTable.readFromFile(mappedByteBuffer);
         ByteBuffer value = SSTable.readFromFile(mappedByteBuffer);
 
@@ -53,6 +50,8 @@ public class SSTableIterator implements Iterator<Record> {
             value.position(0);
             record = Record.of(key, value);
         }
+
+        nextKey = mappedByteBuffer.hasRemaining() ? getNextKey() : null;
 
         return record;
     }
