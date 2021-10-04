@@ -52,7 +52,7 @@ public class SSTable {
     private MappedByteBuffer mappedByteBuffer;
     private MappedByteBuffer indexByteBuffer;
     private static final ByteBuffer buffer = ByteBuffer.allocate(Integer.BYTES);
-    g
+
     SSTable(Path savePath, Path indexPath) throws IOException {
         this.savePath = savePath;
         this.indexPath = indexPath;
