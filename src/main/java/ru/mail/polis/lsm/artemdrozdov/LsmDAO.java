@@ -136,7 +136,7 @@ public class LsmDAO implements DAO {
                 try {
                     // это цикл попросил sonar-java
                     while (this.semaphoreAvailablePermits.get() != 0) {
-                        this.semaphore.wait();
+                        this.semaphore.wait(500);
                     }
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
