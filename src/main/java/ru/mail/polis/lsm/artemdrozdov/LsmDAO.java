@@ -77,7 +77,7 @@ public class LsmDAO implements DAO {
                         try {
                             flush(memoryStorageToFlush);
                         } catch (IOException e) {
-                            memoryConsumption.set(prev);
+                            memoryConsumption.addAndGet(prev);
                             memoryStorage.putAll(memoryStorageToFlush);
                             throw new UncheckedIOException(e);
                         }
