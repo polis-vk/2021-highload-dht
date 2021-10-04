@@ -71,10 +71,11 @@ public class LsmDAO implements DAO {
             rollbackSize = sizeOf(record);
             NavigableMap<ByteBuffer, Record> flushStorage = newStorage();
             flushStorage.putAll(memoryStorage);
-            memoryStorage = newStorage();
+
             this.completableFeature = CompletableFuture.supplyAsync(() -> {
                 try {
                     this.flush(flushStorage);
+                    memoryStorage.keySet().removeAll(flushStorage.keySet());
                 } catch (IOException e) {
                     memoryConsumption.addAndGet(-rollbackSize);
                     memoryStorage.putAll(flushStorage); // restore data + new data

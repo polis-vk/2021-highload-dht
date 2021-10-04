@@ -23,7 +23,7 @@ public class ServiceImpl extends HttpServer implements Service {
      * some doc.
      */
     public ServiceImpl(final int port, final DAO dao, final int poolSize) throws IOException {
-        super(HttpConfigFactory.buildHttpConfig(port, "localhost"));
+        super(HttpConfigFactory.buildHttpConfig(port, poolSize, "localhost"));
         this.executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(poolSize);
         this.servDAO = new ServiceDAO(dao);
     }
