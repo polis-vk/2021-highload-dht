@@ -37,7 +37,6 @@ public class LsmDAO implements DAO {
     private volatile AtomicLong tableSize;
     private volatile Semaphore semaphore;
 
-
     /**
      *  Create LsmDAO from config.
      *
@@ -74,7 +73,7 @@ public class LsmDAO implements DAO {
             try {
                 this.semaphore.acquire();
             } catch (InterruptedException e) {
-                e.printStackTrace();
+                System.out.println(e.getMessage());
             }
 
             NavigableMap<ByteBuffer, Record> flushStorage = newStorage();
@@ -91,8 +90,8 @@ public class LsmDAO implements DAO {
                     memoryStorage.putAll(flushStorage); // restore data + new data
                 } finally {
                     this.semaphore.release();
-                    if (this.wantToClose.get() &&
-                            this.semaphoreAvailablePermits.compareAndSet(this.semaphore.availablePermits(), 0)) {
+                    if (this.wantToClose.get()
+                            && this.semaphoreAvailablePermits.compareAndSet(this.semaphore.availablePermits(), 0)) {
                         synchronized (this.semaphore) {
                             this.semaphore.notifyAll();
                         }
@@ -136,9 +135,12 @@ public class LsmDAO implements DAO {
         if (this.semaphoreAvailablePermits.get() != this.semaphore.availablePermits()) {
             synchronized (this.semaphore) {
                 try {
-                    this.semaphore.wait();
-                } catch(InterruptedException e){
-                    e.printStackTrace();
+                    // это цикл попросил sonar-java
+                    while (this.semaphoreAvailablePermits.get() != 0) {
+                        this.semaphore.wait();
+                    }
+                } catch (InterruptedException e) {
+                    throw new IOException(e);
                 }
             }
         }
