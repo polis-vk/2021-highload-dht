@@ -51,9 +51,8 @@ public class SSTable {
 
     private MappedByteBuffer mappedByteBuffer;
     private MappedByteBuffer indexByteBuffer;
-    private static final ByteBuffer size = ByteBuffer.allocate(Integer.BYTES);
-
-
+    private static final ByteBuffer buffer = ByteBuffer.allocate(Integer.BYTES);
+    g
     SSTable(Path savePath, Path indexPath) throws IOException {
         this.savePath = savePath;
         this.indexPath = indexPath;
@@ -102,12 +101,12 @@ public class SSTable {
             try (FileChannel indexFileChanel = openFileChannel(tmpIndexPath)) {
 
                 int counter = 0;
-                writeInt(indexFileChanel, size, counter);
+                writeInt(indexFileChanel, buffer, counter);
 
                 while (iterators.hasNext()) {
                     int indexPositionToRead = (int) saveFileChannel.position();
 
-                    writeInt(indexFileChanel, size, indexPositionToRead);
+                    writeInt(indexFileChanel, buffer, indexPositionToRead);
                     counter++;
 
                     Record record = iterators.next();
@@ -116,15 +115,15 @@ public class SSTable {
                             ? BYTE_BUFFER_TOMBSTONE
                             : record.getValue();
 
-                    writeSizeAndValue(record.getKey(), saveFileChannel, size);
-                    writeSizeAndValue(value, saveFileChannel, size);
+                    writeSizeAndValue(record.getKey(), saveFileChannel, buffer);
+                    writeSizeAndValue(value, saveFileChannel, buffer);
                 }
 
                 int curPos = (int) indexFileChanel.position();
 
                 indexFileChanel.position(0);
 
-                writeInt(indexFileChanel, size, counter);
+                writeInt(indexFileChanel, buffer, counter);
 
                 indexFileChanel.position(curPos);
 
