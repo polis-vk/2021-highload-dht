@@ -113,6 +113,25 @@ class SSTable {
         return new SSTable(file);
     }
 
+    private static Runnable writeIntegerStream(Queue<Integer> queue, AtomicBoolean wasAnyData) {
+        return () -> {
+            for (; ; ) {
+                if (!wasAnyData.get() && queue.isEmpty()) {
+                    return;
+                }
+
+                //todo
+            }
+        };
+    }
+
+
+    private static Runnable writeRecordStream(Queue<Record> queue) {
+        return () -> {
+            //todo
+        };
+    }
+
     public static void write(Iterator<Record> records, Path file) throws IOException {
         Path indexFile = FileUtils.getIndexFile(file);
         Path tmpFileName = FileUtils.getTmpFile(file);

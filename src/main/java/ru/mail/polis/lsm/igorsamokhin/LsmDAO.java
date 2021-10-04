@@ -16,17 +16,27 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.SortedMap;
 import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 @SuppressWarnings("JdkObsolete")
 public class LsmDAO implements DAO {
     private static final String FILE_PREFIX = "SSTable_";
 
-    private SortedMap<ByteBuffer, Record> memoryStorage = new ConcurrentSkipListMap<>();
+    private final AtomicReference<SortedMap<ByteBuffer, Record>> flushingStorage = new AtomicReference<>(null);
+    private final AtomicReference<SortedMap<ByteBuffer, Record>> memoryStorage =
+            new AtomicReference<>(getNewStorage());
+
     private final List<SSTable> ssTables;
     private final DAOConfig config;
-    private int memoryConsumption;
+    private final AtomicInteger memoryConsumption = new AtomicInteger(0);
 
     private Path filePath;
+
+    private ExecutorService executors = Executors.newCachedThreadPool();
 
     /**
      * Create DAO object.
@@ -35,7 +45,6 @@ public class LsmDAO implements DAO {
      */
     public LsmDAO(DAOConfig config) throws IOException {
         this.config = config;
-        memoryConsumption = 0;
 
         ssTables = SSTable.loadFromDir(config.dir);
         filePath = getNewFileName();
@@ -52,39 +61,69 @@ public class LsmDAO implements DAO {
 
     @Override
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
-        synchronized (this) {
-            Iterator<Record> memoryRange = SSTable.getSubMap(memoryStorage, fromKey, toKey).values().iterator();
-            Iterator<Record> sstableRanges = sstableRanges(fromKey, toKey);
-            return LsmDAO.merge(List.of(sstableRanges, memoryRange));
-        }
+        Iterator<Record> memoryRange = SSTable.getSubMap(memoryStorage.get(), fromKey, toKey).values().iterator();
+        Iterator<Record> sstableRanges = sstableRanges(fromKey, toKey);
+        return LsmDAO.merge(List.of(sstableRanges, memoryRange));
     }
 
     @Override
     public void upsert(Record record) {
-        synchronized (this) {
-            int size = record.size();
-            if (memoryConsumption + size > config.memoryLimit) {
+        int size = record.size();
+        if (memoryConsumption.addAndGet(size) > config.memoryLimit) {
+            synchronized (this) {
+                if (memoryConsumption.get() > config.memoryLimit) {
+                    Future<?> submit = executors.submit(flushTask(size));
+                }
+            }
+        }
+
+        memoryStorage.get().put(record.getKey(), record);
+    }
+
+    private Runnable flushTask(int initialSize) {
+        return () -> {
+            synchronized (memoryStorage){
+                int prev = memoryConsumption.get();
                 try {
-                    flush();
+                    flush(memoryStorage, flushingStorage, initialSize);
                 } catch (IOException e) {
+                    memoryConsumption.addAndGet(prev);
                     throw new UncheckedIOException(e);
                 }
             }
-            memoryConsumption += size;
-            memoryStorage.put(record.getKey(), record);
-        }
+        };
     }
 
-    @GuardedBy("this")
-    private void flush() throws IOException {
-        if (memoryConsumption == 0) {
-            return;
+    private ConcurrentSkipListMap<ByteBuffer, Record> getNewStorage() {
+        return new ConcurrentSkipListMap<>();
+    }
+
+    private void flush(AtomicReference<SortedMap<ByteBuffer, Record>> oldStorage,
+                       @Nullable AtomicReference<SortedMap<ByteBuffer, Record>> flushingStorage,
+                       int initialMemoryConsumption) throws IOException {
+        AtomicReference<SortedMap<ByteBuffer, Record>> tmpStorage = flushingStorage;
+        if (tmpStorage == null) {
+            tmpStorage = new AtomicReference<>(null);
+        } else {
+            if (tmpStorage.get() != null) {
+                //finish previous flushing
+                writeStorage(tmpStorage);
+            }
+            tmpStorage.set(getNewStorage());
         }
-        SSTable.write(memoryStorage.values().iterator(), filePath);
+
+        SortedMap<ByteBuffer, Record> tmp = oldStorage.getAndSet(tmpStorage.get());
+        tmpStorage.set(tmp);
+        memoryConsumption.set(initialMemoryConsumption);
+
+        writeStorage(tmpStorage);
+        tmpStorage.set(null);
+    }
+
+    private void writeStorage(AtomicReference<SortedMap<ByteBuffer, Record>> storage) throws IOException {
+        SSTable.write(storage.get().values().iterator(), filePath);
         SSTable ssTable = SSTable.loadFromFile(filePath);
         ssTables.add(ssTable);
-        memoryStorage = new ConcurrentSkipListMap<>();
-        memoryConsumption = 0;
         filePath = getNewFileName();
     }
 
@@ -98,8 +137,8 @@ public class LsmDAO implements DAO {
 
     @Override
     public void close() throws IOException {
-        synchronized (this) {
-            flush();
+        synchronized (memoryStorage) {
+            flush(memoryStorage, null, Integer.MAX_VALUE);
             if (ssTables.isEmpty()) {
                 return;
             }
