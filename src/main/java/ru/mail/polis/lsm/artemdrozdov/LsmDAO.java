@@ -26,12 +26,11 @@ public class LsmDAO implements DAO {
     private NavigableMap<ByteBuffer, Record> memoryStorage = newStorage();
     private final ConcurrentLinkedDeque<SSTable> tables = new ConcurrentLinkedDeque<>();
 
-    @SuppressWarnings({"FieldCanBeLocal", "unused"})
     private final DAOConfig config;
 
     private final AtomicLong memoryConsumption;
-    private CompletableFuture<Void> completableFeature;
-    private Boolean waitableFlag;
+    private volatile CompletableFuture<Void> completableFeature;
+    private volatile boolean waitableFlag;
     private long rollbackSize;
 
     /**
@@ -42,7 +41,7 @@ public class LsmDAO implements DAO {
      */
     public LsmDAO(DAOConfig config) throws IOException {
         this.memoryConsumption = new AtomicLong();
-        this.completableFeature = new CompletableFuture<Void>();
+        this.completableFeature = new CompletableFuture<>();
         this.waitableFlag = false;
         this.config = config;
         List<SSTable> ssTables = SSTable.loadFromDir(config.dir);
@@ -71,14 +70,14 @@ public class LsmDAO implements DAO {
             this.waitableFlag = true;
             rollbackSize = sizeOf(record);
             NavigableMap<ByteBuffer, Record> flushStorage = newStorage();
-            memoryStorage.forEach((k, v) -> flushStorage.put(k, v));
+            flushStorage.putAll(memoryStorage);
             memoryStorage = newStorage();
             this.completableFeature = CompletableFuture.supplyAsync(() -> {
                 try {
                     this.flush(flushStorage);
                 } catch (IOException e) {
                     memoryConsumption.addAndGet(-rollbackSize);
-                    flushStorage.forEach((k, v) -> memoryStorage.put(k, v)); // restore data + new data
+                    memoryStorage.putAll(flushStorage); // restore data + new data
                 } finally {
                     waitableFlag = false;
                 }
@@ -120,7 +119,6 @@ public class LsmDAO implements DAO {
             this.completableFeature.join();
         }
         flush(memoryStorage);
-        memoryStorage = newStorage();
     }
 
     private void flush(NavigableMap<ByteBuffer, Record> flushStorage) throws IOException {
