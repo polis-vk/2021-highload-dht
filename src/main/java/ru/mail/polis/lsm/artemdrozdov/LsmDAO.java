@@ -18,7 +18,6 @@ import java.util.NavigableMap;
 import java.util.NoSuchElementException;
 import java.util.SortedMap;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class LsmDAO implements DAO {
@@ -30,7 +29,6 @@ public class LsmDAO implements DAO {
     private final DAOConfig config;
     static private final int POLL_LIMIT = 20 * 1024 * 1024;
     private final AtomicInteger pollPayload = new AtomicInteger(0);
-    private final AtomicBoolean storageWritable = new AtomicBoolean(true);
 
     @GuardedBy("this")
     private final ExecutorService writeService = Executors.newFixedThreadPool(4);
@@ -57,7 +55,6 @@ public class LsmDAO implements DAO {
         if (memoryConsumption.addAndGet(sizeOf(record)) > config.memoryLimit) {
             int currMemoryConsumption = memoryConsumption.get();//save for future IOException processing
             memoryConsumption.set(sizeOf(record));//set to close if
-            storageWritable.set(false);//lock to put new records in else branch while making snapshot of map
             flushDone = false;
             synchronized (this) {//TODO replace me with semaphore please
                 if (!flushDone) {//multiple flushing within race handling
@@ -65,7 +62,6 @@ public class LsmDAO implements DAO {
                     //make snapshot for flushing to avoid parallel writing conflicts
                     NavigableMap<ByteBuffer, Record> memorySnapshot = memoryStorage;
                     memoryStorage = newStorage();
-                    storageWritable.set(true);
 
                     Runnable flushLambda = () -> {
                         {
@@ -97,7 +93,6 @@ public class LsmDAO implements DAO {
             }
         }
 
-        while (!storageWritable.get()) ;
         memoryStorage.put(record.getKey(), record);
     }
 
