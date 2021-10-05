@@ -70,9 +70,9 @@ public class LsmDAO implements DAO {
                     });
                 }
             }
-        } else {
-            memoryStorage.put(record.getKey(), record);
         }
+
+        memoryStorage.put(record.getKey(), record);
     }
 
     @Override
