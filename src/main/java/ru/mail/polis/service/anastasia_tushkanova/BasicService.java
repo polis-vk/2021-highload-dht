@@ -72,10 +72,10 @@ public class BasicService extends HttpServer implements Service {
             return new Response(Response.NOT_FOUND, Response.EMPTY);
         }
         Record record = daoIterator.next();
-        if (!Objects.equals(record.getKey(), id)) {
-            return new Response(Response.NOT_FOUND, Response.EMPTY);
-        } else {
+        if (Objects.equals(record.getKey(), id)) {
             return new Response(Response.OK, getBytes(record));
+        } else {
+            return new Response(Response.NOT_FOUND, Response.EMPTY);
         }
     }
 
