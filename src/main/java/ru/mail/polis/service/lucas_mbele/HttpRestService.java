@@ -56,16 +56,13 @@ public class HttpRestService extends HttpServer implements Service {
             if (id.isBlank()) {
                 response = new Response(Response.BAD_REQUEST, Response.EMPTY);
             } else {
-                if (request.getMethod() == Request.METHOD_GET){
+                if (request.getMethod() == Request.METHOD_GET) {
                         response = get(id);
-                }
-                 else if (request.getMethod() == Request.METHOD_PUT){
+                } else if (request.getMethod() == Request.METHOD_PUT) {
                         response = put(id, request.getBody());
-                 }
-                 else if (request.getMethod() == Request.METHOD_DELETE){
+                } else if (request.getMethod() == Request.METHOD_DELETE) {
                         response = delete(id);
-                 }
-                 else {
+                } else {
                         response = new Response(Response.METHOD_NOT_ALLOWED,
                                 "Method not allowed".getBytes(StandardCharsets.UTF_8));
                        }
