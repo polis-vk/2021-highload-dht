@@ -19,6 +19,7 @@ import java.util.NoSuchElementException;
 import java.util.SortedMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class LsmDAO implements DAO {
 
@@ -28,8 +29,7 @@ public class LsmDAO implements DAO {
     @SuppressWarnings({"FieldCanBeLocal", "unused"})
     private final DAOConfig config;
 
-    @GuardedBy("this")
-    private int memoryConsumption;
+    private final AtomicInteger memoryConsumption = new AtomicInteger();
 
     /**
      *  Create LsmDAO from config.
@@ -55,15 +55,18 @@ public class LsmDAO implements DAO {
 
     @Override
     public void upsert(Record record) {
-        synchronized (this) {
-            memoryConsumption += sizeOf(record);
-            if (memoryConsumption > config.memoryLimit) {
-                try {
-                    flush();
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
+        if (memoryConsumption.addAndGet(sizeOf(record)) > config.memoryLimit) {
+            synchronized (this) {
+                if (memoryConsumption.get() > config.memoryLimit) {
+                    int prev = memoryConsumption.getAndSet(sizeOf(record));
+
+                    try {
+                        flush();
+                    } catch (IOException e) {
+                        memoryConsumption.addAndGet(prev);
+                        throw new UncheckedIOException(e);
+                    }
                 }
-                memoryConsumption = sizeOf(record);
             }
         }
 
