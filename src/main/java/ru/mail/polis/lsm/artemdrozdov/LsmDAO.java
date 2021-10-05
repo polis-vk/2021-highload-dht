@@ -52,21 +52,27 @@ public class LsmDAO implements DAO {
             int oldMemoryConsumption = memoryConsumption.get();//save for future IOException processing
             memoryConsumption.set(sizeOf(record));//set to close if
             flushDone = false;
-            synchronized (this) {
-                if (!flushDone) {//twice flushing handling
+            synchronized (this) {//TODO replace me with semaphore please
+                if (!flushDone) {//multiple flushing handling
+
+                    //make snapshot for flushing to avoid parallel writing conflicts
+                    NavigableMap<ByteBuffer, Record> memorySnapshot = memoryStorage;
+                    memoryStorage = newStorage();
+
                     writeService.submit(() -> {
                         try {
-                            flush();
+                            flush(memorySnapshot);
                             flushDone = true;
-                        } catch (IOException e) {
-                            memoryConsumption.set(oldMemoryConsumption);//exception processing instead of deferred future analyzing
+                        } catch (IOException e) {//exception processing instead of deferred future analyzing
+                            memoryConsumption.set(oldMemoryConsumption);
+                            memoryStorage.putAll(memorySnapshot);//parallelAddedWhileWeWasFlushingRecords merge wasNotFlushedRecords
                         }
                     });
                 }
             }
+        } else {
+            memoryStorage.put(record.getKey(), record);
         }
-
-        memoryStorage.put(record.getKey(), record);
     }
 
     @Override
@@ -95,17 +101,16 @@ public class LsmDAO implements DAO {
     @Override
     public void close() throws IOException {
         synchronized (this) {
-            flush();
+            flush(memoryStorage);
         }
     }
 
-    private void flush() throws IOException {
+    private void flush(NavigableMap<ByteBuffer, Record> storageSnapshot) throws IOException {
         Path dir = config.dir;
         Path file = dir.resolve(SSTable.SSTABLE_FILE_PREFIX + tables.size());
 
-        SSTable ssTable = SSTable.write(memoryStorage.values().iterator(), file);
+        SSTable ssTable = SSTable.write(storageSnapshot.values().iterator(), file);
         tables.add(ssTable);
-        memoryStorage = new ConcurrentSkipListMap<>();
     }
 
     private Iterator<Record> sstableRanges(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
