@@ -30,6 +30,7 @@ public class BasicService extends HttpServer implements Service {
     private static HttpServerConfig from(final int port) {
         final AcceptorConfig acceptorConfig = new AcceptorConfig();
         acceptorConfig.port = port;
+        acceptorConfig.reusePort = true;
         final HttpServerConfig config = new HttpServerConfig();
         config.acceptors = new AcceptorConfig[]{acceptorConfig};
         return config;
@@ -71,7 +72,7 @@ public class BasicService extends HttpServer implements Service {
             return new Response(Response.NOT_FOUND, Response.EMPTY);
         }
         Record record = daoIterator.next();
-        if (record.isTombstone() || !Objects.equals(record.getKey(), id)) {
+        if (!Objects.equals(record.getKey(), id)) {
             return new Response(Response.NOT_FOUND, Response.EMPTY);
         } else {
             return new Response(Response.OK, getBytes(record));
@@ -90,12 +91,8 @@ public class BasicService extends HttpServer implements Service {
 
     private byte[] getBytes(Record record) {
         ByteBuffer byteBuffer = record.getValue();
-        if (byteBuffer.hasRemaining()) {
-            byte[] bytes = new byte[byteBuffer.remaining()];
-            byteBuffer.get(bytes);
-            return bytes;
-        } else {
-            return new byte[0];
-        }
+        byte[] bytes = new byte[byteBuffer.remaining()];
+        byteBuffer.get(bytes);
+        return bytes;
     }
 }
