@@ -52,16 +52,19 @@ public class HttpRestService extends HttpServer implements Service {
     @Path("/v0/entity")
     public void entity(Request request,HttpSession session,@Param(value = "id",required = true) String id) {
         executor.execute(() -> {
-            Response response ;
+            Response response;
             if (id.isBlank()) {
                 response = new Response(Response.BAD_REQUEST, Response.EMPTY);
-            }else {
+            } else {
                 if (request.getMethod() == Request.METHOD_GET){
-                        response = get(id);}
+                        response = get(id);
+                }
                  else if (request.getMethod() == Request.METHOD_PUT){
-                        response = put(id, request.getBody());}
+                        response = put(id, request.getBody());
+                 }
                  else if (request.getMethod() == Request.METHOD_DELETE){
-                        response = delete(id);}
+                        response = delete(id);
+                 }
                  else {
                         response = new Response(Response.METHOD_NOT_ALLOWED,
                                 "Method not allowed".getBytes(StandardCharsets.UTF_8));
