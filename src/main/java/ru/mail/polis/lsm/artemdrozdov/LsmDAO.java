@@ -18,6 +18,7 @@ import java.util.NavigableMap;
 import java.util.NoSuchElementException;
 import java.util.SortedMap;
 import java.util.concurrent.*;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class LsmDAO implements DAO {
@@ -27,15 +28,20 @@ public class LsmDAO implements DAO {
     private volatile boolean flushDone = false;//for not to flush twice
     @SuppressWarnings({"FieldCanBeLocal", "unused"})
     private final DAOConfig config;
+    static private final int POLL_LIMIT = 20 * 1024 * 1024;
+    private final AtomicInteger pollPayload = new AtomicInteger(0);
+    private final AtomicBoolean storageWritable = new AtomicBoolean(true);
 
     @GuardedBy("this")
     private final ExecutorService writeService = Executors.newSingleThreadExecutor();
     private final AtomicInteger memoryConsumption = new AtomicInteger();
+    private final AtomicInteger sstablesCtr = new AtomicInteger(0);
 
     public LsmDAO(DAOConfig config) throws IOException {
         this.config = config;
         List<SSTable> ssTables = SSTableDirHelper.loadFromDir(config.dir);
         tables.addAll(ssTables);
+        sstablesCtr.set(tables.size());
     }
 
     @Override
@@ -49,29 +55,49 @@ public class LsmDAO implements DAO {
     @Override
     public void upsert(Record record) {
         if (memoryConsumption.addAndGet(sizeOf(record)) > config.memoryLimit) {
-            int oldMemoryConsumption = memoryConsumption.get();//save for future IOException processing
+            int currMemoryConsumption = memoryConsumption.get();//save for future IOException processing
             memoryConsumption.set(sizeOf(record));//set to close if
+            storageWritable.set(false);//lock to put new records in else branch while making snapshot of map
             flushDone = false;
             synchronized (this) {//TODO replace me with semaphore please
-                if (!flushDone) {//multiple flushing handling
+                if (!flushDone) {//multiple flushing within race handling
 
                     //make snapshot for flushing to avoid parallel writing conflicts
                     NavigableMap<ByteBuffer, Record> memorySnapshot = memoryStorage;
                     memoryStorage = newStorage();
+                    storageWritable.set(true);
 
-                    writeService.submit(() -> {
-                        try {
-                            flush(memorySnapshot);
-                            flushDone = true;
-                        } catch (IOException e) {//exception processing instead of deferred future analyzing
-                            memoryConsumption.set(oldMemoryConsumption);
-                            memoryStorage.putAll(memorySnapshot);//parallelAddedWhileWeWasFlushingRecords merge wasNotFlushedRecords
+                    Runnable flushLambda = () -> {
+                        {
+                            try {
+                                flush(memorySnapshot, sstablesCtr.getAndIncrement());
+                                flushDone = true;
+                            } catch (IOException e) {//exception processing instead of deferred future analyzing
+                                System.out.println("IOException caught");
+                                e.printStackTrace();
+                                memoryConsumption.set(currMemoryConsumption);
+                                memoryStorage.putAll(memorySnapshot);//parallelAddedWhileWeWasFlushingRecords merge wasNotFlushedRecords
+                            } finally {
+                                pollPayload.addAndGet(-currMemoryConsumption);
+                            }
                         }
-                    });
+                    };
+
+//                    System.out.println("runTimeFree = " + Runtime.getRuntime().freeMemory() / 1024 / 1024);
+//                    System.out.println("pollPayload = " + pollPayload.get() / 1024 / 1024);
+                    if (pollPayload.addAndGet(currMemoryConsumption) < POLL_LIMIT) {//run async if have memory
+                        System.out.println("run flush in poll");
+                        writeService.submit(flushLambda);
+                    } else {//run sequential if have no memory
+                        System.out.println("run flush sequentially");
+                        flushLambda.run();
+                    }
+
                 }
             }
         }
 
+        while (!storageWritable.get()) ;
         memoryStorage.put(record.getKey(), record);
     }
 
@@ -101,13 +127,13 @@ public class LsmDAO implements DAO {
     @Override
     public void close() throws IOException {
         synchronized (this) {
-            flush(memoryStorage);
+            flush(memoryStorage, sstablesCtr.getAndIncrement());
         }
     }
 
-    private void flush(NavigableMap<ByteBuffer, Record> storageSnapshot) throws IOException {
+    private void flush(NavigableMap<ByteBuffer, Record> storageSnapshot, int fileId) throws IOException {
         Path dir = config.dir;
-        Path file = dir.resolve(SSTable.SSTABLE_FILE_PREFIX + tables.size());
+        Path file = dir.resolve(SSTable.SSTABLE_FILE_PREFIX + fileId);
 
         SSTable ssTable = SSTable.write(storageSnapshot.values().iterator(), file);
         tables.add(ssTable);
