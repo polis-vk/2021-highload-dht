@@ -33,7 +33,7 @@ public class LsmDAO implements DAO {
     private final AtomicBoolean storageWritable = new AtomicBoolean(true);
 
     @GuardedBy("this")
-    private final ExecutorService writeService = Executors.newSingleThreadExecutor();
+    private final ExecutorService writeService = Executors.newFixedThreadPool(4);
     private final AtomicInteger memoryConsumption = new AtomicInteger();
     private final AtomicInteger sstablesCtr = new AtomicInteger(0);
 
