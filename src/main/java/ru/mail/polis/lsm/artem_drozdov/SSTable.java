@@ -71,7 +71,7 @@ public class SSTable implements Closeable {
      * @param records - records to write
      * @param file - file to write in
      * @return SSTable of provided file
-     * @throws IOException - in case of io exceprions
+     * @throws IOException - in case of io exceptions
      */
     public static SSTable write(Iterator<Record> records, Path file) throws IOException {
         writeImpl(records, file);

@@ -1,8 +1,12 @@
 package ru.mail.polis.lsm.artem_drozdov;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.DAOConfig;
 import ru.mail.polis.lsm.Record;
+import ru.mail.polis.lsm.eldar_tim.MemTable;
+import ru.mail.polis.lsm.eldar_tim.SSTableManager;
 
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
@@ -14,16 +18,15 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.NavigableMap;
 import java.util.NoSuchElementException;
 import java.util.SortedMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
-import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class LsmDAO implements DAO {
+    private static final Logger LOG = LoggerFactory.getLogger(LsmDAO.class);
 
-    private NavigableMap<ByteBuffer, Record> memoryStorage = newStorage();
+    private volatile MemTable memTable = MemTable.newStorage();
     private final ConcurrentLinkedDeque<SSTable> tables = new ConcurrentLinkedDeque<>();
 
     @SuppressWarnings({"FieldCanBeLocal", "unused"})
@@ -31,8 +34,13 @@ public class LsmDAO implements DAO {
 
     private final AtomicInteger memoryConsumption = new AtomicInteger();
 
+    private SSTableManager ssTableManager = new SSTableManager();
+
+    /** Only sync. variables block. */
+    private final AtomicInteger memTableActiveUsers = new AtomicInteger();
+
     /**
-     *  Create LsmDAO from config.
+     * Create LsmDAO from config.
      *
      * @param config - LamDAo config
      * @throws IOException - in case of io exception
@@ -55,22 +63,31 @@ public class LsmDAO implements DAO {
 
     @Override
     public void upsert(Record record) {
-        if (memoryConsumption.addAndGet(sizeOf(record)) > config.memoryLimit) {
+        memTableActiveUsers.incrementAndGet();
+        while (memoryConsumption.addAndGet(sizeOf(record)) > config.memoryLimit) {
+            memTableActiveUsers.decrementAndGet();
             synchronized (this) {
+                // Если в данный блок попали друг за другом два и более потока, значит каждый из них
+                // увеличил общий счетчик ранее, а первый пришедший сбросил его.
+                // Для остальных потоков нужно снова его увеличить. С этим поможет while.
                 if (memoryConsumption.get() > config.memoryLimit) {
-                    int prev = memoryConsumption.getAndSet(sizeOf(record));
-
-                    try {
-                        flush();
-                    } catch (IOException e) {
-                        memoryConsumption.addAndGet(prev);
-                        throw new UncheckedIOException(e);
+                    // Применяем активное ожидание, чтобы избавиться от
+                    // медленного и вредного потока, который никак не может
+                    // записать себя в memTable после всех проверок.
+                    while (memTableActiveUsers.get() > 0) {
+                        Thread.onSpinWait();
                     }
+
+                    scheduleFlush();
+                    memoryConsumption.getAndSet(sizeOf(record));
+                    break;
                 }
             }
+            memTableActiveUsers.incrementAndGet();
         }
 
-        memoryStorage.put(record.getKey(), record);
+        memTable.put(record.getKey(), record);
+        memTableActiveUsers.decrementAndGet();
     }
 
     @Override
@@ -84,12 +101,8 @@ public class LsmDAO implements DAO {
             }
             tables.clear();
             tables.add(table);
-            memoryStorage = newStorage();
+            memTable = MemTable.newStorage();
         }
-    }
-
-    private NavigableMap<ByteBuffer, Record> newStorage() {
-        return new ConcurrentSkipListMap<>();
     }
 
     private int sizeOf(Record record) {
@@ -99,18 +112,30 @@ public class LsmDAO implements DAO {
     @Override
     public void close() throws IOException {
         synchronized (this) {
-            flush();
+            flush(memTable);
         }
     }
 
+    /**
+     * Асинхронно переносит SSTable в ПЗУ.
+     *
+     * Про исключения:
+     * Любые ошибки в процессе записи решаются сервером самостоятельно.
+     * Клиенту гарантируется выполнение операции, если ему уже был дан ответ о её успехе.
+     */
     @GuardedBy("this")
-    private void flush() throws IOException {
-        Path dir = config.dir;
-        Path file = dir.resolve(SSTable.SSTABLE_FILE_PREFIX + tables.size());
+    private void scheduleFlush() {
+        ssTableManager.scheduleFlush(memTable);
+        memTable = MemTable.newStorage(tables.size());
+    }
 
-        SSTable ssTable = SSTable.write(memoryStorage.values().iterator(), file);
+    @GuardedBy("this")
+    private void flush(MemTable memTable) throws IOException {
+        Path dir = config.dir;
+        Path file = dir.resolve(SSTable.SSTABLE_FILE_PREFIX + memTable.getId());
+
+        SSTable ssTable = SSTable.write(memTable.values().iterator(), file);
         tables.add(ssTable);
-        memoryStorage = new ConcurrentSkipListMap<>();
     }
 
     private Iterator<Record> sstableRanges(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
@@ -123,15 +148,15 @@ public class LsmDAO implements DAO {
 
     private SortedMap<ByteBuffer, Record> map(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
         if (fromKey == null && toKey == null) {
-            return memoryStorage;
+            return memTable;
         }
         if (fromKey == null) {
-            return memoryStorage.headMap(toKey);
+            return memTable.headMap(toKey);
         }
         if (toKey == null) {
-            return memoryStorage.tailMap(fromKey);
+            return memTable.tailMap(fromKey);
         }
-        return memoryStorage.subMap(fromKey, toKey);
+        return memTable.subMap(fromKey, toKey);
     }
 
     private static Iterator<Record> merge(List<Iterator<Record>> iterators) {
@@ -180,5 +205,4 @@ public class LsmDAO implements DAO {
             }
         };
     }
-
 }
