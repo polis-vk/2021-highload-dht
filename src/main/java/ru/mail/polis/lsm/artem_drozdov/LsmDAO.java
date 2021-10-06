@@ -19,6 +19,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
+import java.util.TreeMap;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
@@ -41,11 +42,11 @@ public class LsmDAO implements DAO {
     private final AtomicInteger memoryConsumption = new AtomicInteger();
 
     private final ExecutorService flushService;
-    private final Map<Integer, Future<?>> flushTaskList = new ConcurrentHashMap<>();
+    private final NavigableMap<Integer, Future<?>> flushTaskList = new TreeMap<>();
 
     private final AtomicInteger ssTableIndex = new AtomicInteger();
     private final BlockingQueue<FlushTable> flushQueue;
-    private final Map<Integer, NavigableMap<ByteBuffer, Record>> flushingTables = new ConcurrentHashMap<>();
+    private final NavigableMap<Integer, NavigableMap<ByteBuffer, Record>> flushingTables = new TreeMap<>();
 
     public LsmDAO(DAOConfig config) throws IOException {
         this.config = config;
