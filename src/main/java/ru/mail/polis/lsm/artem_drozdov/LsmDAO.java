@@ -17,12 +17,10 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.NavigableMap;
 import java.util.TreeMap;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.ExecutionException;
@@ -78,13 +76,13 @@ public class LsmDAO implements DAO {
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
         Iterator<Record> sstableRanges = sstableRanges(fromKey, toKey);
 
-        NavigableMap<ByteBuffer, Record> temoStorage = new ConcurrentSkipListMap<>();
+        NavigableMap<ByteBuffer, Record> tempStorage = new ConcurrentSkipListMap<>();
         for (NavigableMap<ByteBuffer, Record> map : flushingTables.values()) {
-            temoStorage.putAll(map);
+            tempStorage.putAll(map);
         }
-        temoStorage.putAll(memoryStorage);
+        tempStorage.putAll(memoryStorage);
 
-        Iterator<Record> memoryRange = map(temoStorage, fromKey, toKey).values().iterator();
+        Iterator<Record> memoryRange = map(tempStorage, fromKey, toKey).values().iterator();
         Iterator<Record> iterator =
                 new RecordMergingIterator(
                         new PeekingIterator<>(sstableRanges),
