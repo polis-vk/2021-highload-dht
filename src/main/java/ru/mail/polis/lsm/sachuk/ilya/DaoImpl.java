@@ -23,6 +23,7 @@ import java.util.NavigableMap;
 import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -34,7 +35,7 @@ public class DaoImpl implements DAO {
     private NavigableMap<ByteBuffer, Record> memoryStorage = new ConcurrentSkipListMap<>();
     private final List<SSTable> ssTables = new ArrayList<>();
 
-    private long memoryConsumption;
+    private AtomicInteger memoryConsumption = new AtomicInteger();
     private int nextSSTableNumber;
 
     /**
@@ -53,36 +54,38 @@ public class DaoImpl implements DAO {
 
     @Override
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
-        synchronized (this) {
-            Iterator<Record> ssTableRanges = ssTableRanges(fromKey, toKey);
+        Iterator<Record> ssTableRanges = ssTableRanges(fromKey, toKey);
 
-            Iterator<Record> memoryRange = map(fromKey, toKey).values().iterator();
-            Iterator<Record> mergedIterators = mergeTwo(ssTableRanges, memoryRange);
+        Iterator<Record> memoryRange = map(fromKey, toKey).values().iterator();
+        Iterator<Record> mergedIterators = mergeTwo(ssTableRanges, memoryRange);
 
-            return StreamSupport
-                    .stream(
-                            Spliterators.spliteratorUnknownSize(mergedIterators, Spliterator.ORDERED),
-                            false
-                    )
-                    .filter(record -> !record.isTombstone())
-                    .iterator();
-        }
+        return StreamSupport
+                .stream(
+                        Spliterators.spliteratorUnknownSize(mergedIterators, Spliterator.ORDERED),
+                        false
+                )
+                .filter(record -> !record.isTombstone())
+                .iterator();
     }
 
     @Override
     public void upsert(Record record) {
-        synchronized (this) {
-            if (memoryConsumption > config.memoryLimit) {
-                try {
-                    flush();
-                    memoryConsumption = 0;
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
+        if (memoryConsumption.addAndGet(sizeOf(record)) > config.memoryLimit) {
+            synchronized (this) {
+                if (memoryConsumption.get() > config.memoryLimit) {
+                    int prev = memoryConsumption.getAndSet(sizeOf(record));
+
+                    try {
+                        flush();
+                    } catch (IOException e) {
+                        memoryConsumption.addAndGet(prev);
+
+                        throw new UncheckedIOException(e);
+                    }
                 }
             }
         }
 
-        memoryConsumption += sizeOf(record);
         memoryStorage.put(record.getKey(), record);
     }
 
@@ -120,7 +123,7 @@ public class DaoImpl implements DAO {
     @Override
     public void close() throws IOException {
 
-        if (memoryConsumption > 0) {
+        if (memoryConsumption.get() > 0) {
             flush();
         }
 
