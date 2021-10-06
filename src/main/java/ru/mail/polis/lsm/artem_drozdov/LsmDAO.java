@@ -45,7 +45,8 @@ public class LsmDAO implements DAO {
 
     private final AtomicInteger ssTableIndex = new AtomicInteger();
     private final BlockingQueue<FlushTable> flushQueue;
-    private final NavigableMap<Integer, NavigableMap<ByteBuffer, Record>> flushingTables = new ConcurrentSkipListMap<>();
+    private final NavigableMap<Integer, NavigableMap<ByteBuffer, Record>> flushingTables
+            = new ConcurrentSkipListMap<>();
 
     public LsmDAO(DAOConfig config) throws IOException {
         this.config = config;
@@ -100,11 +101,14 @@ public class LsmDAO implements DAO {
                     NavigableMap<ByteBuffer, Record> copyMemStorage = new ConcurrentSkipListMap<>(memoryStorage);
                     memoryStorage = newStorage();
 
-                    FlushTable tableToFlush = new FlushTable(ssTableIndex.getAndIncrement(), copyMemStorage.values().iterator());
+                    FlushTable tableToFlush = new FlushTable(
+                            ssTableIndex.getAndIncrement(),
+                            copyMemStorage.values().iterator()
+                    );
                     try {
                         flushQueue.put(tableToFlush);
                         flushingTables.put(tableToFlush.getIndex(), copyMemStorage);
-                    } catch (InterruptedException e) {
+                    } catch (Exception e) {
                         LOGGER.error("Failed put FlushTask to queue!");
                     }
 
@@ -188,7 +192,10 @@ public class LsmDAO implements DAO {
         return merge(iterators);
     }
 
-    private NavigableMap<ByteBuffer, Record> map(@Nonnull NavigableMap<ByteBuffer, Record> storage,  @Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
+    private NavigableMap<ByteBuffer, Record> map(
+            @Nonnull NavigableMap<ByteBuffer, Record> storage,
+            @Nullable ByteBuffer fromKey,
+            @Nullable ByteBuffer toKey) {
         if (fromKey == null && toKey == null) {
             return storage;
         } else if (fromKey == null) {
