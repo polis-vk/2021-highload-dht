@@ -1,7 +1,7 @@
 package ru.mail.polis.lsm.sachuk.ilya;
 
 import ru.mail.polis.lsm.Record;
-import ru.mail.polis.lsm.sachuk.ilya.iterators.SSTableIterator;
+import ru.mail.polis.lsm.sachuk.ilya.iterators.ByteBufferRecordIterator;
 
 import javax.annotation.Nullable;
 import java.io.File;
@@ -21,7 +21,6 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
@@ -61,12 +60,69 @@ public class SSTable {
     }
 
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
+        ByteBuffer buffer = mappedByteBuffer.asReadOnlyBuffer();
 
-        if (fromKey != null && toKey != null && fromKey.compareTo(toKey) == 0) {
-            return Collections.emptyIterator();
+        int maxSize = mappedByteBuffer.remaining();
+
+        int fromOffset = fromKey == null ? 0 : offset(buffer, fromKey);
+        int toOffset = toKey == null ? maxSize : offset(buffer, toKey);
+
+        return new ByteBufferRecordIterator(
+                buffer,
+                fromOffset == -1 ? maxSize : fromOffset,
+                toOffset == -1 ? maxSize : toOffset
+        );
+    }
+
+    private int offset(ByteBuffer buffer, ByteBuffer keyToFind) {
+        indexByteBuffer.position(0);
+        int left = 0;
+        int rightLimit = indexByteBuffer.remaining() / Integer.BYTES;
+        int right = rightLimit;
+
+        int keyToFindSize = keyToFind.remaining();
+
+        while (left < right) {
+            int mid = left + ((right - left) >>> 1);
+
+            int offset = indexByteBuffer.getInt(mid * Integer.BYTES);
+            buffer.position(offset);
+            int existingKeySize = buffer.getInt();
+
+            int mismatchPos = buffer.mismatch(keyToFind);
+            if (mismatchPos == -1) {
+                return offset;
+            }
+
+            if (existingKeySize == keyToFindSize && mismatchPos == existingKeySize) {
+                return offset;
+            }
+
+            final int result;
+            if (mismatchPos < existingKeySize && mismatchPos < keyToFindSize) {
+                result = Byte.compare(
+                        keyToFind.get(keyToFind.position() + mismatchPos),
+                        buffer.get(buffer.position() + mismatchPos)
+                );
+            } else if (mismatchPos >= existingKeySize) {
+                result = 1;
+            } else {
+                result = -1;
+            }
+
+            if (result > 0) {
+                left = mid + 1;
+            } else {
+                right = mid;
+            }
         }
 
-        return new SSTableIterator(binarySearchKey(indexes, fromKey), toKey, mappedByteBuffer);
+        if (left >= rightLimit) {
+            return -1;
+        }
+
+        indexByteBuffer.position(0);
+        return indexByteBuffer.getInt(left * Integer.BYTES);
     }
 
     public static List<SSTable> loadFromDir(Path dir) throws IOException {
@@ -110,13 +166,17 @@ public class SSTable {
                     counter++;
 
                     Record record = iterators.next();
-
                     ByteBuffer value = record.isTombstone()
                             ? BYTE_BUFFER_TOMBSTONE
                             : record.getValue();
 
                     writeSizeAndValue(record.getKey(), saveFileChannel, BUFFER);
-                    writeSizeAndValue(value, saveFileChannel, BUFFER);
+
+                    if (record.isTombstone()) {
+                        writeInt(saveFileChannel, BUFFER, -1);
+                    } else {
+                        writeSizeAndValue(value, saveFileChannel, BUFFER);
+                    }
                 }
 
                 int curPos = (int) indexFileChanel.position();
