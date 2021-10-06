@@ -27,7 +27,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public class LsmDAO implements DAO {
 
     private NavigableMap<ByteBuffer, Record> memoryStorage = newStorage();
-    private ArrayList<NavigableMap<ByteBuffer, Record>> circularBuffer;
+    private final List<NavigableMap<ByteBuffer, Record>> circularBuffer;
     private final ConcurrentLinkedDeque<SSTable> tables = new ConcurrentLinkedDeque<>();
 
     private final DAOConfig config;
@@ -53,7 +53,7 @@ public class LsmDAO implements DAO {
         this.semaphoreAvailablePermits = new AtomicInteger(semaphorePermit);
         this.semaphore = new Semaphore(semaphorePermit);
         this.circularBuffer = new ArrayList<>();
-        for (int i =0; i < semaphorePermit; ++i) {
+        for (int i = 0; i < semaphorePermit; ++i) {
             this.circularBuffer.add(newStorage());
         }
         this.config = config;
@@ -70,12 +70,8 @@ public class LsmDAO implements DAO {
         Iterator<NavigableMap<ByteBuffer, Record>> curcilarIterator = this.circularBuffer.iterator();
 
         if (!this.circularBuffer.isEmpty()) {
-            if (curcilarIterator.hasNext()) {
+            while (curcilarIterator.hasNext()) {
                 Iterator<Record> unionRange = map(fromKey, toKey, curcilarIterator.next()).values().iterator();
-                while(curcilarIterator.hasNext()) {
-                    unionRange = mergeTwo(new PeekingIterator(unionRange),
-                            new PeekingIterator(map(fromKey, toKey, curcilarIterator.next()).values().iterator()));
-                }
                 memoryRange = mergeTwo(new PeekingIterator(memoryRange), new PeekingIterator(unionRange));
             }
         }
@@ -90,7 +86,7 @@ public class LsmDAO implements DAO {
 
     @Override
     public void upsert(Record record) {
-        // long startTime = System.nanoTime();
+
         if (greaterThanCAS(config.memoryLimit, sizeOf(record)) && !this.wantToClose.get()) {
 
             try {
@@ -138,11 +134,6 @@ public class LsmDAO implements DAO {
         }
 
         putRecord(record);
-         /*
-            long endTime = System.nanoTime();
-            float duration = (endTime - startTime) / 1000000000.0f;
-         */
-
     }
 
     @Override
