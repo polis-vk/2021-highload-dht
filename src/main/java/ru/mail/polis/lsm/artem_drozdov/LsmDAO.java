@@ -68,14 +68,7 @@ public class LsmDAO implements DAO {
                         int prev = memoryConsumption.getAndSet(recordSize);
                         final Iterator<Record> snapshot = memoryStorage.values().iterator();
                         Future<?> future = executorService.submit(() -> {
-                            try {
-                                flush(snapshot);
-                            } catch (IOException e) {
-                                memoryConsumption.addAndGet(prev);
-                                throw new UncheckedIOException(e);
-                            } finally {
-                                semaphore.release();
-                            }
+                            doSnapshotFlush(prev, snapshot);
                         });
                         LOG.info("Submitted flush task: {}", future);
                         memoryStorage = new ConcurrentSkipListMap<>();
@@ -87,6 +80,17 @@ public class LsmDAO implements DAO {
             }
         }
         memoryStorage.put(record.getKey(), record);
+    }
+
+    private void doSnapshotFlush(int prev, Iterator<Record> snapshot) {
+        try {
+            flush(snapshot);
+        } catch (IOException e) {
+            memoryConsumption.addAndGet(prev);
+            throw new UncheckedIOException(e);
+        } finally {
+            semaphore.release();
+        }
     }
 
     @Override
