@@ -1,4 +1,4 @@
-#/bin/bash
+#!/bin/bash
 
 if [[ $# -eq 0 || "$1" == "-h" ]]; then
 	echo "Usage: $0 [get or put] [output file]"

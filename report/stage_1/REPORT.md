@@ -284,7 +284,7 @@ Transfer/sec:    708.49KB
 
 `$ async-profiler -d 10 -e cpu -f <OUT_HTML> <PID>`
 
- - [CPU под нагрузкой PUT запросами](profiler_cpu_put.html)
+ - [CPU под нагрузкой PUT запросами](profiling/profiler_cpu_put.html)
  
 Что касается метода PUT, на графике видим, что 27.4% времени CPU занимает вызов функции реализованного сервиса `put`.
 В частности, много времени уходит на операцию сравнения `ByteBuffer.compareTo`, чтобы осуществить очередную вставку
@@ -295,7 +295,7 @@ Transfer/sec:    708.49KB
 
 Если тут и требуется оптимизация, то стоит смотреть в сторону вставки элементов.
 
-- [CPU под нагрузкой GET запросами](profiler_cpu_get.html)
+- [CPU под нагрузкой GET запросами](profiling/profiler_cpu_get.html)
 
 Что касается запросов на чтение, то тут 30% CPU отжирает нативный код.
 
@@ -307,13 +307,13 @@ Transfer/sec:    708.49KB
 
 `$ async-profiler -d 10 -e alloc -f <OUT_HTML> <PID>`
 
- - [RAM под нагрузкой PUT запросами](profiler_mem_put.html)
+ - [RAM под нагрузкой PUT запросами](profiling/profiler_mem_put.html)
 
 Реализованный метод `put` занимает 36.59% памяти. Его большую часть занимает метод `upsert` в реализации `LSM`.
 В остальном это формирование ответа `Response` и вызов метода `Bytebuffer.asReadOnlyBuffer()`
 внутри `Record.of` метода `put` (7.53%).
 
- - [RAM под нагрузкой GET запросами](profiler_mem_get.html)
+ - [RAM под нагрузкой GET запросами](profiling/profiler_mem_get.html)
 
 Реализованный метод `get` занимает 61.77% памяти. В основном память забирают итераторы и реализация `LSM`.
 Более 25% памяти забирают библиотечные методы по обработке запроса и отправке ответа. 
