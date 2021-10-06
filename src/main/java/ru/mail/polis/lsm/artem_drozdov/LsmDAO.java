@@ -16,7 +16,6 @@ import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
-
 public class LsmDAO implements DAO {
 
     private final ConcurrentLinkedDeque<SSTable> tables = new ConcurrentLinkedDeque<>();
@@ -36,7 +35,6 @@ public class LsmDAO implements DAO {
         this.flushflag = new AtomicBoolean(false);
     }
 
-
     @Override
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
         Iterator<Record> sstableRanges = sstableRanges(fromKey, toKey);
@@ -44,7 +42,6 @@ public class LsmDAO implements DAO {
         Iterator<Record> iterator = mergeTwo(new PeekingIterator(sstableRanges), new PeekingIterator(memoryRange));
         return filterTombstones(iterator);
     }
-
 
     @Override
     public void upsert(Record record) {
@@ -64,7 +61,7 @@ public class LsmDAO implements DAO {
                               memoryConsumption.set(prev);
                               memoryStorage.putAll(memoryStorageFlush);
                           }
-                      }).thenRun(() ->{
+                      }).thenRun(()-> {
                           flushflag.set(true);
                       }).join();
                   }
@@ -72,7 +69,6 @@ public class LsmDAO implements DAO {
         }
         memoryStorage.put(record.getKey(), record);
     }
-
 
     @Override
     public void closeAndCompact() {
@@ -111,8 +107,8 @@ public class LsmDAO implements DAO {
 
         SSTable ssTable = SSTable.write(cleanStorage.values().iterator(), file);
         tables.add(ssTable);
-        //memoryStorage = new ConcurrentSkipListMap<>();
     }
+    
     private Iterator<Record> sstableRanges(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
         List<Iterator<Record>> iterators = new ArrayList<>(tables.size());
         for (SSTable ssTable : tables) {
