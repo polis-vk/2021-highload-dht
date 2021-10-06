@@ -76,7 +76,6 @@ public class LsmDAO implements DAO {
                                 flushDone.set(true);
                             } catch (IOException e) {
                                 //exception processing instead of deferred future analyzing
-                                e.printStackTrace();
                                 memoryConsumption.set(currMemoryConsumption);
                                 //parallelAddedWhileWeWasFlushingRecords merge wasNotFlushedRecords
                                 memoryStorage.putAll(memorySnapshot);
