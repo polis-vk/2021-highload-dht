@@ -6,7 +6,7 @@ import java.io.IOException;
 
 public final class DAOFactory {
 
-    private static final int SEMAPHORE_SIZE = 4;
+    private static final int SEMAPHORE_SIZE = 3;
 
     private DAOFactory() {
         // Only static methods
