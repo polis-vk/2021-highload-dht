@@ -103,7 +103,7 @@ class StartStopTest extends TestBase {
     }
 
     @Test
-    @DisabledOnOs(OS.WINDOWS)
+    @EnabledOnOs(OS.LINUX)
     void create() {
         assertTimeoutPreemptively(TIMEOUT, () -> {
             assertThrows(PoolException.class, this::status);
@@ -111,8 +111,8 @@ class StartStopTest extends TestBase {
     }
 
     @Test
-    @EnabledOnOs(OS.WINDOWS)
-    void createOnWindows() throws InterruptedException {
+    @DisabledOnOs(OS.LINUX)
+    void createOnNonLinux() throws InterruptedException {
         assertNotFinishesIn(this::status);
     }
 
@@ -127,7 +127,7 @@ class StartStopTest extends TestBase {
     }
 
     @Test
-    @DisabledOnOs(OS.WINDOWS)
+    @EnabledOnOs(OS.LINUX)
     void stop() {
         assertTimeoutPreemptively(TIMEOUT, () -> {
             makeLifecycle();
@@ -138,8 +138,8 @@ class StartStopTest extends TestBase {
     }
 
     @Test
-    @EnabledOnOs(OS.WINDOWS)
-    void stopOnWindows() throws InterruptedException {
+    @DisabledOnOs(OS.LINUX)
+    void stopOnNonLinux() throws InterruptedException {
         assertNotFinishesIn(() -> {
             makeLifecycle();
 
