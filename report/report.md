@@ -574,8 +574,7 @@ Value   Percentile   TotalCount 1/(1-Percentile)
 [Max     =     2516.992, Total count    =      2129988]  
 [Buckets =           27, SubBuckets     =         2048]  
 ----------------------------------------------------------
-2159996 requests in 12.00m, 150.41MB read  
-Non-2xx or 3xx responses: 269240  
+2159996 requests in 12.00m, 150.41MB read   
 Requests/sec:   2999.99  
 Transfer/sec:    213.91KB  
 
