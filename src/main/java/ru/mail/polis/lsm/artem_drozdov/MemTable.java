@@ -1,4 +1,4 @@
-package ru.mail.polis.lsm.eldar_tim;
+package ru.mail.polis.lsm.artem_drozdov;
 
 import ru.mail.polis.lsm.Record;
 
@@ -9,11 +9,8 @@ import java.util.concurrent.ConcurrentSkipListMap;
  * Описывает MemTable - страницу памяти в RAM.
  */
 public class MemTable extends ConcurrentSkipListMap<ByteBuffer, Record> {
-
-    /**
-     * Порядковый номер таблицы в памяти.
-     */
-    private int id;
+    /** Порядковый номер таблицы в памяти. */
+    private final int id;
 
     private MemTable(int id) {
         this.id = id;

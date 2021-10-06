@@ -5,8 +5,6 @@ import org.slf4j.LoggerFactory;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.DAOConfig;
 import ru.mail.polis.lsm.Record;
-import ru.mail.polis.lsm.eldar_tim.MemTable;
-import ru.mail.polis.lsm.eldar_tim.SSTableManager;
 
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
@@ -21,22 +19,24 @@ import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.SortedMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class LsmDAO implements DAO {
-    private static final Logger LOG = LoggerFactory.getLogger(LsmDAO.class);
 
-    private volatile MemTable memTable = MemTable.newStorage();
+    private static final Logger LOG = LoggerFactory.getLogger(LsmDAO.class);
+    private final ExecutorService FLUSH_EXECUTOR = Executors.newSingleThreadScheduledExecutor();
+
+    private volatile MemTable memTable;
     private final ConcurrentLinkedDeque<SSTable> tables = new ConcurrentLinkedDeque<>();
+    public final ConcurrentLinkedQueue<MemTable> flushedMemTables = new ConcurrentLinkedQueue<>();
 
     @SuppressWarnings({"FieldCanBeLocal", "unused"})
     private final DAOConfig config;
 
     private final AtomicInteger memoryConsumption = new AtomicInteger();
-
-    private SSTableManager ssTableManager = new SSTableManager();
-
-    /** Only sync. variables block. */
     private final AtomicInteger memTableActiveUsers = new AtomicInteger();
 
     /**
@@ -49,14 +49,23 @@ public class LsmDAO implements DAO {
         this.config = config;
         List<SSTable> ssTables = SSTable.loadFromDir(config.dir);
         tables.addAll(ssTables);
+        memTable = MemTable.newStorage(tables.size());
     }
 
     @Override
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
         synchronized (this) {
             Iterator<Record> sstableRanges = sstableRanges(fromKey, toKey);
-            Iterator<Record> memoryRange = map(fromKey, toKey).values().iterator();
+            Iterator<Record> memoryRange = map(memTable, fromKey, toKey).values().iterator();
             Iterator<Record> iterator = mergeTwo(new PeekingIterator(sstableRanges), new PeekingIterator(memoryRange));
+
+            List<Iterator<Record>> flushedTables = new ArrayList<>(flushedMemTables.size());
+            for (MemTable flushedMemTable : flushedMemTables) {
+                Iterator<Record> flushMemoryRange = map(flushedMemTable, fromKey, toKey).values().iterator();
+                flushedTables.add(flushMemoryRange);
+            }
+
+            iterator = mergeTwo(new PeekingIterator(iterator), new PeekingIterator(merge(flushedTables)));
             return filterTombstones(iterator);
         }
     }
@@ -66,6 +75,13 @@ public class LsmDAO implements DAO {
         memTableActiveUsers.incrementAndGet();
         while (memoryConsumption.addAndGet(sizeOf(record)) > config.memoryLimit) {
             memTableActiveUsers.decrementAndGet();
+
+            // Это остатки костыля для исправления ошибки OutOfMemoryException,
+            // без которых все в один момент заработало. Но если вдруг...
+//            while (flushedMemTables.size() > 3) {
+//                Thread.onSpinWait();
+//            }
+
             synchronized (this) {
                 // Если в данный блок попали друг за другом два и более потока, значит каждый из них
                 // увеличил общий счетчик ранее, а первый пришедший сбросил его.
@@ -73,12 +89,13 @@ public class LsmDAO implements DAO {
                 if (memoryConsumption.get() > config.memoryLimit) {
                     // Применяем активное ожидание, чтобы избавиться от
                     // медленного и вредного потока, который никак не может
-                    // записать себя в memTable после всех проверок.
+                    // записать своё значение в memTable после всех проверок.
                     while (memTableActiveUsers.get() > 0) {
                         Thread.onSpinWait();
                     }
 
-                    scheduleFlush();
+                    scheduleFlush(memTable);
+
                     memoryConsumption.getAndSet(sizeOf(record));
                     break;
                 }
@@ -101,7 +118,7 @@ public class LsmDAO implements DAO {
             }
             tables.clear();
             tables.add(table);
-            memTable = MemTable.newStorage();
+            memTable = MemTable.newStorage(tables.size());
         }
     }
 
@@ -116,17 +133,26 @@ public class LsmDAO implements DAO {
         }
     }
 
-    /**
-     * Асинхронно переносит SSTable в ПЗУ.
-     *
-     * Про исключения:
-     * Любые ошибки в процессе записи решаются сервером самостоятельно.
-     * Клиенту гарантируется выполнение операции, если ему уже был дан ответ о её успехе.
-     */
     @GuardedBy("this")
+    private void scheduleFlush(MemTable memTable) {
+        flushedMemTables.add(memTable);
+        scheduleFlush();
+        this.memTable = MemTable.newStorage(memTable.getId() + 1);
+    }
+
     private void scheduleFlush() {
-        ssTableManager.scheduleFlush(memTable);
-        memTable = MemTable.newStorage(tables.size());
+        FLUSH_EXECUTOR.submit(() -> {
+            synchronized (LsmDAO.this) {
+                MemTable memTable = flushedMemTables.poll();
+                if (memTable == null) return;
+
+                try {
+                    flush(memTable);
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
+        });
     }
 
     @GuardedBy("this")
@@ -138,6 +164,7 @@ public class LsmDAO implements DAO {
         tables.add(ssTable);
     }
 
+    @GuardedBy("this")
     private Iterator<Record> sstableRanges(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
         List<Iterator<Record>> iterators = new ArrayList<>(tables.size());
         for (SSTable ssTable : tables) {
@@ -146,7 +173,8 @@ public class LsmDAO implements DAO {
         return merge(iterators);
     }
 
-    private SortedMap<ByteBuffer, Record> map(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
+    @GuardedBy("this")
+    private SortedMap<ByteBuffer, Record> map(MemTable memTable, @Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
         if (fromKey == null && toKey == null) {
             return memTable;
         }
