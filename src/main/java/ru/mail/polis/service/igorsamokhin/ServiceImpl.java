@@ -8,7 +8,6 @@ import one.nio.http.Path;
 import one.nio.http.Request;
 import one.nio.http.RequestMethod;
 import one.nio.http.Response;
-import one.nio.os.SchedulingPolicy;
 import one.nio.server.AcceptorConfig;
 import one.nio.util.Utf8;
 import ru.mail.polis.lsm.DAO;
