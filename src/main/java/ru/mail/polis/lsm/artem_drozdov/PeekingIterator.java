@@ -1,14 +1,17 @@
 package ru.mail.polis.lsm.artem_drozdov;
 
+import ru.mail.polis.lsm.Record;
+
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
-public final class PeekingIterator<T> implements Iterator<T> {
+class PeekingIterator implements Iterator<Record> {
 
-    private final Iterator<T> delegate;
-    private T current;
+    private Record current;
 
-    public PeekingIterator(Iterator<T> delegate) {
+    private final Iterator<Record> delegate;
+
+    public PeekingIterator(Iterator<Record> delegate) {
         this.delegate = delegate;
     }
 
@@ -18,16 +21,16 @@ public final class PeekingIterator<T> implements Iterator<T> {
     }
 
     @Override
-    public T next() {
+    public Record next() {
         if (!hasNext()) {
             throw new NoSuchElementException();
         }
-        T now = peek();
+        Record now = peek();
         current = null;
         return now;
     }
 
-    public T peek() {
+    public Record peek() {
         if (current != null) {
             return current;
         }

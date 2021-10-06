@@ -5,18 +5,17 @@ import ru.mail.polis.lsm.DAOConfig;
 import ru.mail.polis.lsm.Record;
 
 import javax.annotation.Nullable;
-import javax.annotation.concurrent.GuardedBy;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
-import java.util.NavigableMap;
+import java.util.*;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
+
 
 public class LsmDAO implements DAO {
 
@@ -24,60 +23,56 @@ public class LsmDAO implements DAO {
     @SuppressWarnings({"FieldCanBeLocal", "unused"})
     private final DAOConfig config;
     private NavigableMap<ByteBuffer, Record> memoryStorage = newStorage();
-    @GuardedBy("this")
-    private int memoryConsumption;
+    //@GuardedBy("this")
+    private final AtomicInteger memoryConsumption = new AtomicInteger();
+    private final AtomicInteger tableSize;
+    private final AtomicBoolean flushflag;
 
     public LsmDAO(DAOConfig config) throws IOException {
         this.config = config;
-        List<SSTable> ssTables = SSTable.loadFromDir(config.dir);
+        List<SSTable> ssTables = SSTableDirHelper.loadFromDir(config.dir);
         tables.addAll(ssTables);
+        this.tableSize = new AtomicInteger(tables.size());
+        this.flushflag = new AtomicBoolean(false);
     }
 
-    private static Iterator<Record> merge(List<Iterator<Record>> iterators) {
-        final int size = iterators.size();
-        if (size == 0) {
-            return Collections.emptyIterator();
-        } else if (size == 1) {
-            return iterators.get(0);
-        } else if (size == 2) {
-            return new RecordMergingIterator(
-                    new PeekingIterator<>(iterators.get(0)),
-                    new PeekingIterator<>(iterators.get(1)));
-        }
-        Iterator<Record> left = merge(iterators.subList(0, size / 2));
-        Iterator<Record> right = merge(iterators.subList(size / 2, size));
-        return new RecordMergingIterator(new PeekingIterator<>(left), new PeekingIterator<>(right));
-    }
 
     @Override
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
-        synchronized (this) {
-            Iterator<Record> sstableRanges = sstableRanges(fromKey, toKey);
-            Iterator<Record> memoryRange = map(fromKey, toKey).values().iterator();
-            Iterator<Record> iterator =
-                    new RecordMergingIterator(
-                            new PeekingIterator<>(sstableRanges),
-                            new PeekingIterator<>(memoryRange));
-            return new TombstoneFilteringIterator(iterator);
-        }
+        Iterator<Record> sstableRanges = sstableRanges(fromKey, toKey);
+        Iterator<Record> memoryRange = map(fromKey, toKey).values().iterator();
+        Iterator<Record> iterator = mergeTwo(new PeekingIterator(sstableRanges), new PeekingIterator(memoryRange));
+        return filterTombstones(iterator);
     }
+
 
     @Override
     public void upsert(Record record) {
-        synchronized (this) {
-            memoryConsumption += sizeOf(record);
-            if (memoryConsumption > config.memoryLimit) {
-                try {
-                    flush();
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-                memoryConsumption = sizeOf(record);
-            }
+        if (memoryConsumption.addAndGet(sizeOf(record)) > config.memoryLimit) {
+              int prev = memoryConsumption.get();
+              memoryConsumption.set(sizeOf(record));
+                flushflag.set(false); // Our flag
+              synchronized (this) {
+                  if (!flushflag.get()) {
+            NavigableMap<ByteBuffer, Record> memoryStorageFlush = newStorage();
+            memoryStorageFlush.putAll(memoryStorage);
+                      memoryStorage = newStorage();
+                      CompletableFuture.runAsync(() -> {
+                          try { // Process is running within another thread
+                              flush(memoryStorageFlush);
+                          } catch (IOException e) {
+                              memoryConsumption.set(prev);
+                              memoryStorage.putAll(memoryStorageFlush);
+                          }
+                      }).thenRun(() ->{
+                          flushflag.set(true);
+                      }).join();
+                  }
+              }
         }
-
         memoryStorage.put(record.getKey(), record);
     }
+
 
     @Override
     public void closeAndCompact() {
@@ -105,20 +100,19 @@ public class LsmDAO implements DAO {
     @Override
     public void close() throws IOException {
         synchronized (this) {
-            flush();
+            flush(memoryStorage);
         }
     }
 
-    @GuardedBy("this")
-    private void flush() throws IOException {
+    //@GuardedBy("this")
+    private void flush(NavigableMap<ByteBuffer,Record> cleanStorage) throws IOException {
         Path dir = config.dir;
-        Path file = dir.resolve(SSTable.SSTABLE_FILE_PREFIX + tables.size());
+        Path file = dir.resolve(SSTable.SSTABLE_FILE_PREFIX + this.tableSize.getAndAdd(1));
 
-        SSTable ssTable = SSTable.write(memoryStorage.values().iterator(), file);
+        SSTable ssTable = SSTable.write(cleanStorage.values().iterator(), file);
         tables.add(ssTable);
-        memoryStorage = new ConcurrentSkipListMap<>();
+        //memoryStorage = new ConcurrentSkipListMap<>();
     }
-
     private Iterator<Record> sstableRanges(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
         List<Iterator<Record>> iterators = new ArrayList<>(tables.size());
         for (SSTable ssTable : tables) {
@@ -127,16 +121,66 @@ public class LsmDAO implements DAO {
         return merge(iterators);
     }
 
-    private NavigableMap<ByteBuffer, Record> map(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
+    private SortedMap<ByteBuffer, Record> map(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
         if (fromKey == null && toKey == null) {
             return memoryStorage;
-        } else if (fromKey == null) {
-            return memoryStorage.headMap(toKey, false);
-        } else if (toKey == null) {
-            return memoryStorage.tailMap(fromKey, true);
-        } else {
-            return memoryStorage.subMap(fromKey, true, toKey, false);
         }
+        if (fromKey == null) {
+            return memoryStorage.headMap(toKey);
+        }
+        if (toKey == null) {
+            return memoryStorage.tailMap(fromKey);
+        }
+        return memoryStorage.subMap(fromKey, toKey);
+    }
+
+    private static Iterator<Record> merge(List<Iterator<Record>> iterators) {
+        if (iterators.isEmpty()) {
+            return Collections.emptyIterator();
+        }
+        if (iterators.size() == 1) {
+            return iterators.get(0);
+        }
+        if (iterators.size() == 2) {
+            return mergeTwo(new PeekingIterator(iterators.get(0)), new PeekingIterator(iterators.get(1)));
+        }
+        Iterator<Record> left = merge(iterators.subList(0, iterators.size() / 2));
+        Iterator<Record> right = merge(iterators.subList(iterators.size() / 2, iterators.size()));
+        return mergeTwo(new PeekingIterator(left), new PeekingIterator(right));
+    }
+
+    private static Iterator<Record> mergeTwo(PeekingIterator left, PeekingIterator right) {
+        return new MergeTwoIterator(left, right);
+    }
+
+    private static Iterator<Record> filterTombstones(Iterator<Record> iterator) {
+        PeekingIterator delegate = new PeekingIterator(iterator);
+        return new Iterator<>() {
+            @Override
+            public boolean hasNext() {
+                for (; ; ) {
+                    Record peek = delegate.peek();
+                    if (peek == null) {
+                        return false;
+                    }
+                    if (!peek.isTombstone()) {
+                        return true;
+                    }
+
+                    if (delegate.hasNext()) {
+                        delegate.next();
+                    }
+                }
+            }
+
+            @Override
+            public Record next() {
+                if (!hasNext()) {
+                    throw new NoSuchElementException("No elements");
+                }
+                return delegate.next();
+            }
+        };
     }
 
 }
