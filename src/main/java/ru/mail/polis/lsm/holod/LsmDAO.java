@@ -91,8 +91,8 @@ public class LsmDAO implements DAO {
                     asyncFlush();
                 }
             }
-            memoryStorage.put(record.getKey(), record);
         }
+        memoryStorage.put(record.getKey(), record);
     }
 
     @Override
@@ -146,12 +146,13 @@ public class LsmDAO implements DAO {
 
     private void asyncFlush() {
         synchronized (memoryConsumption) {
-            final int memoryConsumptionCurrent = memoryConsumption.get();
-            final int currentIndex = tableIndex.getAndIncrement();
-            final Future<?> currentLastFlush = lastFlush;
-            final NavigableMap<ByteBuffer, Record> currentMemoryStorage = memoryStorage;
+            int memoryConsumptionCurrent = memoryConsumption.get();
+            int currentIndex = tableIndex.getAndIncrement();
+            Future<?> currentLastFlush = lastFlush;
+            NavigableMap<ByteBuffer, Record> currentMemoryStorage = memoryStorage;
             memorySnapshot.putAll(currentMemoryStorage);
-
+            memoryStorage = newStorage();
+            memoryConsumption.set(0);
             lastFlush = flushExecutor.submit(() -> {
                 currentFlushesCount.incrementAndGet();
                 try {
@@ -172,8 +173,6 @@ public class LsmDAO implements DAO {
                     currentFlushesCount.decrementAndGet();
                 }
             });
-            memoryStorage = newStorage();
-            memoryConsumption.set(0);
         }
     }
 
