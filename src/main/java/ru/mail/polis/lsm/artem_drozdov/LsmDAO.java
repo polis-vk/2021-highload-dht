@@ -31,7 +31,7 @@ public class LsmDAO implements DAO {
     private static final Logger LOG = LoggerFactory.getLogger(LsmDAO.class);
 
     private final Semaphore semaphore = new Semaphore(1);
-    private final ExecutorService executorService = Executors.newSingleThreadExecutor();
+    private final ExecutorService flushExecutor = Executors.newSingleThreadExecutor();
 
     private NavigableMap<ByteBuffer, Record> memoryStorage = newStorage();
     private final ConcurrentLinkedDeque<SSTable> tables = new ConcurrentLinkedDeque<>();
@@ -67,7 +67,7 @@ public class LsmDAO implements DAO {
                         semaphore.acquire();
                         int prev = memoryConsumption.getAndSet(recordSize);
                         final Iterator<Record> snapshot = memoryStorage.values().iterator();
-                        Future<?> future = executorService.submit(() -> {
+                        Future<?> future = flushExecutor.submit(() -> {
                             doSnapshotFlush(prev, snapshot);
                         });
                         LOG.info("Submitted flush task: {}", future);
