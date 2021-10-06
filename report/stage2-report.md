@@ -160,11 +160,11 @@ Transfer/sec:    714.68KB
 ```
 Профилирование с помощью async-profiler в течение 15 секунд. FlameGraph для cpu, alloc и lock:
 
-<a href=/resource/profile-html/stage2/stage2-get-cpu-async-flush.html>GET запросы CPU</a>
+<a href=./resource/profile-html/stage2/stage2-get-cpu-async-flush.html>GET запросы CPU</a>
 
-<a href=/resource/profile-html/stage2/stage2-get-mem-async-flush.html>GET запросы память</a>
+<a href=./resource/profile-html/stage2/stage2-get-mem-async-flush.html>GET запросы память</a>
 
-<a href=/resource/profile-html/stage2/stage2-get-lock-async-flush.html>GET запросы lock</a>
+<a href=./resource/profile-html/stage2/stage2-get-lock-async-flush.html>GET запросы lock</a>
 
 <h6>
 Как видно из отчета wrk время ответа GET запросов несильно изменилось, так как сам HTTP сервер на этой стадий этапа ещё не многопоточен(без пула потоков). FlameGraph для CPU показывает изменения в вызовах, но это связано с изменением реализации метода get класса ServiceDAO, был заменен цикл на проверку только одного условия. FlameGraph для блокировок пустой, так как у данной реализации больше нет методов с вызовом синхронизации.
@@ -202,13 +202,13 @@ Transfer/sec:    654.19KB
 ```
 Профилирование с помощью async-profiler в течение 15 секунд. FlameGraph для cpu, alloc и lock:
 
-<a href=/resource/profile-html/stage2/stage2-put-cpu-threadpool.html>PUT запросы CPU</a>
+<a href=./resource/profile-html/stage2/stage2-put-cpu-threadpool.html>PUT запросы CPU</a>
 
-<a href=/resource/profile-html/stage2/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stage2-put-mem-threadpool.html>PUT запросы память</a>
+<a href=./resource/profile-html/stage2/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stage2-put-mem-threadpool.html>PUT запросы память</a>
 
-<a href=/resource/profile-html/stage2/stage2-put-lock-threadpool.html>PUT запросы lock</a>
+<a href=./resource/profile-html/stage2/stage2-put-lock-threadpool.html>PUT запросы lock</a>
 
-<img src=/resource/stage-2/stage2-put-lock-threadpool.jpg>
+<img src=./resource/stage-2/stage2-put-lock-threadpool.jpg>
 <h6>Рис.3 lock FlameGraph PUT запросов с многопоточностью</h6>
 
 <h6>
@@ -246,13 +246,13 @@ Transfer/sec:    714.68KB
 ```
 Профилирование с помощью async-profiler в течение 15 секунд. FlameGraph для cpu, alloc и lock:
 
-<a href=/resource/profile-html/stage2/stage2-get-cpu-threadpool.html>GET запросы CPU</a>
+<a href=./resource/profile-html/stage2/stage2-get-cpu-threadpool.html>GET запросы CPU</a>
 
-<a href=/resource/profile-html/stage2/stage2-get-mem-threadpool.html>GET запросы память</a>
+<a href=./resource/profile-html/stage2/stage2-get-mem-threadpool.html>GET запросы память</a>
 
-<a href=/resource/profile-html/stage2/stage2-get-lock-threadpool.html>GET запросы lock</a>
+<a href=./resource/profile-html/stage2/stage2-get-lock-threadpool.html>GET запросы lock</a>
 
-<img src=/resource/stage-2/stage2-get-lock-threadpool.jpg>
+<img src=./resource/stage-2/stage2-get-lock-threadpool.jpg>
 <h6>Рис.4 lock FlameGraph GET запросов с многопоточностью</h6>
 
 <h6>
