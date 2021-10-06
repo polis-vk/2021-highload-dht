@@ -32,11 +32,11 @@ Requests/sec:   9998.74
 Transfer/sec:    654.21KB
 ```
 Профилирование с помощью async-profiler в течение 15 секунд. FlameGraph для cpu, alloc и lock:
-<a href=/resource/profile-html/stage2/stage2-put-cpu-before-lock-free.html>PUT запросы CPU</a>
-<a href=/resource/profile-html/stage2/stage2-put-mem-before-lock-free.html>PUT запросы память</a>
-<a href=/resource/profile-html/stage2/stage2-put-lock-before-lock-free.html>PUT запросы lock</a>
+<a href=./resource/profile-html/stage2/stage2-put-cpu-before-lock-free.html>PUT запросы CPU</a>
+<a href=./resource/profile-html/stage2/stage2-put-mem-before-lock-free.html>PUT запросы память</a>
+<a href=./resource/profile-html/stage2/stage2-put-lock-before-lock-free.html>PUT запросы lock</a>
 На рисунке 1 представлен FlameGraph lock'ов без реализации многопоточности, на котором видно, что количество блокировок равно 69.
-<img src=/resource/stage-2/stage2-put-lock-before-lock-free.jpg>
+<img src=./resource/stage-2/stage2-put-lock-before-lock-free.jpg>
 <h6>Рис.1 lock FlameGraph PUT запросов до многопоточности</h6>
 
 Запуск wrk GET запросы на 16 соединений на 4 потоках с rate 10000 запросов в секундну:
