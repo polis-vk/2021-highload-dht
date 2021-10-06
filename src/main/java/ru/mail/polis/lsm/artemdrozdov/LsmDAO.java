@@ -21,13 +21,14 @@ import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class LsmDAO implements DAO {
 
     private NavigableMap<ByteBuffer, Record> memoryStorage = newStorage();
     private final ConcurrentLinkedDeque<SSTable> tables = new ConcurrentLinkedDeque<>();
-    private volatile boolean flushDone;//for not to flush twice
+    private final AtomicBoolean flushDone = new AtomicBoolean(false);//for not to flush twice
     @SuppressWarnings({"FieldCanBeLocal", "unused"})
     private final DAOConfig config;
     private static final int POLL_LIMIT = 20 * 1024 * 1024;
@@ -58,10 +59,10 @@ public class LsmDAO implements DAO {
         if (memoryConsumption.addAndGet(sizeOf(record)) > config.memoryLimit) {
             int currMemoryConsumption = memoryConsumption.get();//save for future IOException processing
             memoryConsumption.set(sizeOf(record));//set to close if
-            flushDone = false;
+            flushDone.set(false);
             synchronized (this) {
 
-                if (!flushDone) {
+                if (!flushDone.get()) {
                     //multiple flushing within race handling
 
                     //make snapshot for flushing to avoid parallel writing conflicts
@@ -72,7 +73,7 @@ public class LsmDAO implements DAO {
                         {
                             try {
                                 flush(memorySnapshot, sstablesCtr.getAndIncrement());
-                                flushDone = true;
+                                flushDone.set(true);
                             } catch (IOException e) {
                                 //exception processing instead of deferred future analyzing
                                 e.printStackTrace();
