@@ -7,6 +7,7 @@ import ru.mail.polis.lsm.DAOConfig;
 import ru.mail.polis.lsm.Record;
 import ru.mail.polis.lsm.alex.FlushTable;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -16,9 +17,11 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Map;
 import java.util.NavigableMap;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.ExecutionException;
@@ -38,10 +41,11 @@ public class LsmDAO implements DAO {
     private final AtomicInteger memoryConsumption = new AtomicInteger();
 
     private final ExecutorService flushService;
-    private final ArrayList<Future<?>> flushTaskList = new ArrayList<>();
+    private final Map<Integer, Future<?>> flushTaskList = new ConcurrentHashMap<>();
 
     private final AtomicInteger ssTableIndex = new AtomicInteger();
     private final BlockingQueue<FlushTable> flushQueue;
+    private final Map<Integer, NavigableMap<ByteBuffer, Record>> flushingTables = new ConcurrentHashMap<>();
 
     public LsmDAO(DAOConfig config) throws IOException {
         this.config = config;
@@ -72,7 +76,14 @@ public class LsmDAO implements DAO {
     @Override
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
         Iterator<Record> sstableRanges = sstableRanges(fromKey, toKey);
-        Iterator<Record> memoryRange = map(fromKey, toKey).values().iterator();
+
+        NavigableMap<ByteBuffer, Record> temoStorage = new ConcurrentSkipListMap<>();
+        for (NavigableMap<ByteBuffer, Record> map : flushingTables.values()) {
+            temoStorage.putAll(map);
+        }
+        temoStorage.putAll(memoryStorage);
+
+        Iterator<Record> memoryRange = map(temoStorage, fromKey, toKey).values().iterator();
         Iterator<Record> iterator =
                 new RecordMergingIterator(
                         new PeekingIterator<>(sstableRanges),
@@ -86,21 +97,30 @@ public class LsmDAO implements DAO {
         if (memoryConsumption.addAndGet(recordSize) > config.memoryLimit) {
             synchronized (this) {
                 if (memoryConsumption.get() > config.memoryLimit) {
+                    NavigableMap<ByteBuffer, Record> copyMemStorage = new ConcurrentSkipListMap<>(memoryStorage);
+                    memoryStorage = newStorage();
+
+                    FlushTable tableToFlush = new FlushTable(ssTableIndex.getAndIncrement(), copyMemStorage.values().iterator());
                     try {
-                        FlushTable tableToFlush = new FlushTable(ssTableIndex.getAndIncrement(), memoryStorage.values().iterator());
                         flushQueue.put(tableToFlush);
-                        memoryStorage = newStorage();
+                        flushingTables.put(tableToFlush.getIndex(), copyMemStorage);
                     } catch (InterruptedException e) {
                         LOGGER.error("Failed put FlushTask to queue!");
                     }
 
                     int oldConsumption = memoryConsumption.getAndSet(recordSize);
-                    flushTaskList.add(flushService.submit(() -> {
+                    flushTaskList.put(tableToFlush.getIndex(), flushService.submit(() -> {
+                        FlushTable flushTable = null;
                         try {
-                            flush(flushQueue.take());
+                            flushTable = flushQueue.take();
+                            flush(flushTable);
                         } catch (Exception e) {
                             memoryConsumption.addAndGet(oldConsumption);
                             LOGGER.error("Failed flush!");
+                        }
+                        if (flushTable != null) {
+                            flushTaskList.remove(flushTable.getIndex());
+                            flushingTables.remove(flushTable.getIndex());
                         }
                     }));
                 }
@@ -143,7 +163,7 @@ public class LsmDAO implements DAO {
     }
 
     private void waitFlushTasks() {
-        for (Future<?> task : flushTaskList) {
+        for (Future<?> task : flushTaskList.values()) {
             try {
                 task.get();
             } catch (InterruptedException | ExecutionException e) {
@@ -168,15 +188,15 @@ public class LsmDAO implements DAO {
         return merge(iterators);
     }
 
-    private NavigableMap<ByteBuffer, Record> map(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
+    private NavigableMap<ByteBuffer, Record> map(@Nonnull NavigableMap<ByteBuffer, Record> storage,  @Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
         if (fromKey == null && toKey == null) {
-            return memoryStorage;
+            return storage;
         } else if (fromKey == null) {
-            return memoryStorage.headMap(toKey, false);
+            return storage.headMap(toKey, false);
         } else if (toKey == null) {
-            return memoryStorage.tailMap(fromKey, true);
+            return storage.tailMap(fromKey, true);
         } else {
-            return memoryStorage.subMap(fromKey, true, toKey, false);
+            return storage.subMap(fromKey, true, toKey, false);
         }
     }
 
