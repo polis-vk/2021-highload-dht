@@ -27,12 +27,14 @@ import java.util.concurrent.atomic.AtomicLong;
 public class LsmDAO implements DAO {
 
     private NavigableMap<ByteBuffer, Record> memoryStorage = newStorage();
+    private ArrayList<NavigableMap<ByteBuffer, Record>> circularBuffer;
     private final ConcurrentLinkedDeque<SSTable> tables = new ConcurrentLinkedDeque<>();
 
     private final DAOConfig config;
 
     private final AtomicLong memoryConsumption;
     private final AtomicInteger semaphoreAvailablePermits;
+    private final AtomicInteger idCircularBuffer;
     private final AtomicBoolean wantToClose;
     private final AtomicLong tableSize;
     private final Semaphore semaphore;
@@ -41,13 +43,19 @@ public class LsmDAO implements DAO {
      *  Create LsmDAO from config.
      *
      * @param config - LamDAo config
+     * @param semaphorePermit - каунтер для семафора; слишком большое значение ведет к OutOfMemory Exception
      * @throws IOException - in case of io exception
      */
     public LsmDAO(DAOConfig config, final int semaphorePermit) throws IOException {
         this.memoryConsumption = new AtomicLong();
+        this.idCircularBuffer = new AtomicInteger(0);
         this.wantToClose = new AtomicBoolean(false);
         this.semaphoreAvailablePermits = new AtomicInteger(semaphorePermit);
         this.semaphore = new Semaphore(semaphorePermit);
+        this.circularBuffer = new ArrayList<>();
+        for (int i =0; i < semaphorePermit; ++i) {
+            this.circularBuffer.add(newStorage());
+        }
         this.config = config;
         List<SSTable> ssTables = SSTable.loadFromDir(config.dir);
         tables.addAll(ssTables);
@@ -57,7 +65,21 @@ public class LsmDAO implements DAO {
     @Override
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
         Iterator<Record> sstableRanges = sstableRanges(fromKey, toKey);
-        Iterator<Record> memoryRange = map(fromKey, toKey).values().iterator();
+        Iterator<Record> memoryRange = map(fromKey, toKey, memoryStorage).values().iterator();
+
+        Iterator<NavigableMap<ByteBuffer, Record>> curcilarIterator = this.circularBuffer.iterator();
+
+        if (!this.circularBuffer.isEmpty()) {
+            if (curcilarIterator.hasNext()) {
+                Iterator<Record> unionRange = map(fromKey, toKey, curcilarIterator.next()).values().iterator();
+                while(curcilarIterator.hasNext()) {
+                    unionRange = mergeTwo(new PeekingIterator(unionRange),
+                            new PeekingIterator(map(fromKey, toKey, curcilarIterator.next()).values().iterator()));
+                }
+                memoryRange = mergeTwo(new PeekingIterator(memoryRange), new PeekingIterator(unionRange));
+            }
+        }
+
         Iterator<Record> iterator = mergeTwo(new PeekingIterator(sstableRanges), new PeekingIterator(memoryRange));
         return filterTombstones(iterator);
     }
@@ -68,41 +90,59 @@ public class LsmDAO implements DAO {
 
     @Override
     public void upsert(Record record) {
+        // long startTime = System.nanoTime();
         if (greaterThanCAS(config.memoryLimit, sizeOf(record)) && !this.wantToClose.get()) {
 
             try {
+                // здесь можно попробовать переделать на tryAcquire
+                // отпускать поток, записав данные в memStore
                 this.semaphore.acquire();
             } catch (InterruptedException e) {
+                putRecord(record);
                 Thread.currentThread().interrupt();
             }
 
-            NavigableMap<ByteBuffer, Record> flushStorage = newStorage();
-            flushStorage.putAll(memoryStorage);
+            if (this.wantToClose.get()) {
+                putRecord(record);
+                this.semaphore.release();
+                return;
+            }
 
-            CompletableFuture.runAsync(() -> {
-                final int rollbackSize = sizeOf(record);
-                try {
-                    this.flush(flushStorage);
-                    flushStorage.keySet().retainAll(memoryStorage.keySet());
-                    memoryStorage.values().removeAll(flushStorage.values());
-                } catch (IOException e) {
-                    memoryConsumption.addAndGet(-rollbackSize);
-                    memoryStorage.putAll(flushStorage); // restore data + new data
-                } finally {
-                    this.semaphore.release();
-                    if (this.wantToClose.get()
-                            && this.semaphoreAvailablePermits.compareAndSet(this.semaphore.availablePermits(), 0)) {
-                        synchronized (this.semaphore) {
-                            this.semaphore.notifyAll();
+            synchronized (this) {
+                final int idx = idCircularBuffer.getAndUpdate(i -> (i + 1) % this.semaphoreAvailablePermits.get());
+                circularBuffer.set(idx, newStorage());
+                circularBuffer.get(idx).putAll(memoryStorage);
+                memoryStorage = newStorage();
+
+                CompletableFuture.runAsync(() -> {
+                    final int local_idx = idx;
+                    final int rollbackSize = sizeOf(record);
+                    try {
+                        this.flush(circularBuffer.get(local_idx));
+                    } catch (IOException e) {
+                        memoryConsumption.addAndGet(-rollbackSize);
+                        memoryStorage.putAll(circularBuffer.get(local_idx)); // restore data + new data
+                    } finally {
+                        this.semaphore.release();
+                        if (this.wantToClose.get()
+                                && this.semaphoreAvailablePermits.compareAndSet(this.semaphore.availablePermits(), 0)) {
+                            synchronized (this.semaphore) {
+                                this.semaphore.notifyAll();
+                            }
                         }
                     }
-                }
-            });
+                });
+            }
         } else {
             memoryConsumption.addAndGet(sizeOf(record));
         }
 
-        memoryStorage.put(record.getKey(), record);
+        putRecord(record);
+         /*
+            long endTime = System.nanoTime();
+            float duration = (endTime - startTime) / 1000000000.0f;
+         */
+
     }
 
     @Override
@@ -120,6 +160,10 @@ public class LsmDAO implements DAO {
         }
     }
 
+    private void putRecord(Record record) {
+        memoryStorage.put(record.getKey(), record);
+    }
+
     private NavigableMap<ByteBuffer, Record> newStorage() {
         return new ConcurrentSkipListMap<>();
     }
@@ -134,15 +178,16 @@ public class LsmDAO implements DAO {
         if (this.semaphoreAvailablePermits.get() != this.semaphore.availablePermits()) {
             synchronized (this.semaphore) {
                 try {
-                    // это цикл попросил sonar-java
+                    // sonar-java
                     while (this.semaphoreAvailablePermits.get() != 0) {
-                        this.semaphore.wait(500);
+                        this.semaphore.wait(250);
                     }
                 } catch (InterruptedException e) {
                     Thread.currentThread().interrupt();
                 }
             }
         }
+        this.circularBuffer.clear();
         flush(memoryStorage);
     }
 
@@ -161,17 +206,18 @@ public class LsmDAO implements DAO {
         return merge(iterators);
     }
 
-    private SortedMap<ByteBuffer, Record> map(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
+    private SortedMap<ByteBuffer, Record> map(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey,
+                                              final NavigableMap<ByteBuffer, Record> storage) {
         if (fromKey == null && toKey == null) {
-            return memoryStorage;
+            return storage;
         }
         if (fromKey == null) {
-            return memoryStorage.headMap(toKey);
+            return storage.headMap(toKey);
         }
         if (toKey == null) {
-            return memoryStorage.tailMap(fromKey);
+            return storage.tailMap(fromKey);
         }
-        return memoryStorage.subMap(fromKey, toKey);
+        return storage.subMap(fromKey, toKey);
     }
 
     private static Iterator<Record> merge(List<Iterator<Record>> iterators) {
