@@ -17,17 +17,20 @@ import java.util.List;
 import java.util.NavigableMap;
 import java.util.NoSuchElementException;
 import java.util.SortedMap;
-import java.util.concurrent.*;
+import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class LsmDAO implements DAO {
 
     private NavigableMap<ByteBuffer, Record> memoryStorage = newStorage();
     private final ConcurrentLinkedDeque<SSTable> tables = new ConcurrentLinkedDeque<>();
-    private volatile boolean flushDone = false;//for not to flush twice
+    private volatile boolean flushDone;//for not to flush twice
     @SuppressWarnings({"FieldCanBeLocal", "unused"})
     private final DAOConfig config;
-    static private final int POLL_LIMIT = 20 * 1024 * 1024;
+    private static final int POLL_LIMIT = 20 * 1024 * 1024;
     private final AtomicInteger pollPayload = new AtomicInteger(0);
 
     @GuardedBy("this")
@@ -56,7 +59,7 @@ public class LsmDAO implements DAO {
             int currMemoryConsumption = memoryConsumption.get();//save for future IOException processing
             memoryConsumption.set(sizeOf(record));//set to close if
             flushDone = false;
-            synchronized (this) {//TODO replace me with semaphore please
+            synchronized (this) {
                 if (!flushDone) {//multiple flushing within race handling
 
                     //make snapshot for flushing to avoid parallel writing conflicts
@@ -69,7 +72,6 @@ public class LsmDAO implements DAO {
                                 flush(memorySnapshot, sstablesCtr.getAndIncrement());
                                 flushDone = true;
                             } catch (IOException e) {//exception processing instead of deferred future analyzing
-                                System.out.println("IOException caught");
                                 e.printStackTrace();
                                 memoryConsumption.set(currMemoryConsumption);
                                 memoryStorage.putAll(memorySnapshot);//parallelAddedWhileWeWasFlushingRecords merge wasNotFlushedRecords
@@ -79,13 +81,9 @@ public class LsmDAO implements DAO {
                         }
                     };
 
-//                    System.out.println("runTimeFree = " + Runtime.getRuntime().freeMemory() / 1024 / 1024);
-//                    System.out.println("pollPayload = " + pollPayload.get() / 1024 / 1024);
                     if (pollPayload.addAndGet(currMemoryConsumption) < POLL_LIMIT) {//run async if have memory
-                        System.out.println("run flush in poll");
                         writeService.submit(flushLambda);
                     } else {//run sequential if have no memory
-                        System.out.println("run flush sequentially");
                         flushLambda.run();
                     }
 
