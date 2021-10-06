@@ -14,9 +14,9 @@ else
 fi
 
 if [ -z "$2" ]; then
-	OUTPUT="wrk2_output"
+	OUTPUT="wrk2_output_$1"
 else
-	OUTPUT="wrk2_$2"
+	OUTPUT="wrk2_$2_$1"
 fi
 
 mkdir output &>/dev/null

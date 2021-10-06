@@ -19,6 +19,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
@@ -30,7 +31,7 @@ public class HttpServiceImpl extends HttpServer implements Service {
     private static final Logger LOG = LoggerFactory.getLogger(HttpServiceImpl.class);
 
     private final DAO dao;
-    private final Executor SERVICE_EXECUTOR;
+    private final ExecutorService SERVICE_EXECUTOR;
 
     public HttpServiceImpl(final int port, final DAO dao) throws IOException {
         super(buildHttpServerConfig(port));
@@ -49,6 +50,12 @@ public class HttpServiceImpl extends HttpServer implements Service {
         acceptorConfig.deferAccept = true;
         httpServerConfig.acceptors = new AcceptorConfig[] { acceptorConfig };
         return httpServerConfig;
+    }
+
+    @Override
+    public synchronized void stop() {
+        super.stop();
+        SERVICE_EXECUTOR.shutdown();
     }
 
     @Override
