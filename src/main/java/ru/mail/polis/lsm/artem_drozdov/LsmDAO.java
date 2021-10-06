@@ -40,11 +40,11 @@ public class LsmDAO implements DAO {
     private final AtomicInteger memoryConsumption = new AtomicInteger();
 
     private final ExecutorService flushService;
-    private final NavigableMap<Integer, Future<?>> flushTaskList = new TreeMap<>();
+    private final Map<Integer, Future<?>> flushTaskList = new ConcurrentHashMap<>();
 
     private final AtomicInteger ssTableIndex = new AtomicInteger();
     private final BlockingQueue<FlushTable> flushQueue;
-    private final NavigableMap<Integer, NavigableMap<ByteBuffer, Record>> flushingTables = new TreeMap<>();
+    private final NavigableMap<Integer, NavigableMap<ByteBuffer, Record>> flushingTables = new ConcurrentSkipListMap<>();
 
     public LsmDAO(DAOConfig config) throws IOException {
         this.config = config;
