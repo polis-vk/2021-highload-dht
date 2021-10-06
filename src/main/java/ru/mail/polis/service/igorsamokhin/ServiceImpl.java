@@ -8,14 +8,15 @@ import one.nio.http.Path;
 import one.nio.http.Request;
 import one.nio.http.RequestMethod;
 import one.nio.http.Response;
+import one.nio.os.SchedulingPolicy;
 import one.nio.server.AcceptorConfig;
+import one.nio.util.Utf8;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.Record;
 import ru.mail.polis.service.Service;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 
 public class ServiceImpl extends HttpServer implements Service {
@@ -64,7 +65,7 @@ public class ServiceImpl extends HttpServer implements Service {
     }
 
     private Response badRequest(String message) {
-        return new Response(Response.BAD_REQUEST, message.getBytes(StandardCharsets.UTF_8));
+        return new Response(Response.BAD_REQUEST, Utf8.toBytes(message));
     }
 
     @Path(ENDPOINT_V0_STATUS)
@@ -124,7 +125,7 @@ public class ServiceImpl extends HttpServer implements Service {
     }
 
     private ByteBuffer wrapString(String string) {
-        return ByteBuffer.wrap(string.getBytes(StandardCharsets.UTF_8));
+        return ByteBuffer.wrap(Utf8.toBytes(string));
     }
 
     private static byte[] extractBytes(final ByteBuffer buffer) {

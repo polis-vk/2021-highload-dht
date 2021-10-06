@@ -75,20 +75,18 @@ class SSTable {
     }
 
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
-        synchronized (this) {
-            ByteBuffer buffer = mmap.asReadOnlyBuffer();
+        ByteBuffer buffer = mmap.asReadOnlyBuffer();
 
-            int maxSize = mmap.remaining();
+        int maxSize = mmap.remaining();
 
-            int fromOffset = fromKey == null ? 0 : offset(buffer, fromKey);
-            int toOffset = toKey == null ? maxSize : offset(buffer, toKey);
+        int fromOffset = fromKey == null ? 0 : offset(buffer, fromKey);
+        int toOffset = toKey == null ? maxSize : offset(buffer, toKey);
 
-            return new ByteBufferRecordIterator(
-                    buffer,
-                    fromOffset == -1 ? maxSize : fromOffset,
-                    toOffset == -1 ? maxSize : toOffset
-            );
-        }
+        return new ByteBufferRecordIterator(
+                buffer,
+                fromOffset == -1 ? maxSize : fromOffset,
+                toOffset == -1 ? maxSize : toOffset
+        );
     }
 
     public static List<SSTable> loadFromDir(Path dir) throws IOException {
@@ -113,25 +111,6 @@ class SSTable {
         return new SSTable(file);
     }
 
-    private static Runnable writeIntegerStream(Queue<Integer> queue, AtomicBoolean wasAnyData) {
-        return () -> {
-            for (; ; ) {
-                if (!wasAnyData.get() && queue.isEmpty()) {
-                    return;
-                }
-
-                //todo
-            }
-        };
-    }
-
-
-    private static Runnable writeRecordStream(Queue<Record> queue) {
-        return () -> {
-            //todo
-        };
-    }
-
     public static void write(Iterator<Record> records, Path file) throws IOException {
         Path indexFile = FileUtils.getIndexFile(file);
         Path tmpFileName = FileUtils.getTmpFile(file);
@@ -142,6 +121,8 @@ class SSTable {
         ) {
             final ByteBuffer tmp = ByteBuffer.allocate(MAX_BUFFER_SIZE);
             tmp.limit(tmp.capacity());
+
+            //можно попробовать писать за 1 раз не один record, а столько, сколько влезет в буфер.
             while (records.hasNext()) {
                 long position = fileChannel.position();
                 if (position > Integer.MAX_VALUE) {
@@ -215,7 +196,7 @@ class SSTable {
                 return offset;
             }
 
-            if (existingKeySize == keyToFindSize && mismatchPos == existingKeySize) {
+            if (existingKeySize == keyToFindSize && existingKeySize == mismatchPos) {
                 return offset;
             }
 

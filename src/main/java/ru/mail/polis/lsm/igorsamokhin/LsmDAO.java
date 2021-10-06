@@ -5,7 +5,6 @@ import ru.mail.polis.lsm.DAOConfig;
 import ru.mail.polis.lsm.Record;
 
 import javax.annotation.Nullable;
-import javax.annotation.concurrent.GuardedBy;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -18,15 +17,17 @@ import java.util.SortedMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
+import java.util.concurrent.Phaser;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 @SuppressWarnings("JdkObsolete")
 public class LsmDAO implements DAO {
+
     private static final String FILE_PREFIX = "SSTable_";
 
-    private final AtomicReference<SortedMap<ByteBuffer, Record>> flushingStorage = new AtomicReference<>(null);
     private final AtomicReference<SortedMap<ByteBuffer, Record>> memoryStorage =
             new AtomicReference<>(getNewStorage());
 
@@ -36,7 +37,10 @@ public class LsmDAO implements DAO {
 
     private Path filePath;
 
-    private ExecutorService executors = Executors.newCachedThreadPool();
+    private final ExecutorService executors = Executors.newFixedThreadPool(1);
+    private AtomicReference<SortedMap<ByteBuffer, Record>> flushingStorage;
+    private final Phaser phaser = new Phaser(2);
+    private final AtomicBoolean isSet = new AtomicBoolean();
 
     /**
      * Create DAO object.
@@ -48,6 +52,7 @@ public class LsmDAO implements DAO {
 
         ssTables = SSTable.loadFromDir(config.dir);
         filePath = getNewFileName();
+        executors.execute(this::flushTask);
     }
 
     private Path getNewFileName() {
@@ -72,56 +77,57 @@ public class LsmDAO implements DAO {
         if (memoryConsumption.addAndGet(size) > config.memoryLimit) {
             synchronized (this) {
                 if (memoryConsumption.get() > config.memoryLimit) {
-                    Future<?> submit = executors.submit(flushTask(size));
+                    ConcurrentSkipListMap<ByteBuffer, Record> newStorage = getNewStorage();
+                    newStorage.put(record.getKey(), record);
+                    SortedMap<ByteBuffer, Record> oldStorage = memoryStorage.getAndSet(newStorage);
+
+                    sendToFlush(oldStorage);
+
+                    memoryConsumption.set(size);
+                    return;
                 }
             }
         }
-
         memoryStorage.get().put(record.getKey(), record);
     }
 
-    private Runnable flushTask(int initialSize) {
-        return () -> {
-            synchronized (memoryStorage){
-                int prev = memoryConsumption.get();
-                try {
-                    flush(memoryStorage, flushingStorage, initialSize);
-                } catch (IOException e) {
-                    memoryConsumption.addAndGet(prev);
-                    throw new UncheckedIOException(e);
-                }
+    private void sendToFlush(@Nullable SortedMap<ByteBuffer, Record> oldStorage) {
+        while (true) {
+            if (isSet.compareAndSet(false, true)) {
+                break;
             }
-        };
+        }
+
+        flushingStorage = new AtomicReference<>(oldStorage);
+        phaser.arrive();
+    }
+
+    private void flushTask() {
+        while (!Thread.currentThread().isInterrupted()) {
+            SortedMap<ByteBuffer, Record> storage;
+
+            phaser.arriveAndAwaitAdvance();
+
+            storage = flushingStorage.get();
+
+            if (storage == null) {
+                storage = memoryStorage.get();
+            }
+            try {
+                writeStorage(storage);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+            isSet.set(false);
+        }
     }
 
     private ConcurrentSkipListMap<ByteBuffer, Record> getNewStorage() {
         return new ConcurrentSkipListMap<>();
     }
 
-    private void flush(AtomicReference<SortedMap<ByteBuffer, Record>> oldStorage,
-                       @Nullable AtomicReference<SortedMap<ByteBuffer, Record>> flushingStorage,
-                       int initialMemoryConsumption) throws IOException {
-        AtomicReference<SortedMap<ByteBuffer, Record>> tmpStorage = flushingStorage;
-        if (tmpStorage == null) {
-            tmpStorage = new AtomicReference<>(null);
-        } else {
-            if (tmpStorage.get() != null) {
-                //finish previous flushing
-                writeStorage(tmpStorage);
-            }
-            tmpStorage.set(getNewStorage());
-        }
-
-        SortedMap<ByteBuffer, Record> tmp = oldStorage.getAndSet(tmpStorage.get());
-        tmpStorage.set(tmp);
-        memoryConsumption.set(initialMemoryConsumption);
-
-        writeStorage(tmpStorage);
-        tmpStorage.set(null);
-    }
-
-    private void writeStorage(AtomicReference<SortedMap<ByteBuffer, Record>> storage) throws IOException {
-        SSTable.write(storage.get().values().iterator(), filePath);
+    private void writeStorage(SortedMap<ByteBuffer, Record> storage) throws IOException {
+        SSTable.write(storage.values().iterator(), filePath);
         SSTable ssTable = SSTable.loadFromFile(filePath);
         ssTables.add(ssTable);
         filePath = getNewFileName();
@@ -137,14 +143,27 @@ public class LsmDAO implements DAO {
 
     @Override
     public void close() throws IOException {
-        synchronized (memoryStorage) {
-            flush(memoryStorage, null, Integer.MAX_VALUE);
+        synchronized (this) {
+            sendToFlush(null);
+            while (true) {
+                if (!isSet.get()) {
+                    break;
+                }
+            }
             if (ssTables.isEmpty()) {
                 return;
             }
 
             for (SSTable ssTable : ssTables) {
                 ssTable.close();
+            }
+            ssTables.clear();
+            try {
+                if (!executors.awaitTermination(100, TimeUnit.MILLISECONDS)) {
+                    executors.shutdownNow();
+                }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
             }
         }
     }
