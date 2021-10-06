@@ -184,12 +184,14 @@ public class SSTable implements Closeable {
             tmp.put(value);
             tmp.flip();
             channel.write(tmp);
+
             tmp.limit(tmp.capacity());
             return;
         }
+
         writeInt(value.remaining(), channel, tmp);
-        channel.write(tmp);
         channel.write(value);
+        tmp.limit(tmp.capacity());
     }
 
     private static void writeInt(int value, WritableByteChannel channel, ByteBuffer tmp) throws IOException {
