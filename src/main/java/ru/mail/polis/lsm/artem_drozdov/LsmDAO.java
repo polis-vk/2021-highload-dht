@@ -1,11 +1,12 @@
 package ru.mail.polis.lsm.artem_drozdov;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.DAOConfig;
 import ru.mail.polis.lsm.Record;
 
 import javax.annotation.Nullable;
-import javax.annotation.concurrent.GuardedBy;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
@@ -19,8 +20,18 @@ import java.util.NoSuchElementException;
 import java.util.SortedMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class LsmDAO implements DAO {
+
+    private static final Logger LOG = LoggerFactory.getLogger(LsmDAO.class);
+
+    private final Semaphore semaphore = new Semaphore(1);
+    private final ExecutorService executorService = Executors.newSingleThreadExecutor();
 
     private NavigableMap<ByteBuffer, Record> memoryStorage = newStorage();
     private final ConcurrentLinkedDeque<SSTable> tables = new ConcurrentLinkedDeque<>();
@@ -28,8 +39,7 @@ public class LsmDAO implements DAO {
     @SuppressWarnings({"FieldCanBeLocal", "unused"})
     private final DAOConfig config;
 
-    @GuardedBy("this")
-    private int memoryConsumption;
+    private final AtomicInteger memoryConsumption = new AtomicInteger();
 
     public LsmDAO(DAOConfig config) throws IOException {
         this.config = config;
@@ -49,15 +59,31 @@ public class LsmDAO implements DAO {
 
     @Override
     public void upsert(Record record) {
-        synchronized (this) {
-            memoryConsumption += sizeOf(record);
-            if (memoryConsumption > config.memoryLimit) {
-                try {
-                    flush();
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
+        int recordSize = sizeOf(record);
+        if (memoryConsumption.addAndGet(recordSize) > config.memoryLimit) {
+            synchronized (this) {
+                if (memoryConsumption.get() > config.memoryLimit) {
+                    try {
+                        semaphore.acquire();
+                        int prev = memoryConsumption.getAndSet(recordSize);
+                        final Iterator<Record> snapshot = memoryStorage.values().iterator();
+                        Future<?> future = executorService.submit(() -> {
+                            try {
+                                flush(snapshot);
+                            } catch (IOException e) {
+                                memoryConsumption.addAndGet(prev);
+                                throw new UncheckedIOException(e);
+                            } finally {
+                                semaphore.release();
+                            }
+                        });
+                        LOG.info("Submitted flush task: {}", future);
+                        memoryStorage = new ConcurrentSkipListMap<>();
+                    } catch (InterruptedException e) {
+                        semaphore.release();
+                        Thread.currentThread().interrupt();
+                    }
                 }
-                memoryConsumption = sizeOf(record);
             }
         }
         memoryStorage.put(record.getKey(), record);
@@ -90,19 +116,21 @@ public class LsmDAO implements DAO {
 
     @Override
     public void close() throws IOException {
-        synchronized (this) {
-            flush();
+        try {
+            semaphore.acquire();
+            flush(memoryStorage.values().iterator());
+            semaphore.release();
+        } catch (InterruptedException e) {
+            semaphore.release();
+            Thread.currentThread().interrupt();
         }
     }
 
-    @GuardedBy("this")
-    private void flush() throws IOException {
+    private void flush(Iterator<Record> iterator) throws IOException {
         Path dir = config.dir;
         Path file = dir.resolve(SSTable.SSTABLE_FILE_PREFIX + tables.size());
-
-        SSTable ssTable = SSTable.write(memoryStorage.values().iterator(), file);
+        SSTable ssTable = SSTable.write(iterator, file);
         tables.add(ssTable);
-        memoryStorage = new ConcurrentSkipListMap<>();
     }
 
     private Iterator<Record> sstableRanges(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
