@@ -111,13 +111,13 @@ public class LsmDAO implements DAO {
                 memoryStorage = newStorage();
 
                 CompletableFuture.runAsync(() -> {
-                    final int local_idx = idx;
+                    final int localIdx = idx;
                     final int rollbackSize = sizeOf(record);
                     try {
-                        this.flush(circularBuffer.get(local_idx));
+                        this.flush(circularBuffer.get(localIdx));
                     } catch (IOException e) {
                         memoryConsumption.addAndGet(-rollbackSize);
-                        memoryStorage.putAll(circularBuffer.get(local_idx)); // restore data + new data
+                        memoryStorage.putAll(circularBuffer.get(localIdx)); // restore data + new data
                     } finally {
                         this.semaphore.release();
                         if (this.wantToClose.get()
