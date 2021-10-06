@@ -5,7 +5,6 @@ import ru.mail.polis.lsm.DAOConfig;
 import ru.mail.polis.lsm.Record;
 
 import javax.annotation.Nullable;
-import javax.annotation.concurrent.GuardedBy;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
@@ -18,7 +17,6 @@ import java.util.NavigableMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -39,7 +37,7 @@ public class LsmDAO implements DAO {
     private final AtomicInteger tableIndex = new AtomicInteger(0);
 
     private final AtomicInteger currentFlushesCount = new AtomicInteger(0);
-    private Future<?> lastFlush = null;
+    private Future<?> lastFlush;
 
     public LsmDAO(DAOConfig config) throws IOException {
         this.config = config;
@@ -90,37 +88,11 @@ public class LsmDAO implements DAO {
                             lastFlush = null;
                         }
                     }
-                    synchronized (memoryConsumption) {
-                        int memoryConsumptionCurrent = memoryConsumption.get();
-                        int currentIndex = tableIndex.getAndIncrement();
-                        Future<?> currentLastFlush = lastFlush;
-                        NavigableMap<ByteBuffer, Record> currentMemoryStorage = memoryStorage;
-                        memoryStorage = newStorage();
-                        memoryConsumption.set(0);
-                        memorySnapshot.putAll(currentMemoryStorage);
-
-                        lastFlush = flushExecutor.submit(() -> {
-                            currentFlushesCount.incrementAndGet();
-                            try {
-                                SSTable newTable = flush(currentIndex, currentMemoryStorage);
-
-                                if (currentLastFlush != null)
-                                    currentLastFlush.get();
-                                tables.add(newTable);
-                                for (ByteBuffer key: currentMemoryStorage.keySet()) {
-                                    memorySnapshot.remove(key);
-                                }
-                            } catch (IOException | ExecutionException | InterruptedException e) {
-                                memoryConsumption.addAndGet(memoryConsumptionCurrent);
-                            } finally {
-                                currentFlushesCount.decrementAndGet();
-                            }
-                        });
-                    }
+                    asyncFlush();
                 }
             }
+            memoryStorage.put(record.getKey(), record);
         }
-        memoryStorage.put(record.getKey(), record);
     }
 
     @Override
@@ -159,7 +131,7 @@ public class LsmDAO implements DAO {
                     flushExecutor.shutdownNow();
                 }
             } catch (InterruptedException e) {
-                flushExecutor.shutdownNow();
+                Thread.currentThread().interrupt();
             }
             SSTable newTable = flush(tableIndex.getAndIncrement(), memoryStorage);
             tables.add(newTable);
@@ -169,6 +141,39 @@ public class LsmDAO implements DAO {
                 memoryConsumption.set(0);
             }
             flushExecutor = newExecutor();
+        }
+    }
+
+    private void asyncFlush() {
+        synchronized (memoryConsumption) {
+            final int memoryConsumptionCurrent = memoryConsumption.get();
+            final int currentIndex = tableIndex.getAndIncrement();
+            final Future<?> currentLastFlush = lastFlush;
+            final NavigableMap<ByteBuffer, Record> currentMemoryStorage = memoryStorage;
+            memorySnapshot.putAll(currentMemoryStorage);
+
+            lastFlush = flushExecutor.submit(() -> {
+                currentFlushesCount.incrementAndGet();
+                try {
+                    SSTable newTable = flush(currentIndex, currentMemoryStorage);
+
+                    if (currentLastFlush != null) {
+                        currentLastFlush.get();
+                    }
+                    tables.add(newTable);
+                    for (ByteBuffer key: currentMemoryStorage.keySet()) {
+                        memorySnapshot.remove(key);
+                    }
+                } catch (IOException | ExecutionException | InterruptedException e) {
+                    synchronized (memoryConsumption) {
+                        memoryConsumption.addAndGet(memoryConsumptionCurrent);
+                    }
+                } finally {
+                    currentFlushesCount.decrementAndGet();
+                }
+            });
+            memoryStorage = newStorage();
+            memoryConsumption.set(0);
         }
     }
 

@@ -20,10 +20,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
+import java.nio.channels.FileChannel;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
+import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -100,5 +102,25 @@ public final class FileUtils {
                     }
                 });
         return result.get();
+    }
+
+    public static Path getIndexFile(Path file) {
+        return resolveWithExt(file, ".idx");
+    }
+
+    public static Path getTmpFile(Path file) {
+        return resolveWithExt(file, ".tmp");
+    }
+
+    public static FileChannel openForWrite(Path tmpFileName) throws IOException {
+        return FileChannel.open(
+                tmpFileName,
+                StandardOpenOption.CREATE_NEW,
+                StandardOpenOption.WRITE,
+                StandardOpenOption.TRUNCATE_EXISTING);
+    }
+
+    private static Path resolveWithExt(Path file, String ext) {
+        return file.resolveSibling(file.getFileName() + ext);
     }
 }
