@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.NavigableMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class LsmDAO implements DAO {
 
@@ -24,8 +25,7 @@ public class LsmDAO implements DAO {
     @SuppressWarnings({"FieldCanBeLocal", "unused"})
     private final DAOConfig config;
     private NavigableMap<ByteBuffer, Record> memoryStorage = newStorage();
-    @GuardedBy("this")
-    private int memoryConsumption;
+    private final AtomicInteger memoryConsumption = new AtomicInteger();
 
     public LsmDAO(DAOConfig config) throws IOException {
         this.config = config;
@@ -41,8 +41,8 @@ public class LsmDAO implements DAO {
             return iterators.get(0);
         } else if (size == 2) {
             return new RecordMergingIterator(
-                    new PeekingIterator<>(iterators.get(0)),
-                    new PeekingIterator<>(iterators.get(1)));
+                new PeekingIterator<>(iterators.get(0)),
+                new PeekingIterator<>(iterators.get(1)));
         }
         Iterator<Record> left = merge(iterators.subList(0, size / 2));
         Iterator<Record> right = merge(iterators.subList(size / 2, size));
@@ -51,31 +51,33 @@ public class LsmDAO implements DAO {
 
     @Override
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
-        synchronized (this) {
-            Iterator<Record> sstableRanges = sstableRanges(fromKey, toKey);
-            Iterator<Record> memoryRange = map(fromKey, toKey).values().iterator();
-            Iterator<Record> iterator =
-                    new RecordMergingIterator(
-                            new PeekingIterator<>(sstableRanges),
-                            new PeekingIterator<>(memoryRange));
-            return new TombstoneFilteringIterator(iterator);
-        }
+        Iterator<Record> sstableRanges = sstableRanges(fromKey, toKey);
+        Iterator<Record> memoryRange = map(fromKey, toKey).values().iterator();
+        Iterator<Record> iterator =
+            new RecordMergingIterator(
+                new PeekingIterator<>(sstableRanges),
+                new PeekingIterator<>(memoryRange));
+        return new TombstoneFilteringIterator(iterator);
+
     }
 
     @Override
     public void upsert(Record record) {
-        synchronized (this) {
-            memoryConsumption += sizeOf(record);
-            if (memoryConsumption > config.memoryLimit) {
-                try {
-                    flush();
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-                memoryConsumption = sizeOf(record);
-            }
-        }
+        if (memoryConsumption.addAndGet(sizeOf(record)) > config.memoryLimit) {
+            synchronized (this) {
+                if (memoryConsumption.get() > config.memoryLimit) {
+                    int prev = memoryConsumption.getAndSet(sizeOf(record));
 
+                    try {
+                        flush();
+                    } catch (IOException e) {
+                        memoryConsumption.addAndGet(prev);
+                        throw new UncheckedIOException(e);
+                    }
+                }
+            }
+
+        }
         memoryStorage.put(record.getKey(), record);
     }
 
@@ -109,7 +111,6 @@ public class LsmDAO implements DAO {
         }
     }
 
-    @GuardedBy("this")
     private void flush() throws IOException {
         Path dir = config.dir;
         Path file = dir.resolve(SSTable.SSTABLE_FILE_PREFIX + tables.size());
@@ -140,3 +141,4 @@ public class LsmDAO implements DAO {
     }
 
 }
+

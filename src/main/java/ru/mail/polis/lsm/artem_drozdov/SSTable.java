@@ -24,6 +24,7 @@ import java.util.stream.Stream;
 
 public class SSTable implements Closeable {
 
+    private static final int MAX_BUFFER_SIZE = 1024;
     public static final String SSTABLE_FILE_PREFIX = "file_";
     public static final String COMPACTION_FILE_NAME = "compaction";
 
@@ -76,10 +77,10 @@ public class SSTable implements Closeable {
         Path tmpIndexName = getTmpFile(indexFile);
 
         try (
-                FileChannel fileChannel = openForWrite(tmpFileName);
-                FileChannel indexChannel = openForWrite(tmpIndexName)
+            FileChannel fileChannel = openForWrite(tmpFileName);
+            FileChannel indexChannel = openForWrite(tmpIndexName)
         ) {
-            ByteBuffer size = ByteBuffer.allocate(Integer.BYTES);
+            ByteBuffer size = ByteBuffer.allocate(Integer.BYTES + MAX_BUFFER_SIZE);
             while (records.hasNext()) {
                 long position = fileChannel.position();
                 if (position > Integer.MAX_VALUE) {
@@ -127,13 +128,13 @@ public class SSTable implements Closeable {
     private static void finishCompaction(Path dir) throws IOException {
         try (Stream<Path> files = Files.list(dir)) {
             files.filter(file -> file.getFileName().startsWith(SSTABLE_FILE_PREFIX))
-                    .forEach(path -> {
-                        try {
-                            Files.delete(path);
-                        } catch (IOException e) {
-                            throw new UncheckedIOException(e);
-                        }
-                    });
+                .forEach(path -> {
+                    try {
+                        Files.delete(path);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+                });
         }
 
         Path compaction = dir.resolve(COMPACTION_FILE_NAME);
@@ -166,16 +167,30 @@ public class SSTable implements Closeable {
 
     private static FileChannel openForWrite(Path tmpFileName) throws IOException {
         return FileChannel.open(
-                tmpFileName,
-                StandardOpenOption.CREATE_NEW,
-                StandardOpenOption.WRITE,
-                StandardOpenOption.TRUNCATE_EXISTING);
+            tmpFileName,
+            StandardOpenOption.CREATE_NEW,
+            StandardOpenOption.WRITE,
+            StandardOpenOption.TRUNCATE_EXISTING);
     }
 
     private static void writeValueWithSize(
-            ByteBuffer value,
-            WritableByteChannel channel,
-            ByteBuffer tmp) throws IOException {
+        ByteBuffer value,
+        WritableByteChannel channel,
+        ByteBuffer tmp
+    ) throws IOException {
+        tmp.position(0);
+        tmp.limit(tmp.capacity());
+
+        if (tmp.capacity() > value.remaining() + Integer.BYTES) {
+            tmp.position(0);
+            tmp.putInt(value.remaining());
+            tmp.put(value);
+            tmp.flip();
+
+            channel.write(tmp);
+            tmp.limit(tmp.capacity());
+            return;
+        }
         writeInt(value.remaining(), channel, tmp);
         channel.write(tmp);
         channel.write(value);
@@ -185,6 +200,7 @@ public class SSTable implements Closeable {
         tmp.position(0);
         tmp.putInt(value);
         tmp.position(0);
+        tmp.limit(Integer.BYTES);
 
         channel.write(tmp);
     }
@@ -217,9 +233,9 @@ public class SSTable implements Closeable {
         int toOffset = toKey == null ? maxSize : offset(buffer, toKey);
 
         return new ByteBufferRecordIterator(
-                buffer,
-                fromOffset == -1 ? maxSize : fromOffset,
-                toOffset == -1 ? maxSize : toOffset
+            buffer,
+            fromOffset == -1 ? maxSize : fromOffset,
+            toOffset == -1 ? maxSize : toOffset
         );
     }
 
@@ -273,8 +289,8 @@ public class SSTable implements Closeable {
             final int result;
             if (mismatchPos < existingKeySize && mismatchPos < keyToFindSize) {
                 result = Byte.compare(
-                        keyToFind.get(keyToFind.position() + mismatchPos),
-                        buffer.get(buffer.position() + mismatchPos)
+                    keyToFind.get(keyToFind.position() + mismatchPos),
+                    buffer.get(buffer.position() + mismatchPos)
                 );
             } else if (mismatchPos >= existingKeySize) {
                 result = 1;
