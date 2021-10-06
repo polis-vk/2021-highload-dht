@@ -44,7 +44,7 @@ public class LsmDAO implements DAO {
     /**
      * Create LsmDAO from config.
      *
-     * @param config - LamDAo config
+     * @param config - LsmDAO config
      * @throws IOException - in case of io exception
      */
     public LsmDAO(DAOConfig config) throws IOException {
@@ -172,7 +172,8 @@ public class LsmDAO implements DAO {
                 try {
                     flush(memTable);
                 } catch (IOException e) {
-                    throw new UncheckedIOException(e);
+                    LOG.error("flush error in FLUSH_EXECUTOR: {}", e.getMessage(), e);
+                    flushedMemTables.add(memTable);
                 }
             }
         });
@@ -187,7 +188,7 @@ public class LsmDAO implements DAO {
         tables.add(ssTable);
     }
 
-    @GuardedBy("this")
+//    @GuardedBy("this")
     private Iterator<Record> sstableRanges(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
         List<Iterator<Record>> iterators = new ArrayList<>(tables.size());
         for (SSTable ssTable : tables) {
@@ -196,7 +197,6 @@ public class LsmDAO implements DAO {
         return merge(iterators);
     }
 
-    @GuardedBy("this")
     private SortedMap<ByteBuffer, Record> map(MemTable memTable, @Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
         if (fromKey == null && toKey == null) {
             return memTable;
