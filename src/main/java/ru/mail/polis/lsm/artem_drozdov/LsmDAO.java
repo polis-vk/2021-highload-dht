@@ -152,8 +152,7 @@ public class LsmDAO implements DAO {
             LOG.error("flush error in close(): {}", e.getMessage(), e);
         }
 
-        // Next line causes strange error while PUT operations.
-        // FLUSH_EXECUTOR.shutdown();
+        FLUSH_EXECUTOR.shutdown();
     }
 
     @GuardedBy("this")
