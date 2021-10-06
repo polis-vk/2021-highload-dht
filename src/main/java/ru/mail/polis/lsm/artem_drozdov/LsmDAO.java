@@ -6,11 +6,11 @@ import ru.mail.polis.lsm.Record;
 import ru.mail.polis.lsm.artem_drozdov.util.RecordIterators;
 
 import javax.annotation.Nullable;
-import javax.annotation.concurrent.GuardedBy;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -18,51 +18,89 @@ import java.util.NavigableMap;
 import java.util.SortedMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.stream.Collectors;
 
 public class LsmDAO implements DAO {
 
-    private NavigableMap<ByteBuffer, Record> memoryStorage = newStorage();
+    private final long flushMemoryThreshold;
+    private ExecutorService executorService = Executors.newWorkStealingPool();
+    private final AtomicInteger runningFlushesCount = new AtomicInteger(0);
+
+    private final AtomicInteger currentIndex = new AtomicInteger(0);
+    private final ConcurrentLinkedDeque<NavigableMap<ByteBuffer, Record>> flushingStorages =
+            new ConcurrentLinkedDeque<>();
+    private NavigableMap<ByteBuffer, Record> memoryStorage;
     private final ConcurrentLinkedDeque<SSTable> tables = new ConcurrentLinkedDeque<>();
+    private final ArrayDeque<Future<?>> runningFlushes = new ArrayDeque<>();
+
 
     @SuppressWarnings({"FieldCanBeLocal", "unused"})
     private final DAOConfig config;
 
-    @GuardedBy("this")
-    private int memoryConsumption;
+    private final AtomicInteger memoryConsumption = new AtomicInteger();
 
     public LsmDAO(DAOConfig config) throws IOException {
         this.config = config;
+        this.flushMemoryThreshold = config.memoryLimit * 2L;
         List<SSTable> ssTables = SSTable.loadFromDir(config.dir);
         tables.addAll(ssTables);
+        currentIndex.set(tables.size());
+        memoryStorage = newStorage();
     }
 
     @Override
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
-        synchronized (this) {
-            Iterator<Record> sstableRanges = sstableRanges(fromKey, toKey);
-            Iterator<Record> memoryRange = map(fromKey, toKey).values().iterator();
-            Iterator<Record> iterator = new RecordIterators.MergingIterator(
-                    new RecordIterators.PeekingIterator(sstableRanges),
-                    new RecordIterators.PeekingIterator(memoryRange)
-            );
-            return RecordIterators.filterTombstones(iterator);
-        }
+        Iterator<Record> sstableRanges = sstableRanges(fromKey, toKey);
+        Iterator<Record> memoryRange = new RecordIterators.MergingIterator(
+                new RecordIterators.PeekingIterator(
+                        RecordIterators.merge(flushingStorages.stream().map(storage -> map(storage, fromKey, toKey))
+                                .collect(Collectors.toList()))
+                ),
+                new RecordIterators.PeekingIterator(map(memoryStorage, fromKey, toKey)));
+        Iterator<Record> iterator = new RecordIterators.MergingIterator(
+                new RecordIterators.PeekingIterator(sstableRanges),
+                new RecordIterators.PeekingIterator(memoryRange)
+        );
+        return RecordIterators.filterTombstones(iterator);
     }
 
     @Override
     public void upsert(Record record) {
-        synchronized (this) {
-            memoryConsumption += sizeOf(record);
-            if (memoryConsumption > config.memoryLimit) {
-                try {
-                    flush();
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
+        if (memoryConsumption.addAndGet(sizeOf(record)) > config.memoryLimit) {
+            synchronized (this) {
+                if (memoryConsumption.get() > config.memoryLimit) {
+                    while (!runningFlushes.isEmpty() && runningFlushes.peek().isDone()) {
+                        runningFlushes.poll();
+                    }
+
+                    while (Runtime.getRuntime().freeMemory() < this.flushMemoryThreshold && !runningFlushes.isEmpty()) {
+                        try {
+                            runningFlushes.poll().get();
+                        } catch (InterruptedException | ExecutionException e) {
+                            e.printStackTrace();
+                        }
+                    }
+
+                    synchronized (memoryConsumption) {
+                        final int flushIndex = currentIndex.getAndAdd(1);
+                        final Future<?> future = executorService.submit(
+                                this.runnableFlush(flushIndex, memoryStorage, memoryConsumption.get(), getLastSubmittedFlush())
+                        );
+                        runningFlushes.add(future);
+
+                        flushingStorages.add(memoryStorage);
+                        memoryStorage = newStorage();
+                        memoryConsumption.set(sizeOf(record));
+                    }
                 }
-                memoryConsumption = sizeOf(record);
             }
         }
-
         memoryStorage.put(record.getKey(), record);
     }
 
@@ -78,6 +116,7 @@ public class LsmDAO implements DAO {
             tables.clear();
             tables.add(table);
             memoryStorage = newStorage();
+            currentIndex.set(1);
         }
     }
 
@@ -92,18 +131,61 @@ public class LsmDAO implements DAO {
     @Override
     public void close() throws IOException {
         synchronized (this) {
-            flush();
+            executorService.shutdown();
+            try {
+                if (!executorService.awaitTermination(30, TimeUnit.MINUTES)) {
+                    executorService.shutdownNow();
+                }
+            } catch (InterruptedException e) {
+                executorService.shutdownNow();
+            }
+
+            executorService = Executors.newWorkStealingPool();
+            synchronized (memoryConsumption) {
+                final int flushIndex = currentIndex.getAndIncrement();
+                flush(flushIndex, memoryStorage, getLastSubmittedFlush());
+                memoryConsumption.set(0);
+                memoryStorage = newStorage();
+            }
         }
     }
 
-    @GuardedBy("this")
-    private void flush() throws IOException {
-        Path dir = config.dir;
-        Path file = dir.resolve(SSTable.SSTABLE_FILE_PREFIX + tables.size());
+    private Runnable runnableFlush(int index, NavigableMap<ByteBuffer, Record> memoryStorage,
+                                   int memoryTableConsumption, @Nullable Future<?> prevFlush) {
+        return () -> {
+            this.runningFlushesCount.incrementAndGet();
+            try {
+                flush(index, memoryStorage, prevFlush);
+            } catch (IOException e) {
+                synchronized (memoryConsumption) {
+                    this.memoryStorage.putAll(memoryStorage);
+                    memoryConsumption.getAndAdd(memoryTableConsumption);
+                }
+            } finally {
+                this.runningFlushesCount.decrementAndGet();
+            }
+        };
+    }
 
+    private synchronized @Nullable Future<?> getLastSubmittedFlush() {
+        return runningFlushes.isEmpty() ? null : runningFlushes.peek();
+    }
+
+    private void flush(int index,
+                       NavigableMap<ByteBuffer, Record> memoryStorage,
+                       @Nullable Future<?> prevFlush) throws IOException {
+        Path dir = config.dir;
+        Path file = dir.resolve(SSTable.SSTABLE_FILE_PREFIX + index);
         SSTable ssTable = SSTable.write(memoryStorage.values().iterator(), file);
+
+        if (prevFlush != null) {
+            try {
+                prevFlush.get();
+            } catch (InterruptedException | ExecutionException ignored) {
+            }
+        }
         tables.add(ssTable);
-        memoryStorage = new ConcurrentSkipListMap<>();
+        flushingStorages.poll();
     }
 
     private Iterator<Record> sstableRanges(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
@@ -114,17 +196,17 @@ public class LsmDAO implements DAO {
         return RecordIterators.merge(iterators);
     }
 
-    private SortedMap<ByteBuffer, Record> map(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
+    private Iterator<Record> map(SortedMap<ByteBuffer, Record> map,
+                                 @Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
         if (fromKey == null && toKey == null) {
-            return memoryStorage;
+            return map.values().iterator();
         }
         if (fromKey == null) {
-            return memoryStorage.headMap(toKey);
+            return map.headMap(toKey).values().iterator();
         }
         if (toKey == null) {
-            return memoryStorage.tailMap(fromKey);
+            return map.tailMap(fromKey).values().iterator();
         }
-        return memoryStorage.subMap(fromKey, toKey);
+        return map.subMap(fromKey, toKey).values().iterator();
     }
-
 }

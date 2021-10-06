@@ -28,6 +28,7 @@ public class SSTable implements Closeable {
 
     public static final String SSTABLE_FILE_PREFIX = "file_";
     public static final String COMPACTION_FILE_NAME = "compaction";
+    private static final int MAX_BUFFER_SIZE = 4 * 1024;
 
     private static final Method CLEAN;
 
@@ -74,7 +75,7 @@ public class SSTable implements Closeable {
                 FileChannel fileChannel = FileUtils.openForWrite(tmpFileName);
                 FileChannel indexChannel = FileUtils.openForWrite(tmpIndexName)
         ) {
-            ByteBuffer size = ByteBuffer.allocate(Integer.BYTES);
+            ByteBuffer size = ByteBuffer.allocate(Integer.BYTES + MAX_BUFFER_SIZE);
             while (records.hasNext()) {
                 long position = fileChannel.position();
                 if (position > Integer.MAX_VALUE) {
@@ -83,14 +84,7 @@ public class SSTable implements Closeable {
                 writeInt((int) position, indexChannel, size);
 
                 Record record = records.next();
-                writeValueWithSize(record.getKey(), fileChannel, size);
-                if (record.isTombstone()) {
-                    writeInt(-1, fileChannel, size);
-                } else {
-                    // value is null for tombstones only
-                    ByteBuffer value = Objects.requireNonNull(record.getValue());
-                    writeValueWithSize(value, fileChannel, size);
-                }
+                writeRecord(record, fileChannel, size);
             }
             fileChannel.force(false);
         }
@@ -201,20 +195,66 @@ public class SSTable implements Closeable {
         }
     }
 
+    private static void writeRecord(Record record, WritableByteChannel channel, ByteBuffer tmp) throws IOException {
+        final boolean isTombstone = record.isTombstone();
+        final int keyWriteSize = Integer.BYTES + record.getKeySize();
+        final int recordWriteSize = keyWriteSize + Integer.BYTES +
+                (isTombstone ? Integer.BYTES : record.getValueSize());
+
+        if (tmp.capacity() > recordWriteSize) {
+            tmp.position(0);
+            putValueWithSizeToBuffer(record.getKey(), tmp);
+            if (isTombstone) {
+                tmp.putInt(-1);
+            } else {
+                ByteBuffer value = Objects.requireNonNull(record.getValue());
+                putValueWithSizeToBuffer(value, tmp);
+            }
+            tmp.flip();
+            channel.write(tmp);
+            tmp.limit(tmp.capacity());
+            return;
+        }
+
+        writeValueWithSize(record.getKey(), channel, tmp);
+        if (isTombstone) {
+            writeInt(-1, channel, tmp);
+        } else {
+            // value is null for tombstones only
+            ByteBuffer value = Objects.requireNonNull(record.getValue());
+            writeValueWithSize(value, channel, tmp);
+        }
+    }
+
+    private static void putValueWithSizeToBuffer(ByteBuffer value, ByteBuffer tmp) {
+        tmp.putInt(value.remaining());
+        tmp.put(value);
+    }
+
     private static void writeValueWithSize(ByteBuffer value,
                                            WritableByteChannel channel,
                                            ByteBuffer tmp) throws IOException {
+        tmp.position(0);
+        if (tmp.capacity() > value.remaining() + Integer.BYTES) {
+            tmp.position(0);
+            putValueWithSizeToBuffer(value, tmp);
+            tmp.flip();
+            channel.write(tmp);
+            tmp.limit(tmp.capacity());
+            return;
+        }
+
         writeInt(value.remaining(), channel, tmp);
-        channel.write(tmp);
         channel.write(value);
     }
 
     private static void writeInt(int value, WritableByteChannel channel, ByteBuffer tmp) throws IOException {
         tmp.position(0);
         tmp.putInt(value);
-        tmp.position(0);
+        tmp.flip();
 
         channel.write(tmp);
+        tmp.limit(tmp.capacity());
     }
 
     private static MappedByteBuffer open(Path name) throws IOException {
