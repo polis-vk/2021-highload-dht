@@ -32,9 +32,13 @@ Requests/sec:   9998.74
 Transfer/sec:    654.21KB
 ```
 Профилирование с помощью async-profiler в течение 15 секунд. FlameGraph для cpu, alloc и lock:
+
 <a href=./resource/profile-html/stage2/stage2-put-cpu-before-lock-free.html>PUT запросы CPU</a>
+
 <a href=./resource/profile-html/stage2/stage2-put-mem-before-lock-free.html>PUT запросы память</a>
+
 <a href=./resource/profile-html/stage2/stage2-put-lock-before-lock-free.html>PUT запросы lock</a>
+
 На рисунке 1 представлен FlameGraph lock'ов без реализации многопоточности, на котором видно, что количество блокировок равно 69.
 <img src=./resource/stage-2/stage2-put-lock-before-lock-free.jpg>
 <h6>Рис.1 lock FlameGraph PUT запросов до многопоточности</h6>
@@ -70,11 +74,15 @@ Requests/sec:   9998.61
 Transfer/sec:    673.73KB
 ```
 Профилирование с помощью async-profiler в течение 15 секунд. FlameGraph для cpu, alloc и lock:
-<a href=/resource/profile-html/stage2/stage2-get-cpu-before-lock-free.html>GET запросы CPU</a>
-<a href=/resource/profile-html/stage2/stage2-get-mem-before-lock-free.html>GET запросы память</a>
-<a href=/resource/profile-html/stage2/stage2-get-lock-before-lock-free.html>GET запросы lock</a>
+
+<a href=./resource/profile-html/stage2/stage2-get-cpu-before-lock-free.html>GET запросы CPU</a>
+
+<a href=./resource/profile-html/stage2/stage2-get-mem-before-lock-free.html>GET запросы память</a>
+
+<a href=./resource/profile-html/stage2/stage2-get-lock-before-lock-free.html>GET запросы lock</a>
+
 На рисунке 2 представлен FlameGraph lock'ов без реализации многопоточности, на котором видно, что количество блокировок равно 3543.
-<img src=/resource/stage-2/stage2-get-lock-before-lock-free.jpg>
+<img src=./resource/stage-2/stage2-get-lock-before-lock-free.jpg>
 <h6>Рис.2 lock FlameGraph GET запросов до многопоточности</h6>
 
 
@@ -110,9 +118,13 @@ Requests/sec:   9998.71
 Transfer/sec:    654.21KB
 ```
 Профилирование с помощью async-profiler в течение 15 секунд. FlameGraph для cpu, alloc и lock:
-<a href=/resource/profile-html/stage2/stage2-put-cpu-async-flush.html>PUT запросы CPU</a>
-<a href=/resource/profile-html/stage2/stage2-put-mem-async-flush.html>PUT запросы память</a>
-<a href=/resource/profile-html/stage2/stage2-put-lock-async-flush.html>PUT запросы lock</a>
+
+<a href=./resource/profile-html/stage2/stage2-put-cpu-async-flush.html>PUT запросы CPU</a>
+
+<a href=./resource/profile-html/stage2/stage2-put-mem-async-flush.html>PUT запросы память</a>
+
+<a href=./resource/profile-html/stage2/stage2-put-lock-async-flush.html>PUT запросы lock</a>
+
 <h6>
 Как видно из отчета wrk среднее время ответа на запрос сократилось в несколько раз. Также уменьшилось время в доле полученных запросов, что видно из отчета. У доли в 99.0% запросов время ответа уменьшилось в десятки раз. И при увеличений доли перцентилей на каждом шаге время ответа тоже уменьшается по сравнению с реализацией без асинхронного вызова. На FlameGraph'е для CPU добавился асинхронный вызов функции flush, который занимает 8.07% CPU, этот результат можно сравнить с реализацией без асинхронного вызовы, где выполнение flush занимало 22.8%, такая разница происходит, возможно, из-за того, что мы перестаем ожидать завершения всех системных вызовов для записи в основном потоке и дальше обрабатываем запрос. FlameGraph с блокировками оказался пустым, так как в реализации у методов нет блокирующих вызовов и каких-то механизмов синхронизации.
 </h6>
@@ -147,9 +159,13 @@ Requests/sec:   9998.80
 Transfer/sec:    714.68KB
 ```
 Профилирование с помощью async-profiler в течение 15 секунд. FlameGraph для cpu, alloc и lock:
+
 <a href=/resource/profile-html/stage2/stage2-get-cpu-async-flush.html>GET запросы CPU</a>
+
 <a href=/resource/profile-html/stage2/stage2-get-mem-async-flush.html>GET запросы память</a>
+
 <a href=/resource/profile-html/stage2/stage2-get-lock-async-flush.html>GET запросы lock</a>
+
 <h6>
 Как видно из отчета wrk время ответа GET запросов несильно изменилось, так как сам HTTP сервер на этой стадий этапа ещё не многопоточен(без пула потоков). FlameGraph для CPU показывает изменения в вызовах, но это связано с изменением реализации метода get класса ServiceDAO, был заменен цикл на проверку только одного условия. FlameGraph для блокировок пустой, так как у данной реализации больше нет методов с вызовом синхронизации.
 </h6>
@@ -185,11 +201,16 @@ Requests/sec:   9998.43
 Transfer/sec:    654.19KB
 ```
 Профилирование с помощью async-profiler в течение 15 секунд. FlameGraph для cpu, alloc и lock:
+
 <a href=/resource/profile-html/stage2/stage2-put-cpu-threadpool.html>PUT запросы CPU</a>
-<a href=/resource/profile-html/stage2/stage2-put-mem-threadpool.html>PUT запросы память</a>
+
+<a href=/resource/profile-html/stage2/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stage2-put-mem-threadpool.html>PUT запросы память</a>
+
 <a href=/resource/profile-html/stage2/stage2-put-lock-threadpool.html>PUT запросы lock</a>
+
 <img src=/resource/stage-2/stage2-put-lock-threadpool.jpg>
 <h6>Рис.3 lock FlameGraph PUT запросов с многопоточностью</h6>
+
 <h6>
 В качестве пула потока использовалась реализация ThreadPoolExecutor из java.util.concurrent.ThreadPoolExecutor. Из отчета wrk видно, что среднее время ответа на запрос почти не изменилось и время по перцентилям тоже почти не изменилось. Такое поведение может быть из-за того, что все дорогостоящие операции, т.е. системные вызовы для записи в файл были асинхронными и следовательно добавление дополнительных потоков для сервера не оказали влияния. Во FlameGraph'е для CPU добавились вызовы исполнения методов и синхронизации ThreadPoolExecutor и занимают около 10.25% CPU. На рисунке 3, где изображен FlameGraph для lock'ов, добавились синхронизации для ThreadPoolExecutor 4795 sample'ов. Это возможно из-за того внутри пула потоков используюся средства синхронизации или блокировок для обработки потоком задачи из очереди, это необходимо, чтобы два потока не взяли на выполнение одну и ту же задачу.
 </h6>
@@ -224,11 +245,16 @@ Requests/sec:   9998.74
 Transfer/sec:    714.68KB
 ```
 Профилирование с помощью async-profiler в течение 15 секунд. FlameGraph для cpu, alloc и lock:
+
 <a href=/resource/profile-html/stage2/stage2-get-cpu-threadpool.html>GET запросы CPU</a>
+
 <a href=/resource/profile-html/stage2/stage2-get-mem-threadpool.html>GET запросы память</a>
+
 <a href=/resource/profile-html/stage2/stage2-get-lock-threadpool.html>GET запросы lock</a>
+
 <img src=/resource/stage-2/stage2-get-lock-threadpool.jpg>
 <h6>Рис.4 lock FlameGraph GET запросов с многопоточностью</h6>
+
 <h6>
 Результат из wrk показывает незначительные улучшения по сравнению с реалзиацией без многопоточного сервера. На рисунке 4 представлен FlameGraph lock'ов, на нем видно количество блокировок для пула поток 4112 samples, данное значение является большим, чем в первоначальной реализации сервера. 
 Также стоит отметить, что выделение потоков тоже занимает время и на продолжительном профилирований, время ответа на запросы на каждом шаге перцентиля будет уменьшаться по сравнению с первоначальной реализацией. 
