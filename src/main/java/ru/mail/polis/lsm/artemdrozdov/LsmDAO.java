@@ -60,7 +60,9 @@ public class LsmDAO implements DAO {
             memoryConsumption.set(sizeOf(record));//set to close if
             flushDone = false;
             synchronized (this) {
-                if (!flushDone) {//multiple flushing within race handling
+
+                if (!flushDone) {
+                    //multiple flushing within race handling
 
                     //make snapshot for flushing to avoid parallel writing conflicts
                     NavigableMap<ByteBuffer, Record> memorySnapshot = memoryStorage;
@@ -71,19 +73,23 @@ public class LsmDAO implements DAO {
                             try {
                                 flush(memorySnapshot, sstablesCtr.getAndIncrement());
                                 flushDone = true;
-                            } catch (IOException e) {//exception processing instead of deferred future analyzing
+                            } catch (IOException e) {
+                                //exception processing instead of deferred future analyzing
                                 e.printStackTrace();
                                 memoryConsumption.set(currMemoryConsumption);
-                                memoryStorage.putAll(memorySnapshot);//parallelAddedWhileWeWasFlushingRecords merge wasNotFlushedRecords
+                                //parallelAddedWhileWeWasFlushingRecords merge wasNotFlushedRecords
+                                memoryStorage.putAll(memorySnapshot);
                             } finally {
                                 pollPayload.addAndGet(-currMemoryConsumption);
                             }
                         }
                     };
 
-                    if (pollPayload.addAndGet(currMemoryConsumption) < POLL_LIMIT) {//run async if have memory
+                    if (pollPayload.addAndGet(currMemoryConsumption) < POLL_LIMIT) {
+                        //run async if have memory
                         writeService.submit(flushLambda);
-                    } else {//run sequential if have no memory
+                    } else {
+                        //run sequential if have no memory
                         flushLambda.run();
                     }
 
