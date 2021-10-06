@@ -20,8 +20,10 @@ import java.util.NoSuchElementException;
 import java.util.SortedMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class LsmDAO implements DAO {
@@ -37,7 +39,7 @@ public class LsmDAO implements DAO {
     private final DAOConfig config;
 
     private final AtomicInteger memoryConsumption = new AtomicInteger();
-    private final AtomicInteger memTableActiveUsers = new AtomicInteger();
+    private final AtomicInteger memTableWriters = new AtomicInteger();
 
     /**
      * Create LsmDAO from config.
@@ -72,12 +74,13 @@ public class LsmDAO implements DAO {
 
     @Override
     public void upsert(Record record) {
-        memTableActiveUsers.incrementAndGet();
+        memTableWriters.incrementAndGet();
         while (memoryConsumption.addAndGet(sizeOf(record)) > config.memoryLimit) {
-            memTableActiveUsers.decrementAndGet();
+            memTableWriters.decrementAndGet();
 
             // Это остатки костыля для исправления ошибки OutOfMemoryException,
             // без которых все в один момент заработало. Но если вдруг...
+            // Ошибка возникала, когда в куче (flushedMemTables) собиралось слишком много данных.
 //            while (flushedMemTables.size() > 3) {
 //                Thread.onSpinWait();
 //            }
@@ -90,21 +93,18 @@ public class LsmDAO implements DAO {
                     // Применяем активное ожидание, чтобы избавиться от
                     // медленного и вредного потока, который никак не может
                     // записать своё значение в memTable после всех проверок.
-                    while (memTableActiveUsers.get() > 0) {
-                        Thread.onSpinWait();
-                    }
-
+                    waitMemTableWriters();
                     scheduleFlush(memTable);
 
                     memoryConsumption.getAndSet(sizeOf(record));
                     break;
                 }
+                memTableWriters.incrementAndGet();
             }
-            memTableActiveUsers.incrementAndGet();
         }
 
         memTable.put(record.getKey(), record);
-        memTableActiveUsers.decrementAndGet();
+        memTableWriters.decrementAndGet();
     }
 
     @Override
@@ -122,26 +122,49 @@ public class LsmDAO implements DAO {
         }
     }
 
+    /**
+     * Активно и, что очень важно, недолго ожидаем медленные потоки,
+     * которые ещё не завершили запись в memTable.
+     * Применяется, например, при выгрузке memTable в SSTable.
+     */
+    @GuardedBy("this")
+    private void waitMemTableWriters() {
+        while (memTableWriters.get() > 0) {
+            Thread.onSpinWait();
+        }
+    }
+
     private int sizeOf(Record record) {
         return SSTable.sizeOf(record);
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
+        final Future<?> future;
         synchronized (this) {
-            flush(memTable);
+            waitMemTableWriters();
+            future = scheduleFlush(memTable);
         }
+
+        try {
+            future.get();
+        } catch (InterruptedException | ExecutionException e) {
+            LOG.error("flush error in close(): {}", e.getMessage(), e);
+        }
+
+        FLUSH_EXECUTOR.shutdown();
     }
 
     @GuardedBy("this")
-    private void scheduleFlush(MemTable memTable) {
+    private Future<?> scheduleFlush(MemTable memTable) {
         flushedMemTables.add(memTable);
-        scheduleFlush();
+        Future<?> future = scheduleFlush();
         this.memTable = MemTable.newStorage(memTable.getId() + 1);
+        return future;
     }
 
-    private void scheduleFlush() {
-        FLUSH_EXECUTOR.submit(() -> {
+    private Future<?> scheduleFlush() {
+        return FLUSH_EXECUTOR.submit(() -> {
             synchronized (LsmDAO.this) {
                 MemTable memTable = flushedMemTables.poll();
                 if (memTable == null) return;
