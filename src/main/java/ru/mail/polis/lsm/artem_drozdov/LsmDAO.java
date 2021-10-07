@@ -18,7 +18,6 @@ import java.util.Collections;
 import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
-import java.util.NoSuchElementException;
 import java.util.SortedMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -176,49 +175,42 @@ public class LsmDAO implements DAO {
     @GuardedBy("this")
     private Future<?> scheduleFlush(MemTable memTable) {
         flushedMemTables.add(memTable);
-        Future<?> future = executorFlush.submit(new FlushTask());
+        Future<?> future = executorFlush.submit(this::fl);
         this.memTable = MemTable.newStorage(memTable.getId() + 1);
         return future;
     }
 
-    private class FlushTask implements Runnable {
-        @Override
-        public void run() {
-            synchronized (writeLock) {
-                writerIsActive.set(true);
-                while (readersCount.get() != 0) {
-                    Thread.onSpinWait();
-                }
-                synchronized (LsmDAO.this) {
-                    makeFlush();
-                }
-                writerIsActive.set(false);
+    @GuardedBy("this")
+    private void fl() {
+        synchronized (writeLock) {
+            writerIsActive.set(true);
+            while (readersCount.get() != 0) {
+                Thread.onSpinWait();
             }
-        }
-
-        @GuardedBy("LsmDAO.this")
-        private void makeFlush() {
-            MemTable flushMemTable = flushedMemTables.poll();
-            if (flushMemTable == null) {
-                return;
+            synchronized (this) {
+                makeFlush();
             }
-
-            try {
-                flush(flushMemTable);
-            } catch (IOException e) {
-                flushedMemTables.add(flushMemTable);
-                LOG.error("flush error in FLUSH_EXECUTOR: {}", e.getMessage(), e);
-            }
+            writerIsActive.set(false);
         }
     }
 
     @GuardedBy("this")
-    private void flush(MemTable memTable) throws IOException {
-        Path dir = config.dir;
-        Path file = dir.resolve(SSTable.SSTABLE_FILE_PREFIX + memTable.getId());
+    private void makeFlush() {
+        MemTable flushMemTable = flushedMemTables.poll();
+        if (flushMemTable == null) {
+            return;
+        }
 
-        SSTable ssTable = SSTable.write(memTable.values().iterator(), file);
-        tables.add(ssTable);
+        try {
+            Path dir = config.dir;
+            Path file = dir.resolve(SSTable.SSTABLE_FILE_PREFIX + flushMemTable.getId());
+
+            SSTable ssTable = SSTable.write(flushMemTable.values().iterator(), file);
+            tables.add(ssTable);
+        } catch (IOException e) {
+            flushedMemTables.add(flushMemTable);
+            LOG.error("flush error in FLUSH_EXECUTOR: {}", e.getMessage(), e);
+        }
     }
 
     private Iterator<Record> sstableRanges(
