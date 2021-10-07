@@ -195,12 +195,7 @@ public class DaoImpl implements DAO {
     }
 
     private void flush() throws IOException {
-//        synchronized (this) {
-//        try {
-//            semaphore.acquire(1);
-//        } catch (InterruptedException e) {
-//            e.printStackTrace();
-//        }
+
         counter.addAndGet(1);
 
         synchronized (object) {
@@ -223,7 +218,6 @@ public class DaoImpl implements DAO {
                 counter.decrementAndGet();
 
             }
-//        semaphore.release(1);
         }
     }
 
