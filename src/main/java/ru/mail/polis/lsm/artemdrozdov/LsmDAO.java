@@ -70,11 +70,9 @@ public class LsmDAO implements DAO {
 
         Iterator<NavigableMap<ByteBuffer, Record>> curcilarIterator = this.circularBuffer.iterator();
 
-        if (!this.circularBuffer.isEmpty()) {
-            while (curcilarIterator.hasNext()) {
-                Iterator<Record> unionRange = map(fromKey, toKey, curcilarIterator.next()).values().iterator();
-                memoryRange = mergeTwo(new PeekingIterator(memoryRange), new PeekingIterator(unionRange));
-            }
+        while (curcilarIterator.hasNext()) {
+            Iterator<Record> unionRange = map(fromKey, toKey, curcilarIterator.next()).values().iterator();
+            memoryRange = mergeTwo(new PeekingIterator(memoryRange), new PeekingIterator(unionRange));
         }
 
         Iterator<Record> iterator = mergeTwo(new PeekingIterator(sstableRanges), new PeekingIterator(memoryRange));
@@ -97,6 +95,7 @@ public class LsmDAO implements DAO {
             } catch (InterruptedException e) {
                 putRecord(record);
                 Thread.currentThread().interrupt();
+                return;
             }
 
             if (this.wantToClose.get()) {
@@ -120,12 +119,6 @@ public class LsmDAO implements DAO {
                     memoryStorage.putAll(circularBuffer.get(localIdx)); // restore data + new data
                 } finally {
                     this.semaphore.release();
-                    if (this.wantToClose.get()
-                            && this.semaphoreAvailablePermits.compareAndSet(this.semaphore.availablePermits(), 0)) {
-                        synchronized (this.semaphore) {
-                            this.semaphore.notifyAll();
-                        }
-                    }
                 }
             });
 
@@ -166,18 +159,17 @@ public class LsmDAO implements DAO {
     @Override
     public void close() throws IOException {
         this.wantToClose.set(true);
-        if (this.semaphoreAvailablePermits.get() != this.semaphore.availablePermits()) {
-            synchronized (this.semaphore) {
-                try {
-                    // sonar-java
-                    while (this.semaphoreAvailablePermits.get() != 0) {
-                        this.semaphore.wait(250);
-                    }
-                } catch (InterruptedException e) {
-                    Thread.currentThread().interrupt();
+        synchronized (this.semaphore) {
+            try {
+                // sonar-java
+                while (this.semaphore.availablePermits() != this.semaphoreAvailablePermits.get()) {
+                    this.semaphore.wait(250);
                 }
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
             }
         }
+
         this.circularBuffer.clear();
         flush(memoryStorage);
     }
