@@ -7,15 +7,15 @@ public final class FileUtils {
         // not instantiate
     }
 
-    private static Path resolveWithExt(Path file, String ext) {
+    public static Path resolveWithExt(Path file, String ext) {
         return file.resolveSibling(file.getFileName() + ext);
     }
 
-    static Path getIndexFile(Path file) {
+    public static Path getIndexFile(Path file) {
         return resolveWithExt(file, ".idx");
     }
 
-    static Path getTmpFile(Path file) {
+    public static Path getTmpFile(Path file) {
         return resolveWithExt(file, ".tmp");
     }
 }
