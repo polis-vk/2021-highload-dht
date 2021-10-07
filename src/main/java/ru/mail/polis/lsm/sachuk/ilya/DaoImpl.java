@@ -22,6 +22,7 @@ import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Spliterator;
 import java.util.Spliterators;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -42,6 +43,7 @@ public class DaoImpl implements DAO {
     private final AtomicInteger counter = new AtomicInteger(0);
     private final AtomicBoolean isFlushed = new AtomicBoolean(true);
     private final List<Future> futureList = new ArrayList<>();
+    private final ConcurrentLinkedQueue<Iterator> queue = new ConcurrentLinkedQueue<>();
     private final Object object = new Object();
     private final NavigableMap<ByteBuffer, Record> tmpStorageForFlush = new ConcurrentSkipListMap<>();
 
@@ -85,25 +87,17 @@ public class DaoImpl implements DAO {
                 if (memoryConsumption.get() > config.memoryLimit) {
                     int prev = memoryConsumption.getAndSet(sizeOf(record));
 
-
-                    while (counter.get() > 0) {
+                    while (queue.size() > 3) {
 
                     }
-
-//                    while (!isFlushed.get()) {
-//
-//                    }
-//                    isFlushed.set(false);
 
                     tmpStorageForFlush.putAll(memoryStorage);
                     memoryStorage.clear();
 
-                    futureList.add(executorService.submit(() -> {
+                    queue.add(tmpStorageForFlush.values().iterator());
+                    executorService.submit(() -> {
                         prepareAndFlush(prev);
-                    }));
-                    while (counter.get() != 0) {
-
-                    }
+                    });
                 }
             }
         }
@@ -189,12 +183,17 @@ public class DaoImpl implements DAO {
 
         synchronized (object) {
 
-            if (tmpStorageForFlush.isEmpty()) {
+            Iterator iterator;
+            if (tmpStorageForFlush.isEmpty() && queue.isEmpty()) {
                 tmpStorageForFlush.putAll(memoryStorage);
+                iterator = tmpStorageForFlush.values().iterator();
+            }
+            else {
+                iterator = queue.poll();
             }
 
             SSTable ssTable = SSTable.save(
-                    tmpStorageForFlush.values().iterator(),
+                    iterator,
                     dirPath,
                     nextSSTableNumber.getAndIncrement()
             );

@@ -223,47 +223,6 @@ public class SSTable {
         return indexPath;
     }
 
-    private int binarySearchKey(int[] indexArray, ByteBuffer keyToFind) {
-
-        if (keyToFind == null) {
-            return 0;
-        }
-
-        int start = 0;
-        int end = indexArray.length - 1;
-
-        int positionToRead = -1;
-
-        int middle;
-
-        while (start <= end) {
-
-            middle = (start + end) / 2;
-
-            positionToRead = indexArray[middle];
-
-            mappedByteBuffer.position(positionToRead);
-
-            ByteBuffer key = readFromFile(mappedByteBuffer);
-
-            int compare = keyToFind.compareTo(key);
-
-            if (compare == 0) {
-                return positionToRead;
-            } else if (compare > 0) {
-                start = middle + 1;
-
-                if (start == indexArray.length) {
-                    return -1;
-                }
-            } else {
-                end = middle - 1;
-            }
-
-        }
-        return positionToRead;
-    }
-
     private void restoreStorage() throws IOException {
         try (FileChannel saveFileChannel = FileChannel.open(savePath, StandardOpenOption.READ)) {
             try (FileChannel indexFileChannel = FileChannel.open(indexPath, StandardOpenOption.READ)) {
@@ -292,15 +251,6 @@ public class SSTable {
                 }
             }
         }
-    }
-
-    public static ByteBuffer readFromFile(MappedByteBuffer mappedByteBuffer) {
-        int length = mappedByteBuffer.getInt();
-
-        ByteBuffer byteBuffer = mappedByteBuffer.slice().limit(length).asReadOnlyBuffer();
-        mappedByteBuffer.position(mappedByteBuffer.position() + length);
-
-        return byteBuffer;
     }
 
     private static void writeSizeAndValue(
