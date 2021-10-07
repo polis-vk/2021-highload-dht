@@ -24,10 +24,11 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class LsmDAO implements DAO {
 
-    private Future<?> flushFuture;
+    private final AtomicReference<Future<?>> flushFuture = new AtomicReference<>();
     private NavigableMap<ByteBuffer, Record> memoryStorage = newStorage();
     private NavigableMap<ByteBuffer, Record> memoryStorageToFlush = newStorage();
     private final ExecutorService flushExecutor = Executors.newSingleThreadExecutor();
@@ -74,26 +75,26 @@ public class LsmDAO implements DAO {
                     return;
                 }
 
-                if (flushFuture != null) {
+                if (flushFuture.get() != null) {
                     try {
-                        flushFuture.get();
+                        flushFuture.get().get();
                     } catch (InterruptedException | ExecutionException e) {
                         logger.error(e.getMessage());
                     }
                 }
 
                 int prev = memoryConsumption.getAndSet(sizeOf(record));
-                memoryStorageToFlush = new ConcurrentSkipListMap<>(memoryStorage);
+                memoryStorageToFlush = memoryStorage;
                 memoryStorage = newStorage();
 
-                flushFuture = flushExecutor.submit(() -> {
+                flushFuture.set(flushExecutor.submit(() -> {
                     try {
                         flush(memoryStorageToFlush);
                     } catch (IOException e) {
                         memoryConsumption.addAndGet(prev);
                         memoryStorage.putAll(memoryStorageToFlush);
                     }
-                });
+                }));
             }
         }
 
@@ -125,16 +126,17 @@ public class LsmDAO implements DAO {
 
     @Override
     public void close() throws IOException {
-        if (flushFuture != null) {
+        flushExecutor.shutdown();
+
+        if (flushFuture.get() != null) {
             try {
-                flushFuture.get();
+                flushFuture.get().get();
             } catch (InterruptedException | ExecutionException e) {
                 logger.error(e.getMessage());
             }
         }
 
         flush(memoryStorage);
-        flushExecutor.shutdown();
     }
 
     private void flush(NavigableMap<ByteBuffer, Record> data) throws IOException {
