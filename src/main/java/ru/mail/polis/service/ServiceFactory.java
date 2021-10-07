@@ -29,6 +29,7 @@ import java.util.Objects;
  */
 public final class ServiceFactory {
     private static final long MAX_HEAP = 256 * 1024 * 1024;
+    private static final int THREADS = 4;
 
     private ServiceFactory() {
         // Not supposed to be instantiated
@@ -54,6 +55,6 @@ public final class ServiceFactory {
 
         Objects.requireNonNull(dao);
 
-        return new ServiceImpl(port, dao);
+        return new ServiceImpl(port, dao, THREADS);
     }
 }

@@ -20,17 +20,18 @@ import java.util.Iterator;
 public class ServiceImpl extends HttpServer implements Service {
     private final DAO dao;
 
-    public ServiceImpl(final int port, final DAO dao) throws IOException {
-        super(from(port));
+    public ServiceImpl(final int port, final DAO dao, int threads) throws IOException {
+        super(from(port, threads));
         this.dao = dao;
     }
 
-    private static HttpServerConfig from(final int port) {
+    private static HttpServerConfig from(final int port, int threads) {
         final HttpServerConfig config = new HttpServerConfig();
         final AcceptorConfig acceptor = new AcceptorConfig();
 
         acceptor.port = port;
         acceptor.reusePort = true;
+        acceptor.threads = threads;
         config.acceptors = new AcceptorConfig[]{acceptor};
 
         return config;

@@ -54,16 +54,14 @@ public class LsmDAO implements DAO {
 
     @Override
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
-        synchronized (this) {
-            Iterator<Record> sstableRanges = sstableRanges(fromKey, toKey);
-            Iterator<Record> memoryRange = map(memoryStorage, fromKey, toKey).values().iterator();
-            Iterator<Record> flushMemoryRange = map(memoryStorageToFlush, fromKey, toKey).values().iterator();
-            Iterator<Record> memoryIterator = mergeTwo(new PeekingIterator(flushMemoryRange),
-                    new PeekingIterator(memoryRange));
-            Iterator<Record> iterator = mergeTwo(new PeekingIterator(sstableRanges),
-                    new PeekingIterator(memoryIterator));
-            return filterTombstones(iterator);
-        }
+        Iterator<Record> sstableRanges = sstableRanges(fromKey, toKey);
+        Iterator<Record> memoryRange = map(memoryStorage, fromKey, toKey).values().iterator();
+        Iterator<Record> flushMemoryRange = map(memoryStorageToFlush, fromKey, toKey).values().iterator();
+        Iterator<Record> memoryIterator = mergeTwo(new PeekingIterator(flushMemoryRange),
+                new PeekingIterator(memoryRange));
+        Iterator<Record> iterator = mergeTwo(new PeekingIterator(sstableRanges),
+                new PeekingIterator(memoryIterator));
+        return filterTombstones(iterator);
     }
 
     @Override
