@@ -16,7 +16,11 @@ import java.util.List;
 import java.util.NavigableMap;
 import java.util.NoSuchElementException;
 import java.util.SortedMap;
-import java.util.concurrent.*;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -93,12 +97,12 @@ public class LsmDAO implements DAO {
             } catch (InterruptedException e) {
                 putRecord(record);
                 Thread.currentThread().interrupt();
-            } finally {
-                if (this.wantToClose.get()) {
-                    putRecord(record);
-                    this.semaphore.release();
-                    return;
-                }
+            }
+
+            if (this.wantToClose.get()) {
+                putRecord(record);
+                this.semaphore.release();
+                return;
             }
 
             final int idx = idCircularBuffer.getAndUpdate(i -> (i + 1) % this.semaphoreAvailablePermits.get());
