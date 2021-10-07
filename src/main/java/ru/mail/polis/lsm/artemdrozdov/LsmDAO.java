@@ -16,10 +16,10 @@ import java.util.List;
 import java.util.NavigableMap;
 import java.util.NoSuchElementException;
 import java.util.SortedMap;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -48,7 +48,6 @@ public class LsmDAO implements DAO {
      * @throws IOException - in case of io exception
      */
     public LsmDAO(DAOConfig config, final int semaphorePermit) throws IOException {
-        System.out.println(semaphorePermit);
         this.memoryConsumption = new AtomicLong();
         this.idCircularBuffer = new AtomicInteger(0);
         this.wantToClose = new AtomicBoolean(false);
