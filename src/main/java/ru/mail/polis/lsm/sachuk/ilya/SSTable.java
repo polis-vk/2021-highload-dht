@@ -1,10 +1,10 @@
 package ru.mail.polis.lsm.sachuk.ilya;
 
+import ru.mail.polis.FileUtils;
 import ru.mail.polis.lsm.Record;
 import ru.mail.polis.lsm.sachuk.ilya.iterators.ByteBufferRecordIterator;
 
 import javax.annotation.Nullable;
-import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
@@ -16,16 +16,12 @@ import java.nio.channels.WritableByteChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Comparator;
 import java.util.Iterator;
 import java.util.List;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class SSTable {
     public static final String FIRST_SAVE_FILE = "SSTABLE0.save";
@@ -126,8 +122,8 @@ public class SSTable {
 
         List<SSTable> listSSTables = new ArrayList<>();
 
-        Iterator<Path> savePaths = getPathIterator(dir, SAVE_FILE_END);
-        Iterator<Path> indexPaths = getPathIterator(dir, INDEX_FILE_END);
+        Iterator<Path> savePaths = FileUtils.getPathIterator(dir, SAVE_FILE_END);
+        Iterator<Path> indexPaths = FileUtils.getPathIterator(dir, INDEX_FILE_END);
 
         while (savePaths.hasNext() && indexPaths.hasNext()) {
             Path savePath = savePaths.next();
@@ -284,44 +280,6 @@ public class SSTable {
                 | IllegalAccessException | InvocationTargetException e) {
             throw new IOException(e);
         }
-    }
-
-    private static Iterator<Path> getPathIterator(Path dir, String pathEnd) throws IOException {
-        Iterator<Path> paths;
-        try (Stream<Path> streamPaths = Files.walk(Paths.get(dir.toUri()))) {
-            paths = streamPaths.filter(path -> path.toString().endsWith(pathEnd))
-                    .collect(Collectors.toList())
-                    .stream()
-                    .sorted(Comparator.comparing(o -> getFileNumber(o, pathEnd)))
-                    .collect(Collectors.toList())
-                    .iterator();
-        }
-        return paths;
-    }
-
-    private static Integer getFileNumber(Path path, String endFile) {
-        String stringPath = path.toString();
-
-        int lastSlash = 0;
-
-        for (int i = 0; i < stringPath.length(); i++) {
-            if (stringPath.charAt(i) == File.separatorChar) {
-                lastSlash = i;
-            }
-        }
-
-        stringPath = stringPath.substring(lastSlash + 1);
-
-        int firstNumberIndex = 0;
-
-        for (int i = 0; i < stringPath.length(); i++) {
-            if (Character.isDigit(stringPath.charAt(i))) {
-                firstNumberIndex = i;
-                break;
-            }
-        }
-
-        return Integer.parseInt(stringPath.substring(firstNumberIndex, stringPath.length() - endFile.length()));
     }
 
     private static FileChannel openFileChannel(Path path) throws IOException {

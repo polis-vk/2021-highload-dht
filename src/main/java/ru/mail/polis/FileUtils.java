@@ -19,13 +19,19 @@ package ru.mail.polis;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.Comparator;
+import java.util.Iterator;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 /**
  * Utility methods for handling files.
@@ -100,5 +106,43 @@ public final class FileUtils {
                     }
                 });
         return result.get();
+    }
+
+    public static Iterator<Path> getPathIterator(Path dir, String pathEnd) throws IOException {
+        Iterator<Path> paths;
+        try (Stream<Path> streamPaths = Files.walk(Paths.get(dir.toUri()))) {
+            paths = streamPaths.filter(path -> path.toString().endsWith(pathEnd))
+                    .collect(Collectors.toList())
+                    .stream()
+                    .sorted(Comparator.comparing(o -> getFileNumber(o, pathEnd)))
+                    .collect(Collectors.toList())
+                    .iterator();
+        }
+        return paths;
+    }
+
+    public static Integer getFileNumber(Path path, String endFile) {
+        String stringPath = path.toString();
+
+        int lastSlash = 0;
+
+        for (int i = 0; i < stringPath.length(); i++) {
+            if (stringPath.charAt(i) == File.separatorChar) {
+                lastSlash = i;
+            }
+        }
+
+        stringPath = stringPath.substring(lastSlash + 1);
+
+        int firstNumberIndex = 0;
+
+        for (int i = 0; i < stringPath.length(); i++) {
+            if (Character.isDigit(stringPath.charAt(i))) {
+                firstNumberIndex = i;
+                break;
+            }
+        }
+
+        return Integer.parseInt(stringPath.substring(firstNumberIndex, stringPath.length() - endFile.length()));
     }
 }
