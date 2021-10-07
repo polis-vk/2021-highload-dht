@@ -22,7 +22,7 @@ public final class FileUtils {
         return resolveWithExt(file, ".tmp");
     }
 
-    static void rename(Path file, Path tmpFile) throws IOException {
+    public static void rename(Path file, Path tmpFile) throws IOException {
         Files.deleteIfExists(file);
         Files.move(tmpFile, file, StandardCopyOption.ATOMIC_MOVE);
     }
