@@ -16,10 +16,7 @@ import java.util.List;
 import java.util.NavigableMap;
 import java.util.NoSuchElementException;
 import java.util.SortedMap;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentLinkedDeque;
-import java.util.concurrent.ConcurrentSkipListMap;
-import java.util.concurrent.Semaphore;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -52,7 +49,7 @@ public class LsmDAO implements DAO {
         this.wantToClose = new AtomicBoolean(false);
         this.semaphoreAvailablePermits = new AtomicInteger(semaphorePermit);
         this.semaphore = new Semaphore(semaphorePermit);
-        this.circularBuffer = new ArrayList<>();
+        this.circularBuffer = new CopyOnWriteArrayList<>();
         for (int i = 0; i < semaphorePermit; ++i) {
             this.circularBuffer.add(newStorage());
         }
@@ -96,39 +93,38 @@ public class LsmDAO implements DAO {
             } catch (InterruptedException e) {
                 putRecord(record);
                 Thread.currentThread().interrupt();
+            } finally {
+                if (this.wantToClose.get()) {
+                    putRecord(record);
+                    this.semaphore.release();
+                    return;
+                }
             }
 
-            if (this.wantToClose.get()) {
-                putRecord(record);
-                this.semaphore.release();
-                return;
-            }
+            final int idx = idCircularBuffer.getAndUpdate(i -> (i + 1) % this.semaphoreAvailablePermits.get());
+            circularBuffer.set(idx, newStorage());
+            circularBuffer.get(idx).putAll(memoryStorage);
+            memoryStorage = newStorage();
 
-            synchronized (this) {
-                final int idx = idCircularBuffer.getAndUpdate(i -> (i + 1) % this.semaphoreAvailablePermits.get());
-                circularBuffer.set(idx, newStorage());
-                circularBuffer.get(idx).putAll(memoryStorage);
-                memoryStorage = newStorage();
-
-                CompletableFuture.runAsync(() -> {
-                    final int localIdx = idx;
-                    final int rollbackSize = sizeOf(record);
-                    try {
-                        this.flush(circularBuffer.get(localIdx));
-                    } catch (IOException e) {
-                        memoryConsumption.addAndGet(-rollbackSize);
-                        memoryStorage.putAll(circularBuffer.get(localIdx)); // restore data + new data
-                    } finally {
-                        this.semaphore.release();
-                        if (this.wantToClose.get()
-                                && this.semaphoreAvailablePermits.compareAndSet(this.semaphore.availablePermits(), 0)) {
-                            synchronized (this.semaphore) {
-                                this.semaphore.notifyAll();
-                            }
+            CompletableFuture.runAsync(() -> {
+                final int localIdx = idx;
+                final int rollbackSize = sizeOf(record);
+                try {
+                    this.flush(circularBuffer.get(localIdx));
+                } catch (IOException e) {
+                    memoryConsumption.addAndGet(-rollbackSize);
+                    memoryStorage.putAll(circularBuffer.get(localIdx)); // restore data + new data
+                } finally {
+                    this.semaphore.release();
+                    if (this.wantToClose.get()
+                            && this.semaphoreAvailablePermits.compareAndSet(this.semaphore.availablePermits(), 0)) {
+                        synchronized (this.semaphore) {
+                            this.semaphore.notifyAll();
                         }
                     }
-                });
-            }
+                }
+            });
+
         } else {
             memoryConsumption.addAndGet(sizeOf(record));
         }
