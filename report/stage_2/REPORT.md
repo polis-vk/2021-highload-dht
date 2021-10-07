@@ -82,7 +82,9 @@
 - #### [async-profiler CPU для GET-запросов](./profiling/profiler_cpu_upsert_asyncflush_get.html)
 - #### [async-profiler LOCK для GET-запросов](./profiling/profiler_lock_upsert_asyncflush_get.html)
 
-Результаты не очень. Много CPU занимает тот самый упомянутый `range` (`77.93%` времени).
+Результаты не очень. Несмотря на то, что сервер не сумел сдержать заданный `range`
+в 70000 запросов в секунду, выводы сделать можно и есть с чем сравнить в будущем.
+Много CPU занимает тот самый упомянутый `range` (`77.93%` времени).
 На графике `LOCK` тоже этот же самый метод занимает `100%` времени.
 Что оптимизировать предельно ясно.
 
@@ -93,4 +95,23 @@
 Однако разработанный тест завалится, что есть хорошо. Потому что на самом деле
 данные при чтении и записи не согласованы.
 
-## TODO: IN PROGRESS...
+Была проведена оптимизация метода `range` путем разделения доступа данным к
+потоку-писателю и читателям, благодаря чему убрано узкое место для читателей
+(они могут читать одновременно), и не нарушается консистентность данных
+при чтении/записи.
+
+Результаты измерений для PUT-запросов:
+
+- #### [wrk2 для PUT-запросов](./profiling/wrk2_range_put.txt)
+- #### [async-profiler CPU для PUT-запросов](./profiling/profiler_cpu_range_put.html)
+- #### [async-profiler LOCK для PUT-запросов](./profiling/profiler_lock_range_put.html)
+- #### [async-profiler ALLOC для PUT-запросов](./profiling/profiler_alloc_range_put.html)
+
+Результаты измерений для GET-запросов:
+
+- #### [wrk2 для GET-запросов](./profiling/wrk2_range_get.txt)
+- #### [async-profiler CPU для GET-запросов](./profiling/profiler_cpu_range_get.html)
+- #### [async-profiler LOCK для GET-запросов](./profiling/profiler_lock_range_get.html)
+- #### [async-profiler ALLOC для GET-запросов](./profiling/profiler_alloc_range_get.html)
+
+Видим заметный прирост в производительности в особенности для GET-запросов. // TODO
