@@ -28,7 +28,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class SSTable {
-
     public static final String FIRST_SAVE_FILE = "SSTABLE0.save";
     public static final String FIRST_INDEX_FILE = "INDEX0.index";
 
@@ -47,7 +46,6 @@ public class SSTable {
     private final Path savePath;
     private final Path indexPath;
     private int[] indexes;
-
     private MappedByteBuffer mappedByteBuffer;
     private MappedByteBuffer indexByteBuffer;
 
@@ -155,8 +153,8 @@ public class SSTable {
         try (FileChannel saveFileChannel = openFileChannel(tmpSavePath)) {
             try (FileChannel indexFileChanel = openFileChannel(tmpIndexPath)) {
 
-
                 ByteBuffer buffer = ByteBuffer.allocate(Integer.BYTES);
+
                 int counter = 0;
                 writeInt(indexFileChanel, buffer, counter);
 

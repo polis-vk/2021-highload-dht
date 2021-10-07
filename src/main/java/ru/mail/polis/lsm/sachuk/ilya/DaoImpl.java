@@ -84,7 +84,7 @@ public class DaoImpl implements DAO {
         if (memoryConsumption.addAndGet(sizeOf(record)) > config.memoryLimit) {
             synchronized (this) {
                 if (memoryConsumption.get() > config.memoryLimit) {
-                    int prev = memoryConsumption.getAndSet(sizeOf(record));
+                    final int prev = memoryConsumption.getAndSet(sizeOf(record));
 
                     tmpStorageForFlush.putAll(memoryStorage);
                     memoryStorage = new ConcurrentSkipListMap<>();
@@ -93,7 +93,9 @@ public class DaoImpl implements DAO {
                     futureList.add(executorService.submit(() -> prepareAndFlush(prev)));
 
                     while (queue.size() > 3) {
-
+                        if (queue.size() < 3) {
+                            break;
+                        }
                     }
                 }
             }
@@ -136,7 +138,9 @@ public class DaoImpl implements DAO {
     public void close() throws IOException {
 
         while (counter.get() != 0) {
-
+            if (counter.get() == 0) {
+                break;
+            }
         }
 
         for (Future<?> future : futureList) {
@@ -273,8 +277,7 @@ public class DaoImpl implements DAO {
         return mergeTwo(left, right);
     }
 
-    private static Iterator<Record> mergeTwo
-            (Iterator<Record> leftIterator, Iterator<Record> rightIterator) {
+    private static Iterator<Record> mergeTwo(Iterator<Record> leftIterator, Iterator<Record> rightIterator) {
         return new MergeIterator(new PeekingIterator<>(leftIterator), new PeekingIterator<>(rightIterator));
     }
 }
