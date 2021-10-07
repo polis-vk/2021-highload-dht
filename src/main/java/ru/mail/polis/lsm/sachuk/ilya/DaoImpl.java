@@ -38,16 +38,20 @@ public class DaoImpl implements DAO {
     private final Path dirPath;
     private final DAOConfig config;
     private NavigableMap<ByteBuffer, Record> memoryStorage = new ConcurrentSkipListMap<>();
+    private NavigableMap<ByteBuffer, Record> tmpStorageForFlush = new ConcurrentSkipListMap<>();
+
     private final List<SSTable> ssTables = new ArrayList<>();
+    private final List<Future<?>> futureList = new ArrayList<>();
+    private final ConcurrentLinkedQueue<Iterator<?>> queue = new ConcurrentLinkedQueue<>();
+
     private final ExecutorService executorService = Executors.newCachedThreadPool();
     private final AtomicInteger counter = new AtomicInteger(0);
-    private final ConcurrentLinkedQueue<Iterator<?>> queue = new ConcurrentLinkedQueue<>();
-    private final List<Future<?>> futureList = new ArrayList<>();
     private final Object object = new Object();
-    private NavigableMap<ByteBuffer, Record> tmpStorageForFlush = new ConcurrentSkipListMap<>();
+
 
     private final AtomicInteger memoryConsumption = new AtomicInteger();
     private final AtomicInteger nextSSTableNumber = new AtomicInteger();
+    private final AtomicInteger queueSize = new AtomicInteger();
 
     /**
      * Constructor that initialize path and restore storage.
@@ -90,10 +94,11 @@ public class DaoImpl implements DAO {
                     memoryStorage = new ConcurrentSkipListMap<>();
 
                     queue.add(tmpStorageForFlush.values().iterator());
+                    queueSize.addAndGet(1);
                     futureList.add(executorService.submit(() -> prepareAndFlush(prev)));
 
                     while (queue.size() > 3) {
-                        if (queue.size() < 3) {
+                        if (queueSize.get() <= 3) {
                             break;
                         }
                     }
@@ -212,6 +217,7 @@ public class DaoImpl implements DAO {
                 counter.decrementAndGet();
 
             }
+            queueSize.decrementAndGet();
         }
     }
 
