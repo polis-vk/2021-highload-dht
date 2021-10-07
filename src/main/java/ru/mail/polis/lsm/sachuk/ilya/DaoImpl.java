@@ -27,6 +27,7 @@ import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -37,15 +38,16 @@ public class DaoImpl implements DAO {
 
     private final Path dirPath;
     private final DAOConfig config;
-    private final NavigableMap<ByteBuffer, Record> memoryStorage = new ConcurrentSkipListMap<>();
+    private NavigableMap<ByteBuffer, Record> memoryStorage = new ConcurrentSkipListMap<>();
     private final List<SSTable> ssTables = new ArrayList<>();
     private final ExecutorService executorService = Executors.newCachedThreadPool();
     private final AtomicInteger counter = new AtomicInteger(0);
     private final AtomicBoolean isFlushed = new AtomicBoolean(true);
     private final List<Future> futureList = new ArrayList<>();
+    private final Semaphore semaphore = new Semaphore(1);
     private final ConcurrentLinkedQueue<Iterator> queue = new ConcurrentLinkedQueue<>();
     private final Object object = new Object();
-    private final NavigableMap<ByteBuffer, Record> tmpStorageForFlush = new ConcurrentSkipListMap<>();
+    private NavigableMap<ByteBuffer, Record> tmpStorageForFlush = new ConcurrentSkipListMap<>();
 
     private final AtomicInteger memoryConsumption = new AtomicInteger();
     private final AtomicInteger nextSSTableNumber = new AtomicInteger();
@@ -87,17 +89,17 @@ public class DaoImpl implements DAO {
                 if (memoryConsumption.get() > config.memoryLimit) {
                     int prev = memoryConsumption.getAndSet(sizeOf(record));
 
-                    while (queue.size() > 3) {
-
-                    }
-
                     tmpStorageForFlush.putAll(memoryStorage);
-                    memoryStorage.clear();
+                    memoryStorage = new ConcurrentSkipListMap<>();
 
                     queue.add(tmpStorageForFlush.values().iterator());
                     executorService.submit(() -> {
                         prepareAndFlush(prev);
                     });
+
+                    while (queue.size() > 3) {
+
+                    }
                 }
             }
         }
@@ -178,7 +180,6 @@ public class DaoImpl implements DAO {
     }
 
     private void flush() throws IOException {
-
         counter.addAndGet(1);
 
         synchronized (object) {
@@ -191,7 +192,14 @@ public class DaoImpl implements DAO {
             else {
                 iterator = queue.poll();
             }
+//            Iterator iterator;
 
+//            if (tmpStorageForFlush.isEmpty()) {
+//                iterator = memoryStorage.values().iterator();
+//            }
+//             else {
+//                iterator = queue.poll();
+//            }
             SSTable ssTable = SSTable.save(
                     iterator,
                     dirPath,
@@ -199,7 +207,7 @@ public class DaoImpl implements DAO {
             );
 
             ssTables.add(ssTable);
-            tmpStorageForFlush.clear();
+            tmpStorageForFlush = new ConcurrentSkipListMap<>();
             isFlushed.set(true);
             if (counter.get() != 0) {
                 counter.decrementAndGet();
