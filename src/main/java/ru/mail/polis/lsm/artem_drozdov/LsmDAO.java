@@ -175,23 +175,20 @@ public class LsmDAO implements DAO {
     @GuardedBy("this")
     private Future<?> scheduleFlush(MemTable memTable) {
         flushedMemTables.add(memTable);
-        Future<?> future = executorFlush.submit(this::fl);
+        Future<?> future = executorFlush.submit(() -> {
+            synchronized (writeLock) {
+                writerIsActive.set(true);
+                while (readersCount.get() != 0) {
+                    Thread.onSpinWait();
+                }
+                synchronized (this) {
+                    makeFlush();
+                }
+                writerIsActive.set(false);
+            }
+        });
         this.memTable = MemTable.newStorage(memTable.getId() + 1);
         return future;
-    }
-
-    @GuardedBy("this")
-    private void fl() {
-        synchronized (writeLock) {
-            writerIsActive.set(true);
-            while (readersCount.get() != 0) {
-                Thread.onSpinWait();
-            }
-            synchronized (this) {
-                makeFlush();
-            }
-            writerIsActive.set(false);
-        }
     }
 
     @GuardedBy("this")
