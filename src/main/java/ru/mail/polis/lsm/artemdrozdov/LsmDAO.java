@@ -79,7 +79,7 @@ public class LsmDAO implements DAO {
                     try {
                         flushFuture.get().get();
                     } catch (InterruptedException | ExecutionException e) {
-                        logger.error(e.getMessage());
+                        logger.error("Error wiiting 'flushFuture' in 'upsert' method.", e);
                     }
                 }
 
@@ -132,7 +132,7 @@ public class LsmDAO implements DAO {
             try {
                 flushFuture.get().get();
             } catch (InterruptedException | ExecutionException e) {
-                logger.error(e.getMessage());
+                logger.error("Error wiiting 'flushFuture' in 'close' method.", e);
             }
         }
 
