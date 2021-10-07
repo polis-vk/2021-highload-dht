@@ -48,6 +48,7 @@ public class LsmDAO implements DAO {
      * @throws IOException - in case of io exception
      */
     public LsmDAO(DAOConfig config, final int semaphorePermit) throws IOException {
+        System.out.println(semaphorePermit);
         this.memoryConsumption = new AtomicLong();
         this.idCircularBuffer = new AtomicInteger(0);
         this.wantToClose = new AtomicBoolean(false);
