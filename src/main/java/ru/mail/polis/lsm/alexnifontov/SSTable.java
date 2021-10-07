@@ -100,8 +100,8 @@ public class SSTable implements Closeable {
             fileChannel.force(false);
         }
 
-        rename(indexFile, tmpIndexName);
-        rename(file, tmpFileName);
+        FileUtils.rename(indexFile, tmpIndexName);
+        FileUtils.rename(file, tmpFileName);
     }
 
     public static SSTable compact(Path dir, Iterator<Record> records) throws IOException {
@@ -189,11 +189,6 @@ public class SSTable implements Closeable {
 
         channel.write(tmp);
         tmp.limit(tmp.capacity());
-    }
-
-    private static void rename(Path file, Path tmpFile) throws IOException {
-        Files.deleteIfExists(file);
-        Files.move(tmpFile, file, StandardCopyOption.ATOMIC_MOVE);
     }
 
     private static MappedByteBuffer open(Path name) throws IOException {
