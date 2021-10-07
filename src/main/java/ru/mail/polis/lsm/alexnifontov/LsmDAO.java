@@ -5,7 +5,6 @@ import ru.mail.polis.lsm.DAOConfig;
 import ru.mail.polis.lsm.Record;
 
 import javax.annotation.Nullable;
-import javax.annotation.concurrent.GuardedBy;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
@@ -17,20 +16,74 @@ import java.util.List;
 import java.util.NavigableMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class LsmDAO implements DAO {
 
+    private static final int MEMORY_LIMIT = 32 * 1024 * 1024;
     private final ConcurrentLinkedDeque<SSTable> tables = new ConcurrentLinkedDeque<>();
     @SuppressWarnings({"FieldCanBeLocal", "unused"})
     private final DAOConfig config;
     private NavigableMap<ByteBuffer, Record> memoryStorage = newStorage();
-    @GuardedBy("this")
-    private int memoryConsumption;
+    private final NavigableMap<ByteBuffer, Record> flushingMemory = newStorage();
+
+    private final AtomicInteger globalMemoryConsumption = new AtomicInteger();
+    private final AtomicInteger localMemoryConsumption = new AtomicInteger();
+    private final AtomicInteger currentIndex = new AtomicInteger();
+
+    private ExecutorService executor = Executors.newWorkStealingPool();
+    private final NavigableMap<Integer, Future<?>> flushFutures = new ConcurrentSkipListMap<>();
 
     public LsmDAO(DAOConfig config) throws IOException {
         this.config = config;
         List<SSTable> ssTables = SSTable.loadFromDir(config.dir);
         tables.addAll(ssTables);
+        currentIndex.set(tables.size());
+    }
+
+    public class Flush implements Runnable {
+        final int index;
+        final NavigableMap<ByteBuffer, Record> map;
+        final int fallbackMemory;
+
+        public Flush(int index,
+                     NavigableMap<ByteBuffer, Record> map,
+                     int fallbackMemory) {
+            this.map = map;
+            this.index = index;
+            this.fallbackMemory = fallbackMemory;
+        }
+
+        @Override
+        public void run() {
+            try {
+                Path file = config.dir.resolve(SSTable.SSTABLE_FILE_PREFIX + index);
+                SSTable ssTable = SSTable.write(map.values().iterator(), file);
+
+                for (Future<?> sync : flushFutures.headMap(index).values()) {
+                    sync.get();
+                }
+                flushFutures.remove(index);
+                tables.add(ssTable);
+
+                for (ByteBuffer index : map.keySet()) {
+                    flushingMemory.remove(index);
+                }
+            } catch (IOException | InterruptedException | ExecutionException e) {
+                synchronized (localMemoryConsumption) {
+                    memoryStorage.putAll(map);
+                    localMemoryConsumption.addAndGet(fallbackMemory);
+                }
+            } finally {
+                globalMemoryConsumption.addAndGet(-fallbackMemory);
+            }
+        }
     }
 
     private static Iterator<Record> merge(List<Iterator<Record>> iterators) {
@@ -51,37 +104,42 @@ public class LsmDAO implements DAO {
 
     @Override
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
-        synchronized (this) {
-            Iterator<Record> sstableRanges = sstableRanges(fromKey, toKey);
-            Iterator<Record> memoryRange = map(fromKey, toKey).values().iterator();
-            Iterator<Record> iterator =
-                    new RecordMergingIterator(
-                            new PeekingIterator<>(sstableRanges),
-                            new PeekingIterator<>(memoryRange));
-            return new TombstoneFilteringIterator(iterator);
-        }
+        Iterator<Record> sstableRanges = sstableRanges(fromKey, toKey);
+        Iterator<Record> memoryRange = new RecordMergingIterator(
+                new PeekingIterator<>(map(flushingMemory, fromKey, toKey).values().iterator()),
+                new PeekingIterator<>(map(memoryStorage, fromKey, toKey).values().iterator())
+        );
+        Iterator<Record> iterator =
+                new RecordMergingIterator(
+                        new PeekingIterator<>(sstableRanges),
+                        new PeekingIterator<>(memoryRange));
+        return new TombstoneFilteringIterator(iterator);
     }
 
     @Override
     public void upsert(Record record) {
-        synchronized (this) {
-            memoryConsumption += sizeOf(record);
-            if (memoryConsumption > config.memoryLimit) {
-                try {
+        if (localMemoryConsumption.addAndGet(sizeOf(record)) > config.memoryLimit) {
+            synchronized (this) {
+                if (localMemoryConsumption.get() > config.memoryLimit) {
                     flush();
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
                 }
-                memoryConsumption = sizeOf(record);
             }
         }
-
         memoryStorage.put(record.getKey(), record);
     }
 
     @Override
     public void closeAndCompact() {
         synchronized (this) {
+            try {
+                if (flushFutures.lastEntry() != null) {
+                    flushFutures.lastEntry().getValue().get();
+                }
+            } catch (InterruptedException | ExecutionException e) {
+                executor.shutdownNow();
+                executor = Executors.newWorkStealingPool();
+            }
+
             final SSTable table;
             try {
                 table = SSTable.compact(config.dir, range(null, null));
@@ -90,7 +148,11 @@ public class LsmDAO implements DAO {
             }
             tables.clear();
             tables.add(table);
-            memoryStorage = newStorage();
+            currentIndex.set(1);
+            synchronized (localMemoryConsumption) {
+                localMemoryConsumption.set(0);
+                memoryStorage = newStorage();
+            }
         }
     }
 
@@ -106,17 +168,42 @@ public class LsmDAO implements DAO {
     public void close() throws IOException {
         synchronized (this) {
             flush();
+            executor.shutdown();
+            try {
+                if (executor.awaitTermination(60, TimeUnit.SECONDS)) {
+                    executor.shutdownNow();
+                }
+            } catch (InterruptedException e) {
+                executor.shutdownNow();
+            }
+            executor = Executors.newWorkStealingPool();
         }
     }
 
-    @GuardedBy("this")
-    private void flush() throws IOException {
-        Path dir = config.dir;
-        Path file = dir.resolve(SSTable.SSTABLE_FILE_PREFIX + tables.size());
+    private void flush() {
+        Iterator<Future<?>> flushFuturesIt = flushFutures.values().iterator();
+        while (globalMemoryConsumption.get() >= MEMORY_LIMIT && flushFuturesIt.hasNext()) {
+            try {
+                flushFuturesIt.next().get();
+            } catch (InterruptedException | ExecutionException e) {
+                break;
+            }
+        }
 
-        SSTable ssTable = SSTable.write(memoryStorage.values().iterator(), file);
-        tables.add(ssTable);
-        memoryStorage = new ConcurrentSkipListMap<>();
+        globalMemoryConsumption.addAndGet(localMemoryConsumption.get());
+        final Future<?> flushFuture = executor.submit(
+                new Flush(
+                        currentIndex.getAndIncrement(),
+                        memoryStorage,
+                        localMemoryConsumption.get()
+                ));
+        flushFutures.put(currentIndex.get(), flushFuture);
+        flushingMemory.putAll(memoryStorage);
+
+        synchronized (localMemoryConsumption) {
+            localMemoryConsumption.set(0);
+            memoryStorage = newStorage();
+        }
     }
 
     private Iterator<Record> sstableRanges(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
@@ -127,7 +214,8 @@ public class LsmDAO implements DAO {
         return merge(iterators);
     }
 
-    private NavigableMap<ByteBuffer, Record> map(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
+    private static NavigableMap<ByteBuffer, Record> map(NavigableMap<ByteBuffer, Record> memoryStorage,
+                                                        @Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
         if (fromKey == null && toKey == null) {
             return memoryStorage;
         } else if (fromKey == null) {

@@ -23,7 +23,7 @@ import java.util.Objects;
 import java.util.stream.Stream;
 
 public class SSTable implements Closeable {
-
+    public static final int MAX_BUFFER_SIZE = 1024;
     public static final String SSTABLE_FILE_PREFIX = "file_";
     public static final String COMPACTION_FILE_NAME = "compaction";
 
@@ -79,7 +79,7 @@ public class SSTable implements Closeable {
                 FileChannel fileChannel = openForWrite(tmpFileName);
                 FileChannel indexChannel = openForWrite(tmpIndexName)
         ) {
-            ByteBuffer size = ByteBuffer.allocate(Integer.BYTES);
+            ByteBuffer size = ByteBuffer.allocate(MAX_BUFFER_SIZE + Integer.BYTES);
             while (records.hasNext()) {
                 long position = fileChannel.position();
                 if (position > Integer.MAX_VALUE) {
@@ -176,17 +176,27 @@ public class SSTable implements Closeable {
             ByteBuffer value,
             WritableByteChannel channel,
             ByteBuffer tmp) throws IOException {
+        if (tmp.capacity() > value.remaining() + Integer.BYTES) {
+            tmp.position(0);
+            tmp.putInt(value.remaining());
+            tmp.put(value);
+            tmp.flip();
+            channel.write(tmp);
+
+            tmp.limit(tmp.capacity());
+            return;
+        }
         writeInt(value.remaining(), channel, tmp);
-        channel.write(tmp);
         channel.write(value);
     }
 
     private static void writeInt(int value, WritableByteChannel channel, ByteBuffer tmp) throws IOException {
         tmp.position(0);
         tmp.putInt(value);
-        tmp.position(0);
+        tmp.flip();
 
         channel.write(tmp);
+        tmp.limit(tmp.capacity());
     }
 
     private static void rename(Path file, Path tmpFile) throws IOException {
