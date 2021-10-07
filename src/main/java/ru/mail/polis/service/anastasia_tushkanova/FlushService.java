@@ -21,7 +21,7 @@ import java.util.function.Consumer;
 import java.util.stream.Collectors;
 
 public class FlushService implements Closeable {
-    private final static Logger log = LoggerFactory.getLogger(FlushService.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(FlushService.class);
 
     @SuppressWarnings({"FieldCanBeLocal", "unused"})
     private final DAOConfig config;
@@ -43,11 +43,12 @@ public class FlushService implements Closeable {
         try {
             executorService.shutdown();
             while (!executorService.awaitTermination(10, TimeUnit.SECONDS)) {
-                log.warn("Couldn't terminate flush service in 10s");
+                LOGGER.warn("Couldn't terminate flush service in 10s");
             }
-            log.info("Successfully closed flush service");
+            LOGGER.info("Successfully closed flush service");
         } catch (InterruptedException e) {
-            log.error("Closing flush service was interrupted");
+            Thread.currentThread().interrupt();
+            LOGGER.error("Closing flush service was interrupted");
         }
     }
 
@@ -66,19 +67,24 @@ public class FlushService implements Closeable {
     private void run() {
         try {
             while (!tablesQueue.isEmpty() || !Thread.currentThread().isInterrupted()) {
-                try {
-                    QueueElement queueElement = tablesQueue.take();
-                    Path dir = config.dir;
-                    Path file = dir.resolve(SSTable.SSTABLE_FILE_PREFIX + tablesCount);
-                    SSTable ssTable = SSTable.write(queueElement.memoryStorage.values().iterator(), file);
-                    tablesCount++;
-                    flushedTableConsumer.accept(ssTable);
-                } catch (InterruptedException e) {
-                    log.info("Interrupted while taking element from queue");
-                }
+                flush();
             }
         } catch (IOException e) {
-            log.error("Exception while running flush service [{}]", e);
+            LOGGER.error("Exception while running flush service [{}]", e);
+        }
+    }
+
+    private void flush() throws IOException {
+        try {
+            QueueElement queueElement = tablesQueue.take();
+            Path dir = config.dir;
+            Path file = dir.resolve(SSTable.SSTABLE_FILE_PREFIX + tablesCount);
+            SSTable ssTable = SSTable.write(queueElement.memoryStorage.values().iterator(), file);
+            tablesCount++;
+            flushedTableConsumer.accept(ssTable);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            LOGGER.info("Interrupted while taking element from queue");
         }
     }
 

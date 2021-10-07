@@ -7,6 +7,7 @@ import ru.mail.polis.lsm.DAOConfig;
 import ru.mail.polis.lsm.Record;
 import ru.mail.polis.service.anastasia_tushkanova.FlushService;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -23,8 +24,6 @@ import java.util.concurrent.locks.ReadWriteLock;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class LsmDAO implements DAO {
-    private final static Logger log = LoggerFactory.getLogger(LsmDAO.class);
-
     private final ConcurrentLinkedDeque<SSTable> tables = new ConcurrentLinkedDeque<>();
     @SuppressWarnings({"FieldCanBeLocal", "unused"})
     private final DAOConfig config;
@@ -47,7 +46,6 @@ public class LsmDAO implements DAO {
 
     @Override
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
-        //log.info("range: from [{}] to [{}]", fromKey, toKey);
         lock.readLock().lock();
         try {
             Iterator<Record> sstableRanges = sstableRanges(fromKey, toKey);
@@ -60,18 +58,18 @@ public class LsmDAO implements DAO {
         }
     }
 
-    private Iterator<Record> getWaitingStoragesRange(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
+    private Iterator<Record> getWaitingStoragesRange(@Nullable ByteBuffer fromKey,
+                                                     @Nullable ByteBuffer toKey) {
         List<NavigableMap<ByteBuffer, Record>> waitingToFlushStorages = flushService.getWaitingToFlushStorages();
         List<Iterator<Record>> iterators = new ArrayList<>(waitingToFlushStorages.size());
-        for (NavigableMap<ByteBuffer, Record> memoryStorage : waitingToFlushStorages) {
-            iterators.add(map(fromKey, toKey, memoryStorage).values().iterator());
+        for (NavigableMap<ByteBuffer, Record> currentMemoryStorage : waitingToFlushStorages) {
+            iterators.add(map(fromKey, toKey, currentMemoryStorage).values().iterator());
         }
         return merge(iterators);
     }
 
     @Override
     public void upsert(Record record) {
-        //log.info("upsert: key [{}] value [{}]", record.getKey(), record.getValue());
         lock.readLock().lock();
         try {
             memoryConsumption += sizeOf(record);
@@ -113,7 +111,8 @@ public class LsmDAO implements DAO {
         flushService.close();
     }
 
-    private Iterator<Record> sstableRanges(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
+    private Iterator<Record> sstableRanges(@Nullable ByteBuffer fromKey,
+                                           @Nullable ByteBuffer toKey) {
         List<Iterator<Record>> iterators = new ArrayList<>(tables.size());
         for (SSTable ssTable : tables) {
             iterators.add(ssTable.range(fromKey, toKey));
@@ -121,7 +120,9 @@ public class LsmDAO implements DAO {
         return merge(iterators);
     }
 
-    private SortedMap<ByteBuffer, Record> map(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey, NavigableMap<ByteBuffer, Record> memoryStorage) {
+    private SortedMap<ByteBuffer, Record> map(@Nullable ByteBuffer fromKey,
+                                              @Nullable ByteBuffer toKey,
+                                              @Nonnull NavigableMap<ByteBuffer, Record> memoryStorage) {
         if (fromKey == null && toKey == null) {
             return memoryStorage;
         }
