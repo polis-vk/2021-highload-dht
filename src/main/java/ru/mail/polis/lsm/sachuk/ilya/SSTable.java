@@ -50,7 +50,6 @@ public class SSTable {
 
     private MappedByteBuffer mappedByteBuffer;
     private MappedByteBuffer indexByteBuffer;
-    private static final ByteBuffer BUFFER = ByteBuffer.allocate(Integer.BYTES);
 
     SSTable(Path savePath, Path indexPath) throws IOException {
         this.savePath = savePath;
@@ -147,8 +146,8 @@ public class SSTable {
         final Path savePath = dir.resolve(SAVE_FILE + fileNumber + SAVE_FILE_END);
         final Path indexPath = dir.resolve(INDEX_FILE + fileNumber + INDEX_FILE_END);
 
-        Path tmpSavePath = dir.resolve(SAVE_FILE + "_" + TMP_FILE);
-        Path tmpIndexPath = dir.resolve(INDEX_FILE + "_" + TMP_FILE);
+        Path tmpSavePath = dir.resolve(SAVE_FILE + "_" + TMP_FILE + fileNumber);
+        Path tmpIndexPath = dir.resolve(INDEX_FILE + "_" + TMP_FILE + fileNumber);
 
         Files.deleteIfExists(tmpSavePath);
         Files.deleteIfExists(tmpIndexPath);
@@ -156,13 +155,15 @@ public class SSTable {
         try (FileChannel saveFileChannel = openFileChannel(tmpSavePath)) {
             try (FileChannel indexFileChanel = openFileChannel(tmpIndexPath)) {
 
+
+                ByteBuffer buffer = ByteBuffer.allocate(Integer.BYTES);
                 int counter = 0;
-                writeInt(indexFileChanel, BUFFER, counter);
+                writeInt(indexFileChanel, buffer, counter);
 
                 while (iterators.hasNext()) {
                     int indexPositionToRead = (int) saveFileChannel.position();
 
-                    writeInt(indexFileChanel, BUFFER, indexPositionToRead);
+                    writeInt(indexFileChanel, buffer, indexPositionToRead);
                     counter++;
 
                     Record record = iterators.next();
@@ -170,12 +171,12 @@ public class SSTable {
                             ? BYTE_BUFFER_TOMBSTONE
                             : record.getValue();
 
-                    writeSizeAndValue(record.getKey(), saveFileChannel, BUFFER);
+                    writeSizeAndValue(record.getKey(), saveFileChannel, buffer);
 
                     if (record.isTombstone()) {
-                        writeInt(saveFileChannel, BUFFER, -1);
+                        writeInt(saveFileChannel, buffer, -1);
                     } else {
-                        writeSizeAndValue(value, saveFileChannel, BUFFER);
+                        writeSizeAndValue(value, saveFileChannel, buffer);
                     }
                 }
 
@@ -183,7 +184,7 @@ public class SSTable {
 
                 indexFileChanel.position(0);
 
-                writeInt(indexFileChanel, BUFFER, counter);
+                writeInt(indexFileChanel, buffer, counter);
 
                 indexFileChanel.position(curPos);
 

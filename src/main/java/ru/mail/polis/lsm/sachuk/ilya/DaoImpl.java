@@ -22,8 +22,17 @@ import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Spliterator;
 import java.util.Spliterators;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.Semaphore;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -34,9 +43,19 @@ public class DaoImpl implements DAO {
     private final DAOConfig config;
     private NavigableMap<ByteBuffer, Record> memoryStorage = new ConcurrentSkipListMap<>();
     private final List<SSTable> ssTables = new ArrayList<>();
+    private final ExecutorService executorService = Executors.newCachedThreadPool();
+    private final Semaphore semaphore = new Semaphore(1);
+    private final CyclicBarrier cyclicBarrier = new CyclicBarrier(5);
+    private final AtomicInteger counter = new AtomicInteger(0);
+    private final AtomicBoolean isFlushed = new AtomicBoolean(true);
+    private final List<Future> list = new ArrayList<>();
+    private final Object object = new Object();
+    private NavigableMap<ByteBuffer, Record> tmpStorageForFlush = new ConcurrentSkipListMap<>();
+    private ConcurrentLinkedQueue<Integer> queue = new ConcurrentLinkedQueue<>();
+    private Lock lock = new ReentrantLock();
 
     private AtomicInteger memoryConsumption = new AtomicInteger();
-    private int nextSSTableNumber;
+    private AtomicInteger nextSSTableNumber = new AtomicInteger();
 
     /**
      * Constructor that initialize path and restore storage.
@@ -49,7 +68,7 @@ public class DaoImpl implements DAO {
         this.dirPath = config.dir;
 
         ssTables.addAll(SSTable.loadFromDir(dirPath));
-        nextSSTableNumber = ssTables.size();
+        nextSSTableNumber.set(ssTables.size());
     }
 
     @Override
@@ -75,17 +94,31 @@ public class DaoImpl implements DAO {
                 if (memoryConsumption.get() > config.memoryLimit) {
                     int prev = memoryConsumption.getAndSet(sizeOf(record));
 
-                    try {
-                        flush();
-                    } catch (IOException e) {
-                        memoryConsumption.addAndGet(prev);
 
-                        throw new UncheckedIOException(e);
+                    while (counter.get() > 0) {
+
                     }
+
+                    while (!isFlushed.get()) {
+
+                    }
+                    isFlushed.set(false);
+
+                    tmpStorageForFlush.putAll(memoryStorage);
+                    memoryStorage.clear();
+
+                    list.add(executorService.submit(() -> {
+                        prepareAndFlush();
+                    }));
+                    while (counter.get() != 0) {
+
+                    }
+
+
+//                    memoryConsumption.addAndGet(prev);
                 }
             }
         }
-
         memoryStorage.put(record.getKey(), record);
     }
 
@@ -95,7 +128,7 @@ public class DaoImpl implements DAO {
             Iterator<Record> iterator = range(null, null);
 
             try {
-                SSTable compactedTable = SSTable.save(iterator, dirPath, nextSSTableNumber++);
+                SSTable compactedTable = SSTable.save(iterator, dirPath, nextSSTableNumber.getAndIncrement());
 
                 String indexFile = compactedTable.getIndexPath().getFileName().toString();
                 String saveFile = compactedTable.getSavePath().getFileName().toString();
@@ -123,6 +156,10 @@ public class DaoImpl implements DAO {
     @Override
     public void close() throws IOException {
 
+        while (counter.get() != 0) {
+
+        }
+
         if (memoryConsumption.get() > 0) {
             flush();
         }
@@ -149,15 +186,45 @@ public class DaoImpl implements DAO {
         }
     }
 
-    private void flush() throws IOException {
-        SSTable ssTable = SSTable.save(
-                memoryStorage.values().iterator(),
-                dirPath,
-                nextSSTableNumber++
-        );
+    private void prepareAndFlush() {
+        try {
+            flush();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+    }
 
-        ssTables.add(ssTable);
-        memoryStorage = new ConcurrentSkipListMap<>();
+    private void flush() throws IOException {
+//        synchronized (this) {
+//        try {
+//            semaphore.acquire(1);
+//        } catch (InterruptedException e) {
+//            e.printStackTrace();
+//        }
+        counter.addAndGet(1);
+
+        synchronized (object) {
+
+            if (tmpStorageForFlush.isEmpty()) {
+                tmpStorageForFlush.putAll(memoryStorage);
+            }
+
+            SSTable ssTable = SSTable.save(
+                    tmpStorageForFlush.values().iterator(),
+                    dirPath,
+                    nextSSTableNumber.getAndIncrement()
+            );
+
+            ssTables.add(ssTable);
+            tmpStorageForFlush.clear();
+//            memoryStorage = new ConcurrentSkipListMap<>();
+            isFlushed.set(true);
+            if (counter.get() != 0) {
+                counter.decrementAndGet();
+
+            }
+//        semaphore.release(1);
+        }
     }
 
     private Iterator<Record> ssTableRanges(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
@@ -222,7 +289,8 @@ public class DaoImpl implements DAO {
         return mergeTwo(left, right);
     }
 
-    private static Iterator<Record> mergeTwo(Iterator<Record> leftIterator, Iterator<Record> rightIterator) {
+    private static Iterator<Record> mergeTwo
+            (Iterator<Record> leftIterator, Iterator<Record> rightIterator) {
         return new MergeIterator(new PeekingIterator<>(leftIterator), new PeekingIterator<>(rightIterator));
     }
 }
