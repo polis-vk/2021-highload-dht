@@ -41,6 +41,14 @@ public final class Server {
         // Not instantiable
     }
 
+    private static void closeDao(DAO dao) {
+        try {
+            dao.close();
+        } catch (IOException e) {
+            throw new RuntimeException("Can't close dao", e);
+        }
+    }
+
     /**
      * Starts single node cluster at HTTP port 8080 and
      * temporary data storage if storage path not supplied.
@@ -66,11 +74,7 @@ public final class Server {
             Runtime.getRuntime().addShutdownHook(
                     new Thread(() -> {
                         storage.stop();
-                        try {
-                            dao.close();
-                        } catch (IOException e) {
-                            throw new RuntimeException("Can't close dao", e);
-                        }
+                        closeDao(dao);
                     }));
         } catch (IOException e) {
             LOG.error("", e);
