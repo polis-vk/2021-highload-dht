@@ -9,6 +9,7 @@ import one.nio.http.Request;
 import one.nio.http.RequestMethod;
 import one.nio.http.Response;
 import one.nio.server.AcceptorConfig;
+import org.apache.log4j.BasicConfigurator;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.Record;
 import ru.mail.polis.service.Service;
@@ -24,6 +25,7 @@ public class BasicService extends HttpServer implements Service {
 
     public BasicService(final int port, final DAO dao) throws IOException {
         super(from(port));
+        BasicConfigurator.configure();
         this.dao = dao;
     }
 
@@ -33,6 +35,8 @@ public class BasicService extends HttpServer implements Service {
         acceptorConfig.reusePort = true;
         final HttpServerConfig config = new HttpServerConfig();
         config.acceptors = new AcceptorConfig[]{acceptorConfig};
+        config.minWorkers = 2;
+        config.maxWorkers = 5;
         return config;
     }
 
