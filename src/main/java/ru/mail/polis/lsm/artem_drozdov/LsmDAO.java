@@ -36,7 +36,7 @@ public class LsmDAO implements DAO {
     private final AtomicInteger currentIndex = new AtomicInteger(0);
     private final ConcurrentLinkedDeque<NavigableMap<ByteBuffer, Record>> flushingStorages =
             new ConcurrentLinkedDeque<>();
-    volatile private NavigableMap<ByteBuffer, Record> memoryStorage;
+    private NavigableMap<ByteBuffer, Record> memoryStorage;
     private final ConcurrentLinkedDeque<SSTable> tables = new ConcurrentLinkedDeque<>();
     private final ArrayDeque<Future<?>> runningFlushes = new ArrayDeque<>();
 
@@ -78,6 +78,7 @@ public class LsmDAO implements DAO {
         if (memoryConsumption.addAndGet(sizeOf(record)) > config.memoryLimit) {
             synchronized (this) {
                 if (memoryConsumption.get() > config.memoryLimit) {
+                    runningFlushes.removeIf(Future::isDone);
                     while (!runningFlushes.isEmpty() && runningFlushes.peek().isDone()) {
                         runningFlushes.poll();
                     }
@@ -85,7 +86,7 @@ public class LsmDAO implements DAO {
                     while (Runtime.getRuntime().freeMemory() < this.flushMemoryThreshold && !runningFlushes.isEmpty()) {
                         try {
                             runningFlushes.poll().get();
-                        } catch ( ExecutionException e) {
+                        } catch (ExecutionException e) {
                             break;
                         } catch (InterruptedException e) {
                             Thread.currentThread().interrupt();
