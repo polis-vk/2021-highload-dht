@@ -22,17 +22,12 @@ import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Spliterator;
 import java.util.Spliterators;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentSkipListMap;
-import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -41,21 +36,17 @@ public class DaoImpl implements DAO {
 
     private final Path dirPath;
     private final DAOConfig config;
-    private NavigableMap<ByteBuffer, Record> memoryStorage = new ConcurrentSkipListMap<>();
+    private final NavigableMap<ByteBuffer, Record> memoryStorage = new ConcurrentSkipListMap<>();
     private final List<SSTable> ssTables = new ArrayList<>();
     private final ExecutorService executorService = Executors.newCachedThreadPool();
-    private final Semaphore semaphore = new Semaphore(1);
-    private final CyclicBarrier cyclicBarrier = new CyclicBarrier(5);
     private final AtomicInteger counter = new AtomicInteger(0);
     private final AtomicBoolean isFlushed = new AtomicBoolean(true);
-    private final List<Future> list = new ArrayList<>();
+    private final List<Future> futureList = new ArrayList<>();
     private final Object object = new Object();
-    private NavigableMap<ByteBuffer, Record> tmpStorageForFlush = new ConcurrentSkipListMap<>();
-    private ConcurrentLinkedQueue<Integer> queue = new ConcurrentLinkedQueue<>();
-    private Lock lock = new ReentrantLock();
+    private final NavigableMap<ByteBuffer, Record> tmpStorageForFlush = new ConcurrentSkipListMap<>();
 
-    private AtomicInteger memoryConsumption = new AtomicInteger();
-    private AtomicInteger nextSSTableNumber = new AtomicInteger();
+    private final AtomicInteger memoryConsumption = new AtomicInteger();
+    private final AtomicInteger nextSSTableNumber = new AtomicInteger();
 
     /**
      * Constructor that initialize path and restore storage.
@@ -99,23 +90,20 @@ public class DaoImpl implements DAO {
 
                     }
 
-                    while (!isFlushed.get()) {
-
-                    }
-                    isFlushed.set(false);
+//                    while (!isFlushed.get()) {
+//
+//                    }
+//                    isFlushed.set(false);
 
                     tmpStorageForFlush.putAll(memoryStorage);
                     memoryStorage.clear();
 
-                    list.add(executorService.submit(() -> {
-                        prepareAndFlush();
+                    futureList.add(executorService.submit(() -> {
+                        prepareAndFlush(prev);
                     }));
                     while (counter.get() != 0) {
 
                     }
-
-
-//                    memoryConsumption.addAndGet(prev);
                 }
             }
         }
@@ -186,11 +174,12 @@ public class DaoImpl implements DAO {
         }
     }
 
-    private void prepareAndFlush() {
+    private void prepareAndFlush(int prev) {
         try {
             flush();
         } catch (IOException e) {
-            e.printStackTrace();
+            memoryConsumption.addAndGet(prev);
+            throw new UncheckedIOException(e);
         }
     }
 
@@ -212,7 +201,6 @@ public class DaoImpl implements DAO {
 
             ssTables.add(ssTable);
             tmpStorageForFlush.clear();
-//            memoryStorage = new ConcurrentSkipListMap<>();
             isFlushed.set(true);
             if (counter.get() != 0) {
                 counter.decrementAndGet();
