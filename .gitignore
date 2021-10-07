@@ -1,3 +1,5 @@
 .*
 build
 *.log
+
+src/test/java/ru/er_log/*

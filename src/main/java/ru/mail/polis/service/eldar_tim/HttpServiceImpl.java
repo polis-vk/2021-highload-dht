@@ -70,7 +70,7 @@ public class HttpServiceImpl extends HttpServer implements Service {
                 Response response = Response.ok(Response.OK);
                 session.sendResponse(response);
             } catch (IOException e) {
-                sendError("Error while parsing getStatus request", session, e);
+                sendError("Error while parsing status() request", session, e);
             }
         });
     }
@@ -102,7 +102,7 @@ public class HttpServiceImpl extends HttpServer implements Service {
                 }
                 session.sendResponse(response);
             } catch (IOException e) {
-                sendError("Error while parsing getEntity request", session, e);
+                sendError("Error while parsing entity() request", session, e);
             }
         });
     }

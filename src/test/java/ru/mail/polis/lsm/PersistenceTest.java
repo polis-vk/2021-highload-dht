@@ -2,16 +2,21 @@ package ru.mail.polis.lsm;
 
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import ru.mail.polis.service.eldar_tim.HttpServiceImpl;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.util.ArrayList;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
+import java.util.NoSuchElementException;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -223,6 +228,9 @@ class PersistenceTest {
     /**
      * Тест нацелен на проверку доступности данных,
      * которые находятся в состоянии записи в SSTable (flush).
+     * Производится запись больших данных и их моментальное чтение.
+     *
+     * @author Eldar Timraleev (aka CRaFT4ik)
      */
     @Test
     void hugeRecordsWriteReadFlushTest(@TempDir Path data) throws IOException {
@@ -247,6 +255,7 @@ class PersistenceTest {
 
                     Iterator<Record> range = dao.range(keyFrom, keyTo);
                     for (int j = 0; j < searchStep; j++) {
+                        assertTrue(range.hasNext());
                         verifyNext(suffix, range, startId + j);
                     }
                     assertFalse(range.hasNext());
@@ -273,8 +282,12 @@ class PersistenceTest {
         ByteBuffer key = keyWithSuffix(index, suffix);
         ByteBuffer value = valueWithSuffix(index, suffix);
 
-        Record next = range.next();
-
+        Record next;
+        try {
+            next = range.next();
+        } catch (NoSuchElementException e) {
+            throw e;
+        }
         assertEquals(key, next.getKey());
         assertEquals(value, next.getValue());
     }

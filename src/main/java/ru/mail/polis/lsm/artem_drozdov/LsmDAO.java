@@ -6,6 +6,7 @@ import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.DAOConfig;
 import ru.mail.polis.lsm.Record;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
 import java.io.IOException;
@@ -25,6 +26,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class LsmDAO implements DAO {
@@ -42,6 +44,10 @@ public class LsmDAO implements DAO {
     private final AtomicInteger memoryConsumption = new AtomicInteger();
     private final AtomicInteger memTableWriters = new AtomicInteger();
 
+    private final Object writeLock = new Object();
+    private final AtomicInteger readersCount = new AtomicInteger();
+    private final AtomicBoolean writerIsActive = new AtomicBoolean();
+
     /**
      * Create LsmDAO from config.
      *
@@ -57,24 +63,42 @@ public class LsmDAO implements DAO {
 
     @Override
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
-        synchronized (this) {
-            Iterator<Record> sstableRanges = sstableRanges(tables, fromKey, toKey);
-            Iterator<Record> memoryRange = map(memTable, fromKey, toKey).values().iterator();
-            Iterator<Record> iterator = mergeTwo(new PeekingIterator(sstableRanges), new PeekingIterator(memoryRange));
-
-            List<Iterator<Record>> flushedTables = new ArrayList<>(flushedMemTables.size());
-            for (MemTable flushedMemTable : flushedMemTables) {
-                Iterator<Record> flushMemoryRange = map(flushedMemTable, fromKey, toKey).values().iterator();
-                flushedTables.add(flushMemoryRange);
+        readersCount.incrementAndGet();
+        if (writerIsActive.get()) {
+            readersCount.decrementAndGet();
+            synchronized (writeLock) {
+                readersCount.incrementAndGet();
             }
+        }
 
-            iterator = mergeTwo(new PeekingIterator(iterator), new PeekingIterator(merge(flushedTables)));
-            return filterTombstones(iterator);
+        try {
+            return rangeImpl(fromKey, toKey);
+        } finally {
+            readersCount.decrementAndGet();
         }
     }
 
     @Override
-    public void upsert(Record record) {
+    public void upsert(@Nonnull Record record) {
+        upsertImpl(record);
+    }
+
+    private Iterator<Record> rangeImpl(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
+        Iterator<Record> sstableRanges = sstableRanges(tables, fromKey, toKey);
+        Iterator<Record> memoryRange = map(memTable, fromKey, toKey).values().iterator();
+        Iterator<Record> iterator = mergeTwo(new PeekingIterator(sstableRanges), new PeekingIterator(memoryRange));
+
+        List<Iterator<Record>> flushedTables = new ArrayList<>(flushedMemTables.size());
+        for (MemTable flushedMemTable : flushedMemTables) {
+            Iterator<Record> flushMemoryRange = map(flushedMemTable, fromKey, toKey).values().iterator();
+            flushedTables.add(flushMemoryRange);
+        }
+
+        iterator = mergeTwo(new PeekingIterator(iterator), new PeekingIterator(merge(flushedTables)));
+        return filterTombstones(iterator);
+    }
+
+    public void upsertImpl(Record record) {
         memTableWriters.incrementAndGet();
         while (memoryConsumption.addAndGet(sizeOf(record)) > config.memoryLimit) {
             memTableWriters.decrementAndGet();
@@ -152,27 +176,40 @@ public class LsmDAO implements DAO {
     @GuardedBy("this")
     private Future<?> scheduleFlush(MemTable memTable) {
         flushedMemTables.add(memTable);
-        Future<?> future = scheduleFlush();
+        Future<?> future = executorFlush.submit(new FlushTask());
         this.memTable = MemTable.newStorage(memTable.getId() + 1);
         return future;
     }
 
-    private Future<?> scheduleFlush() {
-        return executorFlush.submit(() -> {
-            synchronized (this) {
-                MemTable flushMemTable = flushedMemTables.poll();
-                if (flushMemTable == null) {
-                    return;
+    private class FlushTask implements Runnable {
+        @Override
+        public void run() {
+            synchronized (writeLock) {
+                writerIsActive.set(true);
+                while (readersCount.get() != 0) {
+                    Thread.onSpinWait();
                 }
-
-                try {
-                    flush(flushMemTable);
-                } catch (IOException e) {
-                    flushedMemTables.add(flushMemTable);
-                    LOG.error("flush error in FLUSH_EXECUTOR: {}", e.getMessage(), e);
+                synchronized (LsmDAO.this) {
+                    makeFlush();
                 }
+                writerIsActive.set(false);
             }
-        });
+        }
+
+        @GuardedBy("LsmDAO.this")
+        private void makeFlush() {
+            MemTable flushMemTable = flushedMemTables.poll();
+            if (flushMemTable == null) {
+                return;
+            }
+
+            try {
+                flush(flushMemTable);
+            } catch (IOException e) {
+                flushedMemTables.add(flushMemTable);
+                LOG.error("flush error in FLUSH_EXECUTOR: {}", e.getMessage(), e);
+            }
+        }
     }
 
     @GuardedBy("this")
