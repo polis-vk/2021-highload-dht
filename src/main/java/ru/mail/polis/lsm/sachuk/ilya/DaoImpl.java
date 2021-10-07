@@ -5,6 +5,7 @@ import ru.mail.polis.lsm.DAOConfig;
 import ru.mail.polis.lsm.Record;
 import ru.mail.polis.lsm.sachuk.ilya.iterators.MergeIterator;
 import ru.mail.polis.lsm.sachuk.ilya.iterators.PeekingIterator;
+import ru.mail.polis.lsm.sachuk.ilya.iterators.TombstoneFilteringIterator;
 
 import javax.annotation.Nullable;
 import java.io.File;
@@ -20,18 +21,13 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
-import java.util.Spliterator;
-import java.util.Spliterators;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentSkipListMap;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
-import java.util.stream.StreamSupport;
 
 public class DaoImpl implements DAO {
 
@@ -41,13 +37,11 @@ public class DaoImpl implements DAO {
     private NavigableMap<ByteBuffer, Record> tmpStorageForFlush = new ConcurrentSkipListMap<>();
 
     private final List<SSTable> ssTables = new ArrayList<>();
-    private final List<Future<?>> futureList = new ArrayList<>();
     private final ConcurrentLinkedQueue<Iterator<?>> queue = new ConcurrentLinkedQueue<>();
 
     private final ExecutorService executorService = Executors.newCachedThreadPool();
     private final AtomicInteger counter = new AtomicInteger(0);
     private final Object object = new Object();
-
 
     private final AtomicInteger memoryConsumption = new AtomicInteger();
     private final AtomicInteger nextSSTableNumber = new AtomicInteger();
@@ -74,13 +68,7 @@ public class DaoImpl implements DAO {
         Iterator<Record> memoryRange = map(fromKey, toKey).values().iterator();
         Iterator<Record> mergedIterators = mergeTwo(ssTableRanges, memoryRange);
 
-        return StreamSupport
-                .stream(
-                        Spliterators.spliteratorUnknownSize(mergedIterators, Spliterator.ORDERED),
-                        false
-                )
-                .filter(record -> !record.isTombstone())
-                .iterator();
+        return new TombstoneFilteringIterator(mergedIterators);
     }
 
     @Override
@@ -95,12 +83,10 @@ public class DaoImpl implements DAO {
 
                     queue.add(tmpStorageForFlush.values().iterator());
                     queueSize.addAndGet(1);
-                    futureList.add(executorService.submit(() -> prepareAndFlush(prev)));
+                    executorService.submit(() -> prepareAndFlush(prev));
 
                     while (queue.size() > 3) {
-                        if (queueSize.get() <= 3) {
-                            break;
-                        }
+                        queueSize.get();
                     }
                 }
             }
@@ -148,15 +134,6 @@ public class DaoImpl implements DAO {
             }
         }
 
-        for (Future<?> future : futureList) {
-            try {
-                future.get();
-            } catch (InterruptedException | ExecutionException e) {
-                Thread.currentThread().interrupt();
-                throw new IOException(e);
-            }
-        }
-
         if (memoryConsumption.get() > 0) {
             flush();
         }
@@ -196,7 +173,6 @@ public class DaoImpl implements DAO {
         counter.addAndGet(1);
 
         synchronized (object) {
-
             Iterator iterator;
             if (tmpStorageForFlush.isEmpty() && queue.isEmpty()) {
                 tmpStorageForFlush.putAll(memoryStorage);
