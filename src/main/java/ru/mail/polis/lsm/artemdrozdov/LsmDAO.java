@@ -82,11 +82,11 @@ public class LsmDAO implements DAO {
                 }
 
                 int prev = memoryConsumption.getAndSet(sizeOf(record));
-                memoryStorageToFlush = memoryStorage;
-                memoryStorage = newStorage();
+                memoryStorageToFlush = new ConcurrentSkipListMap<>(memoryStorage);
 
                 flushFuture.set(flushExecutor.submit(() -> {
                     try {
+                        memoryStorageToFlush.forEach((buffer, record1) -> memoryStorage.remove(buffer, record1));
                         flush(memoryStorageToFlush);
                     } catch (IOException e) {
                         memoryConsumption.addAndGet(prev);
