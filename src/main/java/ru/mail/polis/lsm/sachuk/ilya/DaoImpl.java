@@ -24,8 +24,10 @@ import java.util.Spliterator;
 import java.util.Spliterators;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -39,7 +41,8 @@ public class DaoImpl implements DAO {
     private final List<SSTable> ssTables = new ArrayList<>();
     private final ExecutorService executorService = Executors.newCachedThreadPool();
     private final AtomicInteger counter = new AtomicInteger(0);
-    private final ConcurrentLinkedQueue<Iterator> queue = new ConcurrentLinkedQueue<>();
+    private final ConcurrentLinkedQueue<Iterator<?>> queue = new ConcurrentLinkedQueue<>();
+    private final List<Future<?>> futureList = new ArrayList<>();
     private final Object object = new Object();
     private NavigableMap<ByteBuffer, Record> tmpStorageForFlush = new ConcurrentSkipListMap<>();
 
@@ -87,7 +90,7 @@ public class DaoImpl implements DAO {
                     memoryStorage = new ConcurrentSkipListMap<>();
 
                     queue.add(tmpStorageForFlush.values().iterator());
-                    executorService.submit(() -> prepareAndFlush(prev));
+                    futureList.add(executorService.submit(() -> prepareAndFlush(prev)));
 
                     while (queue.size() > 3) {
 
@@ -134,6 +137,15 @@ public class DaoImpl implements DAO {
 
         while (counter.get() != 0) {
 
+        }
+
+        for (Future<?> future : futureList) {
+            try {
+                future.get();
+            } catch (InterruptedException | ExecutionException e) {
+                Thread.currentThread().interrupt();
+                throw new IOException(e);
+            }
         }
 
         if (memoryConsumption.get() > 0) {
