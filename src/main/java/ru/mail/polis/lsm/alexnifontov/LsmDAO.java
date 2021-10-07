@@ -17,7 +17,6 @@ import java.util.NavigableMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -48,9 +47,9 @@ public class LsmDAO implements DAO {
     }
 
     public class Flush implements Runnable {
-        final int index;
-        final NavigableMap<ByteBuffer, Record> map;
-        final int fallbackMemory;
+        private final int index;
+        private final NavigableMap<ByteBuffer, Record> map;
+        private final int fallbackMemory;
 
         public Flush(int index,
                      NavigableMap<ByteBuffer, Record> map,
@@ -72,8 +71,8 @@ public class LsmDAO implements DAO {
                 flushFutures.remove(index);
                 tables.add(ssTable);
 
-                for (ByteBuffer index : map.keySet()) {
-                    flushingMemory.remove(index);
+                for (ByteBuffer key : map.keySet()) {
+                    flushingMemory.remove(key);
                 }
             } catch (IOException | InterruptedException | ExecutionException e) {
                 synchronized (localMemoryConsumption) {
@@ -165,7 +164,7 @@ public class LsmDAO implements DAO {
     }
 
     @Override
-    public void close() throws IOException {
+    public void close() {
         synchronized (this) {
             flush();
             executor.shutdown();
@@ -174,7 +173,7 @@ public class LsmDAO implements DAO {
                     executor.shutdownNow();
                 }
             } catch (InterruptedException e) {
-                executor.shutdownNow();
+                Thread.currentThread().interrupt();
             }
             executor = Executors.newWorkStealingPool();
         }
