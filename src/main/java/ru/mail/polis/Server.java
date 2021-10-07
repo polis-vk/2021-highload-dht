@@ -56,7 +56,8 @@ public final class Server {
         LOG.info("Storing data at {}", data);
 
         // Start the storage
-        try (DAO dao = DAOFactory.create(new DAOConfig(data))) {
+        try {
+            DAO dao = DAOFactory.create(new DAOConfig(data));
             final Service storage =
                     ServiceFactory.create(
                             PORT,
@@ -71,6 +72,8 @@ public final class Server {
                             throw new RuntimeException("Can't close dao", e);
                         }
                     }));
+        } catch (IOException e) {
+            LOG.error("", e);
         }
     }
 }
