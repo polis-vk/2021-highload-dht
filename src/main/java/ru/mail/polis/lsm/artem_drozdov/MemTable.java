@@ -8,11 +8,12 @@ import java.util.concurrent.ConcurrentSkipListMap;
 /**
  * Описывает MemTable - страницу памяти в RAM.
  */
-public class MemTable extends ConcurrentSkipListMap<ByteBuffer, Record> {
+public final class MemTable extends ConcurrentSkipListMap<ByteBuffer, Record> {
     /** Порядковый номер таблицы в памяти. */
     private final int id;
 
     private MemTable(int id) {
+        super();
         this.id = id;
     }
 

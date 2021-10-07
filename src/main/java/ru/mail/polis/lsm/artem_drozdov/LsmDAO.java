@@ -14,6 +14,7 @@ import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NoSuchElementException;
@@ -29,9 +30,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class LsmDAO implements DAO {
 
     private static final Logger LOG = LoggerFactory.getLogger(LsmDAO.class);
-    private final ExecutorService FLUSH_EXECUTOR = Executors.newSingleThreadScheduledExecutor();
+    private final ExecutorService executorFlush = Executors.newSingleThreadScheduledExecutor();
 
-    private volatile MemTable memTable;
+    private MemTable memTable;
     private final ConcurrentLinkedDeque<SSTable> tables = new ConcurrentLinkedDeque<>();
     public final ConcurrentLinkedQueue<MemTable> flushedMemTables = new ConcurrentLinkedQueue<>();
 
@@ -57,7 +58,7 @@ public class LsmDAO implements DAO {
     @Override
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
         synchronized (this) {
-            Iterator<Record> sstableRanges = sstableRanges(fromKey, toKey);
+            Iterator<Record> sstableRanges = sstableRanges(tables, fromKey, toKey);
             Iterator<Record> memoryRange = map(memTable, fromKey, toKey).values().iterator();
             Iterator<Record> iterator = mergeTwo(new PeekingIterator(sstableRanges), new PeekingIterator(memoryRange));
 
@@ -77,13 +78,6 @@ public class LsmDAO implements DAO {
         memTableWriters.incrementAndGet();
         while (memoryConsumption.addAndGet(sizeOf(record)) > config.memoryLimit) {
             memTableWriters.decrementAndGet();
-
-            // Это остатки костыля для исправления ошибки OutOfMemoryException,
-            // без которых все в один момент заработало. Но если вдруг...
-            // Ошибка возникала, когда в куче (flushedMemTables) собиралось слишком много данных.
-//            while (flushedMemTables.size() > 3) {
-//                Thread.onSpinWait();
-//            }
 
             synchronized (this) {
                 // Если в данный блок попали друг за другом два и более потока, значит каждый из них
@@ -125,7 +119,7 @@ public class LsmDAO implements DAO {
     /**
      * Активно и, что очень важно, недолго ожидаем медленные потоки,
      * которые ещё не завершили запись в memTable.
-     * Применяется, например, при выгрузке memTable в SSTable.
+     * Например, применяется при выгрузке memTable в SSTable.
      */
     @GuardedBy("this")
     private void waitMemTableWriters() {
@@ -152,7 +146,7 @@ public class LsmDAO implements DAO {
             LOG.error("flush error in close(): {}", e.getMessage(), e);
         }
 
-        FLUSH_EXECUTOR.shutdown();
+        executorFlush.shutdown();
     }
 
     @GuardedBy("this")
@@ -164,16 +158,18 @@ public class LsmDAO implements DAO {
     }
 
     private Future<?> scheduleFlush() {
-        return FLUSH_EXECUTOR.submit(() -> {
-            synchronized (LsmDAO.this) {
-                MemTable memTable = flushedMemTables.poll();
-                if (memTable == null) return;
+        return executorFlush.submit(() -> {
+            synchronized (this) {
+                MemTable flushMemTable = flushedMemTables.poll();
+                if (flushMemTable == null) {
+                    return;
+                }
 
                 try {
-                    flush(memTable);
+                    flush(flushMemTable);
                 } catch (IOException e) {
+                    flushedMemTables.add(flushMemTable);
                     LOG.error("flush error in FLUSH_EXECUTOR: {}", e.getMessage(), e);
-                    flushedMemTables.add(memTable);
                 }
             }
         });
@@ -188,8 +184,9 @@ public class LsmDAO implements DAO {
         tables.add(ssTable);
     }
 
-//    @GuardedBy("this")
-    private Iterator<Record> sstableRanges(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
+    private Iterator<Record> sstableRanges(
+            Deque<SSTable> tables, @Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey
+    ) {
         List<Iterator<Record>> iterators = new ArrayList<>(tables.size());
         for (SSTable ssTable : tables) {
             iterators.add(ssTable.range(fromKey, toKey));
@@ -197,7 +194,9 @@ public class LsmDAO implements DAO {
         return merge(iterators);
     }
 
-    private SortedMap<ByteBuffer, Record> map(MemTable memTable, @Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
+    private SortedMap<ByteBuffer, Record> map(
+            MemTable memTable, @Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey
+    ) {
         if (fromKey == null && toKey == null) {
             return memTable;
         }

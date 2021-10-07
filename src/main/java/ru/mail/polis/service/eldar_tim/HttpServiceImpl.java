@@ -18,7 +18,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
-import java.util.concurrent.Executor;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -31,14 +30,14 @@ public class HttpServiceImpl extends HttpServer implements Service {
     private static final Logger LOG = LoggerFactory.getLogger(HttpServiceImpl.class);
 
     private final DAO dao;
-    private final ExecutorService SERVICE_EXECUTOR;
+    private final ExecutorService executorService;
 
     public HttpServiceImpl(final int port, final DAO dao) throws IOException {
         super(buildHttpServerConfig(port));
         this.dao = dao;
 
         int processors = Runtime.getRuntime().availableProcessors();
-        this.SERVICE_EXECUTOR = Executors.newFixedThreadPool(processors);
+        this.executorService = Executors.newFixedThreadPool(processors);
     }
 
     private static HttpServerConfig buildHttpServerConfig(final int port) {
@@ -55,7 +54,7 @@ public class HttpServiceImpl extends HttpServer implements Service {
     @Override
     public synchronized void stop() {
         super.stop();
-        SERVICE_EXECUTOR.shutdown();
+        executorService.shutdown();
     }
 
     @Override
@@ -65,8 +64,8 @@ public class HttpServiceImpl extends HttpServer implements Service {
     }
 
     @Path("/v0/status")
-    public void getStatus(HttpSession session) {
-        SERVICE_EXECUTOR.execute(() -> {
+    public void status(HttpSession session) {
+        executorService.execute(() -> {
             try {
                 Response response = Response.ok(Response.OK);
                 session.sendResponse(response);
@@ -77,8 +76,8 @@ public class HttpServiceImpl extends HttpServer implements Service {
     }
 
     @Path("/v0/entity")
-    public void getEntity(Request request, HttpSession session, @Param(value = "id", required = true) final String id) {
-        SERVICE_EXECUTOR.execute(() -> {
+    public void entity(Request request, HttpSession session, @Param(value = "id", required = true) final String id) {
+        executorService.execute(() -> {
             try {
                 if (id.isBlank()) {
                     Response response = new Response(Response.BAD_REQUEST, "Bad id".getBytes(StandardCharsets.UTF_8));
@@ -99,6 +98,7 @@ public class HttpServiceImpl extends HttpServer implements Service {
                         break;
                     default:
                         response = new Response(Response.METHOD_NOT_ALLOWED);
+                        break;
                 }
                 session.sendResponse(response);
             } catch (IOException e) {

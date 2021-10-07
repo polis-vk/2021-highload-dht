@@ -220,41 +220,6 @@ class PersistenceTest {
         assertTrue(beforeCompactSize / 50 > size);
     }
 
-    /**
-     * Тест нацелен на проверку доступности данных,
-     * которые находятся в состоянии записи в SSTable (flush).
-     */
-    @Test
-    void hugeRecordsWriteReadFlushTest(@TempDir Path data) throws IOException {
-        // Reference value
-        int size = 1024 * 1024;
-        byte[] suffix = sizeBasedRandomData(size);
-        int recordsCount = (int) (TestDaoWrapper.MAX_HEAP * 15 / size);
-
-        int searchStep = 4;
-
-        try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
-            for (int i = 0; i < recordsCount; i++) {
-                ByteBuffer key = keyWithSuffix(i, suffix);
-                ByteBuffer value = valueWithSuffix(i, suffix);
-
-                dao.upsert(Record.of(key, value));
-
-                if (i >= searchStep && i % searchStep == 0) {
-                    int startId = i - searchStep;
-                    ByteBuffer keyFrom = keyWithSuffix(startId, suffix);
-                    ByteBuffer keyTo = keyWithSuffix(startId + searchStep, suffix);
-
-                    Iterator<Record> range = dao.range(keyFrom, keyTo);
-                    for (int j = 0; j < searchStep; j++) {
-                        verifyNext(suffix, range, startId + j);
-                    }
-                    assertFalse(range.hasNext());
-                }
-            }
-        }
-    }
-
     private int getDirSize(Path data) throws IOException {
         int[] size = new int[1];
 
