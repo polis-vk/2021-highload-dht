@@ -3,6 +3,7 @@ package ru.mail.polis.lsm.artem_drozdov;
 import ru.mail.polis.lsm.Record;
 import ru.mail.polis.lsm.artem_drozdov.util.FileUtils;
 import ru.mail.polis.lsm.artem_drozdov.util.RecordIterators;
+import ru.mail.polis.lsm.artem_drozdov.util.Writers;
 
 import javax.annotation.Nullable;
 import java.io.Closeable;
@@ -13,7 +14,6 @@ import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
-import java.nio.channels.WritableByteChannel;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
@@ -21,7 +21,6 @@ import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Objects;
 import java.util.stream.Stream;
 
 public class SSTable implements Closeable {
@@ -81,10 +80,10 @@ public class SSTable implements Closeable {
                 if (position > Integer.MAX_VALUE) {
                     throw new IllegalStateException("File is too long");
                 }
-                writeInt((int) position, indexChannel, size);
+                Writers.writeInt((int) position, indexChannel, size);
 
                 Record record = records.next();
-                writeRecord(record, fileChannel, size);
+                Writers.writeRecord(record, fileChannel, size);
             }
             fileChannel.force(false);
         }
@@ -193,68 +192,6 @@ public class SSTable implements Closeable {
         if (exception != null) {
             throw exception;
         }
-    }
-
-    private static void writeRecord(Record record, WritableByteChannel channel, ByteBuffer tmp) throws IOException {
-        final boolean isTombstone = record.isTombstone();
-        final int keyWriteSize = Integer.BYTES + record.getKeySize();
-        final int recordWriteSize = keyWriteSize + Integer.BYTES +
-                (isTombstone ? Integer.BYTES : record.getValueSize());
-
-        if (tmp.capacity() > recordWriteSize) {
-            tmp.position(0);
-            putValueWithSizeToBuffer(record.getKey(), tmp);
-            if (isTombstone) {
-                tmp.putInt(-1);
-            } else {
-                ByteBuffer value = Objects.requireNonNull(record.getValue());
-                putValueWithSizeToBuffer(value, tmp);
-            }
-            tmp.flip();
-            channel.write(tmp);
-            tmp.limit(tmp.capacity());
-            return;
-        }
-
-        writeValueWithSize(record.getKey(), channel, tmp);
-        if (isTombstone) {
-            writeInt(-1, channel, tmp);
-        } else {
-            // value is null for tombstones only
-            ByteBuffer value = Objects.requireNonNull(record.getValue());
-            writeValueWithSize(value, channel, tmp);
-        }
-    }
-
-    private static void putValueWithSizeToBuffer(ByteBuffer value, ByteBuffer tmp) {
-        tmp.putInt(value.remaining());
-        tmp.put(value);
-    }
-
-    private static void writeValueWithSize(ByteBuffer value,
-                                           WritableByteChannel channel,
-                                           ByteBuffer tmp) throws IOException {
-        tmp.position(0);
-        if (tmp.capacity() > value.remaining() + Integer.BYTES) {
-            tmp.position(0);
-            putValueWithSizeToBuffer(value, tmp);
-            tmp.flip();
-            channel.write(tmp);
-            tmp.limit(tmp.capacity());
-            return;
-        }
-
-        writeInt(value.remaining(), channel, tmp);
-        channel.write(value);
-    }
-
-    private static void writeInt(int value, WritableByteChannel channel, ByteBuffer tmp) throws IOException {
-        tmp.position(0);
-        tmp.putInt(value);
-        tmp.flip();
-
-        channel.write(tmp);
-        tmp.limit(tmp.capacity());
     }
 
     private static MappedByteBuffer open(Path name) throws IOException {

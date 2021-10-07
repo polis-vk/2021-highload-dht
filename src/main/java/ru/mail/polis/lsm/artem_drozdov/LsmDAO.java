@@ -16,6 +16,7 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.NavigableMap;
 import java.util.SortedMap;
+import java.util.concurrent.Callable;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.ExecutionException;
@@ -35,10 +36,9 @@ public class LsmDAO implements DAO {
     private final AtomicInteger currentIndex = new AtomicInteger(0);
     private final ConcurrentLinkedDeque<NavigableMap<ByteBuffer, Record>> flushingStorages =
             new ConcurrentLinkedDeque<>();
-    private NavigableMap<ByteBuffer, Record> memoryStorage;
+    volatile private NavigableMap<ByteBuffer, Record> memoryStorage;
     private final ConcurrentLinkedDeque<SSTable> tables = new ConcurrentLinkedDeque<>();
     private final ArrayDeque<Future<?>> runningFlushes = new ArrayDeque<>();
-
 
     @SuppressWarnings({"FieldCanBeLocal", "unused"})
     private final DAOConfig config;
@@ -57,12 +57,15 @@ public class LsmDAO implements DAO {
     @Override
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
         Iterator<Record> sstableRanges = sstableRanges(fromKey, toKey);
-        Iterator<Record> memoryRange = new RecordIterators.MergingIterator(
-                new RecordIterators.PeekingIterator(
-                        RecordIterators.merge(flushingStorages.stream().map(storage -> map(storage, fromKey, toKey))
-                                .collect(Collectors.toList()))
-                ),
-                new RecordIterators.PeekingIterator(map(memoryStorage, fromKey, toKey)));
+        Iterator<Record> memoryRange;
+        synchronized (this) {
+            memoryRange = new RecordIterators.MergingIterator(
+                    new RecordIterators.PeekingIterator(
+                            RecordIterators.merge(flushingStorages.stream().map(storage -> map(storage, fromKey, toKey))
+                                    .collect(Collectors.toList()))
+                    ),
+                    new RecordIterators.PeekingIterator(map(memoryStorage, fromKey, toKey)));
+        }
         Iterator<Record> iterator = new RecordIterators.MergingIterator(
                 new RecordIterators.PeekingIterator(sstableRanges),
                 new RecordIterators.PeekingIterator(memoryRange)
@@ -82,15 +85,18 @@ public class LsmDAO implements DAO {
                     while (Runtime.getRuntime().freeMemory() < this.flushMemoryThreshold && !runningFlushes.isEmpty()) {
                         try {
                             runningFlushes.poll().get();
-                        } catch (InterruptedException | ExecutionException e) {
-                            e.printStackTrace();
+                        } catch ( ExecutionException e) {
+                            break;
+                        } catch (InterruptedException e) {
+                            Thread.currentThread().interrupt();
                         }
                     }
 
                     synchronized (memoryConsumption) {
                         final int flushIndex = currentIndex.getAndAdd(1);
                         final Future<?> future = executorService.submit(
-                                this.runnableFlush(flushIndex, memoryStorage, memoryConsumption.get(), getLastSubmittedFlush())
+                                this.runnableFlush(flushIndex, memoryStorage, memoryConsumption.get(),
+                                        getLastSubmittedFlush())
                         );
                         runningFlushes.add(future);
 
@@ -137,55 +143,60 @@ public class LsmDAO implements DAO {
                     executorService.shutdownNow();
                 }
             } catch (InterruptedException e) {
-                executorService.shutdownNow();
+                Thread.currentThread().interrupt();
             }
 
             executorService = Executors.newWorkStealingPool();
             synchronized (memoryConsumption) {
                 final int flushIndex = currentIndex.getAndIncrement();
-                flush(flushIndex, memoryStorage, getLastSubmittedFlush());
+                try {
+                    flush(flushIndex, memoryStorage, memoryConsumption.get(), getLastSubmittedFlush());
+                } catch (ExecutionException e) {
+                    if (e.getCause() instanceof IOException) {
+                        throw new UncheckedIOException((IOException) e.getCause());
+                    }
+                }
                 memoryConsumption.set(0);
                 memoryStorage = newStorage();
             }
         }
     }
 
-    private Runnable runnableFlush(int index, NavigableMap<ByteBuffer, Record> memoryStorage,
-                                   int memoryTableConsumption, @Nullable Future<?> prevFlush) {
-        return () -> {
-            this.runningFlushesCount.incrementAndGet();
-            try {
-                flush(index, memoryStorage, prevFlush);
-            } catch (IOException e) {
-                synchronized (memoryConsumption) {
-                    this.memoryStorage.putAll(memoryStorage);
-                    memoryConsumption.getAndAdd(memoryTableConsumption);
-                }
-            } finally {
-                this.runningFlushesCount.decrementAndGet();
-            }
-        };
-    }
-
     private synchronized @Nullable Future<?> getLastSubmittedFlush() {
         return runningFlushes.isEmpty() ? null : runningFlushes.peek();
     }
 
+    private Callable<Void> runnableFlush(int index, NavigableMap<ByteBuffer, Record> memoryStorage,
+                                   int memoryTableConsumption, @Nullable Future<?> prevFlush) {
+        return () -> {
+            this.runningFlushesCount.incrementAndGet();
+            flush(index, memoryStorage, memoryTableConsumption, prevFlush);
+            this.runningFlushesCount.decrementAndGet();
+            return null;
+        };
+    }
+
     private void flush(int index,
                        NavigableMap<ByteBuffer, Record> memoryStorage,
-                       @Nullable Future<?> prevFlush) throws IOException {
-        Path dir = config.dir;
-        Path file = dir.resolve(SSTable.SSTABLE_FILE_PREFIX + index);
-        SSTable ssTable = SSTable.write(memoryStorage.values().iterator(), file);
+                       int memoryTableConsumption,
+                       @Nullable Future<?> prevFlush) throws ExecutionException {
+        try {
+            Path dir = config.dir;
+            Path file = dir.resolve(SSTable.SSTABLE_FILE_PREFIX + index);
+            SSTable ssTable = SSTable.write(memoryStorage.values().iterator(), file);
 
-        if (prevFlush != null) {
-            try {
+            if (prevFlush != null) {
                 prevFlush.get();
-            } catch (InterruptedException | ExecutionException ignored) {
             }
+            tables.add(ssTable);
+            flushingStorages.poll();
+        } catch (ExecutionException | IOException | InterruptedException e) {
+            synchronized (memoryConsumption) {
+                this.memoryStorage.putAll(memoryStorage);
+                memoryConsumption.getAndAdd(memoryTableConsumption);
+            }
+            throw new ExecutionException(e);
         }
-        tables.add(ssTable);
-        flushingStorages.poll();
     }
 
     private Iterator<Record> sstableRanges(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
