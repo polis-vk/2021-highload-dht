@@ -91,6 +91,7 @@ public class LsmDAO implements DAO {
                     } catch (IOException e) {
                         memoryConsumption.addAndGet(prev);
                         memoryStorage.putAll(memoryStorageToFlush);
+                        logger.warn("Error while flushing. ", e);
                     }
                 }));
             }
