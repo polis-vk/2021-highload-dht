@@ -114,6 +114,7 @@ public class LsmDAO implements DAO {
                     scheduleFlush(memTable);
 
                     memoryConsumption.getAndSet(sizeOf(record));
+                    memTableWriters.incrementAndGet();
                     break;
                 }
                 memTableWriters.incrementAndGet();
