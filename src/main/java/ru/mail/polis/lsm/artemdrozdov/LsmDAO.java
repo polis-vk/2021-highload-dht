@@ -52,6 +52,19 @@ public class LsmDAO implements DAO {
         tables.addAll(ssTables);
     }
 
+    private void waitForFlushFutureResult() {
+        if (flushFuture.get() != null) {
+            try {
+                flushFuture.get().get();
+            } catch (ExecutionException e) {
+                logger.error("Error waiting 'flushFuture'. ", e);
+            } catch (InterruptedException e) {
+                logger.error("Interruption waiting 'flushFuture'. ", e);
+                Thread.currentThread().interrupt();
+            }
+        }
+    }
+
     @Override
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
         Iterator<Record> sstableRanges = sstableRanges(fromKey, toKey);
@@ -73,16 +86,7 @@ public class LsmDAO implements DAO {
                     return;
                 }
 
-                if (flushFuture.get() != null) {
-                    try {
-                        flushFuture.get().get();
-                    } catch (ExecutionException e) {
-                        logger.error("Error waiting 'flushFuture' in 'upsert' method.", e);
-                    } catch (InterruptedException e) {
-                        logger.error("Interruption waiting 'flushFuture' in 'upsert' method.", e);
-                        Thread.currentThread().interrupt();
-                    }
-                }
+                waitForFlushFutureResult();
 
                 int prev = memoryConsumption.getAndSet(sizeOf(record));
                 memoryStorageToFlush = new ConcurrentSkipListMap<>(memoryStorage);
@@ -129,17 +133,7 @@ public class LsmDAO implements DAO {
     @Override
     public void close() throws IOException {
         flushExecutor.shutdown();
-
-        if (flushFuture.get() != null) {
-            try {
-                flushFuture.get().get();
-            } catch (ExecutionException e) {
-                logger.error("Error waiting 'flushFuture' in 'close' method.", e);
-            } catch (InterruptedException e) {
-                logger.error("Error waiting 'flushFuture' in 'close' method.", e);
-                Thread.currentThread().interrupt();
-            }
-        }
+        waitForFlushFutureResult();
 
         flush(memoryStorage);
     }
