@@ -36,7 +36,7 @@ public class LsmDAO implements DAO {
     private static final Logger LOG = LoggerFactory.getLogger(LsmDAO.class);
     private final ExecutorService executorFlush = Executors.newSingleThreadScheduledExecutor();
 
-    private MemTable memTable;
+    private volatile MemTable memTable;
     private final ConcurrentLinkedDeque<SSTable> tables = new ConcurrentLinkedDeque<>();
     public final ConcurrentLinkedQueue<MemTable> flushedMemTables = new ConcurrentLinkedQueue<>();
 
@@ -114,7 +114,7 @@ public class LsmDAO implements DAO {
                     // медленного и вредного потока, который никак не может
                     // записать своё значение в memTable после всех проверок.
                     waitMemTableWriters();
-                    scheduleFlush(memTable);
+                    scheduleFlush(false);
 
                     memoryConsumption.getAndSet(sizeOf(record));
                     memTableWriters.incrementAndGet();
@@ -161,25 +161,21 @@ public class LsmDAO implements DAO {
 
     @Override
     public void close() {
-        final Future<?> future;
         synchronized (this) {
             waitMemTableWriters();
-            future = scheduleFlush(memTable);
-        }
-
-        try {
-            future.get();
-        } catch (InterruptedException | ExecutionException e) {
-            LOG.error("flush error in close(): {}", e.getMessage(), e);
+            scheduleFlush(true);
         }
 
         executorFlush.shutdown();
     }
 
     @GuardedBy("this")
-    private Future<?> scheduleFlush(MemTable memTable) {
-        flushedMemTables.add(memTable);
-        Future<?> future = executorFlush.submit(() -> {
+    private void scheduleFlush(boolean blocking) {
+        MemTable flushingTable = memTable;
+        flushedMemTables.add(flushingTable);
+        memTable = MemTable.newStorage(flushingTable.getId() + 1);
+
+        Future<?> flashFuture = executorFlush.submit(() -> {
             synchronized (writeLock) {
                 writerIsActive.set(true);
                 while (readersCount.get() != 0) {
@@ -191,8 +187,14 @@ public class LsmDAO implements DAO {
                 writerIsActive.set(false);
             }
         });
-        this.memTable = MemTable.newStorage(memTable.getId() + 1);
-        return future;
+
+        if (flushedMemTables.size() > config.flushQueueLimit || blocking) {
+            try {
+                flashFuture.get();
+            } catch (InterruptedException | ExecutionException e) {
+                LOG.error("flush error: {}", e.getMessage(), e);
+            }
+        }
     }
 
     @GuardedBy("this")
@@ -211,7 +213,7 @@ public class LsmDAO implements DAO {
 
             flushedMemTables.poll();
         } catch (IOException e) {
-            LOG.error("flush error in FLUSH_EXECUTOR: {}", e.getMessage(), e);
+            LOG.error("flush error: {}", e.getMessage(), e);
         }
     }
 
