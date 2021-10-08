@@ -197,7 +197,7 @@ public class LsmDAO implements DAO {
 
     @GuardedBy("this")
     private void makeFlush() {
-        MemTable flushMemTable = flushedMemTables.poll();
+        MemTable flushMemTable = flushedMemTables.peek();
         if (flushMemTable == null) {
             return;
         }
@@ -208,8 +208,9 @@ public class LsmDAO implements DAO {
 
             SSTable ssTable = SSTable.write(flushMemTable.values().iterator(), file);
             tables.add(ssTable);
+
+            flushedMemTables.poll();
         } catch (IOException e) {
-            flushedMemTables.add(flushMemTable);
             LOG.error("flush error in FLUSH_EXECUTOR: {}", e.getMessage(), e);
         }
     }
