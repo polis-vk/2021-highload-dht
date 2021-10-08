@@ -5,6 +5,9 @@ import org.slf4j.LoggerFactory;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.DAOConfig;
 import ru.mail.polis.lsm.Record;
+import ru.mail.polis.lsm.artem_drozdov.iterators.MergeIterator;
+import ru.mail.polis.lsm.artem_drozdov.iterators.PeekingIterator;
+import ru.mail.polis.lsm.artem_drozdov.iterators.TombstonesFilterIterator;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -102,10 +105,10 @@ public class LsmDAO implements DAO {
         while (memoryConsumption.addAndGet(sizeOf(record)) > config.memoryLimit) {
             memTableWriters.decrementAndGet();
 
+            // Если в данный блок попали друг за другом два и более потока, значит каждый из них
+            // увеличил общий счетчик ранее, а первый зашедший в synchronized сбросил его.
+            // Для остальных потоков нужно снова его увеличить. С этим поможет while.
             synchronized (this) {
-                // Если в данный блок попали друг за другом два и более потока, значит каждый из них
-                // увеличил общий счетчик ранее, а первый пришедший сбросил его.
-                // Для остальных потоков нужно снова его увеличить. С этим поможет while.
                 if (memoryConsumption.get() > config.memoryLimit) {
                     // Применяем активное ожидание, чтобы избавиться от
                     // медленного и вредного потока, который никак не может

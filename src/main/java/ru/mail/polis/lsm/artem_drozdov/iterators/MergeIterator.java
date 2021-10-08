@@ -1,4 +1,4 @@
-package ru.mail.polis.lsm.artem_drozdov;
+package ru.mail.polis.lsm.artem_drozdov.iterators;
 
 import ru.mail.polis.lsm.Record;
 
@@ -11,7 +11,7 @@ public final class MergeIterator implements Iterator<Record> {
     private final PeekingIterator left;
     private final PeekingIterator right;
 
-    MergeIterator(PeekingIterator left, PeekingIterator right) {
+    public MergeIterator(PeekingIterator left, PeekingIterator right) {
         this.left = left;
         this.right = right;
     }

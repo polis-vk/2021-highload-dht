@@ -1,4 +1,4 @@
-package ru.mail.polis.lsm.artem_drozdov;
+package ru.mail.polis.lsm.artem_drozdov.iterators;
 
 import ru.mail.polis.lsm.Record;
 
@@ -10,7 +10,7 @@ public final class RangeIterator implements Iterator<Record> {
     private final ByteBuffer buffer;
     private final int toOffset;
 
-    RangeIterator(ByteBuffer buffer, int toOffset) {
+    public RangeIterator(ByteBuffer buffer, int toOffset) {
         this.buffer = buffer;
         this.toOffset = toOffset;
     }

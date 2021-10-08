@@ -1,6 +1,7 @@
 package ru.mail.polis.lsm.artem_drozdov;
 
 import ru.mail.polis.lsm.Record;
+import ru.mail.polis.lsm.artem_drozdov.iterators.RangeIterator;
 
 import javax.annotation.Nullable;
 import java.io.Closeable;
