@@ -76,8 +76,11 @@ public class LsmDAO implements DAO {
                 if (flushFuture.get() != null) {
                     try {
                         flushFuture.get().get();
-                    } catch (InterruptedException | ExecutionException e) {
-                        logger.error("Error wiiting 'flushFuture' in 'upsert' method.", e);
+                    } catch (ExecutionException e) {
+                        logger.error("Error waiting 'flushFuture' in 'upsert' method.", e);
+                    } catch (InterruptedException e) {
+                        logger.error("Interruption waiting 'flushFuture' in 'upsert' method.", e);
+                        Thread.currentThread().interrupt();
                     }
                 }
 
@@ -130,8 +133,11 @@ public class LsmDAO implements DAO {
         if (flushFuture.get() != null) {
             try {
                 flushFuture.get().get();
-            } catch (InterruptedException | ExecutionException e) {
-                logger.error("Error wiiting 'flushFuture' in 'close' method.", e);
+            } catch (ExecutionException e) {
+                logger.error("Error waiting 'flushFuture' in 'close' method.", e);
+            } catch (InterruptedException e) {
+                logger.error("Error waiting 'flushFuture' in 'close' method.", e);
+                Thread.currentThread().interrupt();
             }
         }
 
