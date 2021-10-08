@@ -79,18 +79,12 @@ public class LsmDAO implements DAO {
 
     private Iterator<Record> rangeImpl(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
         Iterator<Record> sstableRanges = sstableRanges(tables, fromKey, toKey);
-        Iterator<Record> memoryRange = map(memTable.get(), fromKey, toKey).values().iterator();
-        Iterator<Record> iterator;
 
-        MemTable flushingMemory = flushingMemTable.get();
-        if (flushingMemory != null) {
-            Iterator<Record> flushingMemoryRange = map(flushingMemTable.get(), fromKey, toKey).values().iterator();
-            iterator = mergeTwo(new PeekingIterator(sstableRanges), new PeekingIterator(flushingMemoryRange));
-            iterator = mergeTwo(new PeekingIterator(iterator), new PeekingIterator(memoryRange));
-        } else {
-            iterator = mergeTwo(new PeekingIterator(sstableRanges), new PeekingIterator(memoryRange));
-        }
+        Iterator<Record> flushingMemTableIterator = map(flushingMemTable.get(), fromKey, toKey).values().iterator();
+        Iterator<Record> memTableIterator = map(memTable.get(), fromKey, toKey).values().iterator();
+        Iterator<Record> memoryRanges = mergeTwo(flushingMemTableIterator, memTableIterator);
 
+        Iterator<Record> iterator = mergeTwo(sstableRanges, memoryRanges);
         return filterTombstones(iterator);
     }
 
@@ -241,15 +235,15 @@ public class LsmDAO implements DAO {
             return iterators.get(0);
         }
         if (iterators.size() == 2) {
-            return mergeTwo(new PeekingIterator(iterators.get(0)), new PeekingIterator(iterators.get(1)));
+            return mergeTwo(iterators.get(0), iterators.get(1));
         }
         Iterator<Record> left = merge(iterators.subList(0, iterators.size() / 2));
         Iterator<Record> right = merge(iterators.subList(iterators.size() / 2, iterators.size()));
-        return mergeTwo(new PeekingIterator(left), new PeekingIterator(right));
+        return mergeTwo(left, right);
     }
 
-    private static Iterator<Record> mergeTwo(PeekingIterator left, PeekingIterator right) {
-        return new MergeIterator(left, right);
+    private static Iterator<Record> mergeTwo(Iterator<Record> left, Iterator<Record> right) {
+        return new MergeIterator(new PeekingIterator(left), new PeekingIterator(right));
     }
 
     private static Iterator<Record> filterTombstones(Iterator<Record> iterator) {
