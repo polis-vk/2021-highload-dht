@@ -16,31 +16,23 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Deque;
-import java.util.Iterator;
-import java.util.List;
-import java.util.SortedMap;
-import java.util.concurrent.ConcurrentLinkedDeque;
-import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
+import java.util.*;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class LsmDAO implements DAO {
 
     private static final Logger LOG = LoggerFactory.getLogger(LsmDAO.class);
     private final ExecutorService executorFlush = Executors.newSingleThreadScheduledExecutor();
 
-    private volatile MemTable memTable;
+    private final AtomicReference<MemTable> memTable = new AtomicReference<>();
+    private final AtomicReference<MemTable> flushingMemTable = new AtomicReference<>();
     private final ConcurrentLinkedDeque<SSTable> tables = new ConcurrentLinkedDeque<>();
-    public final ConcurrentLinkedQueue<MemTable> flushedMemTables = new ConcurrentLinkedQueue<>();
 
-    @SuppressWarnings({"FieldCanBeLocal", "unused"})
+    private volatile Future<?> flushingFuture;
+
     private final DAOConfig config;
 
     private final AtomicInteger memoryConsumption = new AtomicInteger();
@@ -60,7 +52,7 @@ public class LsmDAO implements DAO {
         this.config = config;
         List<SSTable> ssTables = SSTable.loadFromDir(config.dir);
         tables.addAll(ssTables);
-        memTable = MemTable.newStorage(tables.size());
+        memTable.set(MemTable.newStorage(tables.size()));
     }
 
     @Override
@@ -87,16 +79,18 @@ public class LsmDAO implements DAO {
 
     private Iterator<Record> rangeImpl(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
         Iterator<Record> sstableRanges = sstableRanges(tables, fromKey, toKey);
-        Iterator<Record> memoryRange = map(memTable, fromKey, toKey).values().iterator();
-        Iterator<Record> iterator = mergeTwo(new PeekingIterator(sstableRanges), new PeekingIterator(memoryRange));
+        Iterator<Record> memoryRange = map(memTable.get(), fromKey, toKey).values().iterator();
+        Iterator<Record> iterator;
 
-        List<Iterator<Record>> flushedTables = new ArrayList<>(flushedMemTables.size());
-        for (MemTable flushedMemTable : flushedMemTables) {
-            Iterator<Record> flushMemoryRange = map(flushedMemTable, fromKey, toKey).values().iterator();
-            flushedTables.add(flushMemoryRange);
+        MemTable flushingMemory = flushingMemTable.get();
+        if (flushingMemory != null) {
+            Iterator<Record> flushingMemoryRange = map(flushingMemTable.get(), fromKey, toKey).values().iterator();
+            iterator = mergeTwo(new PeekingIterator(sstableRanges), new PeekingIterator(flushingMemoryRange));
+            iterator = mergeTwo(new PeekingIterator(iterator), new PeekingIterator(memoryRange));
+        } else {
+            iterator = mergeTwo(new PeekingIterator(sstableRanges), new PeekingIterator(memoryRange));
         }
 
-        iterator = mergeTwo(new PeekingIterator(iterator), new PeekingIterator(merge(flushedTables)));
         return filterTombstones(iterator);
     }
 
@@ -114,7 +108,7 @@ public class LsmDAO implements DAO {
                     // медленного и вредного потока, который никак не может
                     // записать своё значение в memTable после всех проверок.
                     waitMemTableWriters();
-                    scheduleFlush(false);
+                    scheduleFlush();
 
                     memoryConsumption.getAndSet(sizeOf(record));
                     memTableWriters.incrementAndGet();
@@ -124,7 +118,7 @@ public class LsmDAO implements DAO {
             }
         }
 
-        memTable.put(record.getKey(), record);
+        memTable.get().put(record.getKey(), record);
         memTableWriters.decrementAndGet();
     }
 
@@ -139,7 +133,7 @@ public class LsmDAO implements DAO {
             }
             tables.clear();
             tables.add(table);
-            memTable = MemTable.newStorage(tables.size());
+            memTable.set(MemTable.newStorage(tables.size()));
         }
     }
 
@@ -163,55 +157,52 @@ public class LsmDAO implements DAO {
     public void close() {
         synchronized (this) {
             waitMemTableWriters();
-            scheduleFlush(true);
+            scheduleFlush();
         }
 
         executorFlush.shutdown();
     }
 
     @GuardedBy("this")
-    private void scheduleFlush(boolean blocking) {
-        MemTable flushingTable = memTable;
-        flushedMemTables.add(flushingTable);
-        memTable = MemTable.newStorage(flushingTable.getId() + 1);
+    private void scheduleFlush() {
+        Future<?> flFuture = flushingFuture;
+        if (flFuture != null) {
+            try {
+                flFuture.get();
+            } catch (InterruptedException | ExecutionException e) {
+                LOG.error("flush wait error: {}", e.getMessage(), e);
+            }
+        }
 
-        Future<?> flashFuture = executorFlush.submit(() -> {
+        assert flushingMemTable.get() == null;
+
+        MemTable flushingTable = memTable.get();
+        flushingMemTable.set(flushingTable);
+        memTable.set(MemTable.newStorage(flushingTable.getId() + 1));
+
+        flushingFuture = executorFlush.submit(() -> {
             synchronized (writeLock) {
                 writerIsActive.set(true);
                 while (readersCount.get() != 0) {
                     Thread.onSpinWait();
                 }
-                synchronized (this) {
-                    makeFlush();
-                }
+
+                flush();
                 writerIsActive.set(false);
             }
         });
-
-        if (flushedMemTables.size() > config.flushQueueLimit || blocking) {
-            try {
-                flashFuture.get();
-            } catch (InterruptedException | ExecutionException e) {
-                LOG.error("flush error: {}", e.getMessage(), e);
-            }
-        }
     }
 
     @GuardedBy("this")
-    private void makeFlush() {
-        MemTable flushMemTable = flushedMemTables.peek();
-        if (flushMemTable == null) {
-            return;
-        }
-
+    private void flush() {
         try {
             Path dir = config.dir;
-            Path file = dir.resolve(SSTable.SSTABLE_FILE_PREFIX + flushMemTable.getId());
+            Path file = dir.resolve(SSTable.SSTABLE_FILE_PREFIX + flushingMemTable.get().getId());
 
-            SSTable ssTable = SSTable.write(flushMemTable.values().iterator(), file);
+            SSTable ssTable = SSTable.write(flushingMemTable.get().values().iterator(), file);
             tables.add(ssTable);
 
-            flushedMemTables.poll();
+            flushingMemTable.set(null);
         } catch (IOException e) {
             LOG.error("flush error: {}", e.getMessage(), e);
         }
