@@ -1,5 +1,6 @@
 package ru.mail.polis.lsm.artem_drozdov;
 
+import one.nio.async.CompletedFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.lsm.DAO;
@@ -18,29 +19,29 @@ import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.*;
 import java.util.concurrent.*;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class LsmDAO implements DAO {
 
     private static final Logger LOG = LoggerFactory.getLogger(LsmDAO.class);
-    private final ExecutorService executorFlush = Executors.newSingleThreadScheduledExecutor();
 
     private final AtomicReference<MemTable> memTable = new AtomicReference<>();
     private final AtomicReference<MemTable> flushingMemTable = new AtomicReference<>();
     private final ConcurrentLinkedDeque<SSTable> tables = new ConcurrentLinkedDeque<>();
 
-    private volatile Future<?> flushingFuture;
+    private Future<?> flushingFuture = new CompletedFuture<>(null);
+    private final ExecutorService executorFlush = Executors.newSingleThreadScheduledExecutor();
 
     private final DAOConfig config;
 
     private final AtomicInteger memoryConsumption = new AtomicInteger();
     private final AtomicInteger memTableWriters = new AtomicInteger();
 
-    private final Object writeLock = new Object();
-    private final AtomicInteger readersCount = new AtomicInteger();
-    private final AtomicBoolean writerIsActive = new AtomicBoolean();
+    private final ReadWriteLock dataRWLock = new ReentrantReadWriteLock();
+    private final ReadWriteLock memTableRWLock = new ReentrantReadWriteLock();
 
     /**
      * Create LsmDAO from config.
@@ -57,18 +58,11 @@ public class LsmDAO implements DAO {
 
     @Override
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
-        readersCount.incrementAndGet();
-        if (writerIsActive.get()) {
-            readersCount.decrementAndGet();
-            synchronized (writeLock) {
-                readersCount.incrementAndGet();
-            }
-        }
-
+        dataRWLock.readLock().lock();
         try {
             return rangeImpl(fromKey, toKey);
         } finally {
-            readersCount.decrementAndGet();
+            dataRWLock.readLock().unlock();
         }
     }
 
@@ -159,13 +153,10 @@ public class LsmDAO implements DAO {
 
     @GuardedBy("this")
     private void scheduleFlush() {
-        Future<?> flFuture = flushingFuture;
-        if (flFuture != null) {
-            try {
-                flFuture.get();
-            } catch (InterruptedException | ExecutionException e) {
-                LOG.error("flush wait error: {}", e.getMessage(), e);
-            }
+        try {
+            flushingFuture.get();
+        } catch (InterruptedException | ExecutionException e) {
+            LOG.error("flush future wait error: {}", e.getMessage(), e);
         }
 
         assert flushingMemTable.get() == null;
@@ -175,19 +166,15 @@ public class LsmDAO implements DAO {
         memTable.set(MemTable.newStorage(flushingTable.getId() + 1));
 
         flushingFuture = executorFlush.submit(() -> {
-            synchronized (writeLock) {
-                writerIsActive.set(true);
-                while (readersCount.get() != 0) {
-                    Thread.onSpinWait();
-                }
-
+            dataRWLock.writeLock().lock();
+            try {
                 flush();
-                writerIsActive.set(false);
+            } finally {
+                dataRWLock.writeLock().unlock();
             }
         });
     }
 
-    @GuardedBy("this")
     private void flush() {
         try {
             Path dir = config.dir;
