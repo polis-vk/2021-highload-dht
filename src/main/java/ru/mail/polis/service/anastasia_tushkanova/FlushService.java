@@ -42,8 +42,13 @@ public class FlushService implements Closeable {
     public void close() throws IOException {
         try {
             executorService.shutdown();
-            while (!executorService.awaitTermination(10, TimeUnit.SECONDS)) {
-                LOGGER.warn("Couldn't terminate flush service in 10s");
+            if (!executorService.awaitTermination(1, TimeUnit.SECONDS)) {
+                executorService.shutdownNow();
+                LOGGER.warn("Couldn't terminate flush service in 1s");
+                if (!executorService.awaitTermination(1, TimeUnit.SECONDS)) {
+                    LOGGER.error("Couldn't terminate flush service");
+                    return;
+                }
             }
             LOGGER.info("Successfully closed flush service");
         } catch (InterruptedException e) {
@@ -71,10 +76,12 @@ public class FlushService implements Closeable {
             }
         } catch (IOException e) {
             LOGGER.error("Exception while running flush service [{}]", e);
+        } catch (InterruptedException e) {
+            LOGGER.info("Flush service execution was interrupted");
         }
     }
 
-    private void flush() throws IOException {
+    private void flush() throws IOException, InterruptedException {
         try {
             QueueElement queueElement = tablesQueue.take();
             Path dir = config.dir;
@@ -83,8 +90,8 @@ public class FlushService implements Closeable {
             tablesCount++;
             flushedTableConsumer.accept(ssTable);
         } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
             LOGGER.info("Interrupted while taking element from queue");
+            throw e;
         }
     }
 

@@ -106,6 +106,7 @@ public class LsmDAO implements DAO {
 
     @Override
     public synchronized void close() throws IOException {
+        flushService.submit(memoryStorage);
         flushService.close();
     }
 
