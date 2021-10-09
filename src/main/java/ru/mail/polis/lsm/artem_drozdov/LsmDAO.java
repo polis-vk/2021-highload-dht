@@ -100,20 +100,24 @@ public class LsmDAO implements DAO {
         upsertRWLock.readLock().lock();
         while (memoryConsumption.addAndGet(sizeOf(record)) > config.memoryLimit) {
             upsertRWLock.readLock().unlock();
-            upsertRWLock.writeLock().lock();
-            try {
+            synchronized (this) {
                 if (memoryConsumption.get() > config.memoryLimit) {
-                    if (serverIsDown) {
-                        throw new ServiceNotActiveException();
-                    }
+                    upsertRWLock.writeLock().lock();
+                    try {
+                        if (serverIsDown) {
+                            throw new ServiceNotActiveException();
+                        }
 
-                    scheduleFlush();
-                    memoryConsumption.getAndSet(sizeOf(record));
-                    break;
+                        scheduleFlush();
+                        memoryConsumption.getAndSet(sizeOf(record));
+                        break;
+                    } finally {
+                        upsertRWLock.readLock().lock();
+                        upsertRWLock.writeLock().unlock();
+                    }
+                } else {
+                    upsertRWLock.readLock().lock();
                 }
-            } finally {
-                upsertRWLock.readLock().lock();
-                upsertRWLock.writeLock().unlock();
             }
         }
 
