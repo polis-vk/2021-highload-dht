@@ -2,6 +2,7 @@ package ru.mail.polis.lsm.igorsamokhin;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.file.Files;
@@ -21,6 +22,24 @@ final class FileUtils {
     public static MappedByteBuffer openForRead(Path name) throws IOException {
         try (FileChannel channel = FileChannel.open(name, StandardOpenOption.READ)) {
             return channel.map(FileChannel.MapMode.READ_ONLY, 0, channel.size());
+        }
+    }
+
+    public static LongMappedByteBuffer openStorageForRead(Path name, int... bufferSizes) throws IOException {
+        try (FileChannel channel = FileChannel.open(name, StandardOpenOption.READ)) {
+
+            int length = bufferSizes.length;
+            ByteBuffer[] buffers = new ByteBuffer[length];
+
+            long min = 0;
+            long max = 0;
+            for (long i = 0; i < length; i++) {
+                min = max + i * Integer.MAX_VALUE;
+                max = min + bufferSizes[(int) i];
+
+                buffers[(int) i] = channel.map(FileChannel.MapMode.READ_ONLY, min, max);
+            }
+            return new LongMappedByteBuffer(buffers);
         }
     }
 

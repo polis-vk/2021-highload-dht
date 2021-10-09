@@ -7,15 +7,15 @@ import java.util.Iterator;
 import java.util.NoSuchElementException;
 
 final class ByteBufferRecordIterator implements Iterator<Record> {
-    private final ByteBuffer buffer;
-    private final int toOffset;
+    private final LongMappedByteBuffer buffer;
+    private final long toOffset;
 
     ByteBufferRecordIterator(
-            final ByteBuffer buffer,
-            final int fromOffset,
-            final int toOffset) {
-        buffer.position(fromOffset);
-        this.buffer = buffer;
+            final LongMappedByteBuffer buffer,
+            final long fromOffset,
+            final long toOffset) {
+        this.buffer = buffer.duplicate();
+        this.buffer.position(fromOffset);
         this.toOffset = toOffset;
     }
 
@@ -44,7 +44,7 @@ final class ByteBufferRecordIterator implements Iterator<Record> {
     }
 
     private ByteBuffer read(int size) {
-        ByteBuffer result = buffer.slice().limit(size);
+        ByteBuffer result = buffer.slice().cut(size);
         buffer.position(buffer.position() + size);
         return result;
     }

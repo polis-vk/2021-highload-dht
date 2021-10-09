@@ -73,4 +73,10 @@ final class ByteBufferUtils {
         tmp.putInt(value);
         writeByteBuffer(channel, tmp);
     }
+
+    public static void writeLong(long value, FileChannel channel, ByteBuffer tmp) throws IOException {
+        tmp.position(0);
+        tmp.putLong(value);
+        writeByteBuffer(channel, tmp);
+    }
 }

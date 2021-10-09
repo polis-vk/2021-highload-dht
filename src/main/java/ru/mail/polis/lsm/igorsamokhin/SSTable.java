@@ -6,8 +6,6 @@ import javax.annotation.Nullable;
 
 import java.io.File;
 import java.io.IOException;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
@@ -20,47 +18,41 @@ import java.util.SortedMap;
 
 @SuppressWarnings("JdkObsolete")
 class SSTable {
-    private static final Method CLEAN;
     private static final int MAX_BUFFER_SIZE = 4096;
 
-    private final MappedByteBuffer mmap;
+    private final LongMappedByteBuffer mmap;
     private final MappedByteBuffer idx;
-
-    static {
-        try {
-            Class<?> name = Class.forName("sun.nio.ch.FileChannelImpl");
-            CLEAN = name.getDeclaredMethod("unmap", MappedByteBuffer.class);
-            CLEAN.setAccessible(true);
-        } catch (ClassNotFoundException | NoSuchMethodException e) {
-            throw new IllegalStateException(e);
-        }
-    }
 
     public SSTable(Path file) throws IOException {
         Path indexFile = FileUtils.getIndexFile(file);
 
-        mmap = FileUtils.openForRead(file);
         idx = FileUtils.openForRead(indexFile);
+        int[] sizes = getBuffersSizes(idx);
+        idx.limit(idx.limit() - Integer.BYTES * (sizes.length + 1));
+        mmap = FileUtils.openStorageForRead(file, sizes);
     }
 
-    private static void free(MappedByteBuffer buffer) throws IOException {
-        try {
-            CLEAN.invoke(null, buffer);
-        } catch (IllegalAccessException | InvocationTargetException e) {
-            throw new IOException(e);
+    private int[] getBuffersSizes(MappedByteBuffer index) {
+        int readPosition = index.limit() - Integer.BYTES;
+        int n = index.getInt(readPosition);
+        int[] sizes = new int[n];
+        for (int i = 0; i < n; i++) {
+            readPosition -= Integer.BYTES;
+            sizes[i] = index.getInt(readPosition);
         }
+        return sizes;
     }
 
     public void close() throws IOException {
         IOException exception = null;
         try {
-            free(mmap);
+            mmap.free();
         } catch (IOException e) {
             exception = e;
         }
 
         try {
-            free(idx);
+            LongMappedByteBuffer.free(idx);
         } catch (IOException e) {
             if (exception == null) {
                 exception = e;
@@ -75,15 +67,13 @@ class SSTable {
     }
 
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
-        ByteBuffer buffer = mmap.asReadOnlyBuffer();
+        long maxSize = mmap.remaining();
 
-        int maxSize = mmap.remaining();
-
-        int fromOffset = fromKey == null ? 0 : offset(buffer, fromKey);
-        int toOffset = toKey == null ? maxSize : offset(buffer, toKey);
+        long fromOffset = fromKey == null ? 0 : offset(mmap, fromKey);
+        long toOffset = toKey == null ? maxSize : offset(mmap, toKey);
 
         return new ByteBufferRecordIterator(
-                buffer,
+                mmap,
                 fromOffset == -1 ? maxSize : fromOffset,
                 toOffset == -1 ? maxSize : toOffset
         );
@@ -92,11 +82,12 @@ class SSTable {
     public static List<SSTable> loadFromDir(Path dir) throws IOException {
         FileUtils.prepareDirectory(dir);
         File[] files = dir.toFile().listFiles();
-        Arrays.sort(files);
+
         ArrayList<SSTable> ssTables = new ArrayList<>();
         if ((files == null) || (files.length == 0)) {
             return ssTables;
         }
+        Arrays.sort(files);
 
         for (File file : files) {
             String name = file.getName();
@@ -122,18 +113,34 @@ class SSTable {
             final ByteBuffer tmp = ByteBuffer.allocate(MAX_BUFFER_SIZE);
             tmp.limit(tmp.capacity());
 
+            List<Integer> sizes = new ArrayList<>();
             //можно попробовать писать за 1 раз не один record, а столько, сколько влезет в буфер.
+            long offset = 0;
             while (records.hasNext()) {
-                long position = fileChannel.position();
-                if (position > Integer.MAX_VALUE) {
-                    throw new IllegalStateException("File is too long");
-                }
-                ByteBufferUtils.writeInt((int) position, indexChannel, tmp);
-
                 Record record = records.next();
+                int size = record.size();
+                long position = fileChannel.position();
+                if (position + size + Integer.BYTES * 2 > Integer.MAX_VALUE) {
+                    sizes.add((int) (position - offset));
+                    offset += Integer.MAX_VALUE;
+                }
+
+                ByteBufferUtils.writeLong(position, indexChannel, tmp);
+
                 writeRecord(fileChannel, tmp, record);
             }
+
+            sizes.add((int) (fileChannel.position() - offset));
+
+            //todo сделать буферизацию
+            int n = sizes.size();
+            for (int i = n - 1; i >= 0; --i) {
+                ByteBufferUtils.writeInt(sizes.get(i), indexChannel, tmp);
+            }
+            ByteBufferUtils.writeInt(n, indexChannel, tmp);
+
             fileChannel.force(false);
+            indexChannel.force(false);
         }
 
         FileUtils.rename(indexFile, tmpIndexName);
@@ -167,27 +174,27 @@ class SSTable {
      */
     public static Path compact(Path dir, Iterator<Record> range) throws IOException {
         File[] files = dir.toFile().listFiles();
-        Arrays.sort(files);
-        if (files.length == 0) {
+        if ((files == null) || (files.length == 0)) {
             return null;
         }
+        Arrays.sort(files);
 
         Path fileName = dir.resolve(FileUtils.COMPACT_FILE_NAME + files[0].getName());
         write(range, fileName);
         return fileName;
     }
 
-    private int offset(ByteBuffer buffer, ByteBuffer keyToFind) {
-        int left = 0;
-        int rightLimit = idx.remaining() / Integer.BYTES;
-        int right = rightLimit;
+    private long offset(LongMappedByteBuffer buffer, ByteBuffer keyToFind) {
+        long left = 0;
+        long rightLimit = idx.remaining() / Long.BYTES;
+        long right = rightLimit;
 
         int keyToFindSize = keyToFind.remaining();
 
         while (left < right) {
-            int mid = left + ((right - left) >>> 1);
+            int mid = (int) (left + ((right - left) >>> 1));
 
-            int offset = idx.getInt(mid * Integer.BYTES);
+            long offset = idx.getLong(mid * Long.BYTES);
             buffer.position(offset);
             int existingKeySize = buffer.getInt();
 
@@ -213,7 +220,7 @@ class SSTable {
             }
 
             if (result > 0) {
-                left = mid + 1;
+                left = mid + 1L;
             } else {
                 right = mid;
             }
@@ -223,6 +230,6 @@ class SSTable {
             return -1;
         }
 
-        return idx.getInt(left * Integer.BYTES);
+        return idx.getLong((int) (left * Long.BYTES));
     }
 }
