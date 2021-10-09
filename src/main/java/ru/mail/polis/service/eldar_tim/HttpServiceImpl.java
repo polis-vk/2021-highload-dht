@@ -16,6 +16,8 @@ import java.util.Iterator;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+import static ru.mail.polis.ServiceUtils.shutdownAndAwaitExecutor;
+
 /**
  * Service implementation for Stage 1-2 within 2021-highload-dht.
  *
@@ -49,7 +51,7 @@ public class HttpServiceImpl extends HttpServer implements Service {
     @Override
     public synchronized void stop() {
         super.stop();
-        executorService.shutdown();
+        shutdownAndAwaitExecutor(executorService, LOG);
     }
 
     @Override
