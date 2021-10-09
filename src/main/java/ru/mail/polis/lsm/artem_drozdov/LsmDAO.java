@@ -18,7 +18,12 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Deque;
+import java.util.Iterator;
+import java.util.List;
+import java.util.SortedMap;
 import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -58,7 +63,7 @@ public class LsmDAO implements DAO {
         List<SSTable> ssTables = SSTable.loadFromDir(config.dir);
         tables.addAll(ssTables);
         memTable.set(MemTable.newStorage(tables.size()));
-        flushingMemTable.set(MemTable.newStorage(-1));
+        flushingMemTable.set(MemTable.newStorage(tables.size() + 1));
     }
 
     @Override
@@ -95,23 +100,20 @@ public class LsmDAO implements DAO {
         upsertRWLock.readLock().lock();
         while (memoryConsumption.addAndGet(sizeOf(record)) > config.memoryLimit) {
             upsertRWLock.readLock().unlock();
-            synchronized (upsertRWLock) {
+            upsertRWLock.writeLock().lock();
+            try {
                 if (memoryConsumption.get() > config.memoryLimit) {
-                    upsertRWLock.writeLock().lock();
-                    try {
-                        if (serverIsDown) {
-                            throw new ServiceNotActiveException();
-                        }
-
-                        scheduleFlush();
-                        memoryConsumption.getAndSet(sizeOf(record));
-                    } finally {
-                        upsertRWLock.writeLock().unlock();
+                    if (serverIsDown) {
+                        throw new ServiceNotActiveException();
                     }
-                    upsertRWLock.readLock().lock();
+
+                    scheduleFlush();
+                    memoryConsumption.getAndSet(sizeOf(record));
                     break;
                 }
+            } finally {
                 upsertRWLock.readLock().lock();
+                upsertRWLock.writeLock().unlock();
             }
         }
 
@@ -174,7 +176,7 @@ public class LsmDAO implements DAO {
         flushingFuture = executorFlush.submit(() -> {
             rangeRWLock.writeLock().lock();
             try {
-                flush();
+                flush(flushingTable);
             } finally {
                 rangeRWLock.writeLock().unlock();
             }
@@ -190,14 +192,14 @@ public class LsmDAO implements DAO {
         }
     }
 
-    private void flush() {
+    private void flush(MemTable memTable) {
         try {
             LOG.debug("Flushing...");
 
             Path dir = config.dir;
-            Path file = dir.resolve(SSTable.SSTABLE_FILE_PREFIX + flushingMemTable.get().getId());
+            Path file = dir.resolve(SSTable.SSTABLE_FILE_PREFIX + memTable.getId());
 
-            SSTable ssTable = SSTable.write(flushingMemTable.get().values().iterator(), file);
+            SSTable ssTable = SSTable.write(memTable.values().iterator(), file);
             tables.add(ssTable);
 
             LOG.debug("Flushing completed");
