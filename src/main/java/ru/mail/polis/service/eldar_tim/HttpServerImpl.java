@@ -13,7 +13,7 @@ import org.slf4j.LoggerFactory;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.Record;
 import ru.mail.polis.service.Service;
-import ru.mail.polis.service.exceptions.ServiceNotActiveException;
+import ru.mail.polis.service.exceptions.ServerNotActiveExc;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -29,13 +29,13 @@ import static ru.mail.polis.ServiceUtils.shutdownAndAwaitExecutor;
  *
  * @author Eldar Timraleev
  */
-public class HttpServiceImpl extends HttpServer implements Service {
-    private static final Logger LOG = LoggerFactory.getLogger(HttpServiceImpl.class);
+public class HttpServerImpl extends HttpServer implements Service {
+    private static final Logger LOG = LoggerFactory.getLogger(HttpServerImpl.class);
 
     private final DAO dao;
     private final ExecutorService executorService;
 
-    public HttpServiceImpl(final int port, final DAO dao) throws IOException {
+    public HttpServerImpl(final int port, final DAO dao) throws IOException {
         super(buildHttpServerConfig(port));
         this.dao = dao;
 
@@ -131,11 +131,11 @@ public class HttpServiceImpl extends HttpServer implements Service {
         return result;
     }
 
-    private Runnable exceptionSafe(HttpSession session, ServiceRunnable runnable) {
+    private Runnable exceptionSafe(HttpSession session, ServerRunnable runnable) {
         return () -> {
             try {
                 runnable.run();
-            } catch (ServiceNotActiveException e) {
+            } catch (ServerNotActiveExc e) {
                 sendError("Service is down", Response.SERVICE_UNAVAILABLE, session, e);
             } catch (Exception e) {
                 sendError("Something went wrong", Response.INTERNAL_ERROR, session, e);

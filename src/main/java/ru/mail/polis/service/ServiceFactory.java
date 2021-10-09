@@ -17,7 +17,7 @@
 package ru.mail.polis.service;
 
 import ru.mail.polis.lsm.DAO;
-import ru.mail.polis.service.eldar_tim.HttpServiceImpl;
+import ru.mail.polis.service.eldar_tim.HttpServerImpl;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -54,6 +54,6 @@ public final class ServiceFactory {
 
         Objects.requireNonNull(dao);
 
-        return new HttpServiceImpl(port, dao);
+        return new HttpServerImpl(port, dao);
     }
 }
