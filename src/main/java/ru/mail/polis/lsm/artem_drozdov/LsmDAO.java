@@ -151,31 +151,28 @@ public class LsmDAO implements DAO {
     public void close() {
         LOG.info("{} is closing...", getClass().getName());
 
-        rangeRWLock.writeLock().lock();
         upsertRWLock.writeLock().lock();
         try {
             serverIsDown = true;
             scheduleFlush();
+            waitForFlushingComplete();
         } finally {
             upsertRWLock.writeLock().unlock();
-            rangeRWLock.writeLock().unlock();
+            shutdownAndAwaitExecutor(executorFlush, LOG);
         }
-
-        waitForFlushingComplete();
-        shutdownAndAwaitExecutor(executorFlush, LOG);
 
         LOG.info("{} closed", getClass().getName());
     }
 
     @GuardedBy("upsertRWLock")
     private void scheduleFlush() {
-        assert upsertRWLock.isWriteLockedByCurrentThread();
-
         waitForFlushingComplete();
 
         MemTable flushingTable = memTable.get();
         flushingMemTable.set(flushingTable);
         memTable.set(MemTable.newStorage(flushingTable.getId() + 1));
+
+        assert !rangeRWLock.isWriteLockedByCurrentThread();
 
         flushingFuture = executorFlush.submit(() -> {
             rangeRWLock.writeLock().lock();
@@ -189,6 +186,9 @@ public class LsmDAO implements DAO {
 
     @GuardedBy("upsertRWLock")
     private void waitForFlushingComplete() {
+        // Protects flushingFuture variable.
+        assert upsertRWLock.isWriteLockedByCurrentThread();
+
         try {
             flushingFuture.get();
         } catch (InterruptedException | ExecutionException e) {
