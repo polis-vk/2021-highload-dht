@@ -24,8 +24,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.concurrent.locks.Lock;
-import java.util.concurrent.locks.ReentrantLock;
 
 public class LsmDAO implements DAO {
 
@@ -44,17 +42,15 @@ public class LsmDAO implements DAO {
     private final DAOConfig config;
 
     private final AtomicLong memoryConsumption;
-    // общее количество таблица
+    // общее количество таблиц
     private final AtomicLong tableCounter;
     // таблицы которые успели зафлашиться, перед компактом
     private final AtomicInteger sizeBeforeCompact;
-    // индексатор для rangeBuffer - использует во flush,
+    // индексатор для rangeBuffer - используется во flush,
     // чтобы поддежривать упорядоченный доступ во время range
     private final AtomicInteger idxRangeBuffer;
     // размер очереди
     private final int queueSize;
-    // мьютекс для compact
-    private final Lock compactLock;
 
     /**
      *  Create LsmDAO from config.
@@ -77,7 +73,6 @@ public class LsmDAO implements DAO {
         this.tableStorage = new TableStorage(ssTables);
         this.tableCounter = new AtomicLong(this.tableStorage.tables.size());
         this.sizeBeforeCompact = new AtomicInteger(0);
-        this.compactLock = new ReentrantLock();
     }
 
     @Override
@@ -131,11 +126,13 @@ public class LsmDAO implements DAO {
             });
 
             compactExecutor.execute(() -> {
-                if (compactLock.tryLock() && tableStorage.isCompact(config.tableLimit)) {
-                    try {
-                        compact();
-                    } finally {
-                        compactLock.unlock();
+                synchronized (this) {
+                    if (tableStorage.isCompact(config.tableLimit)) {
+                        try {
+                            compact();
+                        } catch (UncheckedIOException e) {
+                            throw new UncheckedIOException(new IOException());
+                        }
                     }
                 }
             });
@@ -176,8 +173,6 @@ public class LsmDAO implements DAO {
 
     @Override
     public void close() throws IOException {
-        // после изменения CompletebleFeature.runAsync на ExecutorService,
-        // время выполнения тестов hugeRecord увеличилось
         flushExecutor.shutdown();
         compactExecutor.shutdown();
         try {
@@ -191,11 +186,12 @@ public class LsmDAO implements DAO {
             Thread.currentThread().interrupt();
             throw new IllegalStateException(e);
         }
+
         synchronized (this) {
+            flush(memoryStorage);
             if (tableStorage.isCompact(config.tableLimit)) {
                 compact();
             }
-            flush(memoryStorage);
         }
     }
 

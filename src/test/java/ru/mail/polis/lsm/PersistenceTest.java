@@ -146,7 +146,7 @@ class PersistenceTest {
         // Reference value
         int size = 1024 * 1024;
         byte[] suffix = sizeBasedRandomData(size);
-        int recordsCount = (int) (TestDaoWrapper.MAX_HEAP * 6 / size); // 15
+        int recordsCount = (int) (TestDaoWrapper.MAX_HEAP * 6 / size);
 
         prepareHugeDao(data, recordsCount, suffix);
 
@@ -167,7 +167,7 @@ class PersistenceTest {
         // Reference value
         int size = 1024 * 1024;
         byte[] suffix = sizeBasedRandomData(size);
-        int recordsCount = (int) (TestDaoWrapper.MAX_HEAP * 6 / size); // 15
+        int recordsCount = (int) (TestDaoWrapper.MAX_HEAP * 6 / size);
 
         prepareHugeDao(data, recordsCount, suffix);
 
