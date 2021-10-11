@@ -37,6 +37,7 @@ public class LsmDAO implements DAO {
     private final List<NavigableMap<ByteBuffer, Record>> rangeBuffer;
 
     private final ExecutorService flushExecutor = Executors.newSingleThreadExecutor();
+    private final ExecutorService compactExecutor = Executors.newSingleThreadExecutor();
 
     private final DAOConfig config;
 
@@ -124,7 +125,7 @@ public class LsmDAO implements DAO {
                 }
             });
 
-            flushExecutor.execute(() -> {
+            compactExecutor.execute(() -> {
                 synchronized (this) {
                     if (tableStorage.isCompact(config.tableLimit)) {
                         compact();
@@ -169,9 +170,13 @@ public class LsmDAO implements DAO {
     @Override
     public void close() throws IOException {
         flushExecutor.shutdown();
+        compactExecutor.shutdown();
         try {
             if (!flushExecutor.awaitTermination(Long.MAX_VALUE, TimeUnit.MILLISECONDS)) {
                 throw new IllegalStateException("Error! FlushExecutor Await termination in close...");
+            }
+            if (!compactExecutor.awaitTermination(Long.MAX_VALUE, TimeUnit.MILLISECONDS)) {
+                throw new IllegalStateException("Error! CompactExecutor Await termination in close...");
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
