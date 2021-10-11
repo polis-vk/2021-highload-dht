@@ -182,9 +182,16 @@ public class LsmDAO implements DAO {
         assert !rangeRWLock.isWriteLockedByCurrentThread();
 
         flushingFuture = executorFlush.submit(() -> {
+            SSTable flushResult = flush(flushingTable);
+            if (flushResult == null) {
+                // Restoring not flushed data.
+                flushingTable.putAll(memTable.get());
+                memTable.set(flushingTable);
+                return;
+            }
             rangeRWLock.writeLock().lock();
             try {
-                flush(flushingTable);
+                tables.add(flushResult);
             } finally {
                 rangeRWLock.writeLock().unlock();
             }
@@ -203,19 +210,19 @@ public class LsmDAO implements DAO {
         }
     }
 
-    private void flush(MemTable memTable) {
+    private SSTable flush(MemTable memTable) {
         try {
             LOG.debug("Flushing...");
 
             Path dir = config.dir;
             Path file = dir.resolve(SSTable.SSTABLE_FILE_PREFIX + memTable.getId());
 
-            SSTable ssTable = SSTable.write(memTable.values().iterator(), file);
-            tables.add(ssTable);
-
-            LOG.debug("Flushing completed");
+            return SSTable.write(memTable.values().iterator(), file);
         } catch (IOException e) {
             LOG.error("flush error: {}", e.getMessage(), e);
+            return null;
+        } finally {
+            LOG.debug("Flushing completed");
         }
     }
 }
