@@ -128,11 +128,7 @@ public class LsmDAO implements DAO {
             compactExecutor.execute(() -> {
                 synchronized (this) {
                     if (tableStorage.isCompact(config.tableLimit)) {
-                        try {
-                            compact();
-                        } catch (UncheckedIOException e) {
-                            throw new UncheckedIOException(new IOException());
-                        }
+                        compact();
                     }
                 }
             });
