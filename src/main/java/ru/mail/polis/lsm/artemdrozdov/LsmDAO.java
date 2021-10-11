@@ -1,6 +1,5 @@
 package ru.mail.polis.lsm.artemdrozdov;
 
-
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.DAOConfig;
 import ru.mail.polis.lsm.Record;
@@ -17,13 +16,12 @@ import java.util.List;
 import java.util.NavigableMap;
 import java.util.NoSuchElementException;
 import java.util.SortedMap;
-import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 import java.util.concurrent.atomic.AtomicInteger;
@@ -56,8 +54,6 @@ public class LsmDAO implements DAO {
     // размер очереди
     private final int queueSize;
 
-
-
     /**
      *  Create LsmDAO from config.
      *
@@ -89,7 +85,7 @@ public class LsmDAO implements DAO {
 
         // Эта часть тербует оптимизации, хотя в целом, реализация работает быстрее.
         // Оптимизировать после основной части...
-        while(queueRange.hasNext()) {
+        while (queueRange.hasNext()) {
             Iterator<Record> unionRange = map(fromKey, toKey, queueRange.next()).values().iterator();
             memoryRange = mergeTwo(unionRange, memoryRange);
         }
@@ -98,7 +94,7 @@ public class LsmDAO implements DAO {
     }
 
     public boolean greaterThanCAS(final int maxValue, final int newSize) {
-        return (memoryConsumption.getAndUpdate(curSize -> (curSize + newSize) > maxValue ? newSize : curSize) + newSize) > maxValue;
+        return (memoryConsumption.getAndUpdate(size -> (size + newSize) > maxValue ? newSize : size) + newSize) > maxValue;
     }
 
     @Override
@@ -132,7 +128,7 @@ public class LsmDAO implements DAO {
             });
 
             compactExecutor.execute(() -> {
-                synchronized (LsmDAO.this) {
+                synchronized (this) {
                     if (tableStorage.isCompact()) {
                         compact();
                     }
@@ -180,10 +176,10 @@ public class LsmDAO implements DAO {
         flushExecutor.shutdown();
         compactExecutor.shutdown();
         try {
-            if (!flushExecutor.awaitTermination(Long.MAX_VALUE, TimeUnit.MILLISECONDS)){
+            if (!flushExecutor.awaitTermination(Long.MAX_VALUE, TimeUnit.MILLISECONDS)) {
                 throw new IllegalStateException("Error! FlushExecutor Await termination in close...");
             }
-            if (!compactExecutor.awaitTermination(Long.MAX_VALUE, TimeUnit.MILLISECONDS)){
+            if (!compactExecutor.awaitTermination(Long.MAX_VALUE, TimeUnit.MILLISECONDS)) {
                 throw new IllegalStateException("Error! CompactExecutor Await termination in close...");
             }
         } catch (InterruptedException e) {
@@ -226,6 +222,9 @@ public class LsmDAO implements DAO {
         return storage.subMap(fromKey, toKey);
     }
 
+    /**
+     * some doc
+     */
     public static Iterator<Record> merge(List<Iterator<Record>> iterators) {
         if (iterators.isEmpty()) {
             return Collections.emptyIterator();

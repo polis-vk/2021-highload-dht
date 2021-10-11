@@ -14,9 +14,11 @@ public class DAOConfig {
         this(dir, DEFAULT_MEMORY_LIMIT, TABLES_LIMIT);
     }
 
-    public DAOConfig(Path dir, int memoryLimit) { this(dir, memoryLimit, TABLES_LIMIT);}
+    public DAOConfig(Path dir, int memoryLimit) {
+        this(dir, memoryLimit, TABLES_LIMIT);
+    }
 
-    public DAOConfig(Path dir, int memoryLimit, int maxTables){
+    public DAOConfig(Path dir, int memoryLimit, int maxTables) {
         this.tableLimit = maxTables;
         this.memoryLimit = memoryLimit;
         this.dir = dir;
