@@ -26,6 +26,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
+import java.util.concurrent.locks.Lock;
+import java.util.concurrent.locks.ReentrantLock;
+
+
 public class LsmDAO implements DAO {
 
     private NavigableMap<ByteBuffer, Record> memoryStorage = newStorage();
@@ -52,6 +56,8 @@ public class LsmDAO implements DAO {
     private final AtomicInteger idxRangeBuffer;
     // размер очереди
     private final int queueSize;
+    // мьютекс для compact
+    private final Lock compactLock;
 
     /**
      *  Create LsmDAO from config.
@@ -72,8 +78,9 @@ public class LsmDAO implements DAO {
         this.config = config;
         List<SSTable> ssTables = SSTable.loadFromDir(config.dir);
         this.tableStorage = new TableStorage(ssTables);
-        tableCounter = new AtomicLong(this.tableStorage.tables.size());
+        this.tableCounter = new AtomicLong(this.tableStorage.tables.size());
         this.sizeBeforeCompact = new AtomicInteger(0);
+        this.compactLock = new ReentrantLock();
     }
 
     @Override
@@ -127,7 +134,7 @@ public class LsmDAO implements DAO {
             });
 
             compactExecutor.execute(() -> {
-                synchronized (this) {
+                if (compactLock.tryLock()) {
                     if (tableStorage.isCompact()) {
                         compact();
                     }
