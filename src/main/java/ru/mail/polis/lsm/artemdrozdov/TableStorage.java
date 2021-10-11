@@ -3,7 +3,6 @@ package ru.mail.polis.lsm.artemdrozdov;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.atomic.AtomicLong;
 
 public class TableStorage {
     public final List<SSTable> tables;
@@ -16,6 +15,9 @@ public class TableStorage {
         this(Collections.singletonList(table));
     }
 
+    /**
+     * some doc.
+     */
     public TableStorage afterFlush(SSTable newTable) {
         List<SSTable> newTables = new CopyOnWriteArrayList<>();
         newTables.addAll(tables);
@@ -23,6 +25,9 @@ public class TableStorage {
         return new TableStorage(newTables);
     }
 
+    /**
+     * some doc.
+     */
     public TableStorage afterCompact(SSTable compactTable, final int sizeBeforeCompact) {
         List<SSTable> newTables = new CopyOnWriteArrayList<>();
         // во время компакта, ещё флашились таблицы -> нужно их добавить
