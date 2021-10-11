@@ -3,7 +3,6 @@ package ru.mail.polis.lsm.artemdrozdov;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.DAOConfig;
 import ru.mail.polis.lsm.Record;
-
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -177,8 +176,6 @@ public class LsmDAO implements DAO {
 
     @Override
     public void close() throws IOException {
-        // после изменения CompletebleFeature.runAsync на ExecutorService,
-        // время выполнения тестов hugeRecord увеличилось
         flushExecutor.shutdown();
         compactExecutor.shutdown();
         try {
@@ -313,6 +310,5 @@ public class LsmDAO implements DAO {
         public boolean isCompact() {
             return tables.size() >= config.tableLimit;
         }
-
     }
 }
