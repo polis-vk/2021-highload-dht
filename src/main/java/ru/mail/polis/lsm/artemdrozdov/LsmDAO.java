@@ -26,7 +26,7 @@ import java.util.concurrent.atomic.AtomicLong;
 
 public class LsmDAO implements DAO {
 
-    private NavigableMap<ByteBuffer, Record> memoryStorage = newStorage();
+    private final NavigableMap<ByteBuffer, Record> memoryStorage = newStorage();
     private TableStorage tableStorage;
     // блокирующая очередь используется, чтобы флашить данные в порядке поступления
     private final BlockingQueue<NavigableMap<ByteBuffer, Record>> circBuffer;
@@ -41,7 +41,6 @@ public class LsmDAO implements DAO {
     private final AtomicLong tableCounter;
     // таблицы которые успели зафлашиться, перед компактом
     private final AtomicInteger sizeBeforeCompact;
-
 
     /**
      *  Create LsmDAO from config.
