@@ -6,7 +6,7 @@ import java.io.IOException;
 
 public final class DAOFactory {
 
-    private static final int QUEUE_SIZE = 4;
+    private static final int QUEUE_SIZE = 2;
 
     private DAOFactory() {
         // Only static methods
