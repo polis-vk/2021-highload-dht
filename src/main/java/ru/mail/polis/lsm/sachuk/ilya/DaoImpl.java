@@ -10,13 +10,10 @@ import ru.mail.polis.lsm.sachuk.ilya.iterators.PeekingIterator;
 import ru.mail.polis.lsm.sachuk.ilya.iterators.TombstoneFilteringIterator;
 
 import javax.annotation.Nullable;
-import java.io.File;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
-import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -25,8 +22,6 @@ import java.util.Map;
 import java.util.NavigableMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 public class DaoImpl implements DAO {
     private final Logger logger = LoggerFactory.getLogger(DaoImpl.class);
@@ -38,7 +33,6 @@ public class DaoImpl implements DAO {
     private final List<SSTable> ssTables = new ArrayList<>();
 
     private final AtomicInteger memoryConsumption = new AtomicInteger();
-    private int nextSSTableNumber;
 
     /**
      * Constructor that initialize path and restore storage.
@@ -51,7 +45,6 @@ public class DaoImpl implements DAO {
         this.dirPath = config.dir;
 
         ssTables.addAll(SSTable.loadFromDir(dirPath));
-        nextSSTableNumber = ssTables.size();
     }
 
     @Override
@@ -90,31 +83,15 @@ public class DaoImpl implements DAO {
     @Override
     public void closeAndCompact() {
         synchronized (this) {
-            Iterator<Record> iterator = range(null, null);
-
+            final SSTable table;
             try {
-                SSTable compactedTable = SSTable.save(iterator, dirPath, nextSSTableNumber++);
-
-                String indexFile = compactedTable.getIndexPath().getFileName().toString();
-                String saveFile = compactedTable.getSavePath().getFileName().toString();
-
-                closeOldTables(indexFile, saveFile);
-                deleteOldTables(indexFile, saveFile);
-
-                ssTables.add(compactedTable);
-
-                Files.move(compactedTable.getIndexPath(),
-                        dirPath.resolve(SSTable.FIRST_INDEX_FILE),
-                        StandardCopyOption.ATOMIC_MOVE
-                );
-
-                Files.move(compactedTable.getSavePath(),
-                        dirPath.resolve(SSTable.FIRST_SAVE_FILE),
-                        StandardCopyOption.ATOMIC_MOVE
-                );
+                table = SSTable.compact(config.dir, range(null, null));
             } catch (IOException e) {
-                throw new UncheckedIOException(e);
+                throw new UncheckedIOException("Can't compact", e);
             }
+            ssTables.clear();
+            ssTables.add(table);
+            memoryStorage = new ConcurrentSkipListMap<>();
         }
     }
 
@@ -148,11 +125,10 @@ public class DaoImpl implements DAO {
     }
 
     private void flush(NavigableMap<ByteBuffer, Record> storage) throws IOException {
-        SSTable ssTable = SSTable.save(
-                storage.values().iterator(),
-                dirPath,
-                nextSSTableNumber++
-        );
+        Path dir = config.dir;
+        Path file = dir.resolve(SSTable.SAVE_FILE_PREFIX + ssTables.size());
+
+        SSTable ssTable = SSTable.save(storage.values().iterator(), file);
 
         ssTables.add(ssTable);
     }
@@ -169,32 +145,6 @@ public class DaoImpl implements DAO {
     private int sizeOf(Record record) {
         return record.getKey().remaining()
                 + (record.isTombstone() ? 0 : record.getKey().remaining()) + Integer.BYTES * 2;
-    }
-
-    private void closeOldTables(String indexFile, String saveFile) throws IOException {
-        List<SSTable> filteredSSTables = ssTables.stream()
-                .filter(ssTable1 -> checkFilesNameEquals(ssTable1.getIndexPath(), indexFile)
-                        && checkFilesNameEquals(ssTable1.getSavePath(), saveFile))
-                .collect(Collectors.toList());
-
-        for (SSTable filteredSSTable : filteredSSTables) {
-            filteredSSTable.close();
-        }
-    }
-
-    private void deleteOldTables(String indexFile, String saveFile) throws IOException {
-        try (Stream<Path> paths = Files.walk(dirPath)) {
-            paths.filter(Files::isRegularFile)
-                    .map(Path::toFile)
-                    .filter(file -> file.getName().compareTo(indexFile) != 0 && file.getName().compareTo(saveFile) != 0)
-                    .forEach(File::delete);
-        }
-
-        ssTables.clear();
-    }
-
-    private boolean checkFilesNameEquals(Path filePath, String fileToCompare) {
-        return filePath.toString().compareTo(fileToCompare) != 0;
     }
 
     /**

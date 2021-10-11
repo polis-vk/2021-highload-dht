@@ -1,11 +1,11 @@
 package ru.mail.polis.lsm.sachuk.ilya;
 
-import ru.mail.polis.FileUtils;
 import ru.mail.polis.lsm.Record;
 import ru.mail.polis.lsm.sachuk.ilya.iterators.ByteBufferRecordIterator;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
@@ -22,18 +22,14 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
+import java.util.stream.Stream;
 
 public class SSTable {
-    public static final String FIRST_SAVE_FILE = "SSTABLE0.save";
-    public static final String FIRST_INDEX_FILE = "INDEX0.index";
-
-    private static final String SAVE_FILE = "SSTABLE";
-    private static final String SAVE_FILE_END = ".save";
-
-    private static final String INDEX_FILE = "INDEX";
+    public static final String COMPACTION_FILE_NAME = "compaction";
+    public static final String SAVE_FILE_PREFIX = "SSTABLE_";
     private static final String INDEX_FILE_END = ".index";
+    private static final String TMP_FILE_END = ".tmp";
 
-    private static final String TMP_FILE = "TMP";
     private static final String NULL_VALUE = "NULL_VALUE";
     public static final ByteBuffer BYTE_BUFFER_TOMBSTONE = ByteBuffer.wrap(
             NULL_VALUE.getBytes(StandardCharsets.UTF_8)
@@ -45,9 +41,9 @@ public class SSTable {
     private MappedByteBuffer mappedByteBuffer;
     private MappedByteBuffer indexByteBuffer;
 
-    SSTable(Path savePath, Path indexPath) throws IOException {
+    SSTable(Path savePath) throws IOException {
         this.savePath = savePath;
-        this.indexPath = indexPath;
+        this.indexPath = getIndexFile(savePath);
 
         restoreStorage();
     }
@@ -119,29 +115,26 @@ public class SSTable {
     }
 
     public static List<SSTable> loadFromDir(Path dir) throws IOException {
-
-        List<SSTable> listSSTables = new ArrayList<>();
-
-        Iterator<Path> savePaths = FileUtils.getPathIterator(dir, SAVE_FILE_END);
-        Iterator<Path> indexPaths = FileUtils.getPathIterator(dir, INDEX_FILE_END);
-
-        while (savePaths.hasNext() && indexPaths.hasNext()) {
-            Path savePath = savePaths.next();
-            Path indexPath = indexPaths.next();
-
-            listSSTables.add(new SSTable(savePath, indexPath));
+        Path compaction = dir.resolve(COMPACTION_FILE_NAME);
+        if (Files.exists(compaction)) {
+            finishCompaction(dir);
         }
 
-        return listSSTables;
+        List<SSTable> result = new ArrayList<>();
+        for (int i = 0; ; i++) {
+            Path file = dir.resolve(SAVE_FILE_PREFIX + i);
+            if (!Files.exists(file)) {
+                return result;
+            }
+            result.add(new SSTable(file));
+        }
     }
 
-    public static SSTable save(Iterator<Record> iterators, Path dir, int fileNumber) throws IOException {
+    public static SSTable save(Iterator<Record> iterators, Path savePath) throws IOException {
 
-        final Path savePath = dir.resolve(SAVE_FILE + fileNumber + SAVE_FILE_END);
-        final Path indexPath = dir.resolve(INDEX_FILE + fileNumber + INDEX_FILE_END);
-
-        Path tmpSavePath = dir.resolve(SAVE_FILE + "_" + TMP_FILE + fileNumber);
-        Path tmpIndexPath = dir.resolve(INDEX_FILE + "_" + TMP_FILE + fileNumber);
+        Path indexPath = getIndexFile(savePath);
+        Path tmpSavePath = getTmpFile(savePath);
+        Path tmpIndexPath = getTmpFile(indexPath);
 
         Files.deleteIfExists(tmpSavePath);
         Files.deleteIfExists(tmpIndexPath);
@@ -193,7 +186,61 @@ public class SSTable {
         Files.move(tmpSavePath, savePath, StandardCopyOption.ATOMIC_MOVE);
         Files.move(tmpIndexPath, indexPath, StandardCopyOption.ATOMIC_MOVE);
 
-        return new SSTable(savePath, indexPath);
+        return new SSTable(savePath);
+    }
+
+    public static SSTable compact(Path dir, Iterator<Record> records) throws IOException {
+        Path compaction = dir.resolve("compaction");
+        save(records, compaction);
+
+        for (int i = 0; ; i++) {
+            Path file = dir.resolve(SAVE_FILE_PREFIX + i);
+            if (!Files.deleteIfExists(file)) {
+                break;
+            }
+            Files.deleteIfExists(getIndexFile(file));
+        }
+
+        Path file0 = dir.resolve(SAVE_FILE_PREFIX + 0);
+        if (Files.exists(getIndexFile(compaction))) {
+            Files.move(getIndexFile(compaction), getIndexFile(file0), StandardCopyOption.ATOMIC_MOVE);
+        }
+        Files.move(compaction, file0, StandardCopyOption.ATOMIC_MOVE);
+        return new SSTable(file0);
+    }
+
+    private static void finishCompaction(Path dir) throws IOException {
+        try (Stream<Path> files = Files.list(dir)) {
+            files.filter(file -> file.getFileName().startsWith(SAVE_FILE_PREFIX))
+                    .forEach(path -> {
+                        try {
+                            Files.delete(path);
+                        } catch (IOException e) {
+                            throw new UncheckedIOException(e);
+                        }
+                    });
+        }
+
+        Path compaction = dir.resolve(COMPACTION_FILE_NAME);
+
+        Path file0 = dir.resolve(SAVE_FILE_PREFIX + 0);
+        if (Files.exists(getIndexFile(compaction))) {
+            Files.move(getIndexFile(compaction), getIndexFile(file0), StandardCopyOption.ATOMIC_MOVE);
+        }
+
+        Files.move(compaction, file0, StandardCopyOption.ATOMIC_MOVE);
+    }
+
+    private static Path resolveWithExt(Path file, String ext) {
+        return file.resolveSibling(file.getFileName() + ext);
+    }
+
+    private static Path getIndexFile(Path file) {
+        return resolveWithExt(file, INDEX_FILE_END);
+    }
+
+    private static Path getTmpFile(Path file) {
+        return resolveWithExt(file, TMP_FILE_END);
     }
 
     public void close() throws IOException {
@@ -207,14 +254,6 @@ public class SSTable {
             Arrays.fill(indexes, 0);
             indexes = null;
         }
-    }
-
-    public Path getSavePath() {
-        return savePath;
-    }
-
-    public Path getIndexPath() {
-        return indexPath;
     }
 
     private void restoreStorage() throws IOException {
