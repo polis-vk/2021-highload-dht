@@ -1,5 +1,7 @@
 package ru.mail.polis.lsm.sachuk.ilya;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.DAOConfig;
 import ru.mail.polis.lsm.Record;
@@ -21,31 +23,22 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ConcurrentSkipListMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class DaoImpl implements DAO {
+    private final Logger logger = LoggerFactory.getLogger(DaoImpl.class);
+
 
     private final Path dirPath;
     private final DAOConfig config;
     private NavigableMap<ByteBuffer, Record> memoryStorage = new ConcurrentSkipListMap<>();
-    private NavigableMap<ByteBuffer, Record> tmpStorageForFlush = new ConcurrentSkipListMap<>();
-
     private final List<SSTable> ssTables = new ArrayList<>();
-    private final ConcurrentLinkedQueue<Iterator<?>> queue = new ConcurrentLinkedQueue<>();
-
-    private final ExecutorService executorService = Executors.newCachedThreadPool();
-    private final AtomicInteger counter = new AtomicInteger(0);
-    private final Object object = new Object();
 
     private final AtomicInteger memoryConsumption = new AtomicInteger();
-    private final AtomicInteger nextSSTableNumber = new AtomicInteger();
-    private final AtomicInteger queueSize = new AtomicInteger();
+    private int nextSSTableNumber;
 
     /**
      * Constructor that initialize path and restore storage.
@@ -58,7 +51,7 @@ public class DaoImpl implements DAO {
         this.dirPath = config.dir;
 
         ssTables.addAll(SSTable.loadFromDir(dirPath));
-        nextSSTableNumber.set(ssTables.size());
+        nextSSTableNumber = ssTables.size();
     }
 
     @Override
@@ -76,21 +69,21 @@ public class DaoImpl implements DAO {
         if (memoryConsumption.addAndGet(sizeOf(record)) > config.memoryLimit) {
             synchronized (this) {
                 if (memoryConsumption.get() > config.memoryLimit) {
-                    final int prev = memoryConsumption.getAndSet(sizeOf(record));
-
-                    tmpStorageForFlush.putAll(memoryStorage);
+                    NavigableMap<ByteBuffer, Record> old = memoryStorage;
                     memoryStorage = new ConcurrentSkipListMap<>();
+                    int prev = memoryConsumption.getAndSet(sizeOf(record));
 
-                    queue.add(tmpStorageForFlush.values().iterator());
-                    queueSize.addAndGet(1);
-                    executorService.submit(() -> prepareAndFlush(prev));
+                    try {
+                        flush(old);
+                    } catch (IOException e) {
+                        memoryConsumption.addAndGet(prev);
 
-                    while (queue.size() > 3) {
-                        queueSize.get();
+                        throw new UncheckedIOException(e);
                     }
                 }
             }
         }
+
         memoryStorage.put(record.getKey(), record);
     }
 
@@ -100,7 +93,7 @@ public class DaoImpl implements DAO {
             Iterator<Record> iterator = range(null, null);
 
             try {
-                SSTable compactedTable = SSTable.save(iterator, dirPath, nextSSTableNumber.getAndIncrement());
+                SSTable compactedTable = SSTable.save(iterator, dirPath, nextSSTableNumber++);
 
                 String indexFile = compactedTable.getIndexPath().getFileName().toString();
                 String saveFile = compactedTable.getSavePath().getFileName().toString();
@@ -128,14 +121,8 @@ public class DaoImpl implements DAO {
     @Override
     public void close() throws IOException {
 
-        while (counter.get() != 0) {
-            if (counter.get() == 0) {
-                break;
-            }
-        }
-
         if (memoryConsumption.get() > 0) {
-            flush();
+            flush(memoryStorage);
         }
 
         closeSSTables();
@@ -160,41 +147,14 @@ public class DaoImpl implements DAO {
         }
     }
 
-    private void prepareAndFlush(int prev) {
-        try {
-            flush();
-        } catch (IOException e) {
-            memoryConsumption.addAndGet(prev);
-            throw new UncheckedIOException(e);
-        }
-    }
+    private void flush(NavigableMap<ByteBuffer, Record> storage) throws IOException {
+        SSTable ssTable = SSTable.save(
+                storage.values().iterator(),
+                dirPath,
+                nextSSTableNumber++
+        );
 
-    private void flush() throws IOException {
-        counter.addAndGet(1);
-
-        synchronized (object) {
-            Iterator iterator;
-            if (tmpStorageForFlush.isEmpty() && queue.isEmpty()) {
-                tmpStorageForFlush.putAll(memoryStorage);
-                iterator = tmpStorageForFlush.values().iterator();
-            } else {
-                iterator = queue.poll();
-            }
-
-            SSTable ssTable = SSTable.save(
-                    iterator,
-                    dirPath,
-                    nextSSTableNumber.getAndIncrement()
-            );
-
-            ssTables.add(ssTable);
-            tmpStorageForFlush = new ConcurrentSkipListMap<>();
-            if (counter.get() != 0) {
-                counter.decrementAndGet();
-
-            }
-            queueSize.decrementAndGet();
-        }
+        ssTables.add(ssTable);
     }
 
     private Iterator<Record> ssTableRanges(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
