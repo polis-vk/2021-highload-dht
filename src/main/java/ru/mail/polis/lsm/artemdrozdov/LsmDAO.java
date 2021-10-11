@@ -95,6 +95,8 @@ public class LsmDAO implements DAO {
                     memoryConsumption.addAndGet(-rollbackSize);
                     memoryStorage.putAll(flushStorage); // restore data + new data
                     Thread.currentThread().interrupt();
+                } finally {
+                    semaphore.release();
                 }
             });
 
