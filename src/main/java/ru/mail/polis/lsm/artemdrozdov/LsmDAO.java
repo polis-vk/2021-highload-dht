@@ -25,10 +25,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
-
 import java.util.concurrent.locks.Lock;
 import java.util.concurrent.locks.ReentrantLock;
-
 
 public class LsmDAO implements DAO {
 
@@ -134,9 +132,11 @@ public class LsmDAO implements DAO {
             });
 
             compactExecutor.execute(() -> {
-                if (compactLock.tryLock()) {
-                    if (tableStorage.isCompact()) {
+                if (compactLock.tryLock() && tableStorage.isCompact()) {
+                    try {
                         compact();
+                    } finally {
+                        compactLock.unlock();
                     }
                 }
             });
@@ -285,10 +285,6 @@ public class LsmDAO implements DAO {
     private class TableStorage {
         public final List<SSTable> tables;
 
-        TableStorage() {
-            tables = new CopyOnWriteArrayList<>();
-        }
-
         TableStorage(final List<SSTable> newTables) {
             this.tables = newTables;
         }
@@ -319,5 +315,4 @@ public class LsmDAO implements DAO {
         }
 
     }
-
 }
