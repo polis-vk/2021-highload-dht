@@ -22,6 +22,7 @@ public final class ServiceUtils {
             }
         } catch (InterruptedException e) {
             log.error("error: executor can't shutdown on its own", e);
+            Thread.currentThread().interrupt();
         }
     }
 }

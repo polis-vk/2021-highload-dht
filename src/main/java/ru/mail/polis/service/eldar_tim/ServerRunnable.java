@@ -2,6 +2,6 @@ package ru.mail.polis.service.eldar_tim;
 
 import java.io.IOException;
 
-public interface ServiceRunnable {
+public interface ServerRunnable {
     void run() throws IOException;
 }
