@@ -6,7 +6,7 @@ import java.io.IOException;
 
 public final class DAOFactory {
 
-    private static final int QUEUE_SIZE = 4;
+    private static final int PERMITS = 2;
 
     private DAOFactory() {
         // Only static methods
@@ -18,7 +18,7 @@ public final class DAOFactory {
     public static DAO create(DAOConfig config) throws IOException {
         assert config.dir.toFile().exists();
 
-        return new LsmDAO(config, QUEUE_SIZE);
+        return new LsmDAO(config, PERMITS);
     }
 
 }

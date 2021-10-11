@@ -15,11 +15,10 @@ import java.util.List;
 import java.util.NavigableMap;
 import java.util.NoSuchElementException;
 import java.util.SortedMap;
-import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Semaphore;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
@@ -27,9 +26,8 @@ import java.util.concurrent.atomic.AtomicLong;
 public class LsmDAO implements DAO {
 
     private final NavigableMap<ByteBuffer, Record> memoryStorage = newStorage();
+    private final Semaphore semaphore;
     private TableStorage tableStorage;
-    // блокирующая очередь используется, чтобы флашить данные в порядке поступления
-    private final BlockingQueue<NavigableMap<ByteBuffer, Record>> circBuffer;
 
     private final ExecutorService flushExecutor = Executors.newSingleThreadExecutor();
     private final ExecutorService compactExecutor = Executors.newSingleThreadExecutor();
@@ -46,12 +44,12 @@ public class LsmDAO implements DAO {
      *  Create LsmDAO from config.
      *
      * @param config - LamDAo config
-     * @param queueSize - каунтер для блок. очереди; слишком большое значение ведет к OutOfMemory Exception
+     * @param permits - каунтер для семафора; слишком большое значение ведет к OutOfMemory Exception
      * @throws IOException - in case of io exception
      */
-    public LsmDAO(DAOConfig config, final int queueSize) throws IOException {
+    public LsmDAO(DAOConfig config, final int permits) throws IOException {
         this.memoryConsumption = new AtomicLong();
-        this.circBuffer = new ArrayBlockingQueue<>(queueSize);
+        this.semaphore = new Semaphore(permits);
         this.config = config;
         List<SSTable> ssTables = SSTable.loadFromDir(config.dir);
         this.tableStorage = new TableStorage(ssTables);
@@ -77,7 +75,7 @@ public class LsmDAO implements DAO {
         if (greaterThanCAS(config.memoryLimit, sizeOf(record))) {
 
             try {
-                circBuffer.put(memoryStorage);
+                semaphore.acquire();
             } catch (InterruptedException e) {
                 putRecord(record);
                 Thread.currentThread().interrupt();
@@ -88,12 +86,12 @@ public class LsmDAO implements DAO {
                 final int rollbackSize = sizeOf(record);
                 NavigableMap<ByteBuffer, Record> flushStorage = newStorage();
                 try {
-                    flushStorage.putAll(circBuffer.take());
+                    flushStorage.putAll(memoryStorage);
                     SSTable flushTable = flush(flushStorage);
                     this.tableStorage = tableStorage.afterFlush(flushTable);
                     flushStorage.keySet().retainAll(memoryStorage.keySet());
                     memoryStorage.values().removeAll(flushStorage.values());
-                } catch (IOException | InterruptedException e) {
+                } catch (IOException e) {
                     memoryConsumption.addAndGet(-rollbackSize);
                     memoryStorage.putAll(flushStorage); // restore data + new data
                     Thread.currentThread().interrupt();
