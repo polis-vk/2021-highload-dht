@@ -18,6 +18,9 @@ public class DAOConfig {
         this(dir, memoryLimit, TABLES_LIMIT);
     }
 
+    /**
+     * some doc.
+     */
     public DAOConfig(Path dir, int memoryLimit, int maxTables) {
         this.tableLimit = maxTables;
         this.memoryLimit = memoryLimit;

@@ -23,7 +23,6 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -93,8 +92,8 @@ public class LsmDAO implements DAO {
         return filterTombstones(iterator);
     }
 
-    public boolean greaterThanCAS(final int maxValue, final int newSize) {
-        return (memoryConsumption.getAndUpdate(size -> (size + newSize) > maxValue ? newSize : size) + newSize) > maxValue;
+    public boolean greaterThanCAS(final int maxSize, final int newSize) {
+        return (memoryConsumption.getAndUpdate(val -> (val + newSize) > maxSize ? newSize : val) + newSize) > maxSize;
     }
 
     @Override
@@ -223,7 +222,7 @@ public class LsmDAO implements DAO {
     }
 
     /**
-     * some doc
+     * some doc.
      */
     public static Iterator<Record> merge(List<Iterator<Record>> iterators) {
         if (iterators.isEmpty()) {
