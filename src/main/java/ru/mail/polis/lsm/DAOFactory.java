@@ -6,7 +6,7 @@ import java.io.IOException;
 
 public final class DAOFactory {
 
-    private static final int PERMITS = 2;
+    private static final int PERMITS = 4;
 
     private DAOFactory() {
         // Only static methods
