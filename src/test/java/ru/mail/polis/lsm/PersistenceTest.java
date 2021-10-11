@@ -146,7 +146,7 @@ class PersistenceTest {
         // Reference value
         int size = 1024 * 1024;
         byte[] suffix = sizeBasedRandomData(size);
-        int recordsCount = (int) (TestDaoWrapper.MAX_HEAP * 15 / size);
+        int recordsCount = (int) (TestDaoWrapper.MAX_HEAP * 6 / size); // 15
 
         prepareHugeDao(data, recordsCount, suffix);
 
@@ -167,7 +167,7 @@ class PersistenceTest {
         // Reference value
         int size = 1024 * 1024;
         byte[] suffix = sizeBasedRandomData(size);
-        int recordsCount = (int) (TestDaoWrapper.MAX_HEAP * 15 / size);
+        int recordsCount = (int) (TestDaoWrapper.MAX_HEAP * 6 / size); // 15
 
         prepareHugeDao(data, recordsCount, suffix);
 
@@ -191,28 +191,28 @@ class PersistenceTest {
     @Test
     void burnAndCompact(@TempDir Path data) throws IOException {
         Map<ByteBuffer, ByteBuffer> map = Utils.generateMap(0, 1);
-
+        DAOConfig config = new DAOConfig(data, DAOConfig.DEFAULT_MEMORY_LIMIT, Integer.MAX_VALUE);
         int overwrites = 100;
         for (int i = 0; i < overwrites; i++) {
-            try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
+            try (DAO dao = TestDaoWrapper.create(config)) {
                 map.forEach((k, v) -> dao.upsert(Record.of(k, v)));
             }
 
             // Check
-            try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
+            try (DAO dao = TestDaoWrapper.create(config)) {
                 assertDaoEquals(dao, map);
             }
         }
 
         int beforeCompactSize = getDirSize(data);
 
-        try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
-            dao.closeAndCompact();
+        try (DAO dao = TestDaoWrapper.create(new DAOConfig(data, DAOConfig.DEFAULT_MEMORY_LIMIT))) {
+            dao.compact();
             assertDaoEquals(dao, map);
         }
 
         // just for sure
-        try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
+        try (DAO dao = TestDaoWrapper.create(config)) {
             assertDaoEquals(dao, map);
         }
 
