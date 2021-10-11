@@ -18,7 +18,6 @@ import java.util.SortedMap;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentSkipListMap;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -31,10 +30,6 @@ public class LsmDAO implements DAO {
     private TableStorage tableStorage;
     // блокирующая очередь используется, чтобы флашить данные в порядке поступления
     private final BlockingQueue<NavigableMap<ByteBuffer, Record>> circBuffer;
-    // rangeBuffer нужен, чтобы обеспечить доступ к данным во время flush,
-    // так как возможно, что зайдут в upsert сразу несколько потоков с большой записью и начнут флашить,
-    // используется коллекция для поддержания доступа к данным
-    private final List<NavigableMap<ByteBuffer, Record>> rangeBuffer;
 
     private final ExecutorService flushExecutor = Executors.newSingleThreadExecutor();
     private final ExecutorService compactExecutor = Executors.newSingleThreadExecutor();
@@ -46,11 +41,7 @@ public class LsmDAO implements DAO {
     private final AtomicLong tableCounter;
     // таблицы которые успели зафлашиться, перед компактом
     private final AtomicInteger sizeBeforeCompact;
-    // индексатор для rangeBuffer - используется во flush,
-    // чтобы поддежривать упорядоченный доступ во время range
-    private final AtomicInteger idxRangeBuffer;
-    // размер очереди
-    private final int queueSize;
+
 
     /**
      *  Create LsmDAO from config.
@@ -62,12 +53,6 @@ public class LsmDAO implements DAO {
     public LsmDAO(DAOConfig config, final int queueSize) throws IOException {
         this.memoryConsumption = new AtomicLong();
         this.circBuffer = new ArrayBlockingQueue<>(queueSize);
-        this.rangeBuffer = new CopyOnWriteArrayList<>();
-        for (int i = 0; i < queueSize; ++i) {
-            rangeBuffer.add(newStorage());
-        }
-        this.idxRangeBuffer = new AtomicInteger(0);
-        this.queueSize = queueSize;
         this.config = config;
         List<SSTable> ssTables = SSTable.loadFromDir(config.dir);
         this.tableStorage = new TableStorage(ssTables);
@@ -77,14 +62,8 @@ public class LsmDAO implements DAO {
 
     @Override
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
-        Iterator<Record> memoryRange = map(fromKey, toKey, memoryStorage).values().iterator();
-        Iterator<NavigableMap<ByteBuffer, Record>> queueRange = circBuffer.iterator();
-
-        while (queueRange.hasNext()) {
-            Iterator<Record> unionRange = map(fromKey, toKey, queueRange.next()).values().iterator();
-            memoryRange = mergeTwo(unionRange, memoryRange);
-        }
         Iterator<Record> sstableRanges = sstableRanges(fromKey, toKey);
+        Iterator<Record> memoryRange = map(fromKey, toKey).values().iterator();
         Iterator<Record> iterator = mergeTwo(sstableRanges, memoryRange);
         return filterTombstones(iterator);
     }
@@ -100,7 +79,6 @@ public class LsmDAO implements DAO {
 
             try {
                 circBuffer.put(memoryStorage);
-                memoryStorage = newStorage();
             } catch (InterruptedException e) {
                 putRecord(record);
                 Thread.currentThread().interrupt();
@@ -109,17 +87,17 @@ public class LsmDAO implements DAO {
 
             flushExecutor.execute(() -> {
                 final int rollbackSize = sizeOf(record);
-                final int localIdx = idxRangeBuffer.getAndUpdate(i -> (i + 1) % queueSize);
+                NavigableMap<ByteBuffer, Record> flushStorage = newStorage();
                 try {
-                    rangeBuffer.set(localIdx, circBuffer.take());
-                    SSTable flushTable = flush(rangeBuffer.get(localIdx));
+                    flushStorage.putAll(circBuffer.take());
+                    SSTable flushTable = flush(flushStorage);
                     this.tableStorage = tableStorage.afterFlush(flushTable);
+                    flushStorage.keySet().retainAll(memoryStorage.keySet());
+                    memoryStorage.values().removeAll(flushStorage.values());
                 } catch (IOException | InterruptedException e) {
                     memoryConsumption.addAndGet(-rollbackSize);
-                    memoryStorage.putAll(rangeBuffer.get(localIdx)); // restore data + new data
+                    memoryStorage.putAll(flushStorage); // restore data + new data
                     Thread.currentThread().interrupt();
-                } finally {
-                    rangeBuffer.set(localIdx, newStorage());
                 }
             });
 
@@ -203,18 +181,17 @@ public class LsmDAO implements DAO {
         return merge(iterators);
     }
 
-    private SortedMap<ByteBuffer, Record> map(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey,
-                                              final NavigableMap<ByteBuffer, Record> storage) {
+    private SortedMap<ByteBuffer, Record> map(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
         if (fromKey == null && toKey == null) {
-            return storage;
+            return memoryStorage;
         }
         if (fromKey == null) {
-            return storage.headMap(toKey);
+            return memoryStorage.headMap(toKey);
         }
         if (toKey == null) {
-            return storage.tailMap(fromKey);
+            return memoryStorage.tailMap(fromKey);
         }
-        return storage.subMap(fromKey, toKey);
+        return memoryStorage.subMap(fromKey, toKey);
     }
 
     /**
