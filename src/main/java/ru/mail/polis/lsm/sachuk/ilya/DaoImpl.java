@@ -21,6 +21,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class DaoImpl implements DAO {
@@ -32,6 +35,7 @@ public class DaoImpl implements DAO {
     private NavigableMap<ByteBuffer, Record> memoryStorage = new ConcurrentSkipListMap<>();
     private final List<SSTable> ssTables = new ArrayList<>();
 
+    private final ExecutorService executorService = Executors.newSingleThreadExecutor();
     private final AtomicInteger memoryConsumption = new AtomicInteger();
 
     /**
@@ -66,18 +70,26 @@ public class DaoImpl implements DAO {
                     memoryStorage = new ConcurrentSkipListMap<>();
                     int prev = memoryConsumption.getAndSet(sizeOf(record));
 
-                    try {
-                        flush(old);
-                    } catch (IOException e) {
-                        memoryConsumption.addAndGet(prev);
-
-                        throw new UncheckedIOException(e);
-                    }
+//                    try {
+                    prepareAndFlush(old);
+//                    } catch (IOException e) {
+//                        memoryConsumption.addAndGet(prev);
+//
+//                        throw new UncheckedIOException(e);
+//                    }
                 }
             }
         }
 
         memoryStorage.put(record.getKey(), record);
+    }
+
+    private void prepareAndFlush(NavigableMap<ByteBuffer, Record> old) {
+        try {
+            flush(old);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     @Override
@@ -97,6 +109,15 @@ public class DaoImpl implements DAO {
 
     @Override
     public void close() throws IOException {
+        executorService.shutdown();
+        try {
+            if (!executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS)) {
+                throw new IllegalStateException("Can not await for termination");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(e);
+        }
 
         if (memoryConsumption.get() > 0) {
             flush(memoryStorage);
@@ -125,12 +146,18 @@ public class DaoImpl implements DAO {
     }
 
     private void flush(NavigableMap<ByteBuffer, Record> storage) throws IOException {
-        Path dir = config.dir;
-        Path file = dir.resolve(SSTable.SAVE_FILE_PREFIX + ssTables.size());
+        executorService.execute(() -> {
+            try {
+                Path dir = config.dir;
+                Path file = dir.resolve(SSTable.SAVE_FILE_PREFIX + ssTables.size());
 
-        SSTable ssTable = SSTable.save(storage.values().iterator(), file);
+                SSTable ssTable = SSTable.save(storage.values().iterator(), file);
 
-        ssTables.add(ssTable);
+                ssTables.add(ssTable);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        });
     }
 
     private Iterator<Record> ssTableRanges(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
