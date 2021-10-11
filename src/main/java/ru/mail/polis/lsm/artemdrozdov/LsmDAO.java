@@ -77,16 +77,14 @@ public class LsmDAO implements DAO {
 
     @Override
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
-        Iterator<Record> sstableRanges = sstableRanges(fromKey, toKey);
         Iterator<Record> memoryRange = map(fromKey, toKey, memoryStorage).values().iterator();
         Iterator<NavigableMap<ByteBuffer, Record>> queueRange = circBuffer.iterator();
 
-        // Эта часть тербует оптимизации, хотя в целом, реализация работает быстрее.
-        // Оптимизировать после основной части...
         while (queueRange.hasNext()) {
             Iterator<Record> unionRange = map(fromKey, toKey, queueRange.next()).values().iterator();
             memoryRange = mergeTwo(unionRange, memoryRange);
         }
+        Iterator<Record> sstableRanges = sstableRanges(fromKey, toKey);
         Iterator<Record> iterator = mergeTwo(sstableRanges, memoryRange);
         return filterTombstones(iterator);
     }
