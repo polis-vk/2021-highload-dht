@@ -95,7 +95,8 @@ public class LsmDAO implements DAO {
                     flushStorage.forEach((key, value) -> {
                         if (memoryStorage.get(key).getValue().equals(value.getValue())) {
                             memoryStorage.remove(key);
-                        }});
+                        }
+                    });
                 } catch (IOException e) {
                     memoryConsumption.addAndGet(-rollbackSize);
                     memoryStorage.putAll(flushStorage); // restore data + new data
