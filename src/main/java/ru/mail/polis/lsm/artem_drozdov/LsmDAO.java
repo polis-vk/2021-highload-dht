@@ -88,7 +88,7 @@ public class LsmDAO implements DAO {
                             memoryConsumption.addAndGet(prev);
                             throw new UncheckedIOException(e);
                         }
-                    });
+                    }, executor);
                 } else {
                     LOGGER.debug("Concurrent flush");
                 }
