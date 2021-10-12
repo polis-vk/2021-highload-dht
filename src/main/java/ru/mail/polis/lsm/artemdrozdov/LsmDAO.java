@@ -25,13 +25,12 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 
 public class LsmDAO implements DAO {
 
-    private final AtomicReference<Future<?>> flushFuture = new AtomicReference<>();
-    private NavigableMap<ByteBuffer, Record> memoryStorage = newStorage();
-    private NavigableMap<ByteBuffer, Record> memoryStorageToFlush = newStorage();
+    private volatile Future<?> flushFuture;
+    private volatile NavigableMap<ByteBuffer, Record> memoryStorage = newStorage();
+    private volatile NavigableMap<ByteBuffer, Record> memoryStorageToFlush = newStorage();
     private final ExecutorService flushExecutor = Executors.newSingleThreadExecutor();
     private final ConcurrentLinkedDeque<SSTable> tables = new ConcurrentLinkedDeque<>();
     private final Logger logger = LoggerFactory.getLogger(LsmDAO.class);
@@ -54,9 +53,9 @@ public class LsmDAO implements DAO {
     }
 
     private void waitForFlushFutureResult() {
-        if (flushFuture.get() != null) {
+        if (flushFuture != null && !flushFuture.isDone() && !flushFuture.isCancelled()) {
             try {
-                flushFuture.get().get();
+                flushFuture.get();
             } catch (ExecutionException e) {
                 logger.error("Error waiting 'flushFuture'. ", e);
             } catch (InterruptedException e) {
@@ -92,7 +91,7 @@ public class LsmDAO implements DAO {
                 int prev = memoryConsumption.getAndSet(sizeOf(record));
                 memoryStorageToFlush = new ConcurrentSkipListMap<>(memoryStorage);
 
-                flushFuture.set(flushExecutor.submit(() -> {
+                flushFuture = flushExecutor.submit(() -> {
                     try {
                         memoryStorageToFlush.forEach((buffer, record1) -> memoryStorage.remove(buffer, record1));
                         flush(memoryStorageToFlush);
@@ -101,7 +100,7 @@ public class LsmDAO implements DAO {
                         memoryStorage.putAll(memoryStorageToFlush);
                         logger.warn("Error while flushing. ", e);
                     }
-                }));
+                });
             }
         }
 

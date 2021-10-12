@@ -51,6 +51,7 @@
     <rule ref="category/java/multithreading.xml">
         <exclude name="AvoidSynchronizedAtMethodLevel"/>
         <exclude name="DoNotUseThreads"/>
+        <exclude name="AvoidUsingVolatile"/>
     </rule>
     <rule ref="category/java/performance.xml">
         <exclude name="AvoidInstantiatingObjectsInLoops"/>
