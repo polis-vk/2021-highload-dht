@@ -92,7 +92,7 @@ public class LsmDAO implements DAO {
                         this.tableStorage = tableStorage.afterFlush(flushTable);
                         // пересечение одинаковых ключей, которые были до флаша
                         flushStorage.keySet().retainAll(memoryStorage.keySet());
-                        // Удаление записи у одинаковых ключей (проверка значение у ключа не было изменено во время флаша)
+                        // Удаление записи у одинаковых ключей (у ключа не было изменено во время флаша)
                         flushStorage.forEach((key, value) -> {
                             if (memoryStorage.get(key).getValue().equals(value.getValue())) {
                                 memoryStorage.remove(key);
