@@ -24,7 +24,7 @@ import java.util.stream.Stream;
 
 public class SSTable implements Closeable {
 
-    private static final int MAX_BUFFER_SIZE = 1024;
+    private static final int MAX_BUFFER_SIZE = 4096;
     public static final String SSTABLE_FILE_PREFIX = "file_";
     public static final String COMPACTION_FILE_NAME = "compaction";
 
