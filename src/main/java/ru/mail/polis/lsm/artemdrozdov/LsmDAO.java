@@ -23,6 +23,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -133,9 +134,20 @@ public class LsmDAO implements DAO {
     @Override
     public void close() throws IOException {
         flushExecutor.shutdown();
-        waitForFlushFutureResult();
+        waitFlushExecutorTermination();
 
         flush(memoryStorage);
+    }
+
+    private void waitFlushExecutorTermination() {
+        try {
+            while (!flushExecutor.awaitTermination(5, TimeUnit.MINUTES)) {
+                logger.warn("FlushExecutor termination is too long!");
+            }
+        } catch (InterruptedException e) {
+            logger.error("Interruption waiting 'flushFuture' to terminate. ", e);
+            Thread.currentThread().interrupt();
+        }
     }
 
     private void flush(NavigableMap<ByteBuffer, Record> data) throws IOException {
