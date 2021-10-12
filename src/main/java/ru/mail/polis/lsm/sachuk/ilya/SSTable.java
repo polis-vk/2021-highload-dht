@@ -148,7 +148,12 @@ public class SSTable {
                 writeInt(indexFileChanel, buffer, counter);
 
                 while (iterators.hasNext()) {
-                    int indexPositionToRead = (int) saveFileChannel.position();
+                    long longPosition = saveFileChannel.position();
+                    if (longPosition > Integer.MAX_VALUE) {
+                        throw new IllegalStateException("File is too long");
+                    }
+
+                    int indexPositionToRead = (int) longPosition;
 
                     writeInt(indexFileChanel, buffer, indexPositionToRead);
                     counter++;
