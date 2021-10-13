@@ -11,8 +11,21 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
-import java.util.*;
-import java.util.concurrent.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+import java.util.NavigableMap;
+import java.util.NoSuchElementException;
+import java.util.SortedMap;
+import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
@@ -22,7 +35,7 @@ public class LsmDAO implements DAO {
     private static final Logger LOG = LoggerFactory.getLogger(LsmDAO.class);
 
     private final ConcurrentLinkedDeque<NavigableMap<ByteBuffer, Record>> tablesForFlush = new ConcurrentLinkedDeque<>();
-    private volatile Future<?> currentFlush;
+    private Future<?> currentFlush;
 
     private final AtomicBoolean storageChanging = new AtomicBoolean();
 
@@ -46,12 +59,17 @@ public class LsmDAO implements DAO {
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
         Iterator<Record> sstableRanges = sstableRanges(fromKey, toKey);
         Iterator<Record> memoryRange = map(memoryStorage, fromKey, toKey).values().iterator();
-        Iterator<Record> iterator = mergeTwo(new PeekingIterator(sstableRanges), new PeekingIterator(memoryRange));
+        Iterator<Record> iterator = mergeTwo(
+                new PeekingIterator(sstableRanges), new PeekingIterator(memoryRange));
+
         List<Iterator<Record>> tablesForFlushRange = tablesForFlush.stream()
                 .map(table -> map(table, fromKey, toKey).values().iterator())
                 .collect(Collectors.toList());
         Iterator<Record> tableForFlushRange = merge(tablesForFlushRange);
-        Iterator<Record> finalIterator = mergeTwo(new PeekingIterator(tableForFlushRange), new PeekingIterator(iterator));
+
+        Iterator<Record> finalIterator = mergeTwo(
+                new PeekingIterator(tableForFlushRange), new PeekingIterator(iterator));
+
         return filterTombstones(finalIterator);
     }
 
@@ -77,14 +95,7 @@ public class LsmDAO implements DAO {
 
                     storageChanging.set(true);
                     try {
-                        tablesForFlush.add(memoryStorage);
-                        currentFlush = flushExecutor.submit(() -> {
-                            NavigableMap<ByteBuffer, Record> snapshotToFlush = tablesForFlush.poll();
-                            if (snapshotToFlush != null) {
-                                doSnapshotFlush(prev, snapshotToFlush.values().iterator());
-                            }
-                        });
-                        memoryStorage = new ConcurrentSkipListMap<>();
+                        doFlushAndStorageChanging(prev);
                     } finally {
                         notifyAll();
                         storageChanging.set(false);
@@ -93,6 +104,17 @@ public class LsmDAO implements DAO {
             }
         }
         memoryStorage.put(record.getKey(), record);
+    }
+
+    private void doFlushAndStorageChanging(int prev) {
+        tablesForFlush.add(memoryStorage);
+        currentFlush = flushExecutor.submit(() -> {
+            NavigableMap<ByteBuffer, Record> snapshotToFlush = tablesForFlush.poll();
+            if (snapshotToFlush != null) {
+                doSnapshotFlush(prev, snapshotToFlush.values().iterator());
+            }
+        });
+        memoryStorage = new ConcurrentSkipListMap<>();
     }
 
     private void doSnapshotFlush(int prev, Iterator<Record> snapshot) {
@@ -164,7 +186,8 @@ public class LsmDAO implements DAO {
         return merge(iterators);
     }
 
-    private SortedMap<ByteBuffer, Record> map(NavigableMap<ByteBuffer, Record> storage, @Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
+    private SortedMap<ByteBuffer, Record> map(NavigableMap<ByteBuffer, Record> storage,
+                                              @Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
         if (fromKey == null && toKey == null) {
             return storage;
         }
