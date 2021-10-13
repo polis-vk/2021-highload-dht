@@ -1,5 +1,7 @@
 package ru.mail.polis.lsm.igorsamokhin;
 
+import javax.annotation.Nullable;
+
 import java.io.File;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -14,9 +16,27 @@ import java.util.Arrays;
 final class FileUtils {
     public static final String TMP_FILE_EXT = ".tmp";
     public static final String INDEX_FILE_EXT = ".idx";
-    public static final String COMPACT_FILE_NAME = "COMPACT_";
+    public static final String COMPACT_FILE_EXT = ".cmp";
+    public static final int FILE_NAME_LENGTH = 64;
 
     private FileUtils() {
+    }
+
+    public static String formatFileName(@Nullable String filePrefix, int number, @Nullable String suffix) {
+        String binary = Long.toBinaryString(number);
+        int leadingN = FILE_NAME_LENGTH - binary.length();
+
+        String zeros = "0".repeat(leadingN);
+        StringBuilder result = new StringBuilder();
+        if (filePrefix != null) {
+            result.append(filePrefix);
+        }
+        result.append(zeros)
+                .append(binary);
+        if (suffix != null) {
+            result.append(suffix);
+        }
+        return result.toString();
     }
 
     public static MappedByteBuffer openForRead(Path name) throws IOException {
@@ -31,13 +51,13 @@ final class FileUtils {
             int length = bufferSizes.length;
             ByteBuffer[] buffers = new ByteBuffer[length];
 
-            long min = 0;
-            long max = 0;
+            long begin = 0;
+            long size = 0;
             for (long i = 0; i < length; i++) {
-                min = max + i * Integer.MAX_VALUE;
-                max = min + bufferSizes[(int) i];
+                begin += size;
+                size = bufferSizes[(int) i];
 
-                buffers[(int) i] = channel.map(FileChannel.MapMode.READ_ONLY, min, max);
+                buffers[(int) i] = channel.map(FileChannel.MapMode.READ_ONLY, begin, size);
             }
             return new LongMappedByteBuffer(buffers);
         }
@@ -77,29 +97,64 @@ final class FileUtils {
     public static boolean prepareDirectory(Path dir) throws IOException {
         File[] files = dir.toFile().listFiles();
 
-        Arrays.sort(files);
-
-        if ((files.length == 0) || !files[0].getName().startsWith(COMPACT_FILE_NAME)) {
+        if (files == null) {
             return false;
         }
 
-        for (File file : files) {
-            if (!file.getName().startsWith(COMPACT_FILE_NAME)) {
+        Arrays.sort(files, (a, b) -> {
+            int compareTo = a.compareTo(b);
+            return compareTo * -1;
+        });
+
+        boolean wasCompact = removeFilesIfWasCompaction(files);
+        shiftFileNamesToBeginning(dir, files);
+
+        return wasCompact;
+    }
+
+    /**
+     * Return true if was compaction, otherwise - false.
+     */
+    public static boolean removeFilesIfWasCompaction(File... files) throws IOException {
+        boolean wasCompact = false;
+        for (int i = 0; i < files.length; i++) {
+            File file = files[i];
+            if (file == null) {
+                continue;
+            }
+
+            if (wasCompact) {
                 Files.delete(file.toPath());
+                files[i] = null;
+            } else if (file.getName().endsWith(COMPACT_FILE_EXT)) {
+                wasCompact = true;
             }
         }
+        return wasCompact;
+    }
 
-        Path compactFile = files[0].toPath();
-        String fileName = files[0].getName().substring(COMPACT_FILE_NAME.length());
-        Path file = dir.resolve(fileName);
+    private static void shiftFileNamesToBeginning(Path dir, File... files) throws IOException {
+        int n = 0;
+        for (int i = files.length - 1; i >= 0; --i) {
+            if ((files[i] == null) || files[i].getName().endsWith(INDEX_FILE_EXT)) {
+                continue;
+            }
 
-        if (Files.exists(FileUtils.getIndexFile(compactFile))) {
-            Files.move(FileUtils.getIndexFile(compactFile),
-                    FileUtils.getIndexFile(file),
-                    StandardCopyOption.ATOMIC_MOVE);
+            String name = files[i].getName();
+            String ext = name.substring(FILE_NAME_LENGTH);
+            String newName = formatFileName(null, n, ext);
+
+            Path newFile = dir.resolve(newName);
+            Path indexFile = getIndexFile(files[i].toPath());
+
+            if (Files.exists(indexFile)) {
+                Files.move(indexFile,
+                        FileUtils.getIndexFile(newFile),
+                        StandardCopyOption.ATOMIC_MOVE);
+            }
+
+            Files.move(files[i].toPath(), newFile, StandardCopyOption.ATOMIC_MOVE);
+            ++n;
         }
-
-        Files.move(compactFile, file, StandardCopyOption.ATOMIC_MOVE);
-        return true;
     }
 }

@@ -10,37 +10,24 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.SortedMap;
-import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.Phaser;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
 
 @SuppressWarnings("JdkObsolete")
 public class LsmDAO implements DAO {
-
-    private static final String FILE_PREFIX = "SSTable_";
-
-    private final AtomicReference<SortedMap<ByteBuffer, Record>> memoryStorage =
-            new AtomicReference<>(getNewStorage());
-
-    private final List<SSTable> ssTables;
+    @SuppressWarnings("PMD.AvoidUsingVolatile")//Storage is final class
+    private volatile Storage storage;
     private final DAOConfig config;
     private final AtomicInteger memoryConsumption = new AtomicInteger(0);
 
-    private Path filePath;
+    private final AtomicInteger fileN;
 
-    private final ExecutorService executors = Executors.newFixedThreadPool(1);
-    private AtomicReference<SortedMap<ByteBuffer, Record>> flushingStorage;
-    private final Phaser phaser = new Phaser(2);
-    private final AtomicBoolean isSet = new AtomicBoolean();
+    private final ExecutorService executors = Executors.newSingleThreadExecutor();
 
     /**
      * Create DAO object.
@@ -50,156 +37,99 @@ public class LsmDAO implements DAO {
     public LsmDAO(DAOConfig config) throws IOException {
         this.config = config;
 
-        ssTables = SSTable.loadFromDir(config.dir);
-        filePath = getNewFileName();
-        executors.execute(this::flushTask);
+        List<SSTable> ssTables = SSTable.loadFromDir(config.dir);
+        fileN = new AtomicInteger(ssTables.size());
+        storage = Storage.init(ssTables);
     }
 
-    private Path getNewFileName() {
-        String binary = Long.toBinaryString(ssTables.size());
-        int leadingN = 64 - binary.length();
-
-        String builder = "0".repeat(leadingN) + binary;
-        String name = FILE_PREFIX.concat(builder);
-        return config.dir.resolve(name);
+    private String getNewFileName() {
+        int size = fileN.getAndIncrement();
+        return FileUtils.formatFileName(null, size, null);
     }
 
     @Override
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
-        Iterator<Record> memoryRange = SSTable.getSubMap(memoryStorage.get(), fromKey, toKey).values().iterator();
-        Iterator<Record> sstableRanges = sstableRanges(fromKey, toKey);
-        return LsmDAO.merge(List.of(sstableRanges, memoryRange));
+        return this.storage.range(fromKey, toKey);
     }
 
     @Override
     public void upsert(Record record) {
         int size = record.size();
-        if (memoryConsumption.addAndGet(size) > config.memoryLimit) {
+        int consumption = memoryConsumption.addAndGet(size);
+        if (consumption > config.memoryLimit) {
             synchronized (this) {
                 if (memoryConsumption.get() > config.memoryLimit) {
-                    ConcurrentSkipListMap<ByteBuffer, Record> newStorage = getNewStorage();
-                    newStorage.put(record.getKey(), record);
-                    SortedMap<ByteBuffer, Record> oldStorage = memoryStorage.getAndSet(newStorage);
+                    storage = storage.prepareFlush();
 
-                    sendToFlush(oldStorage);
+                    int prev = memoryConsumption.getAndSet(size);
+                    try {
+                        SSTable ssTable = flush();
+                        storage = storage.afterFlush(ssTable);
 
-                    memoryConsumption.set(size);
-                    return;
+                    } catch (IOException e) {
+                        memoryConsumption.addAndGet(prev);
+                        throw new UncheckedIOException(e);
+                    }
+                }
+
+                if (storage.tables.size() > config.maxTables) {
+                    compact();
                 }
             }
         }
-        memoryStorage.get().put(record.getKey(), record);
+        storage.currentStorage.put(record.getKey(), record);
     }
 
-    private void sendToFlush(@Nullable SortedMap<ByteBuffer, Record> oldStorage) {
-        while (true) {
-            if (isSet.compareAndSet(false, true)) {
-                break;
-            }
-        }
-
-        flushingStorage = new AtomicReference<>(oldStorage);
-        phaser.arrive();
+    private SSTable flush() throws IOException {
+        String newFileName = getNewFileName();
+        return writeStorage(storage.storageToWrite, config.dir.resolve(newFileName));
     }
 
-    private void flushTask() {
-        while (!Thread.currentThread().isInterrupted()) {
-            SortedMap<ByteBuffer, Record> storage;
-
-            phaser.arriveAndAwaitAdvance();
-
-            storage = flushingStorage.get();
-
-            if (storage == null) {
-                storage = memoryStorage.get();
-            }
-            try {
-                writeStorage(storage);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-            isSet.set(false);
-        }
-    }
-
-    private ConcurrentSkipListMap<ByteBuffer, Record> getNewStorage() {
-        return new ConcurrentSkipListMap<>();
-    }
-
-    private void writeStorage(SortedMap<ByteBuffer, Record> storage) throws IOException {
+    private SSTable writeStorage(SortedMap<ByteBuffer, Record> storage, Path filePath) throws IOException {
         SSTable.write(storage.values().iterator(), filePath);
-        SSTable ssTable = SSTable.loadFromFile(filePath);
-        ssTables.add(ssTable);
-        filePath = getNewFileName();
-    }
-
-    private Iterator<Record> sstableRanges(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
-        List<Iterator<Record>> iterators = new ArrayList<>(ssTables.size());
-        for (SSTable sstable : ssTables) {
-            iterators.add(sstable.range(fromKey, toKey));
-        }
-        return LsmDAO.merge(iterators);
+        return SSTable.loadFromFile(filePath);
     }
 
     @Override
     public void close() throws IOException {
-        synchronized (this) {
-            sendToFlush(null);
-            while (true) {
-                if (!isSet.get()) {
-                    break;
-                }
+        executors.shutdown();
+        try {
+            if (!executors.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS)) {
+                throw new IllegalStateException("Can't await termination on close");
             }
-            if (ssTables.isEmpty()) {
-                return;
-            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(e);
+        }
 
-            for (SSTable ssTable : ssTables) {
+        synchronized (this) {
+            storage = storage.prepareFlush();
+            flush();
+            for (SSTable ssTable : storage.tables) {
                 ssTable.close();
             }
-            ssTables.clear();
-            try {
-                if (!executors.awaitTermination(100, TimeUnit.MILLISECONDS)) {
-                    executors.shutdownNow();
-                }
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            }
+            storage = null;
         }
     }
 
     @Override
-    public void closeAndCompact() {
-        synchronized (this) {
-            Path compactFile = null;
-            try {
-                compactFile = SSTable.compact(config.dir, this.range(null, null));
-            } catch (IOException e) {
-                throw new UncheckedIOException("Can't compact", e);
-            }
-
-            if (compactFile == null) {
-                return;
-            }
-
-            for (SSTable ssTable : ssTables) {
-                try {
-                    ssTable.close();
-                } catch (IOException e) {
-                    throw new UncheckedIOException("Can't close sstable", e);
+    public void compact() {
+        executors.execute(() -> {
+            synchronized (this) {
+                if (this.storage.tables.size() <= config.maxTables) {
+                    return;
                 }
+
+                SSTable compactFile = null;
+                try {
+                    compactFile = SSTable.compact(config.dir, this.range(null, null), getNewFileName());
+                } catch (IOException e) {
+                    throw new UncheckedIOException("Can't compact", e);
+                }
+
+                this.storage = storage.afterCompaction(compactFile);
             }
-
-            ssTables.clear();
-
-            try {
-                ssTables.addAll(SSTable.loadFromDir(config.dir));
-            } catch (IOException e) {
-                throw new UncheckedIOException("Can't load db from directory", e);
-            }
-
-            filePath = getNewFileName();
-        }
+        });
     }
 
     /**

@@ -1,7 +1,18 @@
 package ru.mail.polis.lsm;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import static ru.mail.polis.lsm.Utils.assertDaoEquals;
+import static ru.mail.polis.lsm.Utils.key;
+import static ru.mail.polis.lsm.Utils.keyWithSuffix;
+import static ru.mail.polis.lsm.Utils.recursiveDelete;
+import static ru.mail.polis.lsm.Utils.sizeBasedRandomData;
+import static ru.mail.polis.lsm.Utils.value;
+import static ru.mail.polis.lsm.Utils.valueWithSuffix;
+import static ru.mail.polis.lsm.Utils.wrap;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -12,18 +23,6 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Iterator;
 import java.util.Map;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static ru.mail.polis.lsm.Utils.assertDaoEquals;
-import static ru.mail.polis.lsm.Utils.key;
-import static ru.mail.polis.lsm.Utils.keyWithSuffix;
-import static ru.mail.polis.lsm.Utils.recursiveDelete;
-import static ru.mail.polis.lsm.Utils.sizeBasedRandomData;
-import static ru.mail.polis.lsm.Utils.value;
-import static ru.mail.polis.lsm.Utils.valueWithSuffix;
-import static ru.mail.polis.lsm.Utils.wrap;
 
 class PersistenceTest {
     @Test
@@ -207,7 +206,7 @@ class PersistenceTest {
         int beforeCompactSize = getDirSize(data);
 
         try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
-            dao.closeAndCompact();
+            dao.compact();
             assertDaoEquals(dao, map);
         }
 

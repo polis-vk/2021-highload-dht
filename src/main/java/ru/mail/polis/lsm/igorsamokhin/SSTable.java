@@ -14,10 +14,21 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
-import java.util.SortedMap;
+import java.util.NoSuchElementException;
 
-@SuppressWarnings("JdkObsolete")
 class SSTable {
+    public static final Iterator<Record> EMPTY_ITERATOR = new Iterator<>() {
+        @Override
+        public boolean hasNext() {
+            return false;
+        }
+
+        @Override
+        public Record next() {
+            throw new NoSuchElementException();
+        }
+    };
+
     private static final int MAX_BUFFER_SIZE = 4096;
 
     private final LongMappedByteBuffer mmap;
@@ -53,6 +64,7 @@ class SSTable {
 
         try {
             LongMappedByteBuffer.free(idx);
+
         } catch (IOException e) {
             if (exception == null) {
                 exception = e;
@@ -68,12 +80,17 @@ class SSTable {
 
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
         long maxSize = mmap.remaining();
+        LongMappedByteBuffer buffer = mmap.asReadOnlyBuffer();
 
-        long fromOffset = fromKey == null ? 0 : offset(mmap, fromKey);
-        long toOffset = toKey == null ? maxSize : offset(mmap, toKey);
+        long fromOffset = fromKey == null ? 0 : offset(buffer, fromKey);
+        long toOffset = toKey == null ? maxSize : offset(buffer, toKey);
+
+        if (fromOffset == toOffset) {
+            return EMPTY_ITERATOR;
+        }
 
         return new ByteBufferRecordIterator(
-                mmap,
+                buffer,
                 fromOffset == -1 ? maxSize : fromOffset,
                 toOffset == -1 ? maxSize : toOffset
         );
@@ -110,7 +127,7 @@ class SSTable {
         try (FileChannel fileChannel = FileUtils.openForWrite(tmpFileName);
              FileChannel indexChannel = FileUtils.openForWrite(tmpIndexName)
         ) {
-            final ByteBuffer tmp = ByteBuffer.allocate(MAX_BUFFER_SIZE);
+            ByteBuffer tmp = ByteBuffer.allocate(MAX_BUFFER_SIZE);
             tmp.limit(tmp.capacity());
 
             List<Integer> sizes = new ArrayList<>();
@@ -120,9 +137,10 @@ class SSTable {
                 Record record = records.next();
                 int size = record.size();
                 long position = fileChannel.position();
-                if (position + size + Integer.BYTES * 2 > Integer.MAX_VALUE) {
-                    sizes.add((int) (position - offset));
-                    offset += Integer.MAX_VALUE;
+                if (position - offset + size + Integer.BYTES * 2 > Integer.MAX_VALUE) {
+                    long delta = position - offset;
+                    sizes.add((int) delta);
+                    offset += delta;
                 }
 
                 ByteBufferUtils.writeLong(position, indexChannel, tmp);
@@ -132,15 +150,20 @@ class SSTable {
 
             sizes.add((int) (fileChannel.position() - offset));
 
-            //todo сделать буферизацию
             int n = sizes.size();
-            for (int i = n - 1; i >= 0; --i) {
-                ByteBufferUtils.writeInt(sizes.get(i), indexChannel, tmp);
+            if ((n + 1) * Integer.BYTES > tmp.capacity()) {
+                tmp = ByteBuffer.allocate((n + 1) * Integer.BYTES);
             }
-            ByteBufferUtils.writeInt(n, indexChannel, tmp);
+            tmp.position(0);
+            tmp.limit(Integer.BYTES * (n + 1));
+            for (int i = n - 1; i >= 0; --i) {
+                tmp.putInt(sizes.get(i));
+            }
+            tmp.putInt(n);
+            tmp.position(0);
+            indexChannel.write(tmp);
 
             fileChannel.force(false);
-            indexChannel.force(false);
         }
 
         FileUtils.rename(indexFile, tmpIndexName);
@@ -155,33 +178,23 @@ class SSTable {
     }
 
     /**
-     * Create sub map.
-     */
-    public static SortedMap<ByteBuffer, Record> getSubMap(SortedMap<ByteBuffer, Record> memoryStorage,
-                                                          @Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
-        if (fromKey == null && toKey == null) {
-            return memoryStorage;
-        } else if (fromKey == null) {
-            return memoryStorage.headMap(toKey);
-        } else if (toKey == null) {
-            return memoryStorage.tailMap(fromKey);
-        }
-        return memoryStorage.subMap(fromKey, toKey);
-    }
-
-    /**
      * Compact several sstables in dir into one.
      */
-    public static Path compact(Path dir, Iterator<Record> range) throws IOException {
+    public static SSTable compact(Path dir, Iterator<Record> range, String newFileName) throws IOException {
+        Path fileName = dir.resolve(newFileName + FileUtils.COMPACT_FILE_EXT);
+        write(range, fileName);
+
         File[] files = dir.toFile().listFiles();
-        if ((files == null) || (files.length == 0)) {
+        if (files == null) {
             return null;
         }
-        Arrays.sort(files);
+        Arrays.sort(files, (a, b) -> {
+            int compareTo = a.compareTo(b);
+            return compareTo * -1;
+        });
 
-        Path fileName = dir.resolve(FileUtils.COMPACT_FILE_NAME + files[0].getName());
-        write(range, fileName);
-        return fileName;
+        FileUtils.removeFilesIfWasCompaction(files);
+        return loadFromFile(fileName);
     }
 
     private long offset(LongMappedByteBuffer buffer, ByteBuffer keyToFind) {

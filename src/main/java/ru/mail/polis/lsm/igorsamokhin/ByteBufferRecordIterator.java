@@ -14,7 +14,7 @@ final class ByteBufferRecordIterator implements Iterator<Record> {
             final LongMappedByteBuffer buffer,
             final long fromOffset,
             final long toOffset) {
-        this.buffer = buffer.duplicate();
+        this.buffer = buffer;
         this.buffer.position(fromOffset);
         this.toOffset = toOffset;
     }

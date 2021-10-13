@@ -7,6 +7,7 @@ public class DAOConfig {
 
     public final Path dir;
     public final int memoryLimit;
+    public int maxTables = 32;
 
     public DAOConfig(Path dir) {
         this(dir, DEFAULT_MEMORY_LIMIT);
