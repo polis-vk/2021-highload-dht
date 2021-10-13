@@ -86,19 +86,18 @@ public class LsmDAO implements DAO {
                 final int rollbackSize = sizeOf(record);
                 NavigableMap<ByteBuffer, Record> flushStorage = newStorage();
                 try {
-                    synchronized (this) {
                         flushStorage.putAll(memoryStorage);
                         SSTable flushTable = flush(flushStorage);
                         this.tableStorage = tableStorage.afterFlush(flushTable);
-                        // пересечение одинаковых ключей, которые были до флаша
-                        flushStorage.keySet().retainAll(memoryStorage.keySet());
-                        // Удаление записи у одинаковых ключей (у ключа не было изменено во время флаша)
+                        // Удаление записи у одинаковых ключей (и ключ не был изменен во время флаша)
                         flushStorage.forEach((key, value) -> {
-                            if (memoryStorage.get(key).getValue().equals(value.getValue())) {
-                                memoryStorage.remove(key);
+                            Record tmp = memoryStorage.get(key);
+                            if (tmp != null) {
+                                if (tmp.getValue().equals(value.getValue())) {
+                                    memoryStorage.remove(key);
+                                }
                             }
                         });
-                    }
                 } catch (IOException e) {
                     memoryConsumption.addAndGet(-rollbackSize);
                     memoryStorage.putAll(flushStorage); // restore data + new data
