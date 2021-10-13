@@ -28,6 +28,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class DaoImpl implements DAO {
     private final Logger logger = LoggerFactory.getLogger(DaoImpl.class);
+
+    @SuppressWarnings("PMD")
     private volatile Storage storage;
 
     private final DAOConfig config;
@@ -82,12 +84,6 @@ public class DaoImpl implements DAO {
                     int prev = memoryConsumption.getAndSet(sizeOf(record));
 
                     prepareAndFlush(prev);
-
-
-//                    logger.info(flushExecutor.g);
-//                        if (needCompact()) {
-//                            compact();
-//                        }
                 }
             }
         }
@@ -134,16 +130,6 @@ public class DaoImpl implements DAO {
             Thread.currentThread().interrupt();
             throw new IllegalStateException(e);
         }
-
-//        executorService.shutdown();
-//        try {
-//            if (!executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS)) {
-//                throw new IllegalStateException("Can't await for termination");
-//            }
-//        } catch (InterruptedException e) {
-//            Thread.currentThread().interrupt();
-//            throw new IllegalStateException(e);
-//        }
 
         synchronized (this) {
             if (memoryConsumption.get() > 0) {
