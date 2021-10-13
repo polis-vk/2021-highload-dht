@@ -10,7 +10,6 @@ import ru.mail.polis.lsm.sachuk.ilya.iterators.PeekingIterator;
 import ru.mail.polis.lsm.sachuk.ilya.iterators.TombstoneFilteringIterator;
 
 import javax.annotation.Nullable;
-import javax.annotation.concurrent.GuardedBy;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
@@ -29,7 +28,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class DaoImpl implements DAO {
     private final Logger logger = LoggerFactory.getLogger(DaoImpl.class);
-    private Storage storage;
+    private volatile Storage storage;
 
     private final DAOConfig config;
 
@@ -82,10 +81,10 @@ public class DaoImpl implements DAO {
 
                     int prev = memoryConsumption.getAndSet(sizeOf(record));
 
-                    flushExecutor.execute(() -> {
-                        SSTable ssTable = prepareAndFlush(prev);
-                        storage = storage.afterFlush(ssTable);
-                    });
+                    prepareAndFlush(prev);
+
+
+//                    logger.info(flushExecutor.g);
 //                        if (needCompact()) {
 //                            compact();
 //                        }
@@ -136,23 +135,31 @@ public class DaoImpl implements DAO {
             throw new IllegalStateException(e);
         }
 
-        executorService.shutdown();
-        try {
-            if (!executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS)) {
-                throw new IllegalStateException("Can't await for termination");
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException(e);
-        }
+//        executorService.shutdown();
+//        try {
+//            if (!executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS)) {
+//                throw new IllegalStateException("Can't await for termination");
+//            }
+//        } catch (InterruptedException e) {
+//            Thread.currentThread().interrupt();
+//            throw new IllegalStateException(e);
+//        }
 
         synchronized (this) {
             if (memoryConsumption.get() > 0) {
                 storage = storage.prepareFlush();
                 flush();
             }
+
+            closeSSTables();
             storage = null;
 
+        }
+    }
+
+    private void closeSSTables() throws IOException {
+        for (SSTable ssTable : storage.ssTables) {
+            ssTable.close();
         }
     }
 
@@ -173,13 +180,18 @@ public class DaoImpl implements DAO {
         }
     }
 
-    private SSTable prepareAndFlush(int prevConsumption) {
-        try {
-            return flush();
-        } catch (IOException e) {
-            memoryConsumption.addAndGet(prevConsumption);
-            throw new UncheckedIOException(e);
-        }
+    private void prepareAndFlush(int prevConsumption) {
+        flushExecutor.execute(() -> {
+            synchronized (this) {
+                try {
+                    SSTable ssTable = flush();
+                    storage = storage.afterFlush(ssTable);
+                } catch (IOException e) {
+                    memoryConsumption.addAndGet(prevConsumption);
+                    throw new UncheckedIOException(e);
+                }
+            }
+        });
     }
 
     private SSTable flush() throws IOException {
