@@ -15,7 +15,12 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 public class Storage {
-    public final static class MemoryWithSize {
+    private final AtomicInteger currentStorageMemoryUsage;
+    private final NavigableMap<Integer, MemoryWithSize> flushingStorages;
+    private final NavigableMap<ByteBuffer, Record> currentStorage;
+    private final List<SSTable> tables;
+
+    public static final class MemoryWithSize {
         private final int memorySize;
         private final NavigableMap<ByteBuffer, Record> memory;
 
@@ -33,15 +38,9 @@ public class Storage {
         }
     }
 
-    private final AtomicInteger currentStorageMemoryUsage;
-
     public NavigableMap<Integer, MemoryWithSize> getFlushingStorages() {
         return flushingStorages;
     }
-
-    private final NavigableMap<Integer, MemoryWithSize> flushingStorages;
-    private final NavigableMap<ByteBuffer, Record> currentStorage;
-    private final List<SSTable> tables;
 
     public Storage() {
         currentStorageMemoryUsage = new AtomicInteger(0);

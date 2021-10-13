@@ -21,7 +21,6 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
-
 public class LsmDAO implements DAO {
 
     private final long flushMemoryThreshold;
