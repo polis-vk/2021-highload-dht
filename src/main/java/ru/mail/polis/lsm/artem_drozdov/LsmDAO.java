@@ -118,19 +118,15 @@ public class LsmDAO implements DAO {
     @Override
     public void compact() {
         synchronized (this) {
+            LOGGER.info("compact started");
+            final SSTable table;
             try {
-                LOGGER.info("compact started");
-                final SSTable table;
-                try {
-                    table = SSTable.compact(config.dir, range(null, null));
-                } catch (IOException e) {
-                    throw new UncheckedIOException("Can't compact", e);
-                }
-                storage = storage.afterCompaction(table);
-                LOGGER.info("compact finished");
-            } catch (Exception e) {
-                LOGGER.error("Can't run compaction", e);
+                table = SSTable.compact(config.dir, range(null, null));
+            } catch (IOException e) {
+                throw new UncheckedIOException("Can't compact", e);
             }
+            storage = storage.afterCompaction(table);
+            LOGGER.info("compact finished");
         }
     }
 
@@ -223,8 +219,8 @@ public class LsmDAO implements DAO {
         }
 
         public Storage afterCompaction(SSTable ssTable) {
-            List<SSTable> tables = Collections.singletonList(ssTable);
-            return new Storage(currentStorage, EMPTY_STORAGE, tables);
+            List<SSTable> newTables = Collections.singletonList(ssTable);
+            return new Storage(currentStorage, EMPTY_STORAGE, newTables);
         }
     }
 }
