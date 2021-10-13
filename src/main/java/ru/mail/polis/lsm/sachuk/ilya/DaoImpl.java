@@ -10,6 +10,7 @@ import ru.mail.polis.lsm.sachuk.ilya.iterators.PeekingIterator;
 import ru.mail.polis.lsm.sachuk.ilya.iterators.TombstoneFilteringIterator;
 
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.GuardedBy;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
@@ -28,12 +29,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class DaoImpl implements DAO {
     private final Logger logger = LoggerFactory.getLogger(DaoImpl.class);
+    private volatile Storage storage;
 
-
-    private final Path dirPath;
     private final DAOConfig config;
-    private NavigableMap<ByteBuffer, Record> memoryStorage = new ConcurrentSkipListMap<>();
-    private final List<SSTable> ssTables = new ArrayList<>();
 
     private final ExecutorService executorService = Executors.newSingleThreadExecutor();
     private final AtomicInteger memoryConsumption = new AtomicInteger();
@@ -46,65 +44,85 @@ public class DaoImpl implements DAO {
      */
     public DaoImpl(DAOConfig config) throws IOException {
         this.config = config;
-        this.dirPath = config.dir;
+        Path dirPath = config.dir;
 
-        ssTables.addAll(SSTable.loadFromDir(dirPath));
+        storage = Storage.init(SSTable.loadFromDir(dirPath));
     }
 
     @Override
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
-        Iterator<Record> ssTableRanges = ssTableRanges(fromKey, toKey);
+        Storage storage = this.storage;
 
-        Iterator<Record> memoryRange = map(fromKey, toKey).values().iterator();
-        Iterator<Record> mergedIterators = mergeTwo(ssTableRanges, memoryRange);
+        logger.info(String.format("size sstable: %s%n", storage.ssTables.size()));
+
+        Iterator<Record> ssTableRanges = ssTableRanges(storage, fromKey, toKey);
+        Iterator<Record> memoryRange = map(storage.currentStorage, fromKey, toKey).values().iterator();
+        Iterator<Record> tmpMemoryRange = map(storage.storageToWrite, fromKey, toKey).values().iterator();
+
+//        Iterator<Record> memory = mergeTwo(memoryRange, tmpMemoryRange);
+        Iterator<Record> memory = mergeTwo(new PeekingIterator<>(memoryRange), new PeekingIterator<>(tmpMemoryRange));
+//        Iterator<Record> mergedIterators = mergeTwo(ssTableRanges, memory);
+        Iterator<Record> mergedIterators = mergeTwo(new PeekingIterator<>(ssTableRanges), new PeekingIterator<>(memory));
 
         return new TombstoneFilteringIterator(mergedIterators);
     }
 
     @Override
     public void upsert(Record record) {
-        if (memoryConsumption.addAndGet(sizeOf(record)) > config.memoryLimit) {
+        int consumption = memoryConsumption.addAndGet(sizeOf(record));
+        if (consumption > config.memoryLimit) {
             synchronized (this) {
                 if (memoryConsumption.get() > config.memoryLimit) {
-                    NavigableMap<ByteBuffer, Record> old = memoryStorage;
-                    memoryStorage = new ConcurrentSkipListMap<>();
+                    storage = storage.prepareFlush();
+
                     int prev = memoryConsumption.getAndSet(sizeOf(record));
 
-//                    try {
-                    prepareAndFlush(old);
-//                    } catch (IOException e) {
-//                        memoryConsumption.addAndGet(prev);
-//
-//                        throw new UncheckedIOException(e);
-//                    }
+                    try {
+                        SSTable ssTable = flush();
+                        storage = storage.afterFlush(ssTable);
+//                        if (needCompact()) {
+//                            compact();
+//                        }
+                    } catch (IOException e) {
+                        memoryConsumption.addAndGet(prev);
+
+                        throw new UncheckedIOException(e);
+                    }
                 }
             }
         }
 
-        memoryStorage.put(record.getKey(), record);
+        storage.currentStorage.put(record.getKey(), record);
     }
 
-    private void prepareAndFlush(NavigableMap<ByteBuffer, Record> old) {
-        try {
-            flush(old);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+    private boolean needCompact() {
+        return storage.ssTables.size() > config.maxTables;
     }
 
     @Override
-    public void closeAndCompact() {
-        synchronized (this) {
-            final SSTable table;
-            try {
-                table = SSTable.compact(config.dir, range(null, null));
-            } catch (IOException e) {
-                throw new UncheckedIOException("Can't compact", e);
+    public void compact() {
+        executorService.execute(() -> {
+            synchronized (DaoImpl.class) {
+                try {
+                    if (!needCompact()) {
+                        return;
+                    }
+
+                    logger.info("comcapt started");
+                    SSTable result;
+                    try {
+                        result = SSTable.compact(config.dir, ssTableRanges(storage, null, null));
+                    } catch (IOException e) {
+                        throw new UncheckedIOException("Can't compact", e);
+                    }
+
+                    storage = storage.afterCompaction(result);
+                    logger.info("compact finished");
+                } catch (Exception e) {
+                    logger.error("Can't run compaction", e);
+                }
             }
-            ssTables.clear();
-            ssTables.add(table);
-            memoryStorage = new ConcurrentSkipListMap<>();
-        }
+        });
     }
 
     @Override
@@ -112,27 +130,24 @@ public class DaoImpl implements DAO {
         executorService.shutdown();
         try {
             if (!executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS)) {
-                throw new IllegalStateException("Can not await for termination");
+                throw new IllegalStateException("Can't await for termination");
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException(e);
         }
 
-        if (memoryConsumption.get() > 0) {
-            flush(memoryStorage);
-        }
+        synchronized (this) {
+            if (memoryConsumption.get() > 0) {
+                storage = storage.prepareFlush();
+                flush();
+            }
+            storage = null;
 
-        closeSSTables();
-    }
-
-    private void closeSSTables() throws IOException {
-        for (SSTable ssTable : ssTables) {
-            ssTable.close();
         }
     }
 
-    private Map<ByteBuffer, Record> map(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
+    private Map<ByteBuffer, Record> map(NavigableMap<ByteBuffer, Record> memoryStorage, @Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
 
         if (fromKey == null && toKey == null) {
             return memoryStorage;
@@ -145,25 +160,18 @@ public class DaoImpl implements DAO {
         }
     }
 
-    private void flush(NavigableMap<ByteBuffer, Record> storage) throws IOException {
-        executorService.execute(() -> {
-            try {
-                Path dir = config.dir;
-                Path file = dir.resolve(SSTable.SAVE_FILE_PREFIX + ssTables.size());
+    @GuardedBy("this")
+    private SSTable flush() throws IOException {
+        Path dir = config.dir;
+        Path file = dir.resolve(SSTable.SAVE_FILE_PREFIX + storage.ssTables.size());
 
-                SSTable ssTable = SSTable.save(storage.values().iterator(), file);
-
-                ssTables.add(ssTable);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
-        });
+        return SSTable.save(storage.storageToWrite.values().iterator(), file);
     }
 
-    private Iterator<Record> ssTableRanges(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
-        List<Iterator<Record>> iterators = new ArrayList<>(ssTables.size());
+    private Iterator<Record> ssTableRanges(Storage storage, @Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
+        List<Iterator<Record>> iterators = new ArrayList<>(storage.ssTables.size());
 
-        for (SSTable ssTable : ssTables) {
+        for (SSTable ssTable : storage.ssTables) {
             iterators.add(ssTable.range(fromKey, toKey));
         }
         return merge(iterators);
@@ -198,6 +206,41 @@ public class DaoImpl implements DAO {
 
     private static Iterator<Record> mergeTwo(Iterator<Record> leftIterator, Iterator<Record> rightIterator) {
         return new MergeIterator(new PeekingIterator<>(leftIterator), new PeekingIterator<>(rightIterator));
+    }
+
+    private static class Storage {
+        private static final NavigableMap<ByteBuffer, Record> EMPTY_STORAGE = Collections.emptyNavigableMap();
+
+        public final NavigableMap<ByteBuffer, Record> currentStorage;
+        public final NavigableMap<ByteBuffer, Record> storageToWrite;
+        public final List<SSTable> ssTables;
+
+        private Storage(NavigableMap<ByteBuffer, Record> currentStorage, NavigableMap<ByteBuffer, Record> storageToWrite, List<SSTable> ssTables) {
+            this.currentStorage = currentStorage;
+            this.storageToWrite = storageToWrite;
+            this.ssTables = ssTables;
+        }
+
+        public static Storage init(List<SSTable> ssTables) {
+            return new Storage(new ConcurrentSkipListMap<>(), EMPTY_STORAGE, ssTables);
+        }
+
+        public Storage prepareFlush() {
+            return new Storage(new ConcurrentSkipListMap<>(), currentStorage, ssTables);
+        }
+
+        public Storage afterFlush(SSTable newTable) {
+            List<SSTable> newTables = new ArrayList<>(ssTables.size() + 1);
+            newTables.addAll(ssTables);
+            newTables.add(newTable);
+
+            return new Storage(currentStorage, EMPTY_STORAGE, newTables);
+        }
+
+        public Storage afterCompaction(SSTable ssTable) {
+            List<SSTable> tables = Collections.singletonList(ssTable);
+            return new Storage(currentStorage, EMPTY_STORAGE, tables);
+        }
     }
 }
 
