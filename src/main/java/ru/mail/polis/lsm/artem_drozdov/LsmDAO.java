@@ -91,11 +91,11 @@ public class LsmDAO implements DAO {
             synchronized (this) {
                 if (memoryConsumption.get() > config.memoryLimit) {
                     int prev = memoryConsumption.getAndSet(recordSize);
-
-                    waitForFlushFinished();
-
-                    storageChanging.set(true);
                     try {
+                        tablesForFlush.add(memoryStorage);
+
+                        waitForFlushFinished();
+
                         doFlushAndStorageChanging(prev);
                     } finally {
                         notifyAll();
@@ -108,7 +108,7 @@ public class LsmDAO implements DAO {
     }
 
     private void doFlushAndStorageChanging(int prev) {
-        tablesForFlush.add(memoryStorage);
+        storageChanging.set(true);
         currentFlush = flushExecutor.submit(() -> {
             NavigableMap<ByteBuffer, Record> snapshotToFlush = tablesForFlush.poll();
             if (snapshotToFlush != null) {
