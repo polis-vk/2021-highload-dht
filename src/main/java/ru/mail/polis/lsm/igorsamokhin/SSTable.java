@@ -64,7 +64,6 @@ class SSTable {
 
         try {
             LongMappedByteBuffer.free(idx);
-
         } catch (IOException e) {
             if (exception == null) {
                 exception = e;

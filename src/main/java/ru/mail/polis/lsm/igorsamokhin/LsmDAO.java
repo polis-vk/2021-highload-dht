@@ -57,7 +57,7 @@ public class LsmDAO implements DAO {
     public void upsert(Record record) {
         int size = record.size();
         if (memoryConsumption.addAndGet(size) > config.memoryLimit) {
-            synchronized (LsmDAO.this) {
+            synchronized (this) {
                 if (memoryConsumption.get() > config.memoryLimit) {
                     storage = storage.prepareFlush();
                     storage.currentStorage.put(record.getKey(), record);
@@ -72,7 +72,7 @@ public class LsmDAO implements DAO {
 
     private void flushTask(int size) {
         executors.execute(() -> {
-            synchronized (LsmDAO.this) {
+            synchronized (this) {
                 memoryConsumption.set(size);
                 SSTable table;
                 try {
@@ -120,7 +120,7 @@ public class LsmDAO implements DAO {
 
     private void compactTask() {
         executors.execute(() -> {
-            synchronized (LsmDAO.this) {
+            synchronized (this) {
                 if (this.storage.tables.size() < config.maxTables) {
                     return;
                 }

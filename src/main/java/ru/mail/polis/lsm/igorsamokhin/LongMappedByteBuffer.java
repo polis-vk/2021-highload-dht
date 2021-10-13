@@ -86,7 +86,7 @@ public class LongMappedByteBuffer {
 
     public LongMappedByteBuffer limit(long newLimit) {
         if (newLimit > capacity || newLimit < 0) {
-            throw createLimitException(newLimit);
+            throw new IllegalArgumentException("newPosition: " + newLimit + " limit: " + capacity);
         }
         limit = newLimit;
         if (position > limit) {
@@ -96,37 +96,11 @@ public class LongMappedByteBuffer {
         return this;
     }
 
-    private IllegalArgumentException createLimitException(long newLimit) {
-        String msg;
-
-        if (newLimit > capacity) {
-            msg = "newLimit > capacity: (" + newLimit + " > " + capacity + ")";
-        } else { // assume negative
-            assert newLimit < 0 : "newLimit expected to be negative";
-            msg = "newLimit < 0: (" + newLimit + " < 0)";
-        }
-
-        return new IllegalArgumentException(msg);
-    }
-
     public void position(long newPosition) {
         if ((newPosition > limit) || (newPosition < 0)) {
-            throw createPositionException(newPosition);
+            throw new IllegalArgumentException("newPosition: " + newPosition + " limit: " + limit);
         }
         position = newPosition;
-    }
-
-    private IllegalArgumentException createPositionException(long newPosition) {
-        String msg;
-
-        if (newPosition > limit) {
-            msg = "newPosition > limit: (" + newPosition + " > " + limit + ")";
-        } else { // assume negative
-            assert newPosition < 0 : "newPosition expected to be negative";
-            msg = "newPosition < 0: (" + newPosition + " < 0)";
-        }
-
-        return new IllegalArgumentException(msg);
     }
 
     public long position() {
