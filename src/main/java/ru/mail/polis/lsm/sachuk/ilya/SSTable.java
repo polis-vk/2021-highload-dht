@@ -7,13 +7,9 @@ import ru.mail.polis.lsm.sachuk.ilya.iterators.ByteBufferRecordIterator;
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.lang.reflect.Field;
-import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
-import java.nio.channels.WritableByteChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -95,7 +91,7 @@ public class SSTable {
                 ByteBuffer buffer = ByteBuffer.allocate(Integer.BYTES);
 
                 int counter = 0;
-                writeInt(indexFileChanel, buffer, counter);
+                FileUtils.writeInt(indexFileChanel, buffer, counter);
 
                 while (iterators.hasNext()) {
                     long longPosition = saveFileChannel.position();
@@ -105,7 +101,7 @@ public class SSTable {
 
                     int indexPositionToRead = (int) longPosition;
 
-                    writeInt(indexFileChanel, buffer, indexPositionToRead);
+                    FileUtils.writeInt(indexFileChanel, buffer, indexPositionToRead);
                     counter++;
 
                     Record record = iterators.next();
@@ -113,12 +109,12 @@ public class SSTable {
                             ? BYTE_BUFFER_TOMBSTONE
                             : record.getValue();
 
-                    writeSizeAndValue(record.getKey(), saveFileChannel, buffer);
+                    FileUtils.writeSizeAndValue(record.getKey(), saveFileChannel, buffer);
 
                     if (record.isTombstone()) {
-                        writeInt(saveFileChannel, buffer, -1);
+                        FileUtils.writeInt(saveFileChannel, buffer, -1);
                     } else {
-                        writeSizeAndValue(value, saveFileChannel, buffer);
+                        FileUtils.writeSizeAndValue(value, saveFileChannel, buffer);
                     }
                 }
 
@@ -126,7 +122,7 @@ public class SSTable {
 
                 indexFileChanel.position(0);
 
-                writeInt(indexFileChanel, buffer, counter);
+                FileUtils.writeInt(indexFileChanel, buffer, counter);
 
                 indexFileChanel.position(curPos);
 
@@ -218,11 +214,11 @@ public class SSTable {
 
     public void close() throws IOException {
         if (mappedByteBuffer != null) {
-            clean(mappedByteBuffer);
+            FileUtils.clean(mappedByteBuffer);
         }
 
         if (indexByteBuffer != null) {
-            clean(indexByteBuffer);
+            FileUtils.clean(indexByteBuffer);
             indexByteBuffer.clear();
             Arrays.fill(indexes, 0);
             indexes = null;
@@ -278,41 +274,6 @@ public class SSTable {
 
         indexByteBuffer.position(0);
         return indexByteBuffer.getInt(left * Integer.BYTES);
-    }
-
-    private static void writeSizeAndValue(
-            ByteBuffer value,
-            WritableByteChannel channel,
-            ByteBuffer tmp
-    ) throws IOException {
-        tmp.position(0);
-        tmp.putInt(value.remaining());
-        tmp.position(0);
-
-        channel.write(tmp);
-        channel.write(value);
-    }
-
-    private static void writeInt(WritableByteChannel fileChannel, ByteBuffer tmp, int value) throws IOException {
-        tmp.position(0);
-        tmp.putInt(value);
-        tmp.position(0);
-
-        fileChannel.write(tmp);
-    }
-
-    private void clean(MappedByteBuffer mappedByteBuffer) throws IOException {
-        try {
-            Class<?> unsafeClass = Class.forName("sun.misc.Unsafe");
-            Field unsafeField = unsafeClass.getDeclaredField("theUnsafe");
-            unsafeField.setAccessible(true);
-            Object unsafe = unsafeField.get(null);
-            Method invokeCleaner = unsafeClass.getMethod("invokeCleaner", ByteBuffer.class);
-            invokeCleaner.invoke(unsafe, mappedByteBuffer);
-        } catch (ClassNotFoundException | NoSuchFieldException | NoSuchMethodException
-                | IllegalAccessException | InvocationTargetException e) {
-            throw new IOException(e);
-        }
     }
 
     private static Path resolveWithExt(Path file, String ext) {

@@ -21,7 +21,13 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.Field;
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Method;
+import java.nio.ByteBuffer;
+import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
+import java.nio.channels.WritableByteChannel;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -136,5 +142,40 @@ public final class FileUtils {
         }
 
         return Integer.parseInt(stringPath.substring(firstNumberIndex, stringPath.length() - endFile.length()));
+    }
+
+    public static void clean(MappedByteBuffer mappedByteBuffer) throws IOException {
+        try {
+            Class<?> unsafeClass = Class.forName("sun.misc.Unsafe");
+            Field unsafeField = unsafeClass.getDeclaredField("theUnsafe");
+            unsafeField.setAccessible(true);
+            Object unsafe = unsafeField.get(null);
+            Method invokeCleaner = unsafeClass.getMethod("invokeCleaner", ByteBuffer.class);
+            invokeCleaner.invoke(unsafe, mappedByteBuffer);
+        } catch (ClassNotFoundException | NoSuchFieldException | NoSuchMethodException
+                | IllegalAccessException | InvocationTargetException e) {
+            throw new IOException(e);
+        }
+    }
+
+    public static void writeSizeAndValue(
+            ByteBuffer value,
+            WritableByteChannel channel,
+            ByteBuffer tmp
+    ) throws IOException {
+        tmp.position(0);
+        tmp.putInt(value.remaining());
+        tmp.position(0);
+
+        channel.write(tmp);
+        channel.write(value);
+    }
+
+    public static void writeInt(WritableByteChannel fileChannel, ByteBuffer tmp, int value) throws IOException {
+        tmp.position(0);
+        tmp.putInt(value);
+        tmp.position(0);
+
+        fileChannel.write(tmp);
     }
 }
