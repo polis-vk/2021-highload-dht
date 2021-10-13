@@ -34,9 +34,10 @@ public class LsmDAO implements DAO {
 
     private static final Logger LOG = LoggerFactory.getLogger(LsmDAO.class);
 
-    private final ConcurrentLinkedDeque<NavigableMap<ByteBuffer, Record>> tablesForFlush = new ConcurrentLinkedDeque<>();
-    private Future<?> currentFlush;
+    private final ConcurrentLinkedDeque<NavigableMap<ByteBuffer, Record>> tablesForFlush =
+            new ConcurrentLinkedDeque<>();
 
+    private Future<?> currentFlush;
     private final AtomicBoolean storageChanging = new AtomicBoolean();
 
     private final ExecutorService flushExecutor = Executors.newSingleThreadExecutor();
