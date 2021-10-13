@@ -34,6 +34,7 @@ public class DaoImpl implements DAO {
     private final DAOConfig config;
 
     private final ExecutorService executorService = Executors.newSingleThreadExecutor();
+    private final ExecutorService flushExecutor = Executors.newSingleThreadExecutor();
     private final AtomicInteger memoryConsumption = new AtomicInteger();
 
     /**
@@ -111,17 +112,14 @@ public class DaoImpl implements DAO {
                     if (!needCompact()) {
                         return;
                     }
-
                     logger.info("comcapt started");
-                    SSTable result;
-                    try {
-                        result = SSTable.compact(config.dir, ssTableRanges(storage, null, null));
-                    } catch (IOException e) {
-                        throw new UncheckedIOException("Can't compact", e);
-                    }
 
+                    SSTable result = SSTable.compact(config.dir, ssTableRanges(storage, null, null));
                     storage = storage.afterCompaction(result);
+
                     logger.info("compact finished");
+                } catch (IOException e) {
+                    throw new UncheckedIOException("Can't compact", e);
                 } catch (Exception e) {
                     logger.error("Can't run compaction", e);
                 }
@@ -225,9 +223,9 @@ public class DaoImpl implements DAO {
 
         private Storage(
                 NavigableMap<ByteBuffer,
-                Record> currentStorage, NavigableMap<ByteBuffer,
+                        Record> currentStorage, NavigableMap<ByteBuffer,
                 Record> storageToWrite, List<SSTable>
-                ssTables
+                        ssTables
         ) {
             this.currentStorage = currentStorage;
             this.storageToWrite = storageToWrite;
