@@ -74,13 +74,13 @@ public class Storage {
         return RecordIterators.filterTombstones(iterator);
     }
 
-    public Storage willStartFlush(int index) {
+    public Storage beforeFlush(int index) {
         final NavigableMap<Integer, MemoryWithSize> newFlushingStorages = new TreeMap<>(flushingStorages);
         newFlushingStorages.put(index, new MemoryWithSize(currentStorageMemoryUsage.get(), currentStorage));
         return new Storage(new ConcurrentSkipListMap<>(), 0, newFlushingStorages, tables);
     }
 
-    public Storage doneFlush(int index, SSTable table) {
+    public Storage afterFlush(int index, SSTable table) {
         final NavigableMap<Integer, MemoryWithSize> newFlushingStorages = new TreeMap<>(flushingStorages);
         newFlushingStorages.remove(index);
         final List<SSTable> newTables = new ArrayList<>(tables.size() + 1);

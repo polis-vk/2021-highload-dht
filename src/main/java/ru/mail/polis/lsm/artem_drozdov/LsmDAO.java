@@ -28,6 +28,8 @@ public class LsmDAO implements DAO {
     private final ExecutorService executor = Executors.newWorkStealingPool();
     private final NavigableMap<Integer, CompletableFuture<?>> runningFlushes = new ConcurrentSkipListMap<>();
     private final AtomicInteger currentIndex = new AtomicInteger(0);
+
+    @SuppressWarnings("PMD.AvoidUsingVolatile")
     private volatile Storage storage;
 
     @SuppressWarnings({"FieldCanBeLocal", "unused"})
@@ -60,7 +62,7 @@ public class LsmDAO implements DAO {
             synchronized (this) {
                 if (storage.getCurrentSize() > config.memoryLimit) {
                     final int flushIndex = currentIndex.getAndIncrement();
-                    storage = storage.willStartFlush(flushIndex);
+                    storage = storage.beforeFlush(flushIndex);
                     CompletableFuture<?> future = CompletableFuture.runAsync(() -> flush(flushIndex, storage),
                             executor
                     );
@@ -103,7 +105,7 @@ public class LsmDAO implements DAO {
 
         synchronized (this) {
             final int flushIndex = currentIndex.getAndIncrement();
-            storage = storage.willStartFlush(flushIndex);
+            storage = storage.beforeFlush(flushIndex);
             flush(flushIndex, storage);
             storage = null;
         }
@@ -124,7 +126,7 @@ public class LsmDAO implements DAO {
             }
 
             synchronized (this) {
-                storage = storage.doneFlush(index, ssTable);
+                storage = storage.afterFlush(index, ssTable);
             }
         } catch (IOException e) {
             synchronized (this) {
