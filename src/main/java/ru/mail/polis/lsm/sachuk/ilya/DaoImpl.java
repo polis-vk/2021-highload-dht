@@ -82,17 +82,15 @@ public class DaoImpl implements DAO {
 
                     int prev = memoryConsumption.getAndSet(sizeOf(record));
 
-                    try {
-                        SSTable ssTable = flush();
+
+                    flushExecutor.execute(() -> {
+                        SSTable ssTable = prepareAndFlush(prev);
                         storage = storage.afterFlush(ssTable);
+                    });
 //                        if (needCompact()) {
 //                            compact();
 //                        }
-                    } catch (IOException e) {
-                        memoryConsumption.addAndGet(prev);
 
-                        throw new UncheckedIOException(e);
-                    }
                 }
             }
         }
@@ -129,6 +127,17 @@ public class DaoImpl implements DAO {
 
     @Override
     public void close() throws IOException {
+
+        flushExecutor.shutdown();
+        try {
+            if (!flushExecutor.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS)) {
+                throw new IllegalStateException("Can't await for termination");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(e);
+        }
+
         executorService.shutdown();
         try {
             if (!executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS)) {
@@ -163,6 +172,15 @@ public class DaoImpl implements DAO {
             return memoryStorage.tailMap(fromKey);
         } else {
             return memoryStorage.subMap(fromKey, toKey);
+        }
+    }
+
+    private SSTable prepareAndFlush(int prevConsumption) {
+        try {
+            return flush();
+        } catch (IOException e) {
+            memoryConsumption.addAndGet(prevConsumption);
+            throw new UncheckedIOException(e);
         }
     }
 
