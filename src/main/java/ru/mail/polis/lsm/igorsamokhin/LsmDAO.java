@@ -146,7 +146,7 @@ public class LsmDAO implements DAO {
 
     @Override
     public void compact() {
-        synchronized (LsmDAO.this) {
+        synchronized (this) {
             compaction();
         }
     }
