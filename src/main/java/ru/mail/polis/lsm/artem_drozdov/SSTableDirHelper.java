@@ -13,7 +13,6 @@ import static ru.mail.polis.lsm.artem_drozdov.SSTable.COMPACTION_FILE_NAME;
 import static ru.mail.polis.lsm.artem_drozdov.SSTable.SSTABLE_FILE_PREFIX;
 import static ru.mail.polis.lsm.artem_drozdov.SSTable.getIndexFile;
 
-
 public final class SSTableDirHelper {
     private SSTableDirHelper() {
     }
