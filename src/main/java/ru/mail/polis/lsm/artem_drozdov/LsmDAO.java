@@ -16,7 +16,12 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NavigableMap;
-import java.util.concurrent.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class LsmDAO implements DAO {
@@ -166,7 +171,10 @@ public class LsmDAO implements DAO {
         return merge(iterators);
     }
 
-    private NavigableMap<ByteBuffer, Record> map(NavigableMap<ByteBuffer, Record> storage, @Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
+    private NavigableMap<ByteBuffer, Record> map(
+        NavigableMap<ByteBuffer, Record> storage,
+        @Nullable ByteBuffer fromKey,
+        @Nullable ByteBuffer toKey) {
         if (fromKey == null && toKey == null) {
             return storage;
         } else if (fromKey == null) {
@@ -179,14 +187,18 @@ public class LsmDAO implements DAO {
     }
 
     private static class Storage {
-        private final static NavigableMap<ByteBuffer, Record> EMPTY_STORAGE = Collections.emptyNavigableMap();
+        private final static NavigableMap<ByteBuffer, Record> EMPTY_STORAGE =
+            Collections.emptyNavigableMap();
 
         private final NavigableMap<ByteBuffer, Record> currentStorage;
         private final NavigableMap<ByteBuffer, Record> storageToWrite;
 
         private final List<SSTable> tables;
 
-        private Storage(NavigableMap<ByteBuffer, Record> currentStorage, NavigableMap<ByteBuffer, Record> storageToWrite, List<SSTable> tables) {
+        private Storage(
+            NavigableMap<ByteBuffer, Record> currentStorage,
+            NavigableMap<ByteBuffer, Record> storageToWrite,
+            List<SSTable> tables) {
             this.currentStorage = currentStorage;
             this.storageToWrite = storageToWrite;
             this.tables = tables;
