@@ -16,7 +16,12 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NavigableMap;
-import java.util.concurrent.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class LsmDAO implements DAO {
@@ -145,8 +150,8 @@ public class LsmDAO implements DAO {
         executeComp.shutdown();
         executorFlush.shutdown();
         try {
-            if (!executeComp.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS) &&
-                !executorFlush.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS)) {
+            if (!executeComp.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS)
+                && !executorFlush.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS)) {
                 throw new IllegalStateException("Can't await for termination");
             }
         } catch (InterruptedException e) {
