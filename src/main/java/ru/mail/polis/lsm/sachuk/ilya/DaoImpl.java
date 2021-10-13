@@ -136,16 +136,8 @@ public class DaoImpl implements DAO {
 
     @Override
     public void close() throws IOException {
-
-        flushExecutor.shutdown();
-        try {
-            if (!flushExecutor.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS)) {
-                throw new IllegalStateException("Can't await for termination");
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException(e);
-        }
+        awaitForShutdown(flushExecutor);
+        awaitForShutdown(executorService);
 
         synchronized (this) {
             if (memoryConsumption.get() > 0) {
@@ -156,6 +148,18 @@ public class DaoImpl implements DAO {
             closeSSTables();
             storage = null;
 
+        }
+    }
+
+    private void awaitForShutdown(ExecutorService executorService) {
+        executorService.shutdown();
+        try {
+            if (!executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS)) {
+                throw new IllegalStateException("Can't await for termination");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(e);
         }
     }
 
