@@ -22,6 +22,7 @@ import java.util.Objects;
 public class SSTable implements Closeable {
 
     public static final String SSTABLE_FILE_PREFIX = "file_";
+    //public static final int MAX_BUFFER_SIZE = 4096;
     public static final String COMPACTION_FILE_NAME = "compaction";
     private static final Method CLEAN;
 
@@ -51,7 +52,7 @@ public class SSTable implements Closeable {
                 FileChannel fileChannel = openForWrite(tmpFileName);
                 FileChannel indexChannel = openForWrite(tmpIndexName)
         ) {
-            ByteBuffer size = ByteBuffer.allocate(Integer.BYTES);
+            ByteBuffer size = ByteBuffer.allocate(Integer.BYTES );
             while (records.hasNext()) {
                 long position = fileChannel.position();
                 if (position > Integer.MAX_VALUE) {

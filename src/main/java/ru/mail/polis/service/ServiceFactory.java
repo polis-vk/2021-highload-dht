@@ -29,7 +29,7 @@ import java.util.Objects;
  */
 public final class ServiceFactory {
     private static final long MAX_HEAP = 256 * 1024 * 1024;
-    private static final int POOL_SIZE = 4;
+    //private static final int POOL_SIZE = 4;
 
     private ServiceFactory() {
         // Not supposed to be instantiated
@@ -55,6 +55,6 @@ public final class ServiceFactory {
 
         Objects.requireNonNull(dao);
 
-        return new HttpRestService(port,dao,POOL_SIZE);
+        return new HttpRestService(port,dao);
     }
 }

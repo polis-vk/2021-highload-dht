@@ -1,96 +1,118 @@
 package ru.mail.polis.lsm.artem_drozdov;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.DAOConfig;
 import ru.mail.polis.lsm.Record;
-
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
-import java.util.*;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentLinkedDeque;
-import java.util.concurrent.ConcurrentSkipListMap;
-import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Collections;
+import java.util.NavigableMap;
+import java.util.NoSuchElementException;
+import java.util.Iterator;
+import java.util.SortedMap;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
-
 
 public class LsmDAO implements DAO {
 
-    private final ConcurrentLinkedDeque<SSTable> tables = new ConcurrentLinkedDeque<>();
     @SuppressWarnings({"FieldCanBeLocal", "unused"})
     private final DAOConfig config;
-    private NavigableMap<ByteBuffer, Record> memoryStorage = newStorage();
-    //@GuardedBy("this")
+    private static final Logger logger = LoggerFactory.getLogger(LsmDAO.class);
     private final AtomicInteger memoryConsumption = new AtomicInteger();
-    private final AtomicInteger tableSize;
-    private final AtomicBoolean flushflag;
+    private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private CompletableFuture <Void> future;
+    private Storage storage;
 
     public LsmDAO(DAOConfig config) throws IOException {
         this.config = config;
-        List<SSTable> ssTables = SSTableDirHelper.loadFromDir(config.dir);
-        tables.addAll(ssTables);
-        this.tableSize = new AtomicInteger(tables.size());
-        this.flushflag = new AtomicBoolean(false);
+        this.storage = Storage.init(SSTableDirHelper.loadFromDir(config.dir));
     }
-
 
     @Override
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
-        Iterator<Record> sstableRanges = sstableRanges(fromKey, toKey);
-        Iterator<Record> memoryRange = map(fromKey, toKey).values().iterator();
-        Iterator<Record> iterator = mergeTwo(new PeekingIterator(sstableRanges), new PeekingIterator(memoryRange));
-        return filterTombstones(iterator);
-    }
+            Iterator<Record> sstableRanges = sstableRanges(storage,fromKey, toKey);
+            Iterator<Record> memoryRange = map(storage.currentStorage, fromKey, toKey).values().iterator();
+            Iterator<Record> tmpMemoryRange = map(storage.tmpStorage,fromKey,toKey).values().iterator();
+            Iterator<Record> memory = mergeTwo(new PeekingIterator(memoryRange), new PeekingIterator(tmpMemoryRange));
+            Iterator<Record> iterator = mergeTwo(new PeekingIterator(sstableRanges), new PeekingIterator(memory));
+            return filterTombstones(iterator);
 
+    }
 
     @Override
     public void upsert(Record record) {
-        if (memoryConsumption.addAndGet(sizeOf(record)) > config.memoryLimit) {
-              int prev = memoryConsumption.get();
-              memoryConsumption.set(sizeOf(record));
-                flushflag.set(false); // Our flag
-              synchronized (this) {
-                  if (!flushflag.get()) {
-            NavigableMap<ByteBuffer, Record> memoryStorageFlush = newStorage();
-            memoryStorageFlush.putAll(memoryStorage);
-                      memoryStorage = newStorage();
-                      CompletableFuture.runAsync(() -> {
-                          try { // Process is running within another thread
-                              flush(memoryStorageFlush);
-                          } catch (IOException e) {
-                              memoryConsumption.set(prev);
-                              memoryStorage.putAll(memoryStorageFlush);
-                          }
-                      }).thenRun(() ->{
-                          flushflag.set(true);
-                      }).join();
-                  }
-              }
-        }
-        memoryStorage.put(record.getKey(), record);
+       int actualMemoryConsumption = memoryConsumption.addAndGet(sizeOf(record));
+       if(actualMemoryConsumption > config.memoryLimit){
+           logger.debug("Going to flush...{}",actualMemoryConsumption);
+           synchronized (this){
+               if(memoryConsumption.get() > config.memoryLimit){
+                   awaitTaskComplete();
+                   int oldMemoryConsumption = memoryConsumption.getAndSet(sizeOf(record));
+                   storage = storage.prepareFlush();
+                   future = CompletableFuture.runAsync(() ->{
+                   try{
+                       logger.debug("Flush started..");
+                       SSTable ssTable = flush();
+                       storage = storage.afterFlush(ssTable);
+                       logger.debug("Flush finished...");
+                   } catch (IOException e) {
+                       logger.error("Flush failed...", e);
+                       memoryConsumption.addAndGet(oldMemoryConsumption);
+                       throw new UncheckedIOException(e);
+                    }
+                   },executor);
+               } else{
+                   logger.info("Concurrent flush...");
+               }
+           }
+       }
+       logger.debug("Insert!...");
+       storage.currentStorage.put(record.getKey(),record);
     }
-
+    private boolean needCompact(){
+        return storage.tables.size() > config.maxTables;
+    }
 
     @Override
-    public void closeAndCompact() {
-        synchronized (this) {
-            final SSTable table;
-            try {
-                table = SSTable.compact(config.dir, range(null, null));
-            } catch (IOException e) {
-                throw new UncheckedIOException("Can't compact", e);
+    public void compact() {
+            synchronized (LsmDAO.this) {
+                awaitTaskComplete();
+                try{
+                    if(!needCompact()){
+                        return;
+                    }
+                logger.info("Compact started");
+                final SSTable compactTable;
+                try {
+                    compactTable = SSTable.compact(config.dir, sstableRanges(storage,null, null));
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+                storage = storage.afterCompaction(compactTable);
+                logger.info("Compact finished");
+            }catch (Exception e){
+                logger.error("Can't compact",e);}
             }
-            tables.clear();
-            tables.add(table);
-            memoryStorage = newStorage();
-        }
+
     }
 
-    private NavigableMap<ByteBuffer, Record> newStorage() {
-        return new ConcurrentSkipListMap<>();
+    private void awaitTaskComplete(){
+        if (future == null){
+            return;
+        }
+        try{
+            future.get();
+        } catch (InterruptedException | ExecutionException e ){
+            Thread.currentThread().interrupt();
+            logger.error("Can't wait future completes....",e);
+        }
     }
 
     private int sizeOf(Record record) {
@@ -100,38 +122,48 @@ public class LsmDAO implements DAO {
     @Override
     public void close() throws IOException {
         synchronized (this) {
-            flush(memoryStorage);
+            awaitTaskComplete();
+            executor.shutdown();
+            try {
+                if (!executor.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS)) {
+                    throw new IllegalStateException("Termination can't await");
+                }
+            } catch (InterruptedException e) {
+                executor.shutdownNow();
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException(e);
+            }
+            storage = storage.prepareFlush();
+            flush();
+            storage = null;
         }
     }
 
-    //@GuardedBy("this")
-    private void flush(NavigableMap<ByteBuffer,Record> cleanStorage) throws IOException {
+    private SSTable flush() throws IOException {
         Path dir = config.dir;
-        Path file = dir.resolve(SSTable.SSTABLE_FILE_PREFIX + this.tableSize.getAndAdd(1));
-
-        SSTable ssTable = SSTable.write(cleanStorage.values().iterator(), file);
-        tables.add(ssTable);
-        //memoryStorage = new ConcurrentSkipListMap<>();
+        Path file = dir.resolve(SSTable.SSTABLE_FILE_PREFIX + storage.tables.size());
+        return SSTable.write(storage.tmpStorage.values().iterator(), file);
     }
-    private Iterator<Record> sstableRanges(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
-        List<Iterator<Record>> iterators = new ArrayList<>(tables.size());
-        for (SSTable ssTable : tables) {
+
+    private Iterator<Record> sstableRanges(Storage storage,@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
+        List<Iterator<Record>> iterators = new ArrayList<>(storage.tables.size());
+        for (SSTable ssTable : storage.tables) {
             iterators.add(ssTable.range(fromKey, toKey));
         }
         return merge(iterators);
     }
 
-    private SortedMap<ByteBuffer, Record> map(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
+    private SortedMap<ByteBuffer, Record> map(NavigableMap<ByteBuffer,Record>storage,@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
         if (fromKey == null && toKey == null) {
-            return memoryStorage;
+            return storage;
         }
         if (fromKey == null) {
-            return memoryStorage.headMap(toKey);
+            return storage.headMap(toKey);
         }
         if (toKey == null) {
-            return memoryStorage.tailMap(fromKey);
+            return storage.tailMap(fromKey);
         }
-        return memoryStorage.subMap(fromKey, toKey);
+        return storage.subMap(fromKey, toKey);
     }
 
     private static Iterator<Record> merge(List<Iterator<Record>> iterators) {
@@ -182,5 +214,7 @@ public class LsmDAO implements DAO {
             }
         };
     }
+
+
 
 }

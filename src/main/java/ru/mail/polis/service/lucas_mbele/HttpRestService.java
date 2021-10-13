@@ -21,12 +21,12 @@ import java.util.concurrent.ThreadPoolExecutor;
 
 public class HttpRestService extends HttpServer implements Service {
     private final DAO dao; // Our Data Object Access
-    private final ThreadPoolExecutor executor;
+    //private final ThreadPoolExecutor executor;
 
-    public HttpRestService(final int port, final DAO dao,final int poolSize) throws IOException {
+    public HttpRestService(final int port, final DAO dao) throws IOException {
         super(serviceConfig(port));
         this.dao = dao;
-        this.executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(poolSize);
+        //this.executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(poolSize);
     }
 
     public static HttpServerConfig serviceConfig(int port) {
@@ -51,7 +51,7 @@ public class HttpRestService extends HttpServer implements Service {
     //METHODS - GET/PUT/DELETE
     @Path("/v0/entity")
     public void entity(Request request,HttpSession session,@Param(value = "id",required = true) String id) {
-        executor.execute(() -> {
+       // executor.execute(() -> {
             Response response;
             if (id.isBlank()) {
                 response = new Response(Response.BAD_REQUEST, Response.EMPTY);
@@ -72,7 +72,7 @@ public class HttpRestService extends HttpServer implements Service {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
-          });
+          //});
     }
 
     private Response get(String id) {
@@ -103,12 +103,12 @@ public class HttpRestService extends HttpServer implements Service {
 
     @Override
     public void handleDefault(Request request, HttpSession session) {
-        this.executor.execute(() -> {
+        //this.executor.execute(() -> {
             try {
                 session.sendResponse(new Response(Response.BAD_REQUEST,Response.EMPTY));
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }
-        });
+        //});
     }
 }
