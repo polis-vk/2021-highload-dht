@@ -29,7 +29,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class DaoImpl implements DAO {
     private final Logger logger = LoggerFactory.getLogger(DaoImpl.class);
-    private volatile Storage storage;
+    private Storage storage;
 
     private final DAOConfig config;
 
@@ -59,10 +59,14 @@ public class DaoImpl implements DAO {
         Iterator<Record> memoryRange = map(storage.currentStorage, fromKey, toKey).values().iterator();
         Iterator<Record> tmpMemoryRange = map(storage.storageToWrite, fromKey, toKey).values().iterator();
 
-//        Iterator<Record> memory = mergeTwo(memoryRange, tmpMemoryRange);
-        Iterator<Record> memory = mergeTwo(new PeekingIterator<>(memoryRange), new PeekingIterator<>(tmpMemoryRange));
-//        Iterator<Record> mergedIterators = mergeTwo(ssTableRanges, memory);
-        Iterator<Record> mergedIterators = mergeTwo(new PeekingIterator<>(ssTableRanges), new PeekingIterator<>(memory));
+        Iterator<Record> memory = mergeTwo(
+                new PeekingIterator<>(memoryRange),
+                new PeekingIterator<>(tmpMemoryRange)
+        );
+        Iterator<Record> mergedIterators = mergeTwo(
+                new PeekingIterator<>(ssTableRanges),
+                new PeekingIterator<>(memory)
+        );
 
         return new TombstoneFilteringIterator(mergedIterators);
     }
@@ -147,7 +151,11 @@ public class DaoImpl implements DAO {
         }
     }
 
-    private Map<ByteBuffer, Record> map(NavigableMap<ByteBuffer, Record> memoryStorage, @Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
+    private Map<ByteBuffer, Record> map(
+            NavigableMap<ByteBuffer, Record> memoryStorage,
+            @Nullable ByteBuffer fromKey,
+            @Nullable ByteBuffer toKey
+    ) {
 
         if (fromKey == null && toKey == null) {
             return memoryStorage;
@@ -215,7 +223,12 @@ public class DaoImpl implements DAO {
         public final NavigableMap<ByteBuffer, Record> storageToWrite;
         public final List<SSTable> ssTables;
 
-        private Storage(NavigableMap<ByteBuffer, Record> currentStorage, NavigableMap<ByteBuffer, Record> storageToWrite, List<SSTable> ssTables) {
+        private Storage(
+                NavigableMap<ByteBuffer,
+                Record> currentStorage, NavigableMap<ByteBuffer,
+                Record> storageToWrite, List<SSTable>
+                ssTables
+        ) {
             this.currentStorage = currentStorage;
             this.storageToWrite = storageToWrite;
             this.ssTables = ssTables;
