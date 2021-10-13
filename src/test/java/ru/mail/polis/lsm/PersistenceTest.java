@@ -207,7 +207,7 @@ class PersistenceTest {
         int beforeCompactSize = getDirSize(data);
 
         try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
-            dao.closeAndCompact();
+            dao.compact();
             assertDaoEquals(dao, map);
         }
 

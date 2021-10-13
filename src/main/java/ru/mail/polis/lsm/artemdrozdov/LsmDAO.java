@@ -23,6 +23,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -32,7 +33,8 @@ public class LsmDAO implements DAO {
     private volatile NavigableMap<ByteBuffer, Record> memoryStorage = newStorage();
     private volatile NavigableMap<ByteBuffer, Record> memoryStorageToFlush = newStorage();
     private final ExecutorService flushExecutor = Executors.newSingleThreadExecutor();
-    private final ConcurrentLinkedDeque<SSTable> tables = new ConcurrentLinkedDeque<>();
+    private volatile ConcurrentLinkedDeque<SSTable> tables = new ConcurrentLinkedDeque<>();
+    private final ScheduledExecutorService compactExecutor = Executors.newSingleThreadScheduledExecutor();
     private final Logger logger = LoggerFactory.getLogger(LsmDAO.class);
 
     @SuppressWarnings({"FieldCanBeLocal", "unused"})
@@ -47,6 +49,7 @@ public class LsmDAO implements DAO {
      * @throws IOException - in case of io exception
      */
     public LsmDAO(DAOConfig config) throws IOException {
+        compactExecutor.scheduleAtFixedRate(this::compact, 0, 1000, TimeUnit.MILLISECONDS);
         this.config = config;
         List<SSTable> ssTables = SSTable.loadFromDir(config.dir);
         tables.addAll(ssTables);
@@ -108,8 +111,11 @@ public class LsmDAO implements DAO {
     }
 
     @Override
-    public void closeAndCompact() {
-        synchronized (this) {
+    public void compact() {
+        if (tables.size() < config.maxNumberOfTables) {
+            return;
+        }
+        synchronized (LsmDAO.this) {
             SSTable table;
             try {
                 table = SSTable.compact(config.dir, range(null, null));
@@ -133,15 +139,19 @@ public class LsmDAO implements DAO {
     @Override
     public void close() throws IOException {
         flushExecutor.shutdown();
-        waitFlushExecutorTermination();
+        compactExecutor.shutdown();
+        waitExecutorsTermination();
 
         flush(memoryStorage);
     }
 
-    private void waitFlushExecutorTermination() {
+    private void waitExecutorsTermination() {
         try {
             while (!flushExecutor.awaitTermination(5, TimeUnit.MINUTES)) {
                 logger.warn("FlushExecutor termination is too long!");
+            }
+            while (!compactExecutor.awaitTermination(5, TimeUnit.MINUTES)) {
+                logger.warn("CompactExecutor termination is too long!");
             }
         } catch (InterruptedException e) {
             logger.error("Interruption waiting 'flushFuture' to terminate. ", e);
