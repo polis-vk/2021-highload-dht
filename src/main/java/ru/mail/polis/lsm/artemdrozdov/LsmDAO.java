@@ -49,7 +49,7 @@ public class LsmDAO implements DAO {
      * @throws IOException - in case of io exception
      */
     public LsmDAO(DAOConfig config) throws IOException {
-        compactExecutor.scheduleAtFixedRate(this::compact, 0, 1000, TimeUnit.MILLISECONDS);
+        compactExecutor.scheduleAtFixedRate(this::compact, 0, 10_000, TimeUnit.MILLISECONDS);
         this.config = config;
         List<SSTable> ssTables = SSTable.loadFromDir(config.dir);
         tables.addAll(ssTables);
