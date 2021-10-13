@@ -14,16 +14,8 @@ import java.util.Iterator;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static ru.mail.polis.lsm.Utils.assertDaoEquals;
-import static ru.mail.polis.lsm.Utils.key;
-import static ru.mail.polis.lsm.Utils.keyWithSuffix;
-import static ru.mail.polis.lsm.Utils.recursiveDelete;
-import static ru.mail.polis.lsm.Utils.sizeBasedRandomData;
-import static ru.mail.polis.lsm.Utils.value;
-import static ru.mail.polis.lsm.Utils.valueWithSuffix;
-import static ru.mail.polis.lsm.Utils.wrap;
+import static org.junit.jupiter.api.Assertions.*;
+import static ru.mail.polis.lsm.Utils.*;
 
 class PersistenceTest {
     @Test
@@ -190,29 +182,31 @@ class PersistenceTest {
 
     @Test
     void burnAndCompact(@TempDir Path data) throws IOException {
+        DAOConfig config = new DAOConfig(data, DAOConfig.DEFAULT_MEMORY_LIMIT, Integer.MAX_VALUE);
+
         Map<ByteBuffer, ByteBuffer> map = Utils.generateMap(0, 1);
 
         int overwrites = 100;
         for (int i = 0; i < overwrites; i++) {
-            try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
+            try (DAO dao = TestDaoWrapper.create(config)) {
                 map.forEach((k, v) -> dao.upsert(Record.of(k, v)));
             }
 
             // Check
-            try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
+            try (DAO dao = TestDaoWrapper.create(config)) {
                 assertDaoEquals(dao, map);
             }
         }
 
         int beforeCompactSize = getDirSize(data);
 
-        try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
-            dao.closeAndCompact();
+        try (DAO dao = TestDaoWrapper.create(config)) {
+            dao.compact();
             assertDaoEquals(dao, map);
         }
 
         // just for sure
-        try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
+        try (DAO dao = TestDaoWrapper.create(config)) {
             assertDaoEquals(dao, map);
         }
 
