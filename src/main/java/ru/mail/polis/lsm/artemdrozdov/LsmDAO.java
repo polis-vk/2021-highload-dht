@@ -92,10 +92,9 @@ public class LsmDAO implements DAO {
                         // Удаление записи у одинаковых ключей (и ключ не был изменен во время флаша)
                         flushStorage.forEach((key, value) -> {
                             Record tmp = memoryStorage.get(key);
-                            if (tmp != null) {
-                                if (tmp.getValue().equals(value.getValue())) {
-                                    memoryStorage.remove(key);
-                                }
+                            // скомбинировать условия попросил анализатор!
+                            if (tmp != null && tmp.getValue().equals(value.getValue())) {
+                                memoryStorage.remove(key);
                             }
                         });
                 } catch (IOException e) {
