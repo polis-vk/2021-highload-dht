@@ -82,7 +82,6 @@ public class DaoImpl implements DAO {
 
                     int prev = memoryConsumption.getAndSet(sizeOf(record));
 
-
                     flushExecutor.execute(() -> {
                         SSTable ssTable = prepareAndFlush(prev);
                         storage = storage.afterFlush(ssTable);
@@ -90,7 +89,6 @@ public class DaoImpl implements DAO {
 //                        if (needCompact()) {
 //                            compact();
 //                        }
-
                 }
             }
         }
