@@ -184,7 +184,6 @@ public class DaoImpl implements DAO {
         }
     }
 
-    @GuardedBy("this")
     private SSTable flush() throws IOException {
         Path dir = config.dir;
         Path file = dir.resolve(SSTable.SAVE_FILE_PREFIX + storage.ssTables.size());
