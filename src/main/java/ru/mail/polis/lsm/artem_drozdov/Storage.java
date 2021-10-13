@@ -13,6 +13,7 @@ import java.util.TreeMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 public class Storage {
     private final AtomicInteger currentStorageMemoryUsage;
@@ -105,11 +106,13 @@ public class Storage {
     }
 
     private Iterator<Record> map(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
+        Stream<MemoryWithSize> flushingStoragesStream = flushingStorages.values().stream();
+
         if (fromKey == null && toKey == null) {
             return new RecordIterators.MergingIterator(
                     new RecordIterators.PeekingIterator(currentStorage.values().iterator()),
                     new RecordIterators.PeekingIterator(
-                            RecordIterators.merge(flushingStorages.values().stream()
+                            RecordIterators.merge(flushingStoragesStream
                                     .map(e -> e.memory.values().iterator())
                                     .collect(Collectors.toList()))
                     )
@@ -119,7 +122,7 @@ public class Storage {
             return new RecordIterators.MergingIterator(
                     new RecordIterators.PeekingIterator(currentStorage.headMap(toKey).values().iterator()),
                     new RecordIterators.PeekingIterator(
-                            RecordIterators.merge(flushingStorages.values().stream()
+                            RecordIterators.merge(flushingStoragesStream
                                     .map(e -> e.memory.headMap(toKey).values().iterator())
                                     .collect(Collectors.toList()))
                     )
@@ -129,7 +132,7 @@ public class Storage {
             return new RecordIterators.MergingIterator(
                     new RecordIterators.PeekingIterator(currentStorage.tailMap(fromKey).values().iterator()),
                     new RecordIterators.PeekingIterator(
-                            RecordIterators.merge(flushingStorages.values().stream()
+                            RecordIterators.merge(flushingStoragesStream
                                     .map(e -> e.memory.tailMap(fromKey).values().iterator())
                                     .collect(Collectors.toList()))
                     )
@@ -138,7 +141,7 @@ public class Storage {
         return new RecordIterators.MergingIterator(
                 new RecordIterators.PeekingIterator(currentStorage.subMap(fromKey, toKey).values().iterator()),
                 new RecordIterators.PeekingIterator(
-                        RecordIterators.merge(flushingStorages.values().stream()
+                        RecordIterators.merge(flushingStoragesStream
                                 .map(e -> e.memory.subMap(fromKey, toKey).values().iterator())
                                 .collect(Collectors.toList()))
                 )
