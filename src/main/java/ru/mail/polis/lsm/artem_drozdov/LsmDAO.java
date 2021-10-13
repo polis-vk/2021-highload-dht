@@ -16,12 +16,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NavigableMap;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentSkipListMap;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class LsmDAO implements DAO {
@@ -34,7 +29,8 @@ public class LsmDAO implements DAO {
 
     private final AtomicInteger memoryConsumption = new AtomicInteger();
 
-    private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private final ExecutorService executorFlush = Executors.newSingleThreadExecutor();
+    private final ExecutorService executeComp = Executors.newSingleThreadExecutor();
     private CompletableFuture<Void> cfFlush;
 
     public LsmDAO(DAOConfig config) throws IOException {
@@ -88,12 +84,16 @@ public class LsmDAO implements DAO {
                             LOGGER.debug("Start flush");
                             SSTable ssTable = flush();
                             storage = storage.afterFlush(ssTable);
+                            if (needCompact()) {
+                                compact();
+                            }
+                            LOGGER.info("Tables {}", storage.tables.size());
                             LOGGER.debug("Flush finished");
                         } catch (IOException e) {
                             memoryConsumption.addAndGet(prev);
                             throw new UncheckedIOException(e);
                         }
-                    }, executor);
+                    }, executorFlush);
                 } else {
                     LOGGER.debug("Concurrent flush");
                 }
@@ -101,6 +101,10 @@ public class LsmDAO implements DAO {
 
         }
         storage.currentStorage.put(record.getKey(), record);
+    }
+
+    private boolean needCompact() {
+        return storage.tables.size() > config.maxTables;
     }
 
     private void waitingCompleteFlush() {
@@ -117,17 +121,19 @@ public class LsmDAO implements DAO {
 
     @Override
     public void compact() {
-        synchronized (this) {
-            LOGGER.info("compact started");
-            final SSTable table;
-            try {
-                table = SSTable.compact(config.dir, range(null, null));
-            } catch (IOException e) {
-                throw new UncheckedIOException("Can't compact", e);
+        executeComp.execute(() -> {
+            synchronized (this) {
+                LOGGER.info("compact started");
+                final SSTable table;
+                try {
+                    table = SSTable.compact(config.dir, range(null, null));
+                } catch (IOException e) {
+                    throw new UncheckedIOException("Can't compact", e);
+                }
+                storage = storage.afterCompaction(table);
+                LOGGER.info("compact finished");
             }
-            storage = storage.afterCompaction(table);
-            LOGGER.info("compact finished");
-        }
+        });
     }
 
     private int sizeOf(Record record) {
@@ -136,9 +142,11 @@ public class LsmDAO implements DAO {
 
     @Override
     public void close() throws IOException {
-        executor.shutdown();
+        executeComp.shutdown();
+        executorFlush.shutdown();
         try {
-            if (!executor.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS)) {
+            if (!executeComp.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS) &&
+                !executorFlush.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS)) {
                 throw new IllegalStateException("Can't await for termination");
             }
         } catch (InterruptedException e) {
@@ -149,7 +157,6 @@ public class LsmDAO implements DAO {
         storage = storage.prepareFlush();
         flush();
         storage = null;
-
     }
 
     private SSTable flush() throws IOException {

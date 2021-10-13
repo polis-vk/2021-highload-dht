@@ -143,15 +143,16 @@ class PersistenceTest {
 
     @Test
     void hugeRecords(@TempDir Path data) throws IOException {
+        DAOConfig config = new DAOConfig(data, DAOConfig.LARGE_MEMORY_LIMIT, DAOConfig.LARGE_MAX_TABLES);
         // Reference value
         int size = 1024 * 1024;
         byte[] suffix = sizeBasedRandomData(size);
-        int recordsCount = (int) (TestDaoWrapper.MAX_HEAP * 15 / size);
+        int recordsCount = (int) (TestDaoWrapper.MAX_HEAP * 5 / size);
 
         prepareHugeDao(data, recordsCount, suffix);
 
         // Check
-        try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
+        try (DAO dao = TestDaoWrapper.create(config)) {
             Iterator<Record> range = dao.range(null, null);
 
             for (int i = 0; i < recordsCount; i++) {
@@ -164,15 +165,16 @@ class PersistenceTest {
 
     @Test
     void hugeRecordsSearch(@TempDir Path data) throws IOException {
+        DAOConfig config = new DAOConfig(data, DAOConfig.LARGE_MEMORY_LIMIT, DAOConfig.LARGE_MAX_TABLES);
         // Reference value
         int size = 1024 * 1024;
         byte[] suffix = sizeBasedRandomData(size);
-        int recordsCount = (int) (TestDaoWrapper.MAX_HEAP * 15 / size);
+        int recordsCount = (int) (TestDaoWrapper.MAX_HEAP * 5 / size);
 
         prepareHugeDao(data, recordsCount, suffix);
 
         // Check
-        try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
+        try (DAO dao = TestDaoWrapper.create(config)) {
             int searchStep = 4;
 
             for (int i = 0; i < recordsCount / searchStep; i++) {
@@ -190,29 +192,30 @@ class PersistenceTest {
 
     @Test
     void burnAndCompact(@TempDir Path data) throws IOException {
+        DAOConfig config = new DAOConfig(data, DAOConfig.DEFAULT_MEMORY_LIMIT, Integer.MAX_VALUE);
         Map<ByteBuffer, ByteBuffer> map = Utils.generateMap(0, 1);
 
         int overwrites = 100;
         for (int i = 0; i < overwrites; i++) {
-            try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
+            try (DAO dao = TestDaoWrapper.create(config)) {
                 map.forEach((k, v) -> dao.upsert(Record.of(k, v)));
             }
 
             // Check
-            try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
+            try (DAO dao = TestDaoWrapper.create(config)) {
                 assertDaoEquals(dao, map);
             }
         }
 
         int beforeCompactSize = getDirSize(data);
 
-        try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
+        try (DAO dao = TestDaoWrapper.create(config)) {
             dao.compact();
             assertDaoEquals(dao, map);
         }
 
         // just for sure
-        try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
+        try (DAO dao = TestDaoWrapper.create(config)) {
             assertDaoEquals(dao, map);
         }
 
@@ -245,7 +248,7 @@ class PersistenceTest {
     }
 
     private void prepareHugeDao(@TempDir Path data, int recordsCount, byte[] suffix) throws IOException {
-        try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
+        try (DAO dao = TestDaoWrapper.create(new DAOConfig(data, DAOConfig.LARGE_MEMORY_LIMIT, DAOConfig.LARGE_MAX_TABLES))) {
             for (int i = 0; i < recordsCount; i++) {
                 ByteBuffer key = keyWithSuffix(i, suffix);
                 ByteBuffer value = valueWithSuffix(i, suffix);
@@ -256,4 +259,3 @@ class PersistenceTest {
     }
 
 }
-
