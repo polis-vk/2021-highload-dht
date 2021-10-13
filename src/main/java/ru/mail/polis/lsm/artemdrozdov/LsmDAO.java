@@ -115,7 +115,7 @@ public class LsmDAO implements DAO {
         if (tables.size() < config.maxNumberOfTables) {
             return;
         }
-        synchronized (LsmDAO.this) {
+        synchronized (this) {
             SSTable table;
             try {
                 table = SSTable.compact(config.dir, range(null, null));
