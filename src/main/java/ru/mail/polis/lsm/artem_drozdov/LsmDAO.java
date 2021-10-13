@@ -22,7 +22,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 public class LsmDAO implements DAO {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(LsmDAO.class);
-    private volatile Storage storage;
+    private Storage storage;
 
     @SuppressWarnings({"FieldCanBeLocal", "unused"})
     private final DAOConfig config;
