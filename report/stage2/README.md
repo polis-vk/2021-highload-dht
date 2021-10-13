@@ -142,9 +142,9 @@ Transfer/sec:    654.22KB
 ```
 
 ### Async-profiler
-#### [Output CPU for PUT-requests](https://htmlpreview.github.io/?https://github.com/sdimosik/2021-highload-dht/tree/stage2/repot/stage2/put-cpu.html)
-#### [Output ALLOC for PUT-requests](https://htmlpreview.github.io/?https://github.com/sdimosik/2021-highload-dht/tree/stage2/repot/stage2/put-alloc.html)
-#### [Output LOCK for PUT-requests](https://htmlpreview.github.io/?https://github.com/sdimosik/2021-highload-dht/tree/stage2/repot/stage2/put-lock.html)
+#### [Output CPU for PUT-requests](https://htmlpreview.github.io/?https://github.com/sdimosik/2021-highload-dht/blob/stage2/report/stage2/put-cpu.html)
+#### [Output ALLOC for PUT-requests](https://htmlpreview.github.io/?https://github.com/sdimosik/2021-highload-dht/blob/stage2/report/stage2/put-alloc.html)
+#### [Output LOCK for PUT-requests](https://htmlpreview.github.io/?https://github.com/sdimosik/2021-highload-dht/blob/stage2/report/stage2/put-lock.html)
 
 ### Conclusions
 
@@ -303,9 +303,9 @@ Transfer/sec:    714.67KB
 
 ```
 ### Async-profiler
-#### [Output CPU for GET-requests](https://htmlpreview.github.io/?https://github.com/sdimosik/2021-highload-dht/tree/stage2/repot/stage2/get-cpu.html)
-#### [Output ALLOC for GET-requests](https://htmlpreview.github.io/?https://github.com/sdimosik/2021-highload-dht/tree/stage2/repot/stage2/get-alloc.html)
-#### [Output LOCK for GET-requests](https://htmlpreview.github.io/?https://github.com/sdimosik/2021-highload-dht/tree/stage2/repot/stage2/get-lock.html)
+#### [Output CPU for GET-requests](https://htmlpreview.github.io/?https://github.com/sdimosik/2021-highload-dht/blob/stage2/report/stage2/get-cpu.html)
+#### [Output ALLOC for GET-requests](https://htmlpreview.github.io/?https://github.com/sdimosik/2021-highload-dht/blob/stage2/report/stage2/get-alloc.html)
+#### [Output LOCK for GET-requests](https://htmlpreview.github.io/?https://github.com/sdimosik/2021-highload-dht/blob/stage2/report/stage2/get-lock.html)
 
 ### Conclusions
 
