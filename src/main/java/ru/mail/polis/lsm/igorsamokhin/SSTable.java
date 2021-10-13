@@ -79,8 +79,8 @@ class SSTable {
     }
 
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
-        long maxSize = mmap.remaining();
         LongMappedByteBuffer buffer = mmap.asReadOnlyBuffer();
+        long maxSize = buffer.remaining();
 
         long fromOffset = fromKey == null ? 0 : offset(buffer, fromKey);
         long toOffset = toKey == null ? maxSize : offset(buffer, toKey);

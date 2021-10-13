@@ -5,6 +5,7 @@ import ru.mail.polis.lsm.DAOConfig;
 import ru.mail.polis.lsm.Record;
 
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.GuardedBy;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -61,7 +62,7 @@ public class LsmDAO implements DAO {
                     storage = storage.prepareFlush();
                     storage.currentStorage.put(record.getKey(), record);
                     flushTask(size);
-                    compact();
+                    compactTask();
                 }
             }
         } else {
@@ -117,27 +118,37 @@ public class LsmDAO implements DAO {
         }
     }
 
-    @Override
-    public void compact() {
+    private void compactTask() {
         executors.execute(() -> {
             synchronized (LsmDAO.this) {
                 if (this.storage.tables.size() < config.maxTables) {
                     return;
                 }
-
-                SSTable compactFile = null;
-                try {
-                    compactFile = SSTable.compact(config.dir, this.range(null, null), getNewFileName());
-                    Storage s = this.storage;
-                    this.storage = storage.afterCompaction(compactFile);
-                    for (SSTable t : s.tables) {
-                        t.close();
-                    }
-                } catch (IOException e) {
-                    throw new UncheckedIOException("Can't compact", e);
-                }
+                compaction();
             }
         });
+    }
+
+    @GuardedBy("LsmDAO.this")
+    private void compaction() {
+        SSTable compactFile = null;
+        try {
+            compactFile = SSTable.compact(config.dir, this.range(null, null), getNewFileName());
+            Storage s = this.storage;
+            this.storage = storage.afterCompaction(compactFile);
+            for (SSTable t : s.tables) {
+                t.close();
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException("Can't compact", e);
+        }
+    }
+
+    @Override
+    public void compact() {
+        synchronized (LsmDAO.this) {
+            compaction();
+        }
     }
 
     /**
