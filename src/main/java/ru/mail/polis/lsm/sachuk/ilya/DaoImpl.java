@@ -10,6 +10,7 @@ import ru.mail.polis.lsm.sachuk.ilya.iterators.PeekingIterator;
 import ru.mail.polis.lsm.sachuk.ilya.iterators.TombstoneFilteringIterator;
 
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.GuardedBy;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
@@ -21,10 +22,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class DaoImpl implements DAO {
     private final Logger logger = LoggerFactory.getLogger(DaoImpl.class);
@@ -37,6 +41,7 @@ public class DaoImpl implements DAO {
     private final ExecutorService executorService = Executors.newSingleThreadExecutor();
     private final ExecutorService flushExecutor = Executors.newSingleThreadExecutor();
     private final AtomicInteger memoryConsumption = new AtomicInteger();
+    private final AtomicReference<Future<?>> futureAtomicReference = new AtomicReference<>();
 
     /**
      * Constructor that initialize path and restore storage.
@@ -75,10 +80,10 @@ public class DaoImpl implements DAO {
 
     @Override
     public void upsert(Record record) {
-        int consumption = memoryConsumption.addAndGet(sizeOf(record));
-        if (consumption > config.memoryLimit) {
+        if (memoryConsumption.addAndGet(sizeOf(record)) > config.memoryLimit) {
             synchronized (this) {
                 if (memoryConsumption.get() > config.memoryLimit) {
+                    checkForPrevTask();
                     storage = storage.prepareFlush();
 
                     int prev = memoryConsumption.getAndSet(sizeOf(record));
@@ -89,6 +94,17 @@ public class DaoImpl implements DAO {
         }
 
         storage.currentStorage.put(record.getKey(), record);
+    }
+
+    private void checkForPrevTask() {
+        if (futureAtomicReference.get() != null) {
+            try {
+                futureAtomicReference.get().get();
+            } catch (InterruptedException | ExecutionException e) {
+                Thread.currentThread().interrupt();
+                throw new IllegalStateException("Can't to get result", e);
+            }
+        }
     }
 
     private boolean needCompact() {
@@ -166,18 +182,17 @@ public class DaoImpl implements DAO {
         }
     }
 
+    @GuardedBy("this")
     private void prepareAndFlush(int prevConsumption) {
-        flushExecutor.execute(() -> {
-            synchronized (this) {
-                try {
-                    SSTable ssTable = flush();
-                    storage = storage.afterFlush(ssTable);
-                } catch (IOException e) {
-                    memoryConsumption.addAndGet(prevConsumption);
-                    throw new UncheckedIOException(e);
-                }
+        futureAtomicReference.set(flushExecutor.submit(() -> {
+            try {
+                SSTable ssTable = flush();
+                storage = storage.afterFlush(ssTable);
+            } catch (IOException e) {
+                memoryConsumption.addAndGet(prevConsumption);
+                throw new UncheckedIOException(e);
             }
-        });
+        }));
     }
 
     private SSTable flush() throws IOException {
