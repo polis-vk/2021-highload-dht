@@ -1,5 +1,6 @@
 package ru.mail.polis.lsm.sachuk.ilya;
 
+import ru.mail.polis.FileUtils;
 import ru.mail.polis.lsm.Record;
 import ru.mail.polis.lsm.sachuk.ilya.iterators.ByteBufferRecordIterator;
 
@@ -63,57 +64,6 @@ public class SSTable {
         );
     }
 
-    private int offset(ByteBuffer buffer, ByteBuffer keyToFind) {
-        indexByteBuffer.position(0);
-        int left = 0;
-        int rightLimit = indexByteBuffer.remaining() / Integer.BYTES;
-        int right = rightLimit;
-
-        int keyToFindSize = keyToFind.remaining();
-
-        while (left < right) {
-            int mid = left + ((right - left) >>> 1);
-
-            int offset = indexByteBuffer.getInt(mid * Integer.BYTES);
-            buffer.position(offset);
-            int existingKeySize = buffer.getInt();
-
-            int mismatchPos = buffer.mismatch(keyToFind);
-            if (mismatchPos == -1) {
-                return offset;
-            }
-
-            if (existingKeySize == keyToFindSize && mismatchPos == existingKeySize) {
-                return offset;
-            }
-
-            final int result;
-            if (mismatchPos < existingKeySize && mismatchPos < keyToFindSize) {
-                result = Byte.compare(
-                        keyToFind.get(keyToFind.position() + mismatchPos),
-                        buffer.get(buffer.position() + mismatchPos)
-                );
-            } else if (mismatchPos >= existingKeySize) {
-                result = 1;
-            } else {
-                result = -1;
-            }
-
-            if (result > 0) {
-                left = mid + 1;
-            } else {
-                right = mid;
-            }
-        }
-
-        if (left >= rightLimit) {
-            return -1;
-        }
-
-        indexByteBuffer.position(0);
-        return indexByteBuffer.getInt(left * Integer.BYTES);
-    }
-
     public static List<SSTable> loadFromDir(Path dir) throws IOException {
         Path compaction = dir.resolve(COMPACTION_FILE_NAME);
         if (Files.exists(compaction)) {
@@ -139,8 +89,8 @@ public class SSTable {
         Files.deleteIfExists(tmpSavePath);
         Files.deleteIfExists(tmpIndexPath);
 
-        try (FileChannel saveFileChannel = openFileChannel(tmpSavePath)) {
-            try (FileChannel indexFileChanel = openFileChannel(tmpIndexPath)) {
+        try (FileChannel saveFileChannel = FileUtils.openFileChannel(tmpSavePath)) {
+            try (FileChannel indexFileChanel = FileUtils.openFileChannel(tmpIndexPath)) {
 
                 ByteBuffer buffer = ByteBuffer.allocate(Integer.BYTES);
 
@@ -194,6 +144,36 @@ public class SSTable {
         return new SSTable(savePath);
     }
 
+    private void restoreStorage() throws IOException {
+        try (FileChannel saveFileChannel = FileChannel.open(savePath, StandardOpenOption.READ)) {
+            try (FileChannel indexFileChannel = FileChannel.open(indexPath, StandardOpenOption.READ)) {
+
+                mappedByteBuffer = saveFileChannel.map(
+                        FileChannel.MapMode.READ_ONLY,
+                        0,
+                        saveFileChannel.size()
+                );
+                indexByteBuffer = indexFileChannel.map(
+                        FileChannel.MapMode.READ_ONLY,
+                        0,
+                        indexFileChannel.size()
+                );
+
+                int size = indexByteBuffer.getInt();
+                indexes = new int[size];
+
+                int counter = 0;
+                while (indexByteBuffer.hasRemaining()) {
+
+                    int value = indexByteBuffer.getInt();
+
+                    indexes[counter] = value;
+                    counter++;
+                }
+            }
+        }
+    }
+
     public static SSTable compact(Path dir, Iterator<Record> records) throws IOException {
         Path compaction = dir.resolve("compaction");
         save(records, compaction);
@@ -236,18 +216,6 @@ public class SSTable {
         Files.move(compaction, file0, StandardCopyOption.ATOMIC_MOVE);
     }
 
-    private static Path resolveWithExt(Path file, String ext) {
-        return file.resolveSibling(file.getFileName() + ext);
-    }
-
-    private static Path getIndexFile(Path file) {
-        return resolveWithExt(file, INDEX_FILE_END);
-    }
-
-    private static Path getTmpFile(Path file) {
-        return resolveWithExt(file, TMP_FILE_END);
-    }
-
     public void close() throws IOException {
         if (mappedByteBuffer != null) {
             clean(mappedByteBuffer);
@@ -261,34 +229,55 @@ public class SSTable {
         }
     }
 
-    private void restoreStorage() throws IOException {
-        try (FileChannel saveFileChannel = FileChannel.open(savePath, StandardOpenOption.READ)) {
-            try (FileChannel indexFileChannel = FileChannel.open(indexPath, StandardOpenOption.READ)) {
+    private int offset(ByteBuffer buffer, ByteBuffer keyToFind) {
+        indexByteBuffer.position(0);
+        int left = 0;
+        int rightLimit = indexByteBuffer.remaining() / Integer.BYTES;
+        int right = rightLimit;
 
-                mappedByteBuffer = saveFileChannel.map(
-                        FileChannel.MapMode.READ_ONLY,
-                        0,
-                        saveFileChannel.size()
+        int keyToFindSize = keyToFind.remaining();
+
+        while (left < right) {
+            int mid = left + ((right - left) >>> 1);
+
+            int offset = indexByteBuffer.getInt(mid * Integer.BYTES);
+            buffer.position(offset);
+            int existingKeySize = buffer.getInt();
+
+            int mismatchPos = buffer.mismatch(keyToFind);
+            if (mismatchPos == -1) {
+                return offset;
+            }
+
+            if (existingKeySize == keyToFindSize && mismatchPos == existingKeySize) {
+                return offset;
+            }
+
+            final int result;
+            if (mismatchPos < existingKeySize && mismatchPos < keyToFindSize) {
+                result = Byte.compare(
+                        keyToFind.get(keyToFind.position() + mismatchPos),
+                        buffer.get(buffer.position() + mismatchPos)
                 );
-                indexByteBuffer = indexFileChannel.map(
-                        FileChannel.MapMode.READ_ONLY,
-                        0,
-                        indexFileChannel.size()
-                );
+            } else if (mismatchPos >= existingKeySize) {
+                result = 1;
+            } else {
+                result = -1;
+            }
 
-                int size = indexByteBuffer.getInt();
-                indexes = new int[size];
-
-                int counter = 0;
-                while (indexByteBuffer.hasRemaining()) {
-
-                    int value = indexByteBuffer.getInt();
-
-                    indexes[counter] = value;
-                    counter++;
-                }
+            if (result > 0) {
+                left = mid + 1;
+            } else {
+                right = mid;
             }
         }
+
+        if (left >= rightLimit) {
+            return -1;
+        }
+
+        indexByteBuffer.position(0);
+        return indexByteBuffer.getInt(left * Integer.BYTES);
     }
 
     private static void writeSizeAndValue(
@@ -326,11 +315,15 @@ public class SSTable {
         }
     }
 
-    private static FileChannel openFileChannel(Path path) throws IOException {
-        return FileChannel.open(
-                path,
-                StandardOpenOption.CREATE_NEW,
-                StandardOpenOption.WRITE,
-                StandardOpenOption.TRUNCATE_EXISTING);
+    private static Path resolveWithExt(Path file, String ext) {
+        return file.resolveSibling(file.getFileName() + ext);
+    }
+
+    private static Path getIndexFile(Path file) {
+        return resolveWithExt(file, INDEX_FILE_END);
+    }
+
+    private static Path getTmpFile(Path file) {
+        return resolveWithExt(file, TMP_FILE_END);
     }
 }

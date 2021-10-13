@@ -21,17 +21,14 @@ import org.slf4j.LoggerFactory;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.channels.FileChannel;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.nio.file.SimpleFileVisitor;
+import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.util.Comparator;
-import java.util.Iterator;
 import java.util.concurrent.atomic.AtomicLong;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /**
  * Utility methods for handling files.
@@ -108,17 +105,12 @@ public final class FileUtils {
         return result.get();
     }
 
-    public static Iterator<Path> getPathIterator(Path dir, String pathEnd) throws IOException {
-        Iterator<Path> paths;
-        try (Stream<Path> streamPaths = Files.walk(Paths.get(dir.toUri()))) {
-            paths = streamPaths.filter(path -> path.toString().endsWith(pathEnd))
-                    .collect(Collectors.toList())
-                    .stream()
-                    .sorted(Comparator.comparing(o -> getFileNumber(o, pathEnd)))
-                    .collect(Collectors.toList())
-                    .iterator();
-        }
-        return paths;
+    public static FileChannel openFileChannel(Path path) throws IOException {
+        return FileChannel.open(
+                path,
+                StandardOpenOption.CREATE_NEW,
+                StandardOpenOption.WRITE,
+                StandardOpenOption.TRUNCATE_EXISTING);
     }
 
     public static Integer getFileNumber(Path path, String endFile) {

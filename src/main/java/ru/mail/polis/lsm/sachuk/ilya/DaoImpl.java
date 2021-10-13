@@ -34,7 +34,7 @@ public class DaoImpl implements DAO {
     private final Logger logger = LoggerFactory.getLogger(DaoImpl.class);
 
     @SuppressWarnings("PMD")
-    private volatile Storage storage;
+    private volatile Storage memoryStorage;
 
     private final DAOConfig config;
 
@@ -53,12 +53,12 @@ public class DaoImpl implements DAO {
         this.config = config;
         Path dirPath = config.dir;
 
-        storage = Storage.init(SSTable.loadFromDir(dirPath));
+        memoryStorage = Storage.init(SSTable.loadFromDir(dirPath));
     }
 
     @Override
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
-        Storage storage = this.storage;
+        Storage storage = this.memoryStorage;
 
         logger.info(String.format("size sstable: %s%n", storage.ssTables.size()));
 
@@ -84,7 +84,7 @@ public class DaoImpl implements DAO {
             synchronized (this) {
                 if (memoryConsumption.get() > config.memoryLimit) {
                     checkForPrevTask();
-                    storage = storage.prepareFlush();
+                    memoryStorage = memoryStorage.prepareFlush();
 
                     int prev = memoryConsumption.getAndSet(sizeOf(record));
 
@@ -93,7 +93,7 @@ public class DaoImpl implements DAO {
             }
         }
 
-        storage.currentStorage.put(record.getKey(), record);
+        memoryStorage.currentStorage.put(record.getKey(), record);
     }
 
     private void checkForPrevTask() {
@@ -108,7 +108,7 @@ public class DaoImpl implements DAO {
     }
 
     private boolean needCompact() {
-        return storage.ssTables.size() > config.maxTables;
+        return memoryStorage.ssTables.size() > config.maxTables;
     }
 
     @Override
@@ -121,8 +121,8 @@ public class DaoImpl implements DAO {
                     }
                     logger.info("comcapt started");
 
-                    SSTable result = SSTable.compact(config.dir, ssTableRanges(storage, null, null));
-                    storage = storage.afterCompaction(result);
+                    SSTable result = SSTable.compact(config.dir, ssTableRanges(memoryStorage, null, null));
+                    memoryStorage = memoryStorage.afterCompaction(result);
 
                     logger.info("compact finished");
                 } catch (IOException e) {
@@ -141,12 +141,12 @@ public class DaoImpl implements DAO {
 
         synchronized (this) {
             if (memoryConsumption.get() > 0) {
-                storage = storage.prepareFlush();
+                memoryStorage = memoryStorage.prepareFlush();
                 flush();
             }
 
             closeSSTables();
-            storage = null;
+            memoryStorage = null;
 
         }
     }
@@ -164,7 +164,7 @@ public class DaoImpl implements DAO {
     }
 
     private void closeSSTables() throws IOException {
-        for (SSTable ssTable : storage.ssTables) {
+        for (SSTable ssTable : memoryStorage.ssTables) {
             ssTable.close();
         }
     }
@@ -191,7 +191,7 @@ public class DaoImpl implements DAO {
         futureAtomicReference.set(flushExecutor.submit(() -> {
             try {
                 SSTable ssTable = flush();
-                storage = storage.afterFlush(ssTable);
+                memoryStorage = memoryStorage.afterFlush(ssTable);
             } catch (IOException e) {
                 memoryConsumption.addAndGet(prevConsumption);
                 throw new UncheckedIOException(e);
@@ -201,9 +201,9 @@ public class DaoImpl implements DAO {
 
     private SSTable flush() throws IOException {
         Path dir = config.dir;
-        Path file = dir.resolve(SSTable.SAVE_FILE_PREFIX + storage.ssTables.size());
+        Path file = dir.resolve(SSTable.SAVE_FILE_PREFIX + memoryStorage.ssTables.size());
 
-        return SSTable.save(storage.storageToWrite.values().iterator(), file);
+        return SSTable.save(memoryStorage.storageToWrite.values().iterator(), file);
     }
 
     private Iterator<Record> ssTableRanges(Storage storage, @Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
