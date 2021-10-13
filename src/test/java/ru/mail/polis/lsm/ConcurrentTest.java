@@ -2,6 +2,7 @@ package ru.mail.polis.lsm;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.RepeatedTest;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -45,6 +46,7 @@ class ConcurrentTest {
     }
 
     @Test
+    @RepeatedTest(value = 100)
     void concurrent() throws InterruptedException, ExecutionException, TimeoutException {
         List<Future<?>> exceptionsTracker = new ArrayList<>(TASKS_COUNT);
         for (int i = 0; i < TASKS_COUNT; i++) {

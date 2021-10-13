@@ -55,29 +55,33 @@ public class LsmDAO implements DAO {
     @Override
     public void upsert(Record record) {
         int size = record.size();
-        int consumption = memoryConsumption.addAndGet(size);
-        if (consumption > config.memoryLimit) {
-            synchronized (this) {
+        if (memoryConsumption.addAndGet(size) > config.memoryLimit) {
+            synchronized (LsmDAO.this) {
                 if (memoryConsumption.get() > config.memoryLimit) {
                     storage = storage.prepareFlush();
-
-                    int prev = memoryConsumption.getAndSet(size);
-                    try {
-                        SSTable ssTable = flush();
-                        storage = storage.afterFlush(ssTable);
-
-                    } catch (IOException e) {
-                        memoryConsumption.addAndGet(prev);
-                        throw new UncheckedIOException(e);
-                    }
-                }
-
-                if (storage.tables.size() > config.maxTables) {
+                    storage.currentStorage.put(record.getKey(), record);
+                    flushTask(size);
                     compact();
                 }
             }
+        } else {
+            storage.currentStorage.put(record.getKey(), record);
         }
-        storage.currentStorage.put(record.getKey(), record);
+    }
+
+    private void flushTask(int size) {
+        executors.execute(() -> {
+            synchronized (LsmDAO.this) {
+                memoryConsumption.set(size);
+                SSTable table;
+                try {
+                    table = flush();
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+                storage = storage.afterFlush(table);
+            }
+        });
     }
 
     private SSTable flush() throws IOException {
@@ -104,7 +108,8 @@ public class LsmDAO implements DAO {
 
         synchronized (this) {
             storage = storage.prepareFlush();
-            flush();
+            SSTable table = flush();
+            storage = storage.afterFlush(table);
             for (SSTable ssTable : storage.tables) {
                 ssTable.close();
             }
@@ -115,19 +120,22 @@ public class LsmDAO implements DAO {
     @Override
     public void compact() {
         executors.execute(() -> {
-            synchronized (this) {
-                if (this.storage.tables.size() <= config.maxTables) {
+            synchronized (LsmDAO.this) {
+                if (this.storage.tables.size() < config.maxTables) {
                     return;
                 }
 
                 SSTable compactFile = null;
                 try {
                     compactFile = SSTable.compact(config.dir, this.range(null, null), getNewFileName());
+                    Storage s = this.storage;
+                    this.storage = storage.afterCompaction(compactFile);
+                    for (SSTable t : s.tables) {
+                        t.close();
+                    }
                 } catch (IOException e) {
                     throw new UncheckedIOException("Can't compact", e);
                 }
-
-                this.storage = storage.afterCompaction(compactFile);
             }
         });
     }

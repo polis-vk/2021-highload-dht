@@ -5,8 +5,6 @@ import ru.mail.polis.lsm.Record;
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.ThreadSafe;
 
-import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -49,13 +47,6 @@ public final class Storage {
     }
 
     public Storage afterCompaction(SSTable table) {
-        for (SSTable t : tables) {
-            try {
-                t.close();
-            } catch (IOException e) {
-                throw new UncheckedIOException("Can't close sstable", e);
-            }
-        }
         List<SSTable> ssTables = Collections.singletonList(table);
         return new Storage(ssTables, currentStorage, EMPTY_STORAGE);
     }
