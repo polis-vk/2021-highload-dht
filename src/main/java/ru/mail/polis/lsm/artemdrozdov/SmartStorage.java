@@ -8,9 +8,9 @@ import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentSkipListMap;
 
 public final class SmartStorage {
-    final NavigableMap<ByteBuffer, Record> memory;
-    final NavigableMap<ByteBuffer, Record> memorySnapshot;
-    final ConcurrentLinkedDeque<SSTable> tables;
+    public final NavigableMap<ByteBuffer, Record> memory;
+    public final NavigableMap<ByteBuffer, Record> memorySnapshot;
+    public final ConcurrentLinkedDeque<SSTable> tables;
 
     private SmartStorage() {
         memory = getEmptyMap();
