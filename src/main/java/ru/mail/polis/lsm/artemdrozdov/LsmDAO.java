@@ -20,9 +20,8 @@ import java.util.NavigableMap;
 import java.util.NoSuchElementException;
 import java.util.SortedMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
-import java.util.concurrent.ConcurrentSkipListMap;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -121,10 +120,6 @@ public class LsmDAO implements DAO {
         }
     }
 
-    private NavigableMap<ByteBuffer, Record> newStorage() {
-        return new ConcurrentSkipListMap<>();
-    }
-
     private int sizeOf(Record record) {
         return SSTable.sizeOf(record);
     }
@@ -145,6 +140,7 @@ public class LsmDAO implements DAO {
         } catch (InterruptedException ie) {
             // (Re-)Cancel if current thread also interrupted
             writeService.shutdownNow();
+            Thread.currentThread().interrupt();
         }
         synchronized (this) {
             flush(smartStorage.memory, sstablesCtr.getAndIncrement());

@@ -12,7 +12,6 @@ public class SmartStorage {
     final NavigableMap<ByteBuffer, Record> memorySnapshot;
     final ConcurrentLinkedDeque<SSTable> tables;
 
-
     private SmartStorage() {
         memory = getEmptyMap();
         memorySnapshot = getEmptyMap();
@@ -29,7 +28,6 @@ public class SmartStorage {
         this.tables = tables;
     }
 
-
     private static NavigableMap<ByteBuffer, Record> getEmptyMap() {
         return new ConcurrentSkipListMap<>();
     }
@@ -42,10 +40,11 @@ public class SmartStorage {
         return new SmartStorage(getEmptyMap(), getEmptyMap(), tables);
     }
 
-
-    public static SmartStorage fromSnapshot(NavigableMap<ByteBuffer, Record> memorySnapshot, ConcurrentLinkedDeque<SSTable> tables) {
+    public static SmartStorage fromSnapshot(
+            NavigableMap<ByteBuffer,
+                    Record> memorySnapshot,
+            ConcurrentLinkedDeque<SSTable> tables) {
         return new SmartStorage(getEmptyMap(), memorySnapshot, tables);
     }
-
 
 }
