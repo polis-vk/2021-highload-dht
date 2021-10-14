@@ -27,6 +27,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -41,6 +42,7 @@ public class DaoImpl implements DAO {
     private final ExecutorService executorService = Executors.newSingleThreadExecutor();
     private final ExecutorService flushExecutor = Executors.newSingleThreadExecutor();
     private final AtomicInteger memoryConsumption = new AtomicInteger();
+    private final AtomicBoolean isClosed = new AtomicBoolean(false);
     private final AtomicReference<Future<?>> futureAtomicReference = new AtomicReference<>();
 
     /**
@@ -60,8 +62,6 @@ public class DaoImpl implements DAO {
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
         Storage storage = this.memoryStorage;
 
-        logger.info(String.format("size sstable: %s%n", storage.ssTables.size()));
-
         Iterator<Record> ssTableRanges = ssTableRanges(storage, fromKey, toKey);
         Iterator<Record> memoryRange = map(storage.currentStorage, fromKey, toKey).values().iterator();
         Iterator<Record> tmpMemoryRange = map(storage.storageToWrite, fromKey, toKey).values().iterator();
@@ -80,6 +80,10 @@ public class DaoImpl implements DAO {
 
     @Override
     public void upsert(Record record) {
+        if (isClosed.get()) {
+            return;
+        }
+
         if (memoryConsumption.addAndGet(sizeOf(record)) > config.memoryLimit) {
             synchronized (this) {
                 if (memoryConsumption.get() > config.memoryLimit) {
@@ -136,19 +140,18 @@ public class DaoImpl implements DAO {
 
     @Override
     public void close() throws IOException {
+        isClosed.set(true);
+        checkForPrevTask();
+
         awaitForShutdown(flushExecutor);
         awaitForShutdown(executorService);
 
-        synchronized (this) {
-            if (memoryConsumption.get() > 0) {
-                memoryStorage = memoryStorage.prepareFlush();
-                flush();
-            }
-
-            closeSSTables();
-            memoryStorage = null;
-
+        if (memoryConsumption.get() > 0) {
+            memoryStorage = memoryStorage.prepareFlush();
+            SSTable ssTable = flush();
+            memoryStorage = memoryStorage.afterFlush(ssTable);
         }
+        closeSSTables();
     }
 
     private void awaitForShutdown(ExecutorService executorService) {
