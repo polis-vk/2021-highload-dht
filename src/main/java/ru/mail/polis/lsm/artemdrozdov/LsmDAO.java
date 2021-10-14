@@ -113,8 +113,10 @@ public class LsmDAO implements DAO {
             });
 
             compactExecutor.execute(() -> {
-                if (tableStorage.isCompact(config.tableLimit)) {
-                    compact();
+                synchronized (this) {
+                    if (tableStorage.isCompact(config.tableLimit)) {
+                        compact();
+                    }
                 }
             });
 
