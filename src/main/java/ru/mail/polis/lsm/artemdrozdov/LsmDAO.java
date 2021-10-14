@@ -27,7 +27,7 @@ public class LsmDAO implements DAO {
 
     private final NavigableMap<ByteBuffer, Record> memoryStorage = newStorage();
     private final Semaphore semaphore;
-    private TableStorage tableStorage;
+    private volatile TableStorage tableStorage;
 
     private final ExecutorService flushExecutor = Executors.newSingleThreadExecutor();
     private final ExecutorService compactExecutor = Executors.newSingleThreadExecutor();
@@ -98,7 +98,6 @@ public class LsmDAO implements DAO {
                         flushStorage.putAll(memoryStorage);
                         SSTable flushTable = flush(flushStorage);
                         this.tableStorage = tableStorage.afterFlush(flushTable);
-                        // Удаление записи у одинаковых ключей (и ключ не был изменен во время флаша)
                         flushStorage.forEach((key, value) -> {
                             memoryStorage.remove(key, value);
                         });
