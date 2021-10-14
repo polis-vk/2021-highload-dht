@@ -43,7 +43,7 @@ public class SmartStorage {
     }
 
 
-    public static SmartStorage createFromSnapshot(NavigableMap<ByteBuffer, Record> memorySnapshot, ConcurrentLinkedDeque<SSTable> tables) {
+    public static SmartStorage fromSnapshot(NavigableMap<ByteBuffer, Record> memorySnapshot, ConcurrentLinkedDeque<SSTable> tables) {
         return new SmartStorage(getEmptyMap(), memorySnapshot, tables);
     }
 

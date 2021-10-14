@@ -19,7 +19,11 @@ import java.util.List;
 import java.util.NavigableMap;
 import java.util.NoSuchElementException;
 import java.util.SortedMap;
-import java.util.concurrent.*;
+import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class LsmDAO implements DAO {
@@ -67,7 +71,7 @@ public class LsmDAO implements DAO {
                 if (memoryConsumption.get() > config.memoryLimit) {
                     memoryConsumption.set(sizeOf(record));//set to close if
 
-                    SmartStorage smartStorageLink = SmartStorage.createFromSnapshot(smartStorage.memory, smartStorage.tables);
+                    SmartStorage smartStorageLink = SmartStorage.fromSnapshot(smartStorage.memory, smartStorage.tables);
                     smartStorage = smartStorageLink;
 
                     Runnable flushLambda = () -> {
@@ -155,7 +159,11 @@ public class LsmDAO implements DAO {
         smartStorage.tables.add(ssTable);
     }
 
-    private Iterator<Record> sstableRanges(ConcurrentLinkedDeque<SSTable> tables, @Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
+    private Iterator<Record> sstableRanges(
+            ConcurrentLinkedDeque<SSTable> tables,
+            @Nullable ByteBuffer fromKey,
+            @Nullable ByteBuffer toKey
+    ) {
         List<Iterator<Record>> iterators = new ArrayList<>(tables.size());
         for (SSTable ssTable : tables) {
             iterators.add(ssTable.range(fromKey, toKey));
@@ -163,7 +171,10 @@ public class LsmDAO implements DAO {
         return merge(iterators);
     }
 
-    private SortedMap<ByteBuffer, Record> map(NavigableMap<ByteBuffer, Record> memoryStorage, @Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
+    private SortedMap<ByteBuffer, Record> map(
+            NavigableMap<ByteBuffer, Record> memoryStorage,
+            @Nullable ByteBuffer fromKey,
+            @Nullable ByteBuffer toKey) {
         if (fromKey == null && toKey == null) {
             return memoryStorage;
         }
