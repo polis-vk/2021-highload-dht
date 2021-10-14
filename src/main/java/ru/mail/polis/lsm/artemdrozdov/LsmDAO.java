@@ -59,7 +59,8 @@ public class LsmDAO implements DAO {
 
     @Override
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
-        Iterator<Record> sstableRanges = sstableRanges(this.tableStorage, fromKey, toKey);
+        final TableStorage tstorage = this.tableStorage;
+        Iterator<Record> sstableRanges = sstableRanges(tstorage, fromKey, toKey);
         Iterator<Record> memoryRange = map(fromKey, toKey).values().iterator();
         Iterator<Record> iterator = mergeTwo(sstableRanges, memoryRange);
         return filterTombstones(iterator);
