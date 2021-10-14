@@ -55,29 +55,8 @@ class SSTable {
     }
 
     public void close() throws IOException {
-        IOException exception = null;
-        boolean wasError = false;
-        try {
-            mmap.free();
-        } catch (IOException e) {
-            wasError = true;
-            exception = e;
-        }
-
-        try {
-            LongMappedByteBuffer.free(idx);
-        } catch (IOException e) {
-            wasError = true;
-            if (exception == null) {
-                exception = e;
-            } else {
-                exception.addSuppressed(e);
-            }
-        }
-
-        if (wasError) {
-            throw exception;
-        }
+        mmap.free();
+        LongMappedByteBuffer.free(idx);
     }
 
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
