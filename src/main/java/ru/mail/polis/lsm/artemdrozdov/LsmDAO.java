@@ -7,6 +7,7 @@ import ru.mail.polis.lsm.DAOConfig;
 import ru.mail.polis.lsm.Record;
 
 import javax.annotation.Nullable;
+import javax.annotation.concurrent.GuardedBy;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
@@ -18,10 +19,7 @@ import java.util.List;
 import java.util.NavigableMap;
 import java.util.NoSuchElementException;
 import java.util.SortedMap;
-import java.util.concurrent.ConcurrentLinkedDeque;
-import java.util.concurrent.ConcurrentSkipListMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class LsmDAO implements DAO {
@@ -60,6 +58,7 @@ public class LsmDAO implements DAO {
         return filterTombstones(iterator);
     }
 
+    @GuardedBy("this")
     @Override
     public void upsert(Record record) {
         if (memoryConsumption.addAndGet(sizeOf(record)) > config.memoryLimit) {
@@ -77,7 +76,7 @@ public class LsmDAO implements DAO {
                                 flush(smartStorageLink.memorySnapshot, sstablesCtr.getAndIncrement());
                             } catch (IOException e) {
                                 //exception processing instead of deferred future analyzing
-                                logger.debug("Error in flush caught");
+                                logger.error("Error in flush caught", e);
                                 memoryConsumption.addAndGet(currMemoryConsumption);
                                 smartStorage.memory.putAll(smartStorageLink.memorySnapshot);
                             } finally {
@@ -126,14 +125,23 @@ public class LsmDAO implements DAO {
         return SSTable.sizeOf(record);
     }
 
+    @GuardedBy("this")
     @Override
     public void close() throws IOException {
-        //TODO infinite loop
-        //        try {
-        //            writeService.awaitTermination(Long.MAX_VALUE, TimeUnit.DAYS);
-        //        } catch (InterruptedException e) {
-        //            logger.error("Interrupted exception caught after writeService.awaitTermination(..)", e);
-        //        }
+        writeService.shutdown(); // Disable new tasks from being submitted
+        try {
+            // Wait a while for existing tasks to terminate
+            if (!writeService.awaitTermination(Long.MAX_VALUE, TimeUnit.DAYS)) {
+                writeService.shutdownNow(); // Cancel currently executing tasks
+                // Wait a while for tasks to respond to being cancelled
+                if (!writeService.awaitTermination(Long.MAX_VALUE, TimeUnit.DAYS)) {
+                    logger.error("Pool did not terminate");
+                }
+            }
+        } catch (InterruptedException ie) {
+            // (Re-)Cancel if current thread also interrupted
+            writeService.shutdownNow();
+        }
         synchronized (this) {
             flush(smartStorage.memory, sstablesCtr.getAndIncrement());
         }
