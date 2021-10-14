@@ -61,10 +61,10 @@ public class LsmDAO implements DAO {
     @GuardedBy("this")
     @Override
     public void upsert(Record record) {
-        if (memoryConsumption.addAndGet(sizeOf(record)) > config.memoryLimit) {
+        int currMemoryConsumption = memoryConsumption.addAndGet(sizeOf(record));//save for future IOException processing
+        if (currMemoryConsumption > config.memoryLimit) {
             synchronized (this) {
                 if (memoryConsumption.get() > config.memoryLimit) {
-                    int currMemoryConsumption = memoryConsumption.get();//save for future IOException processing
                     memoryConsumption.set(sizeOf(record));//set to close if
 
                     SmartStorage smartStorageLink = SmartStorage.createFromSnapshot(smartStorage.memory, smartStorage.tables);
