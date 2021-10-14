@@ -65,10 +65,16 @@ public class LsmDAO implements DAO {
         return filterTombstones(iterator);
     }
 
+    /**
+     * doc for analyzer..
+     */
     public boolean greaterThanCAS(final int maxSize, final int newSize) {
-        return (memoryConsumption.getAndUpdate(val -> {
-            return (val + newSize) > maxSize ? newSize : val;
-        }) + newSize) > maxSize;
+        synchronized (this) {
+            final long memlimit = memoryConsumption.getAndUpdate(val -> {
+                return (val + newSize) > maxSize ? newSize : val;
+            });
+            return (memlimit + newSize) > maxSize;
+        }
     }
 
     @Override
@@ -181,7 +187,8 @@ public class LsmDAO implements DAO {
         return SSTable.write(flushStorage.values().iterator(), file);
     }
 
-    private Iterator<Record> sstableRanges(final TableStorage tableStorage, @Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
+    private Iterator<Record> sstableRanges(final TableStorage tableStorage,
+                                           @Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
         List<Iterator<Record>> iterators = new ArrayList<>(tableStorage.tables.size());
         for (SSTable ssTable : tableStorage.tables) {
             iterators.add(ssTable.range(fromKey, toKey));
