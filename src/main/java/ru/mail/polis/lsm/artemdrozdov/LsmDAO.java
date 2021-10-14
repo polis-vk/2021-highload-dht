@@ -113,10 +113,8 @@ public class LsmDAO implements DAO {
             });
 
             compactExecutor.execute(() -> {
-                synchronized (this) {
-                    if (tableStorage.isCompact(config.tableLimit)) {
-                        compact();
-                    }
+                if (tableStorage.isCompact(config.tableLimit)) {
+                    compact();
                 }
             });
 
@@ -129,12 +127,14 @@ public class LsmDAO implements DAO {
 
     @Override
     public void compact() {
-        try {
-            sizeBeforeCompact.set(tableStorage.tables.size());
-            SSTable table = perfomCompact();
-            this.tableStorage = tableStorage.afterCompact(table, sizeBeforeCompact.get());
-        } catch (IOException e) {
-            throw new UncheckedIOException("Can't compact", e);
+        synchronized (this) {
+            try {
+                sizeBeforeCompact.set(tableStorage.tables.size());
+                SSTable table = perfomCompact();
+                this.tableStorage = tableStorage.afterCompact(table, sizeBeforeCompact.get());
+            } catch (IOException e) {
+                throw new UncheckedIOException("Can't compact", e);
+            }
         }
     }
 
