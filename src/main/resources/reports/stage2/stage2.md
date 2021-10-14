@@ -24,7 +24,10 @@
 * [wrk_put_7_smart_poll44_switch_test_believer.txt](put_results/wrk/wrk_put_7_smart_poll44_switch_test_believer.txt) -
   удален спорный код, лишний раз разделяющий ресурс memoryStorage между потоками выполняющими `flush(..)` и потоками
   производящими записи в объект `memoryStorage`. О том, чем это решение оправдано в финальных выводах
-
+* [wrk_put_8_poll_new_close_bug.txt](put_results/wrk/wrk_put_8_poll_new_close_bug.txt) - исправлены баги с потерей данных, 
+memory, memorySnapshot и tables вынесены в отдельный класс `SmartStorage`
+* [wrk_put_9_poll_new_no_close_bug.txt.txt](put_results/wrk/wrk_put_9_poll_new_no_close_bug.txt.txt) - то же, что и 8 версия,
+только без баги с close(..) сервера при его запуске
 ## Сравнение профилей версий
 
 ------------------------------------------------------------
@@ -107,6 +110,7 @@
 * [wrk_get_1_seq.txt](get_results/wrk/wrk_get_1_seq.txt) - исходная последовательная реализация
 * [wrk_get_2_no_sync.txt](get_results/wrk/wrk_get_2_no_sync.txt) - убран мьютекс, захватывающий все тело
   функции `range(..)`
+* [wrk_get_3_smart_no_sync.txt](get_results/wrk/wrk_get_3_smart_no_sync.txt) - геты с мерджем всех данных из memory, memorySnapshot и tables
 
 ## Сравнение профилей версий
 
@@ -118,7 +122,7 @@
 
 [get sequential cpu profile](get_results/profiling/sequential/get_cpu.html)
 
-[get oprimized cpu profile](get_results/profiling/poll/get_cpu.html)
+[get optimized cpu profile](get_results/profiling/poll/get_cpu.html)
 
 #### Выводы и наблюдения
 
