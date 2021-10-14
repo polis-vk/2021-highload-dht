@@ -27,7 +27,7 @@ public class LsmDAO implements DAO {
 
     private final NavigableMap<ByteBuffer, Record> memoryStorage = newStorage();
     private final Semaphore semaphore;
-    private volatile TableStorage tableStorage;
+    private TableStorage tableStorage;
 
     private final ExecutorService flushExecutor = Executors.newSingleThreadExecutor();
     private final ExecutorService compactExecutor = Executors.newSingleThreadExecutor();
@@ -103,14 +103,14 @@ public class LsmDAO implements DAO {
                     memoryConsumption.addAndGet(-rollbackSize);
                     memoryStorage.putAll(flushStorage); // restore data + new data
                     Thread.currentThread().interrupt();
-
+                    return;
                 } finally {
                     semaphore.release();
                 }
             });
 
             compactExecutor.execute(() -> {
-                synchronized (LsmDAO.this) {
+                synchronized (this) {
                     if (tableStorage.isCompact(config.tableLimit)) {
                         compact();
                     }
