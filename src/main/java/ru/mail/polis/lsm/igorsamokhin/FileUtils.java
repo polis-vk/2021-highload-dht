@@ -57,7 +57,7 @@ final class FileUtils {
                 begin += size;
                 size = bufferSizes[(int) i];
 
-                buffers[(int) i] = channel.map(FileChannel.MapMode.READ_ONLY, begin, size);
+                buffers[(int) i] = channel.map(FileChannel.MapMode.READ_ONLY, begin, size).asReadOnlyBuffer();
             }
             return new LongMappedByteBuffer(buffers);
         }
