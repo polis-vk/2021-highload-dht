@@ -44,7 +44,7 @@ final class ByteBufferRecordIterator implements Iterator<Record> {
     }
 
     private ByteBuffer read(int size) {
-        ByteBuffer result = buffer.slice().cut(size);
+        ByteBuffer result = buffer.slice().cut(size).asReadOnlyBuffer();
         buffer.position(buffer.position() + size);
         return result;
     }
