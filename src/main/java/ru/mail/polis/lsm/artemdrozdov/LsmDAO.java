@@ -27,7 +27,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 public class LsmDAO implements DAO {
 
-    private static final Logger logger = LoggerFactory.getLogger(LsmDAO.class);
+    private static final Logger LSM_LOGGER = LoggerFactory.getLogger(LsmDAO.class);
 
     @SuppressWarnings({"FieldCanBeLocal", "unused"})
     private final DAOConfig config;
@@ -79,7 +79,7 @@ public class LsmDAO implements DAO {
                                 flush(smartStorageLink.memorySnapshot, sstablesCtr.getAndIncrement());
                             } catch (IOException e) {
                                 //exception processing instead of deferred future analyzing
-                                logger.error("Error in flush caught", e);
+                                LSM_LOGGER.error("Error in flush caught", e);
                                 memoryConsumption.addAndGet(currMemoryConsumption);
                                 smartStorage.memory.putAll(smartStorageLink.memorySnapshot);
                             } finally {
@@ -90,11 +90,11 @@ public class LsmDAO implements DAO {
 
                     if (pollPayload.addAndGet(currMemoryConsumption) < POLL_LIMIT) {
                         //run async if have memory
-                        logger.debug("Async flushing");
+                        LSM_LOGGER.debug("Async flushing");
                         writeService.submit(flushLambda);
                     } else {
                         //run sequential if have no memory
-                        logger.debug("Sync flushing");
+                        LSM_LOGGER.debug("Sync flushing");
                         flushLambda.run();
                     }
 
@@ -134,7 +134,7 @@ public class LsmDAO implements DAO {
                 writeService.shutdownNow(); // Cancel currently executing tasks
                 // Wait a while for tasks to respond to being cancelled
                 if (!writeService.awaitTermination(Long.MAX_VALUE, TimeUnit.DAYS)) {
-                    logger.error("Pool did not terminate");
+                    LSM_LOGGER.error("Pool did not terminate");
                 }
             }
         } catch (InterruptedException ie) {
