@@ -14,21 +14,8 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
-import java.util.NoSuchElementException;
 
 class SSTable {
-    public static final Iterator<Record> EMPTY_ITERATOR = new Iterator<>() {
-        @Override
-        public boolean hasNext() {
-            return false;
-        }
-
-        @Override
-        public Record next() {
-            throw new NoSuchElementException();
-        }
-    };
-
     private static final int MAX_BUFFER_SIZE = 4096;
 
     private final LongMappedByteBuffer mmap;
@@ -65,7 +52,6 @@ class SSTable {
 
         long fromOffset = fromKey == null ? 0 : offset(buffer, fromKey);
         long toOffset = toKey == null ? maxSize : offset(buffer, toKey);
-
 
         return new ByteBufferRecordIterator(
                 buffer,
