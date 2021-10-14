@@ -66,9 +66,6 @@ class SSTable {
         long fromOffset = fromKey == null ? 0 : offset(buffer, fromKey);
         long toOffset = toKey == null ? maxSize : offset(buffer, toKey);
 
-        if (fromOffset == toOffset) {
-            return EMPTY_ITERATOR;
-        }
 
         return new ByteBufferRecordIterator(
                 buffer,

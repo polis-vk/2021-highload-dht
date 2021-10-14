@@ -60,7 +60,7 @@ public class LongMappedByteBuffer {
     }
 
     public LongMappedByteBuffer duplicate() {
-        return new LongMappedByteBuffer(buffers);
+        return asReadOnlyBuffer();
     }
 
     /**
