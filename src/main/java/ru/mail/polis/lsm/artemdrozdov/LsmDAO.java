@@ -27,7 +27,7 @@ public class LsmDAO implements DAO {
 
     private final NavigableMap<ByteBuffer, Record> memoryStorage = newStorage();
     private final Semaphore semaphore;
-    private TableStorage tableStorage;
+    private volatile TableStorage tableStorage;
 
     private final ExecutorService flushExecutor = Executors.newSingleThreadExecutor();
     private final ExecutorService compactExecutor = Executors.newSingleThreadExecutor();
@@ -59,14 +59,16 @@ public class LsmDAO implements DAO {
 
     @Override
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
-        Iterator<Record> sstableRanges = sstableRanges(fromKey, toKey);
+        Iterator<Record> sstableRanges = sstableRanges(this.tableStorage, fromKey, toKey);
         Iterator<Record> memoryRange = map(fromKey, toKey).values().iterator();
         Iterator<Record> iterator = mergeTwo(sstableRanges, memoryRange);
         return filterTombstones(iterator);
     }
 
     public boolean greaterThanCAS(final int maxSize, final int newSize) {
-        return (memoryConsumption.getAndUpdate(val -> (val + newSize) > maxSize ? newSize : val) + newSize) > maxSize;
+        return (memoryConsumption.getAndUpdate(val -> {
+            return (val + newSize) > maxSize ? newSize : val;
+        }) + newSize) > maxSize;
     }
 
     @Override
@@ -101,13 +103,14 @@ public class LsmDAO implements DAO {
                     memoryConsumption.addAndGet(-rollbackSize);
                     memoryStorage.putAll(flushStorage); // restore data + new data
                     Thread.currentThread().interrupt();
+
                 } finally {
                     semaphore.release();
                 }
             });
 
             compactExecutor.execute(() -> {
-                synchronized (this) {
+                synchronized (LsmDAO.this) {
                     if (tableStorage.isCompact(config.tableLimit)) {
                         compact();
                     }
@@ -133,7 +136,7 @@ public class LsmDAO implements DAO {
     }
 
     private SSTable perfomCompact() throws IOException {
-        return SSTable.compact(config.dir, range(null, null));
+        return SSTable.compact(config.dir, sstableRanges(tableStorage, null, null));
     }
 
     private void putRecord(Record record) {
@@ -161,7 +164,7 @@ public class LsmDAO implements DAO {
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            throw new IllegalStateException(e);
+            return;
         }
 
         synchronized (this) {
@@ -178,7 +181,7 @@ public class LsmDAO implements DAO {
         return SSTable.write(flushStorage.values().iterator(), file);
     }
 
-    private Iterator<Record> sstableRanges(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
+    private Iterator<Record> sstableRanges(final TableStorage tableStorage, @Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
         List<Iterator<Record>> iterators = new ArrayList<>(tableStorage.tables.size());
         for (SSTable ssTable : tableStorage.tables) {
             iterators.add(ssTable.range(fromKey, toKey));
