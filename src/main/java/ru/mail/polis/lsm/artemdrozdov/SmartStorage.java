@@ -7,7 +7,7 @@ import java.util.NavigableMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentSkipListMap;
 
-public class SmartStorage {
+public final class SmartStorage {
     final NavigableMap<ByteBuffer, Record> memory;
     final NavigableMap<ByteBuffer, Record> memorySnapshot;
     final ConcurrentLinkedDeque<SSTable> tables;
