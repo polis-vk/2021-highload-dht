@@ -192,6 +192,7 @@ public class DaoImpl implements DAO {
             try {
                 SSTable ssTable = flush();
                 memoryStorage = memoryStorage.afterFlush(ssTable);
+                futureAtomicReference.set(null);
             } catch (IOException e) {
                 memoryConsumption.addAndGet(prevConsumption);
                 throw new UncheckedIOException(e);
