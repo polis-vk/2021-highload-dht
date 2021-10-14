@@ -56,15 +56,18 @@ class SSTable {
 
     public void close() throws IOException {
         IOException exception = null;
+        boolean wasError = false;
         try {
             mmap.free();
         } catch (IOException e) {
+            wasError = true;
             exception = e;
         }
 
         try {
             LongMappedByteBuffer.free(idx);
         } catch (IOException e) {
+            wasError = true;
             if (exception == null) {
                 exception = e;
             } else {
@@ -72,7 +75,7 @@ class SSTable {
             }
         }
 
-        if (exception != null) {
+        if (wasError) {
             throw exception;
         }
     }
