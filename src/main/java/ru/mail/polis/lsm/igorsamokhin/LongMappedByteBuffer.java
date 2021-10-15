@@ -81,7 +81,7 @@ public class LongMappedByteBuffer {
         buffer.position((int) (position - offset));
         ByteBuffer result = buffer.slice().limit(size);
         buffer.limit(oldLimit);
-        return result;
+        return result.asReadOnlyBuffer();
     }
 
     public LongMappedByteBuffer limit(long newLimit) {
@@ -133,9 +133,9 @@ public class LongMappedByteBuffer {
 
         ByteBuffer slice = buffers[index].position((int) (position - offset)).slice();
         ByteBuffer[] returnBuffers = new ByteBuffer[buffers.length - index];
-        returnBuffers[0] = slice;
+        returnBuffers[0] = slice.asReadOnlyBuffer();
         for (int i = index + 1; i < buffers.length; i++) {
-            returnBuffers[i - index] = buffers[i].duplicate();
+            returnBuffers[i - index] = buffers[i].asReadOnlyBuffer();
         }
         return new LongMappedByteBuffer(returnBuffers);
     }
