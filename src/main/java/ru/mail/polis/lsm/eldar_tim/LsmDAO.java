@@ -1,4 +1,4 @@
-package ru.mail.polis.lsm.artem_drozdov;
+package ru.mail.polis.lsm.eldar_tim;
 
 import one.nio.async.CompletedFuture;
 import org.slf4j.Logger;
@@ -6,7 +6,7 @@ import org.slf4j.LoggerFactory;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.DAOConfig;
 import ru.mail.polis.lsm.Record;
-import ru.mail.polis.lsm.artem_drozdov.iterators.TombstonesFilterIterator;
+import ru.mail.polis.lsm.eldar_tim.iterators.TombstonesFilterIterator;
 import ru.mail.polis.service.exceptions.ServerNotActiveExc;
 
 import javax.annotation.Nonnull;
@@ -28,10 +28,10 @@ import java.util.concurrent.atomic.AtomicReference;
 import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import static ru.mail.polis.ServiceUtils.shutdownAndAwaitExecutor;
-import static ru.mail.polis.lsm.artem_drozdov.SSTable.sizeOf;
-import static ru.mail.polis.lsm.artem_drozdov.Utils.map;
-import static ru.mail.polis.lsm.artem_drozdov.Utils.mergeTwo;
-import static ru.mail.polis.lsm.artem_drozdov.Utils.sstableRanges;
+import static ru.mail.polis.lsm.eldar_tim.SSTable.sizeOf;
+import static ru.mail.polis.lsm.eldar_tim.Utils.map;
+import static ru.mail.polis.lsm.eldar_tim.Utils.mergeTwo;
+import static ru.mail.polis.lsm.eldar_tim.Utils.sstableRanges;
 
 @SuppressWarnings({"PMD", "JdkObsolete"})
 public class LsmDAO implements DAO {

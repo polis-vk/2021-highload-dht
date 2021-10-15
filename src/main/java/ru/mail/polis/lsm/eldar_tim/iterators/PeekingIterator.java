@@ -1,4 +1,4 @@
-package ru.mail.polis.lsm.artem_drozdov.iterators;
+package ru.mail.polis.lsm.eldar_tim.iterators;
 
 import ru.mail.polis.lsm.Record;
 

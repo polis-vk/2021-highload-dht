@@ -1,8 +1,8 @@
-package ru.mail.polis.lsm.artem_drozdov;
+package ru.mail.polis.lsm.eldar_tim;
 
 import ru.mail.polis.lsm.Record;
-import ru.mail.polis.lsm.artem_drozdov.iterators.MergeIterator;
-import ru.mail.polis.lsm.artem_drozdov.iterators.PeekingIterator;
+import ru.mail.polis.lsm.eldar_tim.iterators.MergeIterator;
+import ru.mail.polis.lsm.eldar_tim.iterators.PeekingIterator;
 
 import javax.annotation.Nullable;
 import java.nio.ByteBuffer;
