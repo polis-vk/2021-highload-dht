@@ -18,14 +18,10 @@ import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 import static ru.mail.polis.ServiceUtils.shutdownAndAwaitExecutor;
 import static ru.mail.polis.lsm.eldar_tim.SSTable.sizeOf;
@@ -38,20 +34,12 @@ public class LsmDAO implements DAO {
 
     private static final Logger LOG = LoggerFactory.getLogger(LsmDAO.class);
 
-    private final DAOConfig config;
-
     private final ExecutorService executorFlush = Executors.newSingleThreadScheduledExecutor();
     private Future<?> flushingFuture = new CompletedFuture<>(null);
 
-    private final AtomicReference<MemTable> memTable = new AtomicReference<>();
-    private final AtomicReference<MemTable> flushingMemTable = new AtomicReference<>();
-    private final ConcurrentLinkedDeque<SSTable> tables = new ConcurrentLinkedDeque<>();
+    private final DAOConfig config;
 
-    private final AtomicInteger memoryConsumption = new AtomicInteger();
-
-    private final ReentrantReadWriteLock rangeRWLock = new ReentrantReadWriteLock();
-    private final ReentrantReadWriteLock upsertRWLock = new ReentrantReadWriteLock();
-
+    private volatile Storage storage;
     private volatile boolean serverIsDown;
 
     /**
@@ -63,9 +51,7 @@ public class LsmDAO implements DAO {
     public LsmDAO(DAOConfig config) throws IOException {
         this.config = config;
         List<SSTable> ssTables = SSTable.loadFromDir(config.dir);
-        tables.addAll(ssTables);
-        memTable.set(MemTable.newStorage(tables.size()));
-        flushingMemTable.set(MemTable.newStorage(tables.size() + 1));
+        storage = new Storage(ssTables, config.memoryLimit);
     }
 
     @Override
@@ -88,55 +74,53 @@ public class LsmDAO implements DAO {
     }
 
     private Iterator<Record> rangeImpl(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
-        Iterator<Record> sstableRanges = sstableRanges(tables, fromKey, toKey);
+        Iterator<Record> sstableRanges = sstableRanges(storage.sstables, fromKey, toKey);
 
-        Iterator<Record> flushingMemTableIterator = map(flushingMemTable.get(), fromKey, toKey).values().iterator();
-        Iterator<Record> memTableIterator = map(memTable.get(), fromKey, toKey).values().iterator();
+        Iterator<Record> flushingMemTableIterator = map(storage.memTableToFlush, fromKey, toKey).values().iterator();
+        Iterator<Record> memTableIterator = map(storage.memTable, fromKey, toKey).values().iterator();
         Iterator<Record> memoryRanges = mergeTwo(flushingMemTableIterator, memTableIterator);
 
         Iterator<Record> iterator = mergeTwo(sstableRanges, memoryRanges);
         return new TombstonesFilterIterator(iterator);
     }
 
-    @SuppressWarnings("LockNotBeforeTry")
     public void upsertImpl(Record record) {
-        upsertRWLock.readLock().lock();
-        while (memoryConsumption.addAndGet(sizeOf(record)) > config.memoryLimit) {
-            upsertRWLock.readLock().unlock();
-            synchronized (this) {
-                if (memoryConsumption.get() <= config.memoryLimit) {
-                    upsertRWLock.readLock().lock();
-                    continue;
-                }
+        var storage = this.storage;
+        var memoryConsumption = storage.memoryConsumption;
+        var recordSize = sizeOf(record);
 
-                upsertRWLock.writeLock().lock();
-                upsertRWLock.readLock().lock();
-                try {
+        while (memoryConsumption.addAndGet(recordSize) > config.memoryLimit) {
+            synchronized (this) {
+                if (memoryConsumption.get() > config.memoryLimit) {
                     if (serverIsDown) {
                         throw new ServerNotActiveExc();
                     }
 
                     scheduleFlush();
-                    memoryConsumption.getAndSet(sizeOf(record));
+                    memoryConsumption.getAndSet(recordSize);
                     break;
-                } catch (RuntimeException e) {
-                    upsertRWLock.readLock().unlock();
-                    throw e;
-                } finally {
-                    upsertRWLock.writeLock().unlock();
+                } else {
+                    memoryConsumption.addAndGet(-recordSize);
                 }
             }
         }
 
-        try {
-            if (serverIsDown) {
-                throw new ServerNotActiveExc();
-            }
-
-            memTable.get().put(record.getKey(), record);
-        } finally {
-            upsertRWLock.readLock().unlock();
+        if (serverIsDown) {
+            throw new ServerNotActiveExc();
         }
+
+        while (true) {
+            var limitedMemTable = this.storage.memTable;
+
+            if (limitedMemTable.reserveSize(recordSize)) {
+                limitedMemTable.put(record.getKey(), record);
+                break;
+            } else if (limitedMemTable.requestFlush()) {
+                // FIXME: do flush
+            }
+        }
+
+        storage.memTable.put(record.getKey(), record);
     }
 
     @Override

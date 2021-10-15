@@ -8,7 +8,6 @@ import javax.annotation.Nullable;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
 import java.util.SortedMap;
@@ -20,7 +19,7 @@ public final class Utils {
     }
 
     public static Iterator<Record> sstableRanges(
-            Deque<SSTable> tables, @Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey
+            List<SSTable> tables, @Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey
     ) {
         List<Iterator<Record>> iterators = new ArrayList<>(tables.size());
         for (SSTable ssTable : tables) {
