@@ -60,6 +60,7 @@ public class DaoImpl implements DAO {
 
     @Override
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
+        checkIsClosedAndThrowIllegalException();
         Storage storage = this.memoryStorage;
 
         Iterator<Record> ssTableRanges = ssTableRanges(storage, fromKey, toKey);
@@ -80,9 +81,7 @@ public class DaoImpl implements DAO {
 
     @Override
     public void upsert(Record record) {
-        if (isClosed.get()) {
-            return;
-        }
+        checkIsClosedAndThrowIllegalException();
 
         if (memoryConsumption.addAndGet(sizeOf(record)) > config.memoryLimit) {
             synchronized (this) {
@@ -98,6 +97,12 @@ public class DaoImpl implements DAO {
         }
 
         memoryStorage.currentStorage.put(record.getKey(), record);
+    }
+
+    private void checkIsClosedAndThrowIllegalException() {
+        if (isClosed.get()) {
+            throw new IllegalStateException("dao closed");
+        }
     }
 
     private void checkForPrevTask() {
@@ -140,18 +145,20 @@ public class DaoImpl implements DAO {
 
     @Override
     public void close() throws IOException {
-        isClosed.set(true);
-        checkForPrevTask();
+        synchronized (this) {
+            isClosed.set(true);
+            checkForPrevTask();
 
-        awaitForShutdown(flushExecutor);
-        awaitForShutdown(executorService);
+            awaitForShutdown(flushExecutor);
+            awaitForShutdown(executorService);
 
-        if (memoryConsumption.get() > 0) {
-            memoryStorage = memoryStorage.prepareFlush();
-            SSTable ssTable = flush();
-            memoryStorage = memoryStorage.afterFlush(ssTable);
+            if (memoryConsumption.get() > 0) {
+                memoryStorage = memoryStorage.prepareFlush();
+                SSTable ssTable = flush();
+                memoryStorage = memoryStorage.afterFlush(ssTable);
+            }
+            closeSSTables();
         }
-        closeSSTables();
     }
 
     private void awaitForShutdown(ExecutorService executorService) {
