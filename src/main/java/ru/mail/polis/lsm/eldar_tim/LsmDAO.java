@@ -115,13 +115,12 @@ public class LsmDAO implements DAO {
         LOG.debug("Waiting to flush...");
         executorFlush.await();
 
-        Storage flushing = storage;
-        storage = flushing.beforeFlush();
+        storage = storage.beforeFlush();
 
         executorFlush.execute((context) -> {
             try {
                 LOG.debug("Flushing...");
-                SSTable flushedTable = flush(flushing.memTableToFlush);
+                SSTable flushedTable = flush(storage.memTableToFlush);
                 storage = storage.afterFlush(flushedTable);
                 LOG.debug("Flush completed");
             } catch (IOException e) {
