@@ -1,5 +1,6 @@
 package ru.mail.polis.lsm.eldar_tim.components;
 
+import java.util.ArrayList;
 import java.util.List;
 
 public class Storage {
@@ -15,16 +16,21 @@ public class Storage {
     }
 
     public Storage(List<SSTable> sstables, int memoryTableSizeLimit) {
-        this(sstables,
-                new ReadonlyMemTable(sstables.size()),
-                new LimitedMemTable(sstables.size(), memoryTableSizeLimit));
+        this(sstables, ReadonlyMemTable.BLANK, new LimitedMemTable(sstables.size(), memoryTableSizeLimit));
     }
 
-    public Storage stateReadyToFlush() {
+    public Storage beforeFlush() {
         return new Storage(
                 sstables,
                 memTable.toReadOnly(),
                 new LimitedMemTable(memTable.getId() + 1, memTable.memoryLimit)
         );
+    }
+
+    public Storage afterFlush(SSTable flushedTable) {
+        List<SSTable> newTables = new ArrayList<>(sstables.size() + 1);
+        newTables.addAll(sstables);
+        newTables.add(flushedTable);
+        return new Storage(newTables, ReadonlyMemTable.BLANK, memTable);
     }
 }

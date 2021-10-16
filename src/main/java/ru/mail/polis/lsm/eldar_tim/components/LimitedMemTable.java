@@ -2,7 +2,6 @@ package ru.mail.polis.lsm.eldar_tim.components;
 
 import ru.mail.polis.lsm.Record;
 
-import java.nio.ByteBuffer;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -57,15 +56,14 @@ public final class LimitedMemTable extends AbstractMemTable {
         return false;
     }
 
-    public Record put(Record record, int recordSize) {
-        Record r = super.put(record.getKey(), record);
+    public void put(Record record, int recordSize) {
+        super.put(record);
         memoryUsed.addAndGet(recordSize);
-        return r;
     }
 
     @Override
     @Deprecated
-    public Record put(ByteBuffer key, Record value) {
-        return put(value, SSTable.sizeOf(value));
+    public void put(Record record) {
+        put(record, SSTable.sizeOf(record));
     }
 }

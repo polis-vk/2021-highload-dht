@@ -9,6 +9,8 @@ import java.util.concurrent.ConcurrentSkipListMap;
 
 public final class ReadonlyMemTable extends AbstractMemTable {
 
+    public static final MemTable BLANK = new ReadonlyMemTable(-1);
+
     public ReadonlyMemTable(int id) {
         this(id, new ConcurrentSkipListMap<>());
     }

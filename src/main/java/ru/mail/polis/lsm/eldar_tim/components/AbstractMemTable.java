@@ -3,7 +3,6 @@ package ru.mail.polis.lsm.eldar_tim.components;
 import ru.mail.polis.lsm.Record;
 
 import java.nio.ByteBuffer;
-import java.util.Collection;
 import java.util.NavigableMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 
@@ -27,8 +26,8 @@ abstract class AbstractMemTable implements MemTable {
     }
 
     @Override
-    public Record put(ByteBuffer key, Record value) {
-        return map.put(key, value);
+    public void put(Record record) {
+        map.put(record.getKey(), record);
     }
 
     @Override
@@ -37,7 +36,7 @@ abstract class AbstractMemTable implements MemTable {
     }
 
     @Override
-    public Collection<Record> values() {
-        return map.values();
+    public NavigableMap<ByteBuffer, Record> raw() {
+        return map;
     }
 }

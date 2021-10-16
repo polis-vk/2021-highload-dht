@@ -34,7 +34,7 @@ import static ru.mail.polis.lsm.eldar_tim.Utils.mergeTwo;
 import static ru.mail.polis.lsm.eldar_tim.Utils.sstableRanges;
 import static ru.mail.polis.lsm.eldar_tim.components.SSTable.sizeOf;
 
-@SuppressWarnings({"PMD", "JdkObsolete"})
+//@SuppressWarnings({"PMD", "JdkObsolete"}) FIXME
 public class LsmDAO implements DAO {
 
     private static final Logger LOG = LoggerFactory.getLogger(LsmDAO.class);
@@ -61,19 +61,6 @@ public class LsmDAO implements DAO {
 
     @Override
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
-        rangeRWLock.readLock().lock();
-        try {
-            if (serverIsDown) {
-                throw new ServerNotActiveExc();
-            }
-
-            return rangeImpl(fromKey, toKey);
-        } finally {
-            rangeRWLock.readLock().unlock();
-        }
-    }
-
-    private Iterator<Record> rangeImpl(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
         Iterator<Record> sstableRanges = sstableRanges(storage.sstables, fromKey, toKey);
 
         Iterator<Record> flushingMemTableIterator = map(storage.memTableToFlush, fromKey, toKey).values().iterator();
@@ -140,21 +127,16 @@ public class LsmDAO implements DAO {
         waitForFlushingComplete();
 
         Storage flushing = storage;
-        storage = flushing.stateReadyToFlush();
+        storage = flushing.beforeFlush();
 
         flushingFuture = executorFlush.submit(() -> {
-            SSTable flushResult = flushImpl(storage.memTableToFlush);
-            if (flushResult == null) {
-                // Restoring not flushed data.
-                flushingTable.putAll(memTable.get());
-                memTable.set(flushingTable);
-                return;
-            }
-            rangeRWLock.writeLock().lock();
             try {
-                tables.add(flushResult);
-            } finally {
-                rangeRWLock.writeLock().unlock();
+                LOG.debug("Flushing...");
+                SSTable flushedTable = flushImpl(flushing.memTableToFlush);
+                storage = storage.afterFlush(flushedTable);
+                LOG.debug("Flush completed");
+            } catch (IOException e) {
+                LOG.error("Flush error: {}", e.getMessage(), e);
             }
         });
     }
@@ -168,19 +150,9 @@ public class LsmDAO implements DAO {
         }
     }
 
-    private SSTable flushImpl(MemTable memTable) {
-        try {
-            LOG.debug("Flushing...");
-
-            Path dir = config.dir;
-            Path file = dir.resolve(SSTable.SSTABLE_FILE_PREFIX + memTable.getId());
-
-            return SSTable.write(memTable.values().iterator(), file);
-        } catch (IOException e) {
-            LOG.error("flush error: {}", e.getMessage(), e);
-            return null;
-        } finally {
-            LOG.debug("Flushing completed");
-        }
+    private SSTable flushImpl(MemTable memTable) throws IOException {
+        Path dir = config.dir;
+        Path file = dir.resolve(SSTable.SSTABLE_FILE_PREFIX + memTable.getId());
+        return SSTable.write(memTable.raw().values().iterator(), file);
     }
 }

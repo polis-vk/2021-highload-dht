@@ -3,14 +3,14 @@ package ru.mail.polis.lsm.eldar_tim.components;
 import ru.mail.polis.lsm.Record;
 
 import java.nio.ByteBuffer;
-import java.util.Collection;
+import java.util.NavigableMap;
 
 public interface MemTable {
     int getId();
 
-    Record put(ByteBuffer key, Record value);
+    void put(Record record);
 
-    Collection<Record> values();
+    NavigableMap<ByteBuffer, Record> raw();
 
     MemTable toReadOnly();
 }
