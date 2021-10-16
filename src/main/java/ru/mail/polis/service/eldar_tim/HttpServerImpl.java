@@ -15,14 +15,17 @@ import ru.mail.polis.lsm.Record;
 import ru.mail.polis.service.Service;
 import ru.mail.polis.service.exceptions.ServerNotActiveExc;
 
+import javax.annotation.Nonnull;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadFactory;
+import java.util.concurrent.atomic.AtomicInteger;
 
-import static ru.mail.polis.ServiceUtils.shutdownAndAwaitExecutor;
+import static ru.mail.polis.service.eldar_tim.ServerUtils.shutdownAndAwaitExecutor;
 
 /**
  * Service implementation for Stage 1-2 within 2021-highload-dht.
@@ -40,7 +43,7 @@ public class HttpServerImpl extends HttpServer implements Service {
         this.dao = dao;
 
         int processors = Runtime.getRuntime().availableProcessors();
-        this.executorService = Executors.newFixedThreadPool(processors);
+        this.executorService = Executors.newFixedThreadPool(processors, new LocalThreadFactory(processors));
     }
 
     private static HttpServerConfig buildHttpServerConfig(final int port) {
@@ -150,6 +153,24 @@ public class HttpServerImpl extends HttpServer implements Service {
             session.sendError(code, e.getMessage());
         } catch (IOException ex) {
             LOG.error("Unable to send error: {}", description, e);
+        }
+    }
+
+    private static class LocalThreadFactory implements ThreadFactory {
+        private final int totalThreads;
+        private final AtomicInteger threadNumber = new AtomicInteger(1);
+        private final ThreadFactory delegate;
+
+        private LocalThreadFactory(int totalThreads) {
+            this.totalThreads = totalThreads;
+            delegate = Executors.defaultThreadFactory();
+        }
+
+        @Override
+        public Thread newThread(@Nonnull Runnable r) {
+            Thread t = delegate.newThread(r);
+            t.setName("worker " + threadNumber.getAndIncrement() + "/" + totalThreads);
+            return t;
         }
     }
 }

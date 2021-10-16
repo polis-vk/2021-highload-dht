@@ -1,7 +1,7 @@
-package ru.mail.polis.lsm.artem_drozdov;
+package ru.mail.polis.lsm.eldar_tim.components;
 
 import ru.mail.polis.lsm.Record;
-import ru.mail.polis.lsm.artem_drozdov.iterators.RangeIterator;
+import ru.mail.polis.lsm.eldar_tim.iterators.RangeIterator;
 
 import javax.annotation.Nullable;
 import java.io.Closeable;

@@ -1,14 +1,13 @@
-package ru.mail.polis.lsm.artem_drozdov;
+package ru.mail.polis.lsm.eldar_tim.components;
 
 import ru.mail.polis.lsm.Record;
-import ru.mail.polis.lsm.artem_drozdov.iterators.MergeIterator;
-import ru.mail.polis.lsm.artem_drozdov.iterators.PeekingIterator;
+import ru.mail.polis.lsm.eldar_tim.iterators.MergeIterator;
+import ru.mail.polis.lsm.eldar_tim.iterators.PeekingIterator;
 
 import javax.annotation.Nullable;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collections;
-import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
 import java.util.SortedMap;
@@ -20,7 +19,7 @@ public final class Utils {
     }
 
     public static Iterator<Record> sstableRanges(
-            Deque<SSTable> tables, @Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey
+            List<SSTable> tables, @Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey
     ) {
         List<Iterator<Record>> iterators = new ArrayList<>(tables.size());
         for (SSTable ssTable : tables) {
@@ -33,15 +32,15 @@ public final class Utils {
             MemTable memTable, @Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey
     ) {
         if (fromKey == null && toKey == null) {
-            return memTable;
+            return memTable.raw();
         }
         if (fromKey == null) {
-            return memTable.headMap(toKey);
+            return memTable.raw().headMap(toKey);
         }
         if (toKey == null) {
-            return memTable.tailMap(fromKey);
+            return memTable.raw().tailMap(fromKey);
         }
-        return memTable.subMap(fromKey, toKey);
+        return memTable.raw().subMap(fromKey, toKey);
     }
 
     public static Iterator<Record> merge(List<Iterator<Record>> iterators) {
