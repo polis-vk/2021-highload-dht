@@ -3,7 +3,7 @@ package ru.mail.polis.lsm;
 import java.nio.file.Path;
 
 public class DAOConfig {
-    public static final int DEFAULT_MEMORY_LIMIT = 4 * 1024 * 1024;
+    public static final int DEFAULT_MEMORY_LIMIT = 16 * 1024 * 1024;
     public static final int DEFAULT_MAX_TABLES = 512;
 
     public final Path dir;
