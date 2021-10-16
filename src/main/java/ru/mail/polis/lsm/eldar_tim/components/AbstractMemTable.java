@@ -3,12 +3,13 @@ package ru.mail.polis.lsm.eldar_tim.components;
 import ru.mail.polis.lsm.Record;
 
 import java.nio.ByteBuffer;
+import java.util.Collection;
 import java.util.NavigableMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 
 abstract class AbstractMemTable implements MemTable {
 
-    public final int id;
+    private final int id;
     protected final NavigableMap<ByteBuffer, Record> map;
 
     protected AbstractMemTable(int id) {
@@ -21,6 +22,11 @@ abstract class AbstractMemTable implements MemTable {
     }
 
     @Override
+    public int getId() {
+        return id;
+    }
+
+    @Override
     public Record put(ByteBuffer key, Record value) {
         return map.put(key, value);
     }
@@ -28,5 +34,10 @@ abstract class AbstractMemTable implements MemTable {
     @Override
     public MemTable toReadOnly() {
         return new ReadonlyMemTable(id, map);
+    }
+
+    @Override
+    public Collection<Record> values() {
+        return map.values();
     }
 }

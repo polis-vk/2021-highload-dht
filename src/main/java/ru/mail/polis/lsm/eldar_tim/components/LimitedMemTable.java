@@ -9,9 +9,9 @@ import java.util.concurrent.atomic.AtomicInteger;
 public final class LimitedMemTable extends AbstractMemTable {
 
     public final int memoryLimit;
-    private final AtomicInteger memoryReserved = new AtomicInteger();
 
-    private final AtomicInteger orders = new AtomicInteger();
+    private final AtomicInteger memoryReserved = new AtomicInteger();
+    private final AtomicInteger memoryUsed = new AtomicInteger();
     private final AtomicBoolean flushSignal = new AtomicBoolean();
 
     public LimitedMemTable(int id, int memoryLimit) {
@@ -20,7 +20,7 @@ public final class LimitedMemTable extends AbstractMemTable {
     }
 
     /**
-     * Резервирует размер в памяти перед записью,
+     * Резервирует место в памяти перед записью,
      * если это возможно (лимит {@link LimitedMemTable#memoryLimit} ещё не превышен).
      * Операция потокобезопасна.
      *
@@ -40,15 +40,16 @@ public final class LimitedMemTable extends AbstractMemTable {
 
     /**
      * Осуществляет запрос на предоставление права осуществить flush.
-     * Запрос следует выполнять только тогда, когда не удалось получить
-     * резерв памяти методом {@link LimitedMemTable#reserveSize}.
+     * Запрос будет удовлетворен только в том случае, если такое право ранее
+     * не выдавалось и резерв памяти уже превысил лимит {@link LimitedMemTable#memoryLimit}.
      * Операция потокобезопасна.
      *
      * @return true, если получен эксклюзивный доступ на осуществление flush, иначе false
      */
     public boolean requestFlush() {
         if (flushSignal.compareAndSet(false, true)) {
-            if (memoryReserved.get() >= memoryLimit) {
+            assert memoryUsed.get() <= memoryReserved.get(); // just self-check for external code mistakes
+            if (memoryReserved.get() >= memoryLimit && memoryUsed.get() >= memoryReserved.get()) {
                 return true;
             }
             flushSignal.set(false);
@@ -56,10 +57,15 @@ public final class LimitedMemTable extends AbstractMemTable {
         return false;
     }
 
-    @Override
-    public Record put(ByteBuffer key, Record value) {
-        Record r = map.put(key, value);
-        orders.decrementAndGet();
+    public Record put(Record record, int recordSize) {
+        Record r = super.put(record.getKey(), record);
+        memoryUsed.addAndGet(recordSize);
         return r;
+    }
+
+    @Override
+    @Deprecated
+    public Record put(ByteBuffer key, Record value) {
+        return put(value, SSTable.sizeOf(value));
     }
 }

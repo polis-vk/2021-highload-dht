@@ -91,11 +91,12 @@ public class LsmDAO implements DAO {
 //            throw new ServerNotActiveExc();
 //        }
 
+        int recordSize = sizeOf(record);
         while (true) {
             LimitedMemTable limitedMemTable = this.storage.memTable;
 
-            if (limitedMemTable.reserveSize(sizeOf(record))) {
-                limitedMemTable.put(record.getKey(), record);
+            if (limitedMemTable.reserveSize(recordSize)) {
+                limitedMemTable.put(record, recordSize);
                 break;
             } else if (limitedMemTable.requestFlush()) {
                 flush();
@@ -158,7 +159,7 @@ public class LsmDAO implements DAO {
         });
     }
 
-    @GuardedBy("upsertRWLock")
+    @GuardedBy("this")
     private void waitForFlushingComplete() {
         try {
             flushingFuture.get();

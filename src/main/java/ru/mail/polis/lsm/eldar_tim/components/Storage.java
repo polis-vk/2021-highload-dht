@@ -24,7 +24,7 @@ public class Storage {
         return new Storage(
                 sstables,
                 memTable.toReadOnly(),
-                new LimitedMemTable(memTable.id + 1, memTable.memoryLimit)
+                new LimitedMemTable(memTable.getId() + 1, memTable.memoryLimit)
         );
     }
 }
