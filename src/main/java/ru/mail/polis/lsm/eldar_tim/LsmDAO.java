@@ -25,8 +25,7 @@ import static ru.mail.polis.lsm.eldar_tim.components.Utils.map;
 import static ru.mail.polis.lsm.eldar_tim.components.Utils.mergeTwo;
 import static ru.mail.polis.lsm.eldar_tim.components.Utils.sstableRanges;
 
-//@SuppressWarnings({"PMD", "JdkObsolete"}) FIXME
-@SuppressWarnings("NonAtomicOperationOnVolatileField")
+@SuppressWarnings({"NonAtomicOperationOnVolatileField", "PMD.AvoidUsingVolatile"})
 public class LsmDAO implements DAO {
 
     private static final Logger LOG = LoggerFactory.getLogger(LsmDAO.class);
