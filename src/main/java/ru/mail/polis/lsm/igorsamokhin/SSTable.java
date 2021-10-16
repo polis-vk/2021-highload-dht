@@ -91,7 +91,7 @@ class SSTable {
         try (FileChannel fileChannel = FileUtils.openForWrite(tmpFileName);
              FileChannel indexChannel = FileUtils.openForWrite(tmpIndexName)
         ) {
-            ByteBuffer tmp = ByteBuffer.allocate(MAX_BUFFER_SIZE);
+            ByteBuffer tmp = ByteBuffer.allocateDirect(MAX_BUFFER_SIZE);
             tmp.limit(tmp.capacity());
 
             List<Integer> sizes = new ArrayList<>();

@@ -62,7 +62,6 @@ public class LsmDAO implements DAO {
                     storage = storage.prepareFlush();
                     storage.currentStorage.put(record.getKey(), record);
                     flushTask(size);
-                    compactTask();
                 }
             }
         } else {
@@ -81,6 +80,7 @@ public class LsmDAO implements DAO {
                     throw new UncheckedIOException(e);
                 }
                 storage = storage.afterFlush(table);
+                compactTask();
             }
         });
     }
@@ -119,14 +119,12 @@ public class LsmDAO implements DAO {
     }
 
     private void compactTask() {
-        executors.execute(() -> {
-            synchronized (this) {
-                if (this.storage.tables.size() < config.maxTables) {
-                    return;
-                }
-                compaction();
+        synchronized (this) {
+            if (this.storage.tables.size() < config.maxTables) {
+                return;
             }
-        });
+            compaction();
+        }
     }
 
     @GuardedBy("LsmDAO.this")

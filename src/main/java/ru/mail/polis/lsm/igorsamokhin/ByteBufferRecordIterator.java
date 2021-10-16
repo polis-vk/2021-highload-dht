@@ -14,8 +14,8 @@ final class ByteBufferRecordIterator implements Iterator<Record> {
             final LongMappedByteBuffer buffer,
             final long fromOffset,
             final long toOffset) {
+        buffer.position(fromOffset);
         this.buffer = buffer;
-        this.buffer.position(fromOffset);
         this.toOffset = toOffset;
     }
 
@@ -44,7 +44,7 @@ final class ByteBufferRecordIterator implements Iterator<Record> {
     }
 
     private ByteBuffer read(int size) {
-        ByteBuffer result = buffer.slice().cut(size).asReadOnlyBuffer();
+        ByteBuffer result = buffer.cut(size);
         buffer.position(buffer.position() + size);
         return result;
     }

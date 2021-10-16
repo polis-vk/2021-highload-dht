@@ -3,18 +3,40 @@ package ru.mail.polis.lsm.igorsamokhin;
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
-import java.nio.BufferUnderflowException;
 import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
 
 public class LongMappedByteBuffer {
     private final ByteBuffer[] buffers;
-    private final int[] sizes;
     private long position;
     private long limit;
-    private final long capacity;
+    private long capacity;
 
     private static final Method CLEAN;
+
+    private LongMappedByteBuffer(LongMappedByteBuffer buffer, int position, long limit, long capacity) {
+        this(capacity, buffer.buffers);
+        this.position = position;
+        this.limit = limit;
+    }
+
+    private LongMappedByteBuffer(long capacity, ByteBuffer... buffers) {
+        this(buffers);
+        this.capacity = capacity;
+    }
+
+    @SuppressWarnings({"PMD.ArrayIsStoredDirectly"}) // This is a wrapper of mapped byte buffer, so I need to do it.
+    public LongMappedByteBuffer(ByteBuffer... buffers) {
+        this.buffers = buffers;
+        long sum = 0;
+
+        for (ByteBuffer buffer : buffers) {
+            sum += buffer.capacity();
+        }
+
+        this.capacity = sum;
+        limit(sum);
+    }
 
     public static void free(MappedByteBuffer buffer) throws IOException {
         try {
@@ -42,46 +64,28 @@ public class LongMappedByteBuffer {
         }
     }
 
-    @SuppressWarnings({"PMD.ArrayIsStoredDirectly", // This is a wrapper of mapped byte buffer, so I need to do it.
-            "PMD.AvoidArrayLoops"}) // In array loop I store capacity of array item. Not an array item.
-    public LongMappedByteBuffer(ByteBuffer... buffers) {
-        this.sizes = new int[buffers.length];
-        long sum = 0;
-
-        for (int i = 0; i < buffers.length; i++) {
-            sizes[i] = buffers[i].capacity();
-            sum += sizes[i];
-        }
-
-        this.position = 0;
-        this.buffers = buffers;
-        this.capacity = sum;
-        limit(sum);
-    }
-
     public LongMappedByteBuffer duplicate() {
         return asReadOnlyBuffer();
     }
 
     /**
-     * Работает только с выровненными данными.
+     * Копирует кусок ByteBuffer, равный size.
+     * Для текущего position выбирается ByteBuffer.
+     * Для него если position + size > capacity, то возвращается пустой буфер.
      */
     @SuppressWarnings("PMD.AvoidReassigningParameters")
     public ByteBuffer cut(int size) {
-        Pair indexAndOffset = getIndexAndOffset(position);
+        long pos = position();
+        Pair indexAndOffset = getIndexAndOffset(pos);
         long offset = indexAndOffset.offset;
         int index = indexAndOffset.index;
-        ByteBuffer buffer = buffers[index];
+        ByteBuffer buffer = getBufferWithPositioning(index, offset, pos);
 
-        if (position - offset + size > Integer.MAX_VALUE) {
-            size = 0;
+        if (pos - offset + size > buffer.capacity()) {
+            throw new IllegalArgumentException("Illegal size");
         }
-        int oldLimit = buffer.limit();
-        buffer.limit(size);
-        buffer.position((int) (position - offset));
-        ByteBuffer result = buffer.slice().limit(size);
-        buffer.limit(oldLimit);
-        return result.asReadOnlyBuffer();
+
+        return buffer.slice().limit(size);
     }
 
     public LongMappedByteBuffer limit(long newLimit) {
@@ -108,48 +112,33 @@ public class LongMappedByteBuffer {
     }
 
     public int getInt() {
-        Pair indexAndOffset = getIndexAndOffset(position);
+        long pos = position();
+        Pair indexAndOffset = getIndexAndOffset(pos);
         long offset = indexAndOffset.offset;
         int index = indexAndOffset.index;
-        ByteBuffer buffer = buffers[index];
-        if ((position - offset + Integer.BYTES > buffer.capacity())) {
-            if ((index + 1) >= buffers.length) {
-                throw new BufferUnderflowException();
-            }
-            buffer = buffers[index + 1];
-            buffer.position(0);
+        ByteBuffer buffer = getBuffer(index);
+        if ((pos - offset + Integer.BYTES > buffer.capacity())) {
+            // assume that all data is completely in one buffer
+            throw new IndexOutOfBoundsException(String.format("pos: %s, off: %s, cap: %s, i: %s, buffer[i].cap: %s",
+                    pos, offset, capacity, index, buffer.capacity()));
         } else {
-            buffer.position((int) (position - offset));
+            buffer.position((int) (pos - offset));
         }
         int anInt = buffer.getInt();
-        position += Integer.BYTES;
+        position(pos + Integer.BYTES);
         return anInt;
     }
 
-    public LongMappedByteBuffer slice() {
-        Pair indexAndOffset = getIndexAndOffset(position);
-        long offset = indexAndOffset.offset;
-        int index = indexAndOffset.index;
-
-        ByteBuffer slice = buffers[index].position((int) (position - offset)).slice();
-        ByteBuffer[] returnBuffers = new ByteBuffer[buffers.length - index];
-        returnBuffers[0] = slice.asReadOnlyBuffer();
-        for (int i = index + 1; i < buffers.length; i++) {
-            returnBuffers[i - index] = buffers[i].asReadOnlyBuffer();
-        }
-        return new LongMappedByteBuffer(returnBuffers);
-    }
-
     public long remaining() {
-        return capacity - position;
+        return limit - position;
     }
 
     public int mismatch(ByteBuffer keyToFind) {
-        Pair indexAndOffset = getIndexAndOffset(position);
+        long pos = position();
+        Pair indexAndOffset = getIndexAndOffset(pos);
         long offset = indexAndOffset.offset;
         int index = indexAndOffset.index;
-        ByteBuffer buffer = buffers[index];
-        buffer.position((int) (position - offset));
+        ByteBuffer buffer = getBufferWithPositioning(index, offset, pos);
 
         return buffer.mismatch(keyToFind);
     }
@@ -169,11 +158,12 @@ public class LongMappedByteBuffer {
     public Pair getIndexAndOffset(long position) {
         long sum = 0;
         int i;
-        for (i = 0; i < sizes.length; i++) {
-            if (sum + sizes[i] >= position) {
+        for (i = 0; i < buffers.length; i++) {
+            int cap = buffers[i].capacity();
+            if (sum + cap > position) {
                 break;
             }
-            sum += sizes[i];
+            sum += cap;
         }
         return new Pair(i, sum);
     }
@@ -181,9 +171,17 @@ public class LongMappedByteBuffer {
     public LongMappedByteBuffer asReadOnlyBuffer() {
         ByteBuffer[] b = new ByteBuffer[buffers.length];
         for (int i = 0; i < buffers.length; i++) {
-            b[i] = buffers[i].asReadOnlyBuffer();
+            b[i] = getBuffer(i);
         }
         return new LongMappedByteBuffer(b);
+    }
+
+    private ByteBuffer getBufferWithPositioning(int index, long offset, long position) {
+        return getBuffer(index).position((int) (position - offset));
+    }
+
+    private ByteBuffer getBuffer(int index) {
+        return buffers[index].asReadOnlyBuffer();
     }
 
     private static class Pair {

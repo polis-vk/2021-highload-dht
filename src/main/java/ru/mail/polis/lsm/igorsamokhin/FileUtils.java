@@ -53,11 +53,11 @@ final class FileUtils {
 
             long begin = 0;
             long size = 0;
-            for (long i = 0; i < length; i++) {
+            for (int i = 0; i < length; i++) {
                 begin += size;
-                size = bufferSizes[(int) i];
+                size = bufferSizes[i];
 
-                buffers[(int) i] = channel.map(FileChannel.MapMode.READ_ONLY, begin, size).asReadOnlyBuffer();
+                buffers[i] = channel.map(FileChannel.MapMode.READ_ONLY, begin, size).asReadOnlyBuffer();
             }
             return new LongMappedByteBuffer(buffers);
         }
