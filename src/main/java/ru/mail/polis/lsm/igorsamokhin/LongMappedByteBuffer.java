@@ -14,17 +14,6 @@ public class LongMappedByteBuffer {
 
     private static final Method CLEAN;
 
-    private LongMappedByteBuffer(LongMappedByteBuffer buffer, int position, long limit, long capacity) {
-        this(capacity, buffer.buffers);
-        this.position = position;
-        this.limit = limit;
-    }
-
-    private LongMappedByteBuffer(long capacity, ByteBuffer... buffers) {
-        this(buffers);
-        this.capacity = capacity;
-    }
-
     @SuppressWarnings({"PMD.ArrayIsStoredDirectly"}) // This is a wrapper of mapped byte buffer, so I need to do it.
     public LongMappedByteBuffer(ByteBuffer... buffers) {
         this.buffers = buffers;
