@@ -1,6 +1,8 @@
 package ru.mail.polis.lsm.eldar_tim;
 
 import ru.mail.polis.lsm.Record;
+import ru.mail.polis.lsm.eldar_tim.components.ReadonlyMemTable;
+import ru.mail.polis.lsm.eldar_tim.components.SSTable;
 import ru.mail.polis.lsm.eldar_tim.iterators.MergeIterator;
 import ru.mail.polis.lsm.eldar_tim.iterators.PeekingIterator;
 
@@ -29,7 +31,7 @@ public final class Utils {
     }
 
     public static SortedMap<ByteBuffer, Record> map(
-            MemTable memTable, @Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey
+            ReadonlyMemTable memTable, @Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey
     ) {
         if (fromKey == null && toKey == null) {
             return memTable;

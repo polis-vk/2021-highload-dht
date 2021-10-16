@@ -6,6 +6,11 @@ import org.slf4j.LoggerFactory;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.DAOConfig;
 import ru.mail.polis.lsm.Record;
+import ru.mail.polis.lsm.eldar_tim.components.LimitedMemTable;
+import ru.mail.polis.lsm.eldar_tim.components.MemTable;
+import ru.mail.polis.lsm.eldar_tim.components.ReadonlyMemTable;
+import ru.mail.polis.lsm.eldar_tim.components.SSTable;
+import ru.mail.polis.lsm.eldar_tim.components.Storage;
 import ru.mail.polis.lsm.eldar_tim.iterators.TombstonesFilterIterator;
 import ru.mail.polis.service.exceptions.ServerNotActiveExc;
 
@@ -24,10 +29,10 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 import static ru.mail.polis.ServiceUtils.shutdownAndAwaitExecutor;
-import static ru.mail.polis.lsm.eldar_tim.SSTable.sizeOf;
 import static ru.mail.polis.lsm.eldar_tim.Utils.map;
 import static ru.mail.polis.lsm.eldar_tim.Utils.mergeTwo;
 import static ru.mail.polis.lsm.eldar_tim.Utils.sstableRanges;
+import static ru.mail.polis.lsm.eldar_tim.components.SSTable.sizeOf;
 
 @SuppressWarnings({"PMD", "JdkObsolete"})
 public class LsmDAO implements DAO {
@@ -68,11 +73,6 @@ public class LsmDAO implements DAO {
         }
     }
 
-    @Override
-    public void upsert(@Nonnull Record record) {
-        upsertImpl(record);
-    }
-
     private Iterator<Record> rangeImpl(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
         Iterator<Record> sstableRanges = sstableRanges(storage.sstables, fromKey, toKey);
 
@@ -84,43 +84,23 @@ public class LsmDAO implements DAO {
         return new TombstonesFilterIterator(iterator);
     }
 
-    public void upsertImpl(Record record) {
-        var storage = this.storage;
-        var memoryConsumption = storage.memoryConsumption;
-        var recordSize = sizeOf(record);
-
-        while (memoryConsumption.addAndGet(recordSize) > config.memoryLimit) {
-            synchronized (this) {
-                if (memoryConsumption.get() > config.memoryLimit) {
-                    if (serverIsDown) {
-                        throw new ServerNotActiveExc();
-                    }
-
-                    scheduleFlush();
-                    memoryConsumption.getAndSet(recordSize);
-                    break;
-                } else {
-                    memoryConsumption.addAndGet(-recordSize);
-                }
-            }
-        }
-
-        if (serverIsDown) {
-            throw new ServerNotActiveExc();
-        }
+    @Override
+    public void upsert(@Nonnull Record record) {
+//      FIXME:
+//        if (serverIsDown) {
+//            throw new ServerNotActiveExc();
+//        }
 
         while (true) {
-            var limitedMemTable = this.storage.memTable;
+            LimitedMemTable limitedMemTable = this.storage.memTable;
 
-            if (limitedMemTable.reserveSize(recordSize)) {
+            if (limitedMemTable.reserveSize(sizeOf(record))) {
                 limitedMemTable.put(record.getKey(), record);
                 break;
             } else if (limitedMemTable.requestFlush()) {
-                // FIXME: do flush
+                flush();
             }
         }
-
-        storage.memTable.put(record.getKey(), record);
     }
 
     @Override
@@ -134,7 +114,7 @@ public class LsmDAO implements DAO {
             }
             tables.clear();
             tables.add(table);
-            memTable.set(MemTable.newStorage(tables.size()));
+            memTable.set(ReadonlyMemTable.newStorage(tables.size()));
         }
     }
 
@@ -155,18 +135,14 @@ public class LsmDAO implements DAO {
         LOG.info("{} closed", getClass().getName());
     }
 
-    @GuardedBy("upsertRWLock")
-    private void scheduleFlush() {
+    private synchronized void flush() {
         waitForFlushingComplete();
 
-        MemTable flushingTable = memTable.get();
-        flushingMemTable.set(flushingTable);
-        memTable.set(MemTable.newStorage(flushingTable.getId() + 1));
-
-        assert !rangeRWLock.isWriteLockedByCurrentThread();
+        Storage flushing = storage;
+        storage = flushing.stateReadyToFlush();
 
         flushingFuture = executorFlush.submit(() -> {
-            SSTable flushResult = flush(flushingTable);
+            SSTable flushResult = flushImpl(storage.memTableToFlush);
             if (flushResult == null) {
                 // Restoring not flushed data.
                 flushingTable.putAll(memTable.get());
@@ -184,9 +160,6 @@ public class LsmDAO implements DAO {
 
     @GuardedBy("upsertRWLock")
     private void waitForFlushingComplete() {
-        // Protects flushingFuture variable.
-        assert upsertRWLock.isWriteLockedByCurrentThread();
-
         try {
             flushingFuture.get();
         } catch (InterruptedException | ExecutionException e) {
@@ -194,7 +167,7 @@ public class LsmDAO implements DAO {
         }
     }
 
-    private SSTable flush(MemTable memTable) {
+    private SSTable flushImpl(MemTable memTable) {
         try {
             LOG.debug("Flushing...");
 
