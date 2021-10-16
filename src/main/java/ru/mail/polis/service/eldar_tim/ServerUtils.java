@@ -1,13 +1,13 @@
-package ru.mail.polis;
+package ru.mail.polis.service.eldar_tim;
 
 import org.slf4j.Logger;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 
-public final class ServiceUtils {
+public final class ServerUtils {
 
-    private ServiceUtils() {
+    private ServerUtils() {
         // Don't instantiate
     }
 

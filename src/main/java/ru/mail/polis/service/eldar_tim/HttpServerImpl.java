@@ -22,7 +22,7 @@ import java.util.Iterator;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
-import static ru.mail.polis.ServiceUtils.shutdownAndAwaitExecutor;
+import static ru.mail.polis.service.eldar_tim.ServerUtils.shutdownAndAwaitExecutor;
 
 /**
  * Service implementation for Stage 1-2 within 2021-highload-dht.

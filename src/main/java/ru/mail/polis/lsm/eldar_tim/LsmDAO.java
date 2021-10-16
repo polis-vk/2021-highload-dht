@@ -1,6 +1,5 @@
 package ru.mail.polis.lsm.eldar_tim;
 
-import one.nio.async.CompletedFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.lsm.DAO;
@@ -16,35 +15,29 @@ import ru.mail.polis.service.exceptions.ServerNotActiveExc;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import javax.annotation.concurrent.GuardedBy;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
 
-import static ru.mail.polis.ServiceUtils.shutdownAndAwaitExecutor;
-import static ru.mail.polis.lsm.eldar_tim.Utils.map;
-import static ru.mail.polis.lsm.eldar_tim.Utils.mergeTwo;
-import static ru.mail.polis.lsm.eldar_tim.Utils.sstableRanges;
+import static ru.mail.polis.lsm.eldar_tim.components.Utils.map;
+import static ru.mail.polis.lsm.eldar_tim.components.Utils.mergeTwo;
+import static ru.mail.polis.lsm.eldar_tim.components.Utils.sstableRanges;
 import static ru.mail.polis.lsm.eldar_tim.components.SSTable.sizeOf;
 
 //@SuppressWarnings({"PMD", "JdkObsolete"}) FIXME
+@SuppressWarnings("NonAtomicOperationOnVolatileField")
 public class LsmDAO implements DAO {
 
     private static final Logger LOG = LoggerFactory.getLogger(LsmDAO.class);
 
-    private final ExecutorService executorFlush = Executors.newSingleThreadScheduledExecutor();
-    private Future<?> flushingFuture = new CompletedFuture<>(null);
+    private final AwaitableExecutor executorFlush = new AwaitableExecutor();
 
     private final DAOConfig config;
-
     private volatile Storage storage;
+
     private volatile boolean serverIsDown;
 
     /**
@@ -61,6 +54,9 @@ public class LsmDAO implements DAO {
 
     @Override
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
+        Storage storage = this.storage;
+        isActiveOrThrow();
+
         Iterator<Record> sstableRanges = sstableRanges(storage.sstables, fromKey, toKey);
 
         Iterator<Record> flushingMemTableIterator = map(storage.memTableToFlush, fromKey, toKey).values().iterator();
@@ -73,20 +69,15 @@ public class LsmDAO implements DAO {
 
     @Override
     public void upsert(@Nonnull Record record) {
-//      FIXME:
-//        if (serverIsDown) {
-//            throw new ServerNotActiveExc();
-//        }
-
         int recordSize = sizeOf(record);
-        while (true) {
+        while (isActiveOrThrow()) {
             LimitedMemTable limitedMemTable = this.storage.memTable;
 
             if (limitedMemTable.reserveSize(recordSize)) {
                 limitedMemTable.put(record, recordSize);
                 break;
             } else if (limitedMemTable.requestFlush()) {
-                flush();
+                scheduleFlush();
             }
         }
     }
@@ -107,32 +98,32 @@ public class LsmDAO implements DAO {
     }
 
     @Override
-    public void close() {
+    public void close() throws IOException {
         LOG.info("{} is closing...", getClass().getName());
 
-        upsertRWLock.writeLock().lock();
-        try {
-            serverIsDown = true;
-            scheduleFlush();
-            waitForFlushingComplete();
-        } finally {
-            upsertRWLock.writeLock().unlock();
-            shutdownAndAwaitExecutor(executorFlush, LOG);
-        }
+        serverIsDown = true;
+
+        executorFlush.await();
+        executorFlush.shutdown();
+
+        storage = storage.beforeFlush();
+        flush(storage.memTableToFlush);
+        storage = null;
 
         LOG.info("{} closed", getClass().getName());
     }
 
-    private synchronized void flush() {
-        waitForFlushingComplete();
+    private synchronized void scheduleFlush() {
+        LOG.debug("Preparing to flush...");
+        executorFlush.await();
 
         Storage flushing = storage;
         storage = flushing.beforeFlush();
 
-        flushingFuture = executorFlush.submit(() -> {
+        executorFlush.execute(() -> {
             try {
                 LOG.debug("Flushing...");
-                SSTable flushedTable = flushImpl(flushing.memTableToFlush);
+                SSTable flushedTable = flush(flushing.memTableToFlush);
                 storage = storage.afterFlush(flushedTable);
                 LOG.debug("Flush completed");
             } catch (IOException e) {
@@ -141,18 +132,16 @@ public class LsmDAO implements DAO {
         });
     }
 
-    @GuardedBy("this")
-    private void waitForFlushingComplete() {
-        try {
-            flushingFuture.get();
-        } catch (InterruptedException | ExecutionException e) {
-            LOG.error("flush future wait error: {}", e.getMessage(), e);
-        }
-    }
-
-    private SSTable flushImpl(MemTable memTable) throws IOException {
+    private SSTable flush(MemTable memTable) throws IOException {
         Path dir = config.dir;
         Path file = dir.resolve(SSTable.SSTABLE_FILE_PREFIX + memTable.getId());
         return SSTable.write(memTable.raw().values().iterator(), file);
+    }
+
+    private boolean isActiveOrThrow() {
+        if (serverIsDown) {
+            throw new ServerNotActiveExc();
+        }
+        return true;
     }
 }

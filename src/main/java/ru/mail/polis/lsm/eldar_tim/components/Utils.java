@@ -1,8 +1,6 @@
-package ru.mail.polis.lsm.eldar_tim;
+package ru.mail.polis.lsm.eldar_tim.components;
 
 import ru.mail.polis.lsm.Record;
-import ru.mail.polis.lsm.eldar_tim.components.MemTable;
-import ru.mail.polis.lsm.eldar_tim.components.SSTable;
 import ru.mail.polis.lsm.eldar_tim.iterators.MergeIterator;
 import ru.mail.polis.lsm.eldar_tim.iterators.PeekingIterator;
 
