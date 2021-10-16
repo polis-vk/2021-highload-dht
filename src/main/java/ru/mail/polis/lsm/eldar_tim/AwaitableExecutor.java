@@ -5,44 +5,116 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import java.nio.channels.InterruptedByTimeoutException;
+import java.util.concurrent.CancellationException;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
 
+/**
+ * Однопоточный исполнитель задач с функциями
+ * ожидания завершения задачи и самоперезапуска.
+ */
 public class AwaitableExecutor {
 
     private static final Logger LOG = LoggerFactory.getLogger(AwaitableExecutor.class);
 
     private final ExecutorService executor = Executors.newSingleThreadExecutor();
-    private volatile Future<?> future = new CompletedFuture<>(null);
+    private final String executorName;
 
-    public void await() {
-        try {
-            future.get();
-        } catch (InterruptedException e) {
-            LOG.error("Future await error: {}", e.getMessage(), e);
-            Thread.currentThread().interrupt();
-        } catch (ExecutionException e) {
-            LOG.error("Future await error: {}", e.getMessage(), e);
-        }
+    private final AtomicReference<Future<?>> future = new AtomicReference<>();
+
+    public AwaitableExecutor(String executorName) {
+        this.executorName = executorName;
+        future.set(new CompletedFuture<>(null));
     }
 
-    public void execute(Runnable runnable) {
-        future = executor.submit(runnable);
+    /**
+     * Отправляет задачу на исполнение.
+     *
+     * @param runnable задача на исполнение
+     */
+    public void execute(ContextRunnable runnable) {
+        Runnable r = () -> runnable.run(new Context(runnable));
+        future.set(executor.submit(r));
+    }
+
+    /**
+     * Ожидает завершения исполняемого кода.
+     * Задача может перезапустить себя, из-за чего метод
+     * занимается перепроверкой её instance.
+     */
+    public void await() {
+        Future<?> future;
+        do {
+            future = this.future.get();
+            await(future);
+        } while (future != this.future.get());
     }
 
     public void shutdown() throws InterruptedByTimeoutException {
         executor.shutdown();
         try {
             if (!executor.awaitTermination(60, TimeUnit.SECONDS)) {
-                LOG.error("Executor service was interrupted by timeout");
+                LOG.error("Executor service was interrupted due to timeout");
                 throw new InterruptedByTimeoutException();
             }
         } catch (InterruptedException ie) {
             executor.shutdownNow();
             Thread.currentThread().interrupt();
         }
+    }
+
+    private void await(Future<?> future) {
+        try {
+            future.get();
+        } catch (CancellationException e) {
+            LOG.info("Future was canceled: {}", e.getMessage());
+        } catch (InterruptedException e) {
+            LOG.error("Future await error", e);
+            Thread.currentThread().interrupt();
+        } catch (ExecutionException e) {
+            LOG.error("Future await error", e);
+        }
+    }
+
+    public class Context {
+        private final ContextRunnable runnable;
+
+        private Context(ContextRunnable runnable) {
+            this.runnable = runnable;
+        }
+
+        /**
+         * Отправляет поток в сон на время {@code millis}.
+         *
+         * @param millis время сна (мс)
+         */
+        public void sleep(int millis) {
+            try {
+                Thread.sleep(millis);
+            } catch (InterruptedException e) {
+                LOG.error("Sleep interrupted for the executor's thread", e);
+                Thread.currentThread().interrupt();
+            }
+        }
+
+        /**
+         * Перезапускает задачу.
+         * Старая задача будет безопасно отменена.
+         * Потоки, ожидающие завершения старой задачи станут ожидающими для новой.
+         */
+        public void relaunch() {
+            LOG.info("Relaunching task in executor: '{}', previous task will be canceled", executorName);
+            Future<?> oldFuture = future.get();
+            future.set(executor.submit(() -> runnable.run(this)));
+            oldFuture.cancel(true);
+        }
+    }
+
+    public interface ContextRunnable {
+        void run(Context context);
     }
 }

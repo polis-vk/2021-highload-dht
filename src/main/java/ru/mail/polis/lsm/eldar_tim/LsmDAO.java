@@ -7,7 +7,6 @@ import ru.mail.polis.lsm.DAOConfig;
 import ru.mail.polis.lsm.Record;
 import ru.mail.polis.lsm.eldar_tim.components.LimitedMemTable;
 import ru.mail.polis.lsm.eldar_tim.components.MemTable;
-import ru.mail.polis.lsm.eldar_tim.components.ReadonlyMemTable;
 import ru.mail.polis.lsm.eldar_tim.components.SSTable;
 import ru.mail.polis.lsm.eldar_tim.components.Storage;
 import ru.mail.polis.lsm.eldar_tim.iterators.TombstonesFilterIterator;
@@ -16,16 +15,15 @@ import ru.mail.polis.service.exceptions.ServerNotActiveExc;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.List;
 
+import static ru.mail.polis.lsm.eldar_tim.components.SSTable.sizeOf;
 import static ru.mail.polis.lsm.eldar_tim.components.Utils.map;
 import static ru.mail.polis.lsm.eldar_tim.components.Utils.mergeTwo;
 import static ru.mail.polis.lsm.eldar_tim.components.Utils.sstableRanges;
-import static ru.mail.polis.lsm.eldar_tim.components.SSTable.sizeOf;
 
 //@SuppressWarnings({"PMD", "JdkObsolete"}) FIXME
 @SuppressWarnings("NonAtomicOperationOnVolatileField")
@@ -33,7 +31,7 @@ public class LsmDAO implements DAO {
 
     private static final Logger LOG = LoggerFactory.getLogger(LsmDAO.class);
 
-    private final AwaitableExecutor executorFlush = new AwaitableExecutor();
+    private final AwaitableExecutor executorFlush = new AwaitableExecutor("Flush executor");
 
     private final DAOConfig config;
     private volatile Storage storage;
@@ -43,8 +41,8 @@ public class LsmDAO implements DAO {
     /**
      * Create LsmDAO from config.
      *
-     * @param config - LsmDAO config
-     * @throws IOException - in case of io exception
+     * @param config LsmDAO config
+     * @throws IOException in case of io exception
      */
     public LsmDAO(DAOConfig config) throws IOException {
         this.config = config;
@@ -84,17 +82,17 @@ public class LsmDAO implements DAO {
 
     @Override
     public void closeAndCompact() {
-        synchronized (this) {
-            SSTable table;
-            try {
-                table = SSTable.compact(config.dir, range(null, null));
-            } catch (IOException e) {
-                throw new UncheckedIOException("Can't compact", e);
-            }
-            tables.clear();
-            tables.add(table);
-            memTable.set(ReadonlyMemTable.newStorage(tables.size()));
-        }
+//        synchronized (this) {
+//            SSTable table;
+//            try {
+//                table = SSTable.compact(config.dir, range(null, null));
+//            } catch (IOException e) {
+//                throw new UncheckedIOException("Can't compact", e);
+//            }
+//            tables.clear();
+//            tables.add(table);
+//            memTable.set(ReadonlyMemTable.newStorage(tables.size()));
+//        }
     }
 
     @Override
@@ -114,20 +112,22 @@ public class LsmDAO implements DAO {
     }
 
     private synchronized void scheduleFlush() {
-        LOG.debug("Preparing to flush...");
+        LOG.debug("Waiting to flush...");
         executorFlush.await();
 
         Storage flushing = storage;
         storage = flushing.beforeFlush();
 
-        executorFlush.execute(() -> {
+        executorFlush.execute((context) -> {
             try {
                 LOG.debug("Flushing...");
                 SSTable flushedTable = flush(flushing.memTableToFlush);
                 storage = storage.afterFlush(flushedTable);
                 LOG.debug("Flush completed");
             } catch (IOException e) {
-                LOG.error("Flush error: {}", e.getMessage(), e);
+                LOG.error("Flush error, retrying in {} ms", config.flushRetryTimeMs, e);
+                context.sleep(config.flushRetryTimeMs);
+                context.relaunch();
             }
         });
     }
