@@ -5,7 +5,6 @@ import ru.mail.polis.lsm.DAOConfig;
 import ru.mail.polis.lsm.Record;
 
 import javax.annotation.Nullable;
-import javax.annotation.concurrent.GuardedBy;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -18,6 +17,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 @SuppressWarnings("JdkObsolete")
 public class LsmDAO implements DAO {
@@ -27,6 +28,7 @@ public class LsmDAO implements DAO {
     private final AtomicInteger memoryConsumption = new AtomicInteger(0);
 
     private final AtomicInteger fileN;
+    private final ReadWriteLock rwLock = new ReentrantReadWriteLock();
 
     private final ExecutorService executors = Executors.newSingleThreadExecutor();
 
@@ -57,30 +59,39 @@ public class LsmDAO implements DAO {
     public void upsert(Record record) {
         int size = record.size();
         if (memoryConsumption.addAndGet(size) > config.memoryLimit) {
-            synchronized (this) {
+            rwLock.writeLock().lock();
+            try {
                 if (memoryConsumption.get() > config.memoryLimit) {
                     storage = storage.prepareFlush();
+                    memoryConsumption.set(size);
                     storage.currentStorage.put(record.getKey(), record);
-                    flushTask(size);
+                    flushTask();
                 }
+            } finally {
+                rwLock.writeLock().unlock();
             }
         } else {
             storage.currentStorage.put(record.getKey(), record);
         }
+
     }
 
-    private void flushTask(int size) {
-        synchronized (this) {
-            memoryConsumption.set(size);
-            SSTable table;
+    private void flushTask() {
+        executors.execute(() -> {
+            rwLock.readLock().lock();
             try {
-                table = flush();
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
+                SSTable table;
+                try {
+                    table = flush();
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+                storage = storage.afterFlush(table);
+                compactTask();
+            } finally {
+                rwLock.readLock().unlock();
             }
-            storage = storage.afterFlush(table);
-            compactTask();
-        }
+        });
     }
 
     private SSTable flush() throws IOException {
@@ -105,7 +116,8 @@ public class LsmDAO implements DAO {
             throw new IllegalStateException(e);
         }
 
-        synchronized (this) {
+        rwLock.writeLock().lock();
+        try {
             storage = storage.prepareFlush();
             SSTable table = flush();
             storage = storage.afterFlush(table);
@@ -113,19 +125,18 @@ public class LsmDAO implements DAO {
                 ssTable.close();
             }
             storage = null;
+        } finally {
+            rwLock.writeLock().unlock();
         }
     }
 
     private void compactTask() {
-        synchronized (this) {
-            if (this.storage.tables.size() < config.maxTables) {
-                return;
-            }
-            compaction();
+        if (this.storage.tables.size() < config.maxTables) {
+            return;
         }
+        compaction();
     }
 
-    @GuardedBy("LsmDAO.this")
     private void compaction() {
         SSTable compactFile = null;
         try {
