@@ -10,7 +10,7 @@ public class LongMappedByteBuffer {
     private final ByteBuffer[] buffers;
     private long position;
     private long limit;
-    private long capacity;
+    private final long capacity;
 
     private static final Method CLEAN;
 
