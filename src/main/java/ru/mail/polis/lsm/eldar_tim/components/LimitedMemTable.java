@@ -56,11 +56,23 @@ public final class LimitedMemTable extends AbstractMemTable {
         return false;
     }
 
+    /**
+     * Добавляет запись в хранилище.
+     *
+     * @param record добавляемая запись
+     * @param recordSize размер добавляемой записи
+     */
     public void put(Record record, int recordSize) {
         super.put(record);
         memoryUsed.addAndGet(recordSize);
     }
 
+    /**
+     * Добавляет запись в хранилище.
+     *
+     * @deprecated используйте {@link LimitedMemTable#put(Record record, int recordSize)}
+     * @param record добавляемая запись
+     */
     @Override
     @Deprecated
     public void put(Record record) {

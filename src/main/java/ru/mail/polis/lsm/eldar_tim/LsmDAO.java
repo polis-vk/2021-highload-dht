@@ -52,13 +52,13 @@ public class LsmDAO implements DAO {
 
     @Override
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
-        Storage storage = this.storage;
-        isActiveOrThrow();
+        Storage st = this.storage;
+        throwIfClosed();
 
-        Iterator<Record> sstableRanges = sstableRanges(storage.sstables, fromKey, toKey);
+        Iterator<Record> sstableRanges = sstableRanges(st.sstables, fromKey, toKey);
 
-        Iterator<Record> flushingMemTableIterator = map(storage.memTableToFlush, fromKey, toKey).values().iterator();
-        Iterator<Record> memTableIterator = map(storage.memTable, fromKey, toKey).values().iterator();
+        Iterator<Record> flushingMemTableIterator = map(st.memTableToFlush, fromKey, toKey).values().iterator();
+        Iterator<Record> memTableIterator = map(st.memTable, fromKey, toKey).values().iterator();
         Iterator<Record> memoryRanges = mergeTwo(flushingMemTableIterator, memTableIterator);
 
         Iterator<Record> iterator = mergeTwo(sstableRanges, memoryRanges);
@@ -68,7 +68,8 @@ public class LsmDAO implements DAO {
     @Override
     public void upsert(@Nonnull Record record) {
         int recordSize = sizeOf(record);
-        while (isActiveOrThrow()) {
+        while (true) {
+            throwIfClosed();
             LimitedMemTable limitedMemTable = this.storage.memTable;
 
             if (limitedMemTable.reserveSize(recordSize)) {
@@ -88,7 +89,7 @@ public class LsmDAO implements DAO {
                 return;
             }
 
-            executorCompact.await();
+            executorCompact.await(); // remove or change after supporting ByteBuffer with files over 2Gb
             executorCompact.execute(context -> {
                 try {
                     LOG.info("Compacting...");
@@ -135,7 +136,7 @@ public class LsmDAO implements DAO {
                 context.sleep(config.flushRetryTimeMs);
                 context.relaunch();
             }
-//            compact(); FIXME: need support ByteBuffer over 2Gb first
+            // compact(); need to support ByteBuffer with files over 2Gb first
         });
     }
 
@@ -156,10 +157,9 @@ public class LsmDAO implements DAO {
         }
     }
 
-    private boolean isActiveOrThrow() {
+    private void throwIfClosed() {
         if (serverIsDown) {
             throw new ServerNotActiveExc();
         }
-        return true;
     }
 }
