@@ -70,19 +70,17 @@ public class LsmDAO implements DAO {
     }
 
     private void flushTask(int size) {
-        executors.execute(() -> {
-            synchronized (this) {
-                memoryConsumption.set(size);
-                SSTable table;
-                try {
-                    table = flush();
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-                storage = storage.afterFlush(table);
-                compactTask();
+        synchronized (this) {
+            memoryConsumption.set(size);
+            SSTable table;
+            try {
+                table = flush();
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
             }
-        });
+            storage = storage.afterFlush(table);
+            compactTask();
+        }
     }
 
     private SSTable flush() throws IOException {
