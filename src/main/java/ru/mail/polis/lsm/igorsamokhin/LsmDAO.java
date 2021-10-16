@@ -153,9 +153,9 @@ public class LsmDAO implements DAO {
 
     @Override
     public void compact() {
-        synchronized (this) {
-            compaction();
-        }
+        rwLock.writeLock();
+        compaction();
+        rwLock.writeLock();
     }
 
     /**
