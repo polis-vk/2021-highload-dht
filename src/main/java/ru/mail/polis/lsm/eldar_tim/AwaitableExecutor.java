@@ -33,6 +33,7 @@ public class AwaitableExecutor {
 
     /**
      * Отправляет задачу на исполнение.
+     * Не является потокобезопасным методом.
      *
      * @param runnable задача на исполнение
      */
@@ -43,18 +44,24 @@ public class AwaitableExecutor {
 
     /**
      * Ожидает завершения исполняемого кода.
+     * Потокобезопасно.
      * Задача может перезапустить себя, из-за чего метод
      * занимается перепроверкой её instance.
      */
     public void await() {
-        Future<?> future;
+        Future<?> f;
         do {
-            future = this.future.get();
-            await(future);
-        } while (future != this.future.get());
+            f = future.get();
+            await(f);
+        } while (f != future.get());
+    }
+
+    public boolean isDone() {
+        return future.get().isDone();
     }
 
     public void shutdown() throws InterruptedByTimeoutException {
+        LOG.info("Shutting down executor '{}'", executorName);
         executor.shutdown();
         try {
             if (!executor.awaitTermination(60, TimeUnit.SECONDS)) {
@@ -111,6 +118,7 @@ public class AwaitableExecutor {
             Future<?> oldFuture = future.get();
             future.set(executor.submit(() -> runnable.run(this)));
             oldFuture.cancel(true);
+            throw new IllegalStateException("This state must be unreachable");
         }
     }
 

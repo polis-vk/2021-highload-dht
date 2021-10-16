@@ -32,6 +32,7 @@ public class LsmDAO implements DAO {
     private static final Logger LOG = LoggerFactory.getLogger(LsmDAO.class);
 
     private final AwaitableExecutor executorFlush = new AwaitableExecutor("Flush executor");
+    private final AwaitableExecutor executorCompact = new AwaitableExecutor("Compact executor");
 
     private final DAOConfig config;
     private volatile Storage storage;
@@ -81,18 +82,24 @@ public class LsmDAO implements DAO {
     }
 
     @Override
-    public void closeAndCompact() {
-//        synchronized (this) {
-//            SSTable table;
-//            try {
-//                table = SSTable.compact(config.dir, range(null, null));
-//            } catch (IOException e) {
-//                throw new UncheckedIOException("Can't compact", e);
-//            }
-//            tables.clear();
-//            tables.add(table);
-//            memTable.set(ReadonlyMemTable.newStorage(tables.size()));
-//        }
+    public void compact() {
+        synchronized (executorCompact) {
+            Storage compactStorage = storage;
+            if (compactStorage.sstables.size() < config.compactThreshold || !executorCompact.isDone()) {
+                return;
+            }
+
+            executorCompact.await();
+            executorCompact.execute(context -> {
+                try {
+                    LOG.info("Compacting...");
+                    performCompact(compactStorage);
+                    LOG.info("Compact completed");
+                } catch (IOException e) {
+                    LOG.error("Can't compact", e);
+                }
+            });
+        }
     }
 
     @Override
@@ -103,6 +110,7 @@ public class LsmDAO implements DAO {
 
         executorFlush.await();
         executorFlush.shutdown();
+        executorCompact.shutdown();
 
         storage = storage.beforeFlush();
         flush(storage.memTableToFlush);
@@ -117,7 +125,7 @@ public class LsmDAO implements DAO {
 
         storage = storage.beforeFlush();
 
-        executorFlush.execute((context) -> {
+        executorFlush.execute(context -> {
             try {
                 LOG.debug("Flushing...");
                 SSTable flushedTable = flush(storage.memTableToFlush);
@@ -128,6 +136,7 @@ public class LsmDAO implements DAO {
                 context.sleep(config.flushRetryTimeMs);
                 context.relaunch();
             }
+//            compact(); FIXME: need support ByteBuffer over 2Gb first
         });
     }
 
@@ -135,6 +144,17 @@ public class LsmDAO implements DAO {
         Path dir = config.dir;
         Path file = dir.resolve(SSTable.SSTABLE_FILE_PREFIX + memTable.getId());
         return SSTable.write(memTable.raw().values().iterator(), file);
+    }
+
+    private void performCompact(Storage compactStorage) throws IOException {
+        SSTable compacted = SSTable.compact(config.dir, sstableRanges(compactStorage.sstables, null, null));
+
+        /* После входа в synchronized и ожидания завершения flush,
+         * мы можем быть уверены в безопасности перезаписи storage. */
+        synchronized (this) {
+            executorFlush.await();
+            storage = storage.afterCompact(compactStorage.sstables, compacted);
+        }
     }
 
     private boolean isActiveOrThrow() {

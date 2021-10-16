@@ -33,4 +33,22 @@ public class Storage {
         newTables.add(flushedTable);
         return new Storage(newTables, ReadonlyMemTable.BLANK, memTable);
     }
+
+    public Storage afterCompact(List<SSTable> outdatedList, SSTable compacted) {
+        List<SSTable> newTables = new ArrayList<>(sstables.size() - outdatedList.size() + 1);
+
+        int sstablesSize = sstables.size();
+
+        int indexL = sstables.indexOf(outdatedList.get(0));
+        int indexR = sstables.indexOf(outdatedList.get(outdatedList.size() - 1));
+
+        List<SSTable> sublistL = sstables.subList(0, indexL);
+        List<SSTable> sublistR = sstables.subList(indexR + 1, sstablesSize);
+
+        newTables.addAll(sublistL);
+        newTables.add(compacted);
+        newTables.addAll(sublistR);
+
+        return new Storage(newTables, memTableToFlush, memTable);
+    }
 }
