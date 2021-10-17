@@ -7,7 +7,7 @@ public final class ThreadPoolConfig {
     public final int queueSize;
     public final int keepAlive;
     public final TimeUnit unit;
-    public static int MAX_POOL = 4;
+    public static int MAX_THREADS = 4;
 
     /**
      * Hey, doc.

@@ -59,7 +59,7 @@ public final class ServiceFactory {
 
         Objects.requireNonNull(dao);
 
-        ServiceConfig servConfig = new ServiceConfig(port, ThreadPoolConfig.MAX_POOL, "localhost");
+        ServiceConfig servConfig = new ServiceConfig(port, ThreadPoolConfig.MAX_THREADS, "localhost");
         ThreadPoolConfig threadPoolConfig = new ThreadPoolConfig(POOL_SIZE, QUEUE_SIZE, 5, TimeUnit.SECONDS);
         return new ServiceImpl(servConfig, threadPoolConfig, dao);
     }

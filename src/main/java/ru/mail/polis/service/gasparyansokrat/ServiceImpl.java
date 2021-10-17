@@ -4,10 +4,8 @@ import one.nio.http.HttpServer;
 import one.nio.http.HttpSession;
 import one.nio.http.Request;
 import one.nio.http.Response;
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.service.Service;
 
@@ -20,7 +18,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 
 public class ServiceImpl extends HttpServer implements Service {
 
-    private static final Logger systemlog = LoggerFactory.getLogger(ServiceImpl.class);
+    private static final Logger LOG = LoggerFactory.getLogger(ServiceImpl.class);
     private final ServiceDAO servDAO;
     private final ThreadPoolExecutor executor;
 
@@ -30,7 +28,7 @@ public class ServiceImpl extends HttpServer implements Service {
     public ServiceImpl(final ServiceConfig servConf, final ThreadPoolConfig tpc, final DAO dao) throws IOException {
         super(HttpConfigFactory.buildHttpConfig(servConf));
         BlockingQueue<Runnable> threadQueue = new LinkedBlockingDeque<>(tpc.queueSize);
-        this.executor = new ThreadPoolExecutor(tpc.poolSize, tpc.MAX_POOL, tpc.keepAlive, tpc.unit, threadQueue);
+        this.executor = new ThreadPoolExecutor(tpc.poolSize, tpc.MAX_THREADS, tpc.keepAlive, tpc.unit, threadQueue);
         this.servDAO = new ServiceDAO(dao);
     }
 
@@ -58,8 +56,7 @@ public class ServiceImpl extends HttpServer implements Service {
                         break;
                 }
             } catch (IOException e) {
-                systemlog.error("Error handle request: " + e.getMessage());
-                return;
+                LOG.error(e.getMessage());
             }
         });
     }
