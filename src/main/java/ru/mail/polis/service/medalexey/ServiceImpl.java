@@ -71,6 +71,7 @@ public class ServiceImpl extends HttpServer implements Service {
             }
             default: {
                 response = new Response(Response.BAD_REQUEST, Response.EMPTY);
+                break;
             }
         }
         try {
