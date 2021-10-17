@@ -55,7 +55,7 @@ public class ServiceImpl extends HttpServer implements Service {
         return Response.ok("I'm ok");
     }
 
-    private void handleRequestTask(Request request, HttpSession session)  {
+    private void handleRequestTask(Request request, HttpSession session) {
         Response response;
         String requestPath = request.getPath();
 
@@ -77,7 +77,6 @@ public class ServiceImpl extends HttpServer implements Service {
             session.sendResponse(response);
         } catch (IOException e) {
             logger.warn("Error sending response", e);
-            e.printStackTrace();
         }
     }
 
@@ -86,7 +85,7 @@ public class ServiceImpl extends HttpServer implements Service {
         if (executor.getQueue().remainingCapacity() > 0) {
             synchronized (this) {
                 if (executor.getQueue().remainingCapacity() > 0) {
-                    executor.submit(() -> handleRequestTask(request, session));
+                    executor.execute(() -> handleRequestTask(request, session));
                     return;
                 }
             }
@@ -103,7 +102,7 @@ public class ServiceImpl extends HttpServer implements Service {
      * @return http response (2xx if ok, 4xx if error)
      */
     public Response entity(final Request request, final String id) {
-        if (id.isBlank()) {
+        if (id == null || id.isBlank() || id.equals("=")) {
             return new Response(Response.BAD_REQUEST, "Bad id".getBytes(StandardCharsets.UTF_8));
         }
         switch (request.getMethod()) {
