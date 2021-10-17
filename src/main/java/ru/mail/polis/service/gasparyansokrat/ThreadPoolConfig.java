@@ -9,6 +9,9 @@ public final class ThreadPoolConfig {
     public final TimeUnit unit;
     public static int MAX_POOL = 4;
 
+    /**
+     * Hey, doc.
+     */
     public ThreadPoolConfig(final int poolSize, final int queueSize, final int keepAlive, final TimeUnit unit) {
         this.poolSize = poolSize;
         this.queueSize = queueSize;

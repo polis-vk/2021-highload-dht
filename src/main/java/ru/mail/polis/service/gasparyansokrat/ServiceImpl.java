@@ -1,17 +1,19 @@
 package ru.mail.polis.service.gasparyansokrat;
 
-import one.nio.http.*;
-import ru.mail.polis.lsm.DAO;
-import ru.mail.polis.service.Service;
-
+import one.nio.http.HttpServer;
+import one.nio.http.HttpSession;
+import one.nio.http.Request;
+import one.nio.http.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+
+import ru.mail.polis.lsm.DAO;
+import ru.mail.polis.service.Service;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Iterator;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingDeque;
 import java.util.concurrent.ThreadPoolExecutor;
 
