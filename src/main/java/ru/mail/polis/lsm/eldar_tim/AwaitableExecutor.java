@@ -3,6 +3,7 @@ package ru.mail.polis.lsm.eldar_tim;
 import one.nio.async.CompletedFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import ru.mail.polis.service.eldar_tim.NamedThreadFactory;
 
 import java.nio.channels.InterruptedByTimeoutException;
 import java.util.concurrent.CancellationException;
@@ -21,13 +22,14 @@ public class AwaitableExecutor {
 
     private static final Logger LOG = LoggerFactory.getLogger(AwaitableExecutor.class);
 
-    private final ExecutorService executor = Executors.newSingleThreadExecutor();
+    private final ExecutorService executor;
     private final String executorName;
 
     private final AtomicReference<Future<?>> future = new AtomicReference<>();
 
-    public AwaitableExecutor(String executorName) {
-        this.executorName = executorName;
+    public AwaitableExecutor(String threadName) {
+        executorName = threadName + " executor";
+        executor = Executors.newSingleThreadExecutor(new NamedThreadFactory(threadName));
         future.set(new CompletedFuture<>(null));
     }
 

@@ -30,8 +30,8 @@ public class LsmDAO implements DAO {
 
     private static final Logger LOG = LoggerFactory.getLogger(LsmDAO.class);
 
-    private final AwaitableExecutor executorFlush = new AwaitableExecutor("Flush executor");
-    private final AwaitableExecutor executorCompact = new AwaitableExecutor("Compact executor");
+    private final AwaitableExecutor executorFlush = new AwaitableExecutor("flush");
+    private final AwaitableExecutor executorCompact = new AwaitableExecutor("compact");
 
     private final DAOConfig config;
     private volatile Storage storage;
