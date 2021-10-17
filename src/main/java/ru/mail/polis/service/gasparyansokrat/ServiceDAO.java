@@ -65,17 +65,17 @@ public class ServiceDAO {
     /**
      * some doc.
      */
-    public Response handleRequest(Request req, final String id) throws IOException {
+    public Response handleRequest(final int method, final String id, final Request request) throws IOException {
 
         Response resp = null;
         try {
-            final int typeHttpMethod = req.getMethod();
+            final int typeHttpMethod = method;
             switch (typeHttpMethod) {
                 case Request.METHOD_GET:
                     resp = this.get(id);
                     break;
                 case Request.METHOD_PUT:
-                    resp = this.put(id, req.getBody());
+                    resp = this.put(id, request.getBody());
                     break;
                 case Request.METHOD_DELETE:
                     resp = this.delete(id);

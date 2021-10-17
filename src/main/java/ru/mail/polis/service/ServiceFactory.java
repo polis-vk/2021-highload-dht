@@ -17,10 +17,13 @@
 package ru.mail.polis.service;
 
 import ru.mail.polis.lsm.DAO;
+import ru.mail.polis.service.gasparyansokrat.ServiceConfig;
 import ru.mail.polis.service.gasparyansokrat.ServiceImpl;
+import ru.mail.polis.service.gasparyansokrat.ThreadPoolConfig;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Constructs {@link Service} instances.
@@ -28,8 +31,9 @@ import java.util.Objects;
  * @author Vadim Tsesko
  */
 public final class ServiceFactory {
-    private static final long MAX_HEAP = 256 * 1024 * 1024;
+    private static final long MAX_HEAP = 128 * 1024 * 1024;
     private static final int POOL_SIZE = 4;
+    private static final int QUEUE_SIZE = 128;
 
     private ServiceFactory() {
         // Not supposed to be instantiated
@@ -55,6 +59,8 @@ public final class ServiceFactory {
 
         Objects.requireNonNull(dao);
 
-        return new ServiceImpl(port, dao, POOL_SIZE);
+        ServiceConfig servConfig = new ServiceConfig(port, ThreadPoolConfig.MAX_POOL, "localhost");
+        ThreadPoolConfig threadPoolConfig = new ThreadPoolConfig(POOL_SIZE, QUEUE_SIZE, 5, TimeUnit.SECONDS);
+        return new ServiceImpl(servConfig, threadPoolConfig, dao);
     }
 }

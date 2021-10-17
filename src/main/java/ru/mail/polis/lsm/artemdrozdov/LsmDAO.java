@@ -70,12 +70,8 @@ public class LsmDAO implements DAO {
      * doc for analyzer..
      */
     public boolean greaterThanCAS(final int maxSize, final int newSize) {
-        synchronized (this) {
-            final long memlimit = memoryConsumption.getAndUpdate(val -> {
-                return (val + newSize) > maxSize ? newSize : val;
-            });
-            return (memlimit + newSize) > maxSize;
-        }
+        final long memlimit = memoryConsumption.getAndUpdate(val -> (val + newSize) > maxSize ? newSize : val);
+        return (memlimit + newSize) > maxSize;
     }
 
     @Override
@@ -105,7 +101,6 @@ public class LsmDAO implements DAO {
                     memoryConsumption.addAndGet(-rollbackSize);
                     memoryStorage.putAll(flushStorage); // restore data + new data
                     Thread.currentThread().interrupt();
-                    return;
                 } finally {
                     semaphore.release();
                 }
@@ -163,6 +158,7 @@ public class LsmDAO implements DAO {
             if (!flushExecutor.awaitTermination(Long.MAX_VALUE, TimeUnit.MILLISECONDS)) {
                 throw new IllegalStateException("Error! FlushExecutor Await termination in close...");
             }
+
             if (!compactExecutor.awaitTermination(Long.MAX_VALUE, TimeUnit.MILLISECONDS)) {
                 throw new IllegalStateException("Error! CompactExecutor Await termination in close...");
             }
