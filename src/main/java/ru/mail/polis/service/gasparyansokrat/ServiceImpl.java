@@ -1,5 +1,12 @@
 package ru.mail.polis.service.gasparyansokrat;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
+import java.util.Iterator;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.ThreadPoolExecutor;
+
 import one.nio.http.HttpServer;
 import one.nio.http.HttpSession;
 import one.nio.http.Request;
@@ -9,13 +16,6 @@ import org.slf4j.LoggerFactory;
 
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.service.Service;
-
-import java.io.IOException;
-import java.io.UncheckedIOException;
-import java.util.Iterator;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingDeque;
-import java.util.concurrent.ThreadPoolExecutor;
 
 public class ServiceImpl extends HttpServer implements Service {
 
@@ -28,7 +28,6 @@ public class ServiceImpl extends HttpServer implements Service {
      */
     public ServiceImpl(final ServiceConfig servConf, final ThreadPoolConfig tpc, final DAO dao) throws IOException {
         super(HttpConfigFactory.buildHttpConfig(servConf));
-        //this.executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(tpc.poolSize);
         BlockingQueue<Runnable> threadQueue = new LinkedBlockingDeque<>(tpc.queueSize);
         this.executor = new ThreadPoolExecutor(tpc.poolSize, tpc.MAX_POOL, tpc.keepAlive, tpc.unit, threadQueue);
         this.servDAO = new ServiceDAO(dao);
