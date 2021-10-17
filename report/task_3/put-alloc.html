@@ -1,0 +1,481 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<title>Tree view</title>
+<meta charset="utf-8"/>
+<style>
+body {
+    font-family: Arial;
+}
+ul.tree li {
+    list-style-type: none;
+    position: relative;
+}
+ul.tree ul {
+    margin-left: 20px; padding-left: 0;
+}
+ul.tree li ul {
+    display: none;
+}
+ul.tree li.open > ul {
+    display: block;
+}
+ul.tree li div:before {
+    height: 1em;
+    padding:0 .1em;
+    font-size: .8em;
+    display: block;
+    position: absolute;
+    left: -1.3em;
+    top: .2em;
+}
+ul.tree li > div:not(:nth-last-child(2)):before {
+    content: '+';
+}
+ul.tree li.open > div:not(:nth-last-child(2)):before {
+    content: '-';
+}
+.sc {
+    text-decoration: underline;
+    text-decoration-color: black;
+    font-weight: bold;
+    background-color: #D9D9D9;
+}
+.green {
+    color: #32c832;
+}
+.aqua {
+    color: #32a5a5;
+}
+.brown {
+    color: #be5a00;
+}
+.yellow {
+    color: #afaf32;
+}
+.red {
+    color: #c83232;
+}
+ul.tree li > div {
+    display: inline;
+    cursor: pointer;
+    color: black;
+    text-decoration: none;
+}
+</style>
+<script>
+function treeView(opt) {
+    var tree = document.querySelectorAll('ul.tree div:not(:last-child)');
+    for(var i = 0; i < tree.length; i++){
+        var parent = tree[i].parentElement;
+        var classList = parent.classList;
+        if(opt == 0) {
+            classList.add('open');
+        } else {
+            classList.remove('open');
+        }
+    }
+}
+function openParent(p,t) {
+    if(p.parentElement.classList.contains("tree")) {
+        return;
+    }
+    p.parentElement.classList.add('open');
+    openParent(p.parentElement,t);
+}
+function search() {
+    var tree = document.querySelectorAll('ul.tree span');
+    var check = document.getElementById('check');
+    for(var i = 0; i < tree.length; i++){
+        tree[i].classList.remove('sc');
+        if(tree[i].innerHTML.includes(document.getElementById("search").value)) {
+            tree[i].classList.add('sc');
+            openParent(tree[i].parentElement,tree);
+        }
+    }
+}
+function openUL(n) {
+    var children = n.children;
+    if(children.length == 1) {
+        openNode(children[0]);
+    }
+}
+function openNode(n) {
+    var children = n.children;
+    for(var i = 0; i < children.length; i++){
+        if(children[i].nodeName == 'UL') {
+            n.classList.add('open');
+            openUL(children[i]);
+        }
+    }
+}
+function addClickActions() {
+var tree = document.querySelectorAll('ul.tree div:not(:last-child)');
+for(var i = 0; i < tree.length; i++){
+    tree[i].addEventListener('click', function(e) {
+        var parent = e.target.parentElement;
+        var classList = parent.classList;
+        if(classList.contains("open")) {
+            classList.remove('open');
+            var opensubs = parent.querySelectorAll(':scope .open');
+            for(var i = 0; i < opensubs.length; i++){
+                opensubs[i].classList.remove('open');
+            }
+        } else {
+            if(e.altKey) {
+                classList.add('open');
+                var opensubs = parent.querySelectorAll('li');
+                for(var i = 0; i < opensubs.length; i++){
+                    opensubs[i].classList.add('open');
+                }
+            } else {
+                openNode(parent);
+            }
+        }
+    });
+}
+}
+</script>
+</head>
+<body>
+<div style="padding-left: 25px;">Call tree view, total samples: 16,318 </div>
+<div style="padding-left: 25px;"><button type='button' onclick='treeView(0)'>++</button><button type='button' onclick='treeView(1)'>--</button>
+<input type='text' id='search' value='' size='35' onkeypress="if(event.keyCode == 13) document.getElementById('searchBtn').click()">
+<button type='button' id='searchBtn' onclick='search()'>search</button></div>
+<ul class="tree">
+<li><div>[0] 65.34% 10,662 self: 0.00% 0</div><span class="green"> one/nio/server/SelectorThread.run</span>
+<ul>
+<li><div>[1] 63.44% 10,352 self: 0.00% 0</div><span class="green"> one/nio/net/Session.process</span>
+<ul>
+<li><div>[2] 63.44% 10,352 self: 0.00% 0</div><span class="green"> one/nio/http/HttpSession.processRead</span>
+<ul>
+<li><div>[3] 63.44% 10,352 self: 0.00% 0</div><span class="green"> one/nio/http/HttpSession.processHttpBuffer</span>
+<ul>
+<li><div>[4] 26.01% 4,244 self: 0.00% 0</div><span class="green"> one/nio/http/HttpSession.parseRequest</span>
+<ul>
+<li><div>[5] 13.44% 2,193 self: 0.00% 0</div><span class="green"> one/nio/util/Utf8.read</span>
+<ul>
+<li><div>[6] 13.44% 2,193 self: 0.00% 0</div><span class="green"> one/nio/util/Utf8.read</span>
+<ul>
+<li><div>[7] 6.95% 1,134 self: 6.95% 1,134</div><span class="aqua"> char[]</span>
+<li><div>[7] 3.90% 637 self: 0.00% 0</div><span class="green"> java/lang/String.&lt;init&gt;</span>
+<ul>
+<li><div>[8] 3.90% 637 self: 0.00% 0</div><span class="green"> java/lang/String.&lt;init&gt;</span>
+<ul>
+<li><div>[9] 3.90% 637 self: 0.00% 0</div><span class="green"> java/lang/StringUTF16.compress</span>
+<ul>
+<li><div>[10] 3.90% 637 self: 3.90% 637</div><span class="aqua"> byte[]</span>
+</ul>
+</ul>
+</ul>
+<li><div>[7] 2.58% 421 self: 2.58% 421</div><span class="aqua"> java.lang.String</span>
+<li><div>[7] 0.01% 1 self: 0.01% 1</div><span class="brown"> char[]</span>
+</ul>
+</ul>
+<li><div>[5] 8.29% 1,353 self: 0.00% 0</div><span class="green"> one/nio/http/Request.&lt;init&gt;</span>
+<ul>
+<li><div>[6] 8.25% 1,346 self: 8.25% 1,346</div><span class="aqua"> java.lang.String[]</span>
+<li><div>[6] 0.04% 7 self: 0.04% 7</div><span class="brown"> java.lang.String[]</span>
+</ul>
+<li><div>[5] 4.28% 698 self: 4.28% 698</div><span class="aqua"> one.nio.http.Request</span>
+</ul>
+<li><div>[4] 24.11% 3,934 self: 0.00% 0</div><span class="green"> one/nio/util/Utf8.read</span>
+<ul>
+<li><div>[5] 24.11% 3,934 self: 0.00% 0</div><span class="green"> one/nio/util/Utf8.read</span>
+<ul>
+<li><div>[6] 11.51% 1,878 self: 11.51% 1,878</div><span class="aqua"> char[]</span>
+<li><div>[6] 8.29% 1,352 self: 0.00% 0</div><span class="green"> java/lang/String.&lt;init&gt;</span>
+<ul>
+<li><div>[7] 8.29% 1,352 self: 0.00% 0</div><span class="green"> java/lang/String.&lt;init&gt;</span>
+<ul>
+<li><div>[8] 8.29% 1,352 self: 0.00% 0</div><span class="green"> java/lang/StringUTF16.compress</span>
+<ul>
+<li><div>[9] 8.29% 1,352 self: 8.29% 1,352</div><span class="aqua"> byte[]</span>
+</ul>
+</ul>
+</ul>
+<li><div>[6] 4.30% 702 self: 4.30% 702</div><span class="aqua"> java.lang.String</span>
+<li><div>[6] 0.01% 2 self: 0.01% 2</div><span class="brown"> char[]</span>
+</ul>
+</ul>
+<li><div>[4] 5.53% 902 self: 0.00% 0</div><span class="green"> one/nio/http/HttpSession.handleParsedRequest</span>
+<ul>
+<li><div>[5] 5.53% 902 self: 0.00% 0</div><span class="green"> ru/mail/polis/service/medalexey/ServiceImpl.handleRequest</span>
+<ul>
+<li><div>[6] 2.78% 453 self: 0.00% 0</div><span class="green"> java/lang/invoke/Invokers$Holder.linkToTargetMethod</span>
+<ul>
+<li><div>[7] 2.78% 453 self: 0.00% 0</div><span class="green"> java/lang/invoke/DirectMethodHandle$Holder.newInvokeSpecial</span>
+<ul>
+<li><div>[8] 2.78% 453 self: 0.00% 0</div><span class="green"> java/lang/invoke/DirectMethodHandle.allocateInstance</span>
+<ul>
+<li><div>[9] 2.78% 453 self: 2.78% 453</div><span class="aqua"> ru.mail.polis.service.medalexey.ServiceImpl$$Lambda$89+0x0000000800bbe7d0</span>
+</ul>
+</ul>
+</ul>
+<li><div>[6] 2.75% 449 self: 0.00% 0</div><span class="green"> java/util/concurrent/ThreadPoolExecutor.execute</span>
+<ul>
+<li><div>[7] 2.75% 449 self: 0.00% 0</div><span class="green"> java/util/concurrent/LinkedBlockingQueue.offer</span>
+<ul>
+<li><div>[8] 2.75% 449 self: 2.75% 449</div><span class="aqua"> java.util.concurrent.LinkedBlockingQueue$Node</span>
+</ul>
+</ul>
+</ul>
+</ul>
+<li><div>[4] 4.98% 813 self: 0.00% 0</div><span class="green"> one/nio/http/Request.getHeader</span>
+<ul>
+<li><div>[5] 4.98% 813 self: 0.00% 0</div><span class="green"> one/nio/http/Request.trim</span>
+<ul>
+<li><div>[6] 4.98% 813 self: 0.00% 0</div><span class="green"> java/lang/String.substring</span>
+<ul>
+<li><div>[7] 4.98% 813 self: 0.00% 0</div><span class="green"> java/lang/StringLatin1.newString</span>
+<ul>
+<li><div>[8] 2.67% 435 self: 2.67% 435</div><span class="aqua"> java.lang.String</span>
+<li><div>[8] 2.32% 378 self: 0.00% 0</div><span class="green"> java/util/Arrays.copyOfRange</span>
+<ul>
+<li><div>[9] 2.32% 378 self: 2.32% 378</div><span class="aqua"> byte[]</span>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+<li><div>[4] 2.81% 459 self: 0.00% 0</div><span class="green"> one/nio/http/HttpSession.startParsingRequestBody</span>
+<ul>
+<li><div>[5] 2.81% 459 self: 2.81% 459</div><span class="aqua"> byte[]</span>
+</ul>
+</ul>
+</ul>
+</ul>
+<li><div>[1] 1.90% 310 self: 0.00% 0</div><span class="green"> one/nio/net/NativeSelector.select</span>
+<ul>
+<li><div>[2] 1.90% 310 self: 1.90% 310</div><span class="aqua"> one.nio.net.NativeSelector$2</span>
+</ul>
+</ul>
+<li><div>[0] 34.66% 5,656 self: 0.00% 0</div><span class="green"> java/lang/Thread.run</span>
+<ul>
+<li><div>[1] 34.66% 5,656 self: 0.00% 0</div><span class="green"> java/util/concurrent/ThreadPoolExecutor$Worker.run</span>
+<ul>
+<li><div>[2] 34.66% 5,656 self: 0.00% 0</div><span class="green"> java/util/concurrent/ThreadPoolExecutor.runWorker</span>
+<ul>
+<li><div>[3] 31.53% 5,145 self: 0.00% 0</div><span class="green"> ru/mail/polis/service/medalexey/ServiceImpl$$Lambda$89.0x0000000800bbe7d0.run</span>
+<ul>
+<li><div>[4] 31.53% 5,145 self: 0.00% 0</div><span class="green"> ru/mail/polis/service/medalexey/ServiceImpl.lambda$handleRequest$0</span>
+<ul>
+<li><div>[5] 31.53% 5,145 self: 0.00% 0</div><span class="green"> ru/mail/polis/service/medalexey/ServiceImpl.handleRequestTask</span>
+<ul>
+<li><div>[6] 18.56% 3,028 self: 0.00% 0</div><span class="green"> ru/mail/polis/service/medalexey/ServiceImpl.entity</span>
+<ul>
+<li><div>[7] 18.56% 3,028 self: 0.00% 0</div><span class="green"> ru/mail/polis/service/medalexey/ServiceImpl.put</span>
+<ul>
+<li><div>[8] 6.70% 1,094 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/Record.of</span>
+<ul>
+<li><div>[9] 5.53% 902 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/Record.&lt;init&gt;</span>
+<ul>
+<li><div>[10] 5.53% 902 self: 0.00% 0</div><span class="green"> java/nio/HeapByteBufferR.asReadOnlyBuffer</span>
+<ul>
+<li><div>[11] 5.53% 902 self: 0.00% 0</div><span class="green"> java/nio/HeapByteBufferR.duplicate</span>
+<ul>
+<li><div>[12] 5.53% 902 self: 5.53% 902</div><span class="aqua"> java.nio.HeapByteBufferR</span>
+</ul>
+</ul>
+</ul>
+<li><div>[9] 1.18% 192 self: 1.18% 192</div><span class="aqua"> ru.mail.polis.lsm.Record</span>
+</ul>
+<li><div>[8] 4.86% 793 self: 0.00% 0</div><span class="green"> one/nio/http/Response.&lt;init&gt;</span>
+<ul>
+<li><div>[9] 2.08% 339 self: 2.08% 339</div><span class="aqua"> byte[]</span>
+<li><div>[9] 1.60% 261 self: 1.60% 261</div><span class="aqua"> java.lang.String[]</span>
+<li><div>[9] 1.18% 193 self: 1.18% 193</div><span class="aqua"> java.lang.String</span>
+</ul>
+<li><div>[8] 3.94% 643 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/LsmDAO.upsert</span>
+<ul>
+<li><div>[9] 3.01% 491 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/Record.getKey</span>
+<ul>
+<li><div>[10] 3.01% 491 self: 0.00% 0</div><span class="green"> java/nio/HeapByteBufferR.asReadOnlyBuffer</span>
+<ul>
+<li><div>[11] 3.01% 491 self: 0.00% 0</div><span class="green"> java/nio/HeapByteBufferR.duplicate</span>
+<ul>
+<li><div>[12] 3.01% 491 self: 3.01% 491</div><span class="aqua"> java.nio.HeapByteBufferR</span>
+</ul>
+</ul>
+</ul>
+<li><div>[9] 0.53% 87 self: 0.00% 0</div><span class="green"> java/util/concurrent/ConcurrentSkipListMap.put</span>
+<ul>
+<li><div>[10] 0.53% 87 self: 0.00% 0</div><span class="green"> java/util/concurrent/ConcurrentSkipListMap.doPut</span>
+<ul>
+<li><div>[11] 0.36% 59 self: 0.36% 59</div><span class="aqua"> java.util.concurrent.ConcurrentSkipListMap$Node</span>
+<li><div>[11] 0.17% 28 self: 0.17% 28</div><span class="aqua"> java.util.concurrent.ConcurrentSkipListMap$Index</span>
+</ul>
+</ul>
+<li><div>[9] 0.40% 65 self: 0.00% 0</div><span class="green"> java/util/concurrent/ConcurrentSkipListMap.&lt;init&gt;</span>
+<ul>
+<li><div>[10] 0.40% 65 self: 0.00% 0</div><span class="green"> java/util/concurrent/ConcurrentSkipListMap.buildFromSorted</span>
+<ul>
+<li><div>[11] 0.22% 36 self: 0.22% 36</div><span class="aqua"> java.util.concurrent.ConcurrentSkipListMap$Node</span>
+<li><div>[11] 0.18% 29 self: 0.18% 29</div><span class="aqua"> java.util.concurrent.ConcurrentSkipListMap$Index</span>
+</ul>
+</ul>
+</ul>
+<li><div>[8] 1.75% 285 self: 0.00% 0</div><span class="green"> java/lang/String.getBytes</span>
+<ul>
+<li><div>[9] 1.75% 285 self: 0.00% 0</div><span class="green"> java/lang/StringCoding.encode</span>
+<ul>
+<li><div>[10] 1.75% 285 self: 0.00% 0</div><span class="green"> java/lang/StringCoding.encodeUTF8</span>
+<ul>
+<li><div>[11] 1.75% 285 self: 0.00% 0</div><span class="green"> java/util/Arrays.copyOf</span>
+<ul>
+<li><div>[12] 1.75% 285 self: 1.75% 285</div><span class="aqua"> byte[]</span>
+</ul>
+</ul>
+</ul>
+</ul>
+<li><div>[8] 1.31% 213 self: 1.31% 213</div><span class="aqua"> one.nio.http.Response</span>
+</ul>
+</ul>
+<li><div>[6] 6.81% 1,111 self: 0.00% 0</div><span class="green"> one/nio/http/HttpSession.sendResponse</span>
+<ul>
+<li><div>[7] 6.81% 1,111 self: 0.00% 0</div><span class="green"> one/nio/http/HttpSession.writeResponse</span>
+<ul>
+<li><div>[8] 4.77% 778 self: 0.00% 0</div><span class="green"> one/nio/http/Response.toBytes</span>
+<ul>
+<li><div>[9] 4.77% 778 self: 0.00% 0</div><span class="green"> one/nio/util/ByteArrayBuilder.&lt;init&gt;</span>
+<ul>
+<li><div>[10] 4.74% 773 self: 4.74% 773</div><span class="aqua"> byte[]</span>
+<li><div>[10] 0.03% 5 self: 0.03% 5</div><span class="brown"> byte[]</span>
+</ul>
+</ul>
+<li><div>[8] 2.04% 333 self: 0.00% 0</div><span class="green"> one/nio/net/Session.write</span>
+<ul>
+<li><div>[9] 2.04% 333 self: 2.04% 333</div><span class="aqua"> one.nio.net.Session$ArrayQueueItem</span>
+</ul>
+</ul>
+</ul>
+<li><div>[6] 3.40% 555 self: 0.00% 0</div><span class="green"> one/nio/http/Request.getPath</span>
+<ul>
+<li><div>[7] 3.40% 555 self: 0.00% 0</div><span class="green"> java/lang/String.substring</span>
+<ul>
+<li><div>[8] 3.40% 555 self: 0.00% 0</div><span class="green"> java/lang/StringLatin1.newString</span>
+<ul>
+<li><div>[9] 1.78% 290 self: 1.78% 290</div><span class="aqua"> java.lang.String</span>
+<li><div>[9] 1.62% 265 self: 0.00% 0</div><span class="green"> java/util/Arrays.copyOfRange</span>
+<ul>
+<li><div>[10] 1.62% 265 self: 1.62% 265</div><span class="aqua"> byte[]</span>
+</ul>
+</ul>
+</ul>
+</ul>
+<li><div>[6] 2.76% 451 self: 0.00% 0</div><span class="green"> one/nio/http/Request.getParameter</span>
+<ul>
+<li><div>[7] 2.76% 451 self: 0.00% 0</div><span class="green"> java/lang/String.substring</span>
+<ul>
+<li><div>[8] 2.76% 451 self: 0.00% 0</div><span class="green"> java/lang/String.substring</span>
+<ul>
+<li><div>[9] 2.76% 451 self: 0.00% 0</div><span class="green"> java/lang/StringLatin1.newString</span>
+<ul>
+<li><div>[10] 1.67% 272 self: 0.00% 0</div><span class="green"> java/util/Arrays.copyOfRange</span>
+<ul>
+<li><div>[11] 1.67% 272 self: 1.67% 272</div><span class="aqua"> byte[]</span>
+</ul>
+<li><div>[10] 1.10% 179 self: 1.10% 179</div><span class="aqua"> java.lang.String</span>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+<li><div>[3] 1.59% 260 self: 0.00% 0</div><span class="green"> java/util/concurrent/ThreadPoolExecutor.getTask</span>
+<ul>
+<li><div>[4] 1.59% 260 self: 0.00% 0</div><span class="green"> java/util/concurrent/LinkedBlockingQueue.take</span>
+<ul>
+<li><div>[5] 1.57% 257 self: 0.00% 0</div><span class="green"> java/util/concurrent/locks/AbstractQueuedSynchronizer$ConditionObject.await</span>
+<ul>
+<li><div>[6] 1.57% 257 self: 1.57% 257</div><span class="aqua"> java.util.concurrent.locks.AbstractQueuedSynchronizer$ConditionNode</span>
+</ul>
+<li><div>[5] 0.02% 3 self: 0.00% 0</div><span class="green"> java/util/concurrent/locks/ReentrantLock.lockInterruptibly</span>
+<ul>
+<li>...
+</ul>
+</ul>
+</ul>
+<li><div>[3] 1.54% 251 self: 0.00% 0</div><span class="green"> java/util/concurrent/FutureTask.run</span>
+<ul>
+<li><div>[4] 1.54% 251 self: 0.00% 0</div><span class="green"> java/util/concurrent/Executors$RunnableAdapter.call</span>
+<ul>
+<li><div>[5] 1.54% 251 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/LsmDAO$$Lambda$90.0x0000000800bbee38.run</span>
+<ul>
+<li><div>[6] 1.54% 251 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/LsmDAO.lambda$upsert$1</span>
+<ul>
+<li><div>[7] 1.26% 206 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/LsmDAO.flush</span>
+<ul>
+<li><div>[8] 1.26% 206 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/SSTable.write</span>
+<ul>
+<li><div>[9] 1.26% 206 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/SSTable.writeImpl</span>
+<ul>
+<li><div>[10] 0.74% 120 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/Record.getKey</span>
+<ul>
+<li><div>[11] 0.74% 120 self: 0.00% 0</div><span class="green"> java/nio/HeapByteBufferR.asReadOnlyBuffer</span>
+<ul>
+<li><div>[12] 0.74% 120 self: 0.00% 0</div><span class="green"> java/nio/HeapByteBufferR.duplicate</span>
+<ul>
+<li><div>[13] 0.74% 120 self: 0.74% 120</div><span class="aqua"> java.nio.HeapByteBufferR</span>
+</ul>
+</ul>
+</ul>
+<li><div>[10] 0.53% 86 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/Record.getValue</span>
+<ul>
+<li><div>[11] 0.53% 86 self: 0.00% 0</div><span class="green"> java/nio/HeapByteBufferR.asReadOnlyBuffer</span>
+<ul>
+<li><div>[12] 0.53% 86 self: 0.00% 0</div><span class="green"> java/nio/HeapByteBufferR.duplicate</span>
+<ul>
+<li><div>[13] 0.53% 86 self: 0.53% 86</div><span class="aqua"> java.nio.HeapByteBufferR</span>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+<li><div>[7] 0.25% 41 self: 0.00% 0</div><span class="green"> java/util/concurrent/ConcurrentSkipListMap.forEach</span>
+<ul>
+<li><div>[8] 0.25% 41 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/LsmDAO$$Lambda$91.0x0000000800bbf060.accept</span>
+<ul>
+<li><div>[9] 0.25% 41 self: 0.00% 0</div><span class="green"> ru/mail/polis/lsm/artemdrozdov/LsmDAO.lambda$upsert$0</span>
+<ul>
+<li><div>[10] 0.25% 41 self: 0.00% 0</div><span class="green"> java/util/concurrent/ConcurrentSkipListMap.remove</span>
+<ul>
+<li><div>[11] 0.25% 41 self: 0.00% 0</div><span class="green"> java/util/concurrent/ConcurrentSkipListMap.doRemove</span>
+<ul>
+<li><div>[12] 0.25% 41 self: 0.00% 0</div><span class="green"> java/util/concurrent/ConcurrentSkipListMap.unlinkNode</span>
+<ul>
+<li><div>[13] 0.25% 41 self: 0.25% 41</div><span class="aqua"> java.util.concurrent.ConcurrentSkipListMap$Node</span>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+<li><div>[7] 0.02% 4 self: 0.00% 0</div><span class="green"> java/lang/invoke/Invokers$Holder.linkToTargetMethod</span>
+<ul>
+<li><div>[8] 0.02% 4 self: 0.00% 0</div><span class="green"> java/lang/invoke/DirectMethodHandle$Holder.newInvokeSpecial</span>
+<ul>
+<li><div>[9] 0.02% 4 self: 0.00% 0</div><span class="green"> java/lang/invoke/DirectMethodHandle.allocateInstance</span>
+<ul>
+<li><div>[10] 0.02% 4 self: 0.00% 0</div><span class="green"> jdk/internal/misc/Unsafe.allocateInstance</span>
+<ul>
+<li><div>[11] 0.02% 4 self: 0.02% 4</div><span class="aqua"> ru.mail.polis.lsm.artemdrozdov.LsmDAO$$Lambda$91+0x0000000800bbf060</span>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+</ul>
+<script>
+addClickActions();
+</script>
+</ul>
+</body>
+</html>
