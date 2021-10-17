@@ -28,7 +28,7 @@ public class ServiceImpl extends HttpServer implements Service {
     public ServiceImpl(final ServiceConfig servConf, final ThreadPoolConfig tpc, final DAO dao) throws IOException {
         super(HttpConfigFactory.buildHttpConfig(servConf));
         BlockingQueue<Runnable> threadQueue = new LinkedBlockingDeque<>(tpc.queueSize);
-        this.executor = new ThreadPoolExecutor(tpc.poolSize, tpc.LIMIT_THREADS, tpc.keepAlive, tpc.unit, threadQueue);
+        this.executor = new ThreadPoolExecutor(tpc.poolSize, tpc.MAX_THREAD_POOL, tpc.keepAlive, tpc.unit, threadQueue);
         this.servDAO = new ServiceDAO(dao);
     }
 
