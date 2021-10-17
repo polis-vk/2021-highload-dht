@@ -28,7 +28,12 @@ import java.util.Objects;
  * @author Vadim Tsesko
  */
 public final class ServiceFactory {
+    /** Максимальный размер кучи. */
     private static final long MAX_HEAP = 256 * 1024 * 1024;
+    /** Число рабочих потоков. */
+    private static final int WORKERS_NUMBER = Runtime.getRuntime().availableProcessors();
+    /** Лимит очереди запросов, после превышения которого последующие будут отвергнуты. */
+    private static final int TASKS_LIMIT = WORKERS_NUMBER * 10;
 
     private ServiceFactory() {
         // Not supposed to be instantiated
@@ -54,6 +59,7 @@ public final class ServiceFactory {
 
         Objects.requireNonNull(dao);
 
-        return new HttpServerImpl(port, dao);
+        ServiceExecutor executor = new ServiceExecutorImpl("worker", WORKERS_NUMBER, TASKS_LIMIT);
+        return new HttpServerImpl(port, dao, executor);
     }
 }

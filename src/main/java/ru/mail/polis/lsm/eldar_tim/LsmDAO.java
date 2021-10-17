@@ -10,7 +10,7 @@ import ru.mail.polis.lsm.eldar_tim.components.MemTable;
 import ru.mail.polis.lsm.eldar_tim.components.SSTable;
 import ru.mail.polis.lsm.eldar_tim.components.Storage;
 import ru.mail.polis.lsm.eldar_tim.iterators.TombstonesFilterIterator;
-import ru.mail.polis.service.exceptions.ServerNotActiveExc;
+import ru.mail.polis.service.exceptions.ServiceClosedException;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -159,7 +159,7 @@ public class LsmDAO implements DAO {
 
     private void throwIfClosed() {
         if (serverIsDown) {
-            throw new ServerNotActiveExc();
+            throw new ServiceClosedException();
         }
     }
 }

@@ -57,10 +57,7 @@ public final class Server {
 
         // Start the storage
         DAO dao = DAOFactory.create(new DAOConfig(data));
-        final Service storage =
-                ServiceFactory.create(
-                        PORT,
-                        dao);
+        final Service storage = ServiceFactory.create(PORT, dao);
         storage.start();
         Runtime.getRuntime().addShutdownHook(
                 new Thread(() -> {
