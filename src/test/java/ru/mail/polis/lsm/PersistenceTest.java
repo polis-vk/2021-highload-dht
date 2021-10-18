@@ -171,6 +171,8 @@ class PersistenceTest {
                 ByteBuffer keyFrom = keyWithSuffix(i * searchStep, suffix);
                 ByteBuffer keyTo = keyWithSuffix(i * searchStep + searchStep, suffix);
 
+                System.out.println(i);
+
                 Iterator<Record> range = dao.range(keyFrom, keyTo);
                 for (int j = 0; j < searchStep; j++) {
                     verifyNext(suffix, range, i * searchStep + j);
@@ -243,6 +245,8 @@ class PersistenceTest {
             for (int i = 0; i < recordsCount; i++) {
                 ByteBuffer key = keyWithSuffix(i, suffix);
                 ByteBuffer value = valueWithSuffix(i, suffix);
+
+//                System.out.println(i);
 
                 dao.upsert(Record.of(key, value));
             }

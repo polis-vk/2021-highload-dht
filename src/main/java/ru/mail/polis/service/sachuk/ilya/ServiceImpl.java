@@ -4,16 +4,20 @@ import one.nio.http.HttpServer;
 import one.nio.http.HttpServerConfig;
 import one.nio.http.HttpSession;
 import one.nio.http.Param;
-import one.nio.http.Path;
 import one.nio.http.Request;
 import one.nio.http.Response;
 import one.nio.server.AcceptorConfig;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.service.Service;
 
 import java.io.IOException;
 
 public class ServiceImpl extends HttpServer implements Service {
+    private Logger logger = LoggerFactory.getLogger(ServiceImpl.class);
+    private static final String ENTITY_PATH = "/v0/entity";
+    private static final String STATUS_PATH = "/v0/status";
 
     private final EntityRequestHandler entityRequestHandler;
 
@@ -35,7 +39,6 @@ public class ServiceImpl extends HttpServer implements Service {
         return httpServerConfig;
     }
 
-    @Path("/v0/entity")
     public Response entityRequest(
             Request request,
             @Param(value = "id", required = true) String id
@@ -57,7 +60,6 @@ public class ServiceImpl extends HttpServer implements Service {
         }
     }
 
-    @Path("/v0/status")
     public Response status() {
         return new Response(Response.OK, Response.EMPTY);
     }
@@ -65,5 +67,28 @@ public class ServiceImpl extends HttpServer implements Service {
     @Override
     public void handleDefault(Request request, HttpSession session) throws IOException {
         session.sendResponse(new Response(Response.BAD_REQUEST, Response.EMPTY));
+    }
+
+    @Override
+    public void handleRequest(Request request, HttpSession session) throws IOException {
+        String path = request.getPath();
+        logger.info(path);
+
+        Response response;
+        switch (path) {
+            case ENTITY_PATH:
+                String id = request.getParameter("id");
+                response = entityRequest(request, id);
+                logger.info(id);
+                break;
+            case STATUS_PATH:
+                response = status();
+                break;
+            default:
+                handleDefault(request, session);
+                return;
+        }
+
+        session.sendResponse(response);
     }
 }
