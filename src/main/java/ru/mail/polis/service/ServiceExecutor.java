@@ -5,8 +5,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.service.eldar_tim.NamedThreadFactory;
 import ru.mail.polis.service.exceptions.ClientBadRequestException;
-import ru.mail.polis.service.exceptions.ServiceOverloadException;
 import ru.mail.polis.service.exceptions.ServerRuntimeException;
+import ru.mail.polis.service.exceptions.ServiceOverloadException;
 
 import java.io.IOException;
 import java.util.NoSuchElementException;
@@ -44,10 +44,14 @@ class ServiceExecutorImpl extends ThreadPoolExecutor implements ServiceExecutor 
 
     @Override
     public void execute(Session session, ExceptionHandler handler, ServiceRunnable runnable) {
-        try {
-            execute(() -> run(session, handler, runnable));
-        } catch (RejectedExecutionException e) {
-            handler.handleException(session, new ServiceOverloadException(e));
+        if (getQueue().remainingCapacity() > 0) {
+            try {
+                execute(() -> run(session, handler, runnable));
+            } catch (RejectedExecutionException e) {
+                handler.handleException(session, new ServiceOverloadException(e));
+            }
+        } else {
+            handler.handleException(session, new ServiceOverloadException());
         }
     }
 

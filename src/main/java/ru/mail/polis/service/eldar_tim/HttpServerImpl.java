@@ -164,12 +164,12 @@ public class HttpServerImpl extends HttpServer implements Service {
     }
 
     private void sendError(String description, String httpCode, HttpSession session, Exception e) {
-        LOG.error("Error: {}", description, e);
+        //LOG.warn("Error: {}", description); Занимает место в LOCK-профайле
         try {
             String code = httpCode == null ? Response.INTERNAL_ERROR : httpCode;
             session.sendError(code, e.getMessage());
         } catch (IOException ex) {
-            LOG.error("Unable to send error: {}", description, e);
+            LOG.error("Unable to send error: {}", description, ex);
         }
     }
 }

@@ -80,7 +80,7 @@ public class AwaitableExecutor {
         try {
             future.get();
         } catch (CancellationException e) {
-            LOG.info("Future was canceled: {}", e.getMessage());
+            LOG.info("Future was canceled", e);
         } catch (InterruptedException e) {
             LOG.error("Future await error", e);
             Thread.currentThread().interrupt();

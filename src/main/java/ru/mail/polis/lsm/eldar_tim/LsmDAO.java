@@ -132,7 +132,7 @@ public class LsmDAO implements DAO {
                 storage = storage.afterFlush(flushedTable);
                 LOG.debug("Flush completed");
             } catch (IOException e) {
-                LOG.error("Flush error, retrying in {} ms", config.flushRetryTimeMs, e);
+                LOG.error("Flush error, retrying soon", e);
                 context.sleep(config.flushRetryTimeMs);
                 context.relaunch();
             }
