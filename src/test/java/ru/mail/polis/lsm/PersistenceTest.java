@@ -251,7 +251,11 @@ class PersistenceTest {
                 ByteBuffer value = valueWithSuffix(i, suffix);
 
                 dao.upsert(Record.of(key, value));
+                Thread.sleep(30);
+                System.out.println(i + "/" + recordsCount);
             }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 

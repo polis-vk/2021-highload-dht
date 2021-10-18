@@ -20,27 +20,28 @@ import java.util.NoSuchElementException;
 import java.util.SortedMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentSkipListMap;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.Future;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.TimeoutException;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 public class LsmDAO implements DAO {
 
-    private static final Logger LOG = LoggerFactory.getLogger(LsmDAO.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(LsmDAO.class);
+
+    private static final int FLUSH_TASKS_LIMIT = 3;
 
     private final ConcurrentLinkedDeque<NavigableMap<ByteBuffer, Record>> tablesForFlush =
             new ConcurrentLinkedDeque<>();
 
-    private Future<?> currentFlush;
-    private final AtomicBoolean storageChanging = new AtomicBoolean();
+    private DAOState state = DAOState.OK;
 
-    private final ExecutorService flushExecutor = Executors.newSingleThreadExecutor();
+    private final ExecutorService flushExecutor = new ThreadPoolExecutor(1, 1,
+            0L, TimeUnit.MILLISECONDS,
+            new LinkedBlockingQueue<>(FLUSH_TASKS_LIMIT));
 
     private NavigableMap<ByteBuffer, Record> memoryStorage = newStorage();
     private final ConcurrentLinkedDeque<SSTable> tables = new ConcurrentLinkedDeque<>();
@@ -58,6 +59,7 @@ public class LsmDAO implements DAO {
 
     @Override
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
+
         Iterator<Record> sstableRanges = sstableRanges(fromKey, toKey);
         Iterator<Record> memoryRange = map(memoryStorage, fromKey, toKey).values().iterator();
         Iterator<Record> iterator = mergeTwo(
@@ -76,30 +78,20 @@ public class LsmDAO implements DAO {
 
     @Override
     public void upsert(Record record) {
-        while (storageChanging.get()) {
-            synchronized (this) {
-                try {
-                    wait();
-                } catch (InterruptedException e) {
-                    LOG.warn("Wait was interrupted", e);
-                    Thread.currentThread().interrupt();
-                }
-            }
-        }
         int recordSize = sizeOf(record);
         if (memoryConsumption.addAndGet(recordSize) > config.memoryLimit) {
             synchronized (this) {
                 if (memoryConsumption.get() > config.memoryLimit) {
-                    int prev = memoryConsumption.getAndSet(recordSize);
+
+                    memoryConsumption.set(recordSize);
+
+                    tablesForFlush.add(memoryStorage);
+                    memoryStorage = newStorage();
                     try {
-                        tablesForFlush.add(memoryStorage);
-
-                        waitForFlushFinished();
-
-                        doFlushAndStorageChanging(prev);
-                    } finally {
-                        notifyAll();
-                        storageChanging.set(false);
+                        doFlush();
+                    } catch (RejectedExecutionException e) {
+                        LOGGER.warn("Failed to process flush task. Reached limit: {}", FLUSH_TASKS_LIMIT);
+                        state = DAOState.UNAVAILABLE;
                     }
                 }
             }
@@ -107,35 +99,20 @@ public class LsmDAO implements DAO {
         memoryStorage.put(record.getKey(), record);
     }
 
-    private void doFlushAndStorageChanging(int prev) {
-        storageChanging.set(true);
-        currentFlush = flushExecutor.submit(() -> {
+    private void doFlush() {
+        flushExecutor.execute(() -> {
             NavigableMap<ByteBuffer, Record> snapshotToFlush = tablesForFlush.poll();
             if (snapshotToFlush != null) {
-                doSnapshotFlush(prev, snapshotToFlush.values().iterator());
+                doSnapshotFlush(snapshotToFlush.values().iterator());
             }
         });
-        memoryStorage = new ConcurrentSkipListMap<>();
     }
 
-    private void doSnapshotFlush(int prev, Iterator<Record> snapshot) {
+    private void doSnapshotFlush(Iterator<Record> snapshot) {
         try {
             flush(snapshot);
         } catch (IOException e) {
-            memoryConsumption.addAndGet(prev);
             throw new UncheckedIOException(e);
-        }
-    }
-
-    private void waitForFlushFinished() {
-        if (currentFlush != null && !currentFlush.isDone()) {
-            try {
-                currentFlush.get(500, TimeUnit.MILLISECONDS);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-            } catch (ExecutionException | TimeoutException e) {
-                LOG.warn("Failed to get future", e);
-            }
         }
     }
 
@@ -154,6 +131,11 @@ public class LsmDAO implements DAO {
         }
     }
 
+    @Override
+    public DAOState getState() {
+        return state;
+    }
+
     private NavigableMap<ByteBuffer, Record> newStorage() {
         return new ConcurrentSkipListMap<>();
     }
@@ -167,7 +149,6 @@ public class LsmDAO implements DAO {
     @Override
     public void close() throws IOException {
         synchronized (this) {
-            waitForFlushFinished();
             flush(memoryStorage.values().iterator());
         }
     }

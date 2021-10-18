@@ -1,5 +1,7 @@
 package ru.mail.polis.lsm;
 
+import ru.mail.polis.lsm.artem_drozdov.DAOState;
+
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -34,6 +36,11 @@ public class TestDaoWrapper implements DAO {
     @Override
     public void closeAndCompact() {
         delegate.closeAndCompact();
+    }
+
+    @Override
+    public DAOState getState() {
+        return DAOState.OK;
     }
 
     @Override
