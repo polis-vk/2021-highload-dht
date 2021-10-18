@@ -91,7 +91,7 @@ public class LsmDAO implements DAO {
                         doFlush();
                     } catch (RejectedExecutionException e) {
                         LOGGER.warn("Failed to process flush task. Reached limit: {}", FLUSH_TASKS_LIMIT);
-                        state = DAOState.UNAVAILABLE;
+                        state = DAOState.FLUSH_TASKS_LIMIT;
                     }
                 }
             }
