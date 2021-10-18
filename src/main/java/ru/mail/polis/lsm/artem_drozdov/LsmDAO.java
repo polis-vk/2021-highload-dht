@@ -15,36 +15,29 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.NavigableMap;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentSkipListMap;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 public class LsmDAO implements DAO {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(LsmDAO.class);
-    private Storage storage;
+    private final AtomicReference<Storage> storage;
 
     @SuppressWarnings({"FieldCanBeLocal", "unused"})
     private final DAOConfig config;
 
-    private final AtomicInteger memoryConsumption = new AtomicInteger();
-
-    private final ExecutorService executorFlush = Executors.newSingleThreadExecutor();
-    private final ExecutorService executeComp = Executors.newSingleThreadExecutor();
-    private CompletableFuture<Void> cfFlush;
+    private final ExecutorService executor = Executors.newSingleThreadExecutor();
 
     public LsmDAO(DAOConfig config) throws IOException {
         this.config = config;
-        this.storage = Storage.init(SSTable.loadFromDir(config.dir));
+        this.storage = new AtomicReference<>(Storage.init(SSTable.loadFromDir(config.dir)));
     }
 
     private static Iterator<Record> merge(List<Iterator<Record>> iterators) {
         final int size = iterators.size();
+
         if (size == 0) {
             return Collections.emptyIterator();
         } else if (size == 1) {
@@ -61,178 +54,188 @@ public class LsmDAO implements DAO {
 
     @Override
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
-        Iterator<Record> sstableRanges = sstableRanges(storage, fromKey, toKey);
-        Iterator<Record> memoryRange = map(storage.currentStorage, fromKey, toKey).values().iterator();
-        Iterator<Record> tmpMemoryRange = map(storage.storageToWrite, fromKey, toKey).values().iterator();
+        Storage storage = this.storage.get();
 
-        Iterator<Record> memory = new RecordMergingIterator(
-            new PeekingIterator<>(memoryRange), new PeekingIterator<>(tmpMemoryRange));
+        Iterator<Record> sstableRanges = sstableRanges(storage, fromKey, toKey);
+        Iterator<Record> memoryRange = storage.iterator(fromKey, toKey);
+
         Iterator<Record> iterator = new RecordMergingIterator(
-            new PeekingIterator<>(sstableRanges), new PeekingIterator<>(memory));
+            new PeekingIterator<>(sstableRanges), new PeekingIterator<>(memoryRange));
+
         return new TombstoneFilteringIterator(iterator);
     }
 
     @Override
     public void upsert(Record record) {
-        int consumption = memoryConsumption.get() + sizeOf(record);
-        if (memoryConsumption.addAndGet(sizeOf(record)) > config.memoryLimit) {
-            LOGGER.debug("Going to flush {}", consumption);
-            synchronized (this) {
-                if (memoryConsumption.get() > config.memoryLimit) {
-                    waitingCompleteFlush();
+        Storage storage = this.storage.get();
+        long consumption = storage.currentMemTable.putAndGetSize(record);
+        if (consumption > config.memoryLimit) {
 
-                    int prev = memoryConsumption.getAndSet(sizeOf(record));
-                    storage = storage.prepareFlush();
-
-                    cfFlush = CompletableFuture.runAsync(() -> {
-                        try {
-                            LOGGER.debug("Start flush");
-                            SSTable ssTable = flush();
-                            storage = storage.afterFlush(ssTable);
-                            if (needCompact()) {
-                                compact();
-                            }
-                            LOGGER.info("Tables {}", storage.tables.size());
-                            LOGGER.debug("Flush finished");
-                        } catch (IOException e) {
-                            memoryConsumption.addAndGet(prev);
-                            throw new UncheckedIOException(e);
-                        }
-                    }, executorFlush);
-                } else {
-                    LOGGER.debug("Concurrent flush");
-                }
+            boolean success = this.storage.compareAndSet(storage, storage.prepareFlush());
+            if (!success) {
+                // another thread updated the storage
+                return;
             }
 
+            if (storage.memTablesToFlush.isEmpty()) {
+                // another thread already works on these storages
+                return;
+            }
+
+            executor.execute(() -> {
+                try {
+                    LOGGER.info("Start flush");
+                    Storage newStorage = doFlush();
+                    if (storage.ssTables.size() > config.maxTables) {
+                        performCompact(newStorage);
+                    }
+                    LOGGER.info("Flush finished");
+                } catch (IOException e) {
+                    LOGGER.error("Fail to flush", e);
+                    throw new UncheckedIOException(e);
+                }
+            });
         }
-        storage.currentStorage.put(record.getKey(), record);
     }
 
-    private boolean needCompact() {
-        return storage.tables.size() > config.maxTables;
-    }
+    private Storage doFlush() throws IOException {
+        while (true) {
+            Storage storageToFlush = LsmDAO.this.storage.get();
+            List<MemTable> storageToWrite = storageToFlush.memTablesToFlush;
+            if (storageToWrite.isEmpty()) {
+                return storageToFlush;
+            }
 
-    private void waitingCompleteFlush() {
-        if (cfFlush == null) {
-            return;
-        }
+            SSTable newTable = flushAll(storageToFlush);
 
-        try {
-            cfFlush.get();
-        } catch (InterruptedException | ExecutionException e) {
-            LOGGER.error("error get completable future", e);
+            LsmDAO.this.storage.updateAndGet(currentValue -> currentValue.afterFlush(storageToWrite, newTable));
         }
     }
 
     @Override
     public void compact() {
-        executeComp.execute(() -> {
-            synchronized (this) {
-                LOGGER.info("compact started");
-                final SSTable table;
-                try {
-                    table = SSTable.compact(config.dir, range(null, null));
-                } catch (IOException e) {
-                    throw new UncheckedIOException("Can't compact", e);
-                }
-                storage = storage.afterCompaction(table);
-                LOGGER.info("compact finished");
+        executor.execute(() -> {
+            try {
+                performCompact(doFlush());
+            } catch (IOException e) {
+                LOGGER.error("can't compact", e);
+                throw new UncheckedIOException(e);
             }
         });
     }
 
-    private int sizeOf(Record record) {
-        return SSTable.sizeOf(record);
+    private void performCompact(Storage storage) throws IOException {
+        LOGGER.info("compact started");
+        SSTable result = SSTable.compact(config.dir, range(null, null));
+
+        this.storage.updateAndGet(currentValue -> currentValue.afterCompaction(storage.memTablesToFlush, result));
+        LOGGER.info("compact finished");
     }
 
     @Override
     public void close() throws IOException {
-        executeComp.shutdown();
-        executorFlush.shutdown();
+        executor.shutdown();
         try {
-            if (!executeComp.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS)
-                && !executorFlush.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS)) {
+            if (!executor.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS)) {
                 throw new IllegalStateException("Can't await for termination");
             }
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException(e);
         }
-        waitingCompleteFlush();
-        storage = storage.prepareFlush();
-        flush();
-        storage = null;
+
+        flushAll(storage.get().prepareFlush());
     }
 
-    private SSTable flush() throws IOException {
+    private SSTable flushAll(Storage storage) throws IOException {
         Path dir = config.dir;
-        Path file = dir.resolve(SSTable.SSTABLE_FILE_PREFIX + storage.tables.size());
+        Path file = dir.resolve(SSTable.SSTABLE_FILE_PREFIX + storage.ssTables.size());
 
-        return SSTable.write(storage.storageToWrite.values().iterator(), file);
+        return SSTable.write(storage.flushIterator(), file);
     }
 
     private Iterator<Record> sstableRanges(Storage storage, @Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
-        List<Iterator<Record>> iterators = new ArrayList<>(storage.tables.size());
-        for (SSTable ssTable : storage.tables) {
+        List<Iterator<Record>> iterators = new ArrayList<>(storage.ssTables.size());
+        for (SSTable ssTable : storage.ssTables) {
             iterators.add(ssTable.range(fromKey, toKey));
         }
         return merge(iterators);
     }
 
-    private NavigableMap<ByteBuffer, Record> map(
-        NavigableMap<ByteBuffer, Record> storage,
-        @Nullable ByteBuffer fromKey,
-        @Nullable ByteBuffer toKey) {
-        if (fromKey == null && toKey == null) {
-            return storage;
-        } else if (fromKey == null) {
-            return storage.headMap(toKey, false);
-        } else if (toKey == null) {
-            return storage.tailMap(fromKey, true);
-        } else {
-            return storage.subMap(fromKey, true, toKey, false);
-        }
-    }
-
     private static class Storage {
-        private final static NavigableMap<ByteBuffer, Record> EMPTY_STORAGE =
-            Collections.emptyNavigableMap();
 
-        private final NavigableMap<ByteBuffer, Record> currentStorage;
-        private final NavigableMap<ByteBuffer, Record> storageToWrite;
-
-        private final List<SSTable> tables;
+        private final MemTable currentMemTable;
+        private final List<MemTable> memTablesToFlush;
+        private final List<SSTable> ssTables;
 
         private Storage(
-            NavigableMap<ByteBuffer, Record> currentStorage,
-            NavigableMap<ByteBuffer, Record> storageToWrite,
-            List<SSTable> tables) {
-            this.currentStorage = currentStorage;
-            this.storageToWrite = storageToWrite;
-            this.tables = tables;
+            MemTable currentMemTable,
+            List<MemTable> memTablesToFlush,
+            List<SSTable> ssTables) {
+            this.currentMemTable = currentMemTable;
+            this.memTablesToFlush = memTablesToFlush;
+            this.ssTables = ssTables;
         }
 
         public static Storage init(List<SSTable> tables) {
             return new Storage(
-                new ConcurrentSkipListMap<>(),
-                EMPTY_STORAGE,
+                new MemTable(),
+                Collections.emptyList(),
                 tables
             );
         }
 
         public Storage prepareFlush() {
-            return new Storage(new ConcurrentSkipListMap<>(), currentStorage, tables);
+            List<MemTable> storagesToWrite = new ArrayList<>(this.memTablesToFlush.size() + 1);
+            storagesToWrite.addAll(this.memTablesToFlush);
+            storagesToWrite.add(currentMemTable);
+            return new Storage(new MemTable(), storagesToWrite, ssTables);
         }
 
-        public Storage afterFlush(SSTable newTable) {
-            List<SSTable> newTables = new ArrayList<>(tables);
+        // it is assumed that memTablesToFlush starts with writtenStorages
+        public Storage afterFlush(List<MemTable> writtenStorage, SSTable newTable) {
+            List<SSTable> newTables = new ArrayList<>(ssTables.size() + 1);
+            newTables.addAll(ssTables);
             newTables.add(newTable);
-            return new Storage(currentStorage, EMPTY_STORAGE, newTables);
+
+            List<MemTable> newMemTablesToFlush = memTablesToFlush.subList(
+                writtenStorage.size(), memTablesToFlush.size());
+            return new Storage(currentMemTable, new ArrayList<>(newMemTablesToFlush), newTables);
         }
 
-        public Storage afterCompaction(SSTable ssTable) {
-            List<SSTable> newTables = Collections.singletonList(ssTable);
-            return new Storage(currentStorage, EMPTY_STORAGE, newTables);
+        // it is assumed that memTablesToFlush starts with writtenStorages
+        public Storage afterCompaction(List<MemTable> writtenStorage, SSTable ssTable) {
+            List<MemTable> newMemTablesToFlush = memTablesToFlush.subList(
+                writtenStorage.size(),
+                memTablesToFlush.size());
+            return new Storage(
+                currentMemTable,
+                new ArrayList<>(newMemTablesToFlush),
+                Collections.singletonList(ssTable));
+        }
+
+        public Iterator<Record> iterator(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
+            List<Iterator<Record>> iterators = new ArrayList<>();
+
+            // order is mater - older data first
+            for (SSTable table : ssTables) {
+                iterators.add(table.range(fromKey, toKey));
+            }
+            for (MemTable memTable : memTablesToFlush) {
+                iterators.add(memTable.range(fromKey, toKey));
+            }
+            iterators.add(currentMemTable.range(fromKey, toKey));
+
+            return merge(iterators);
+        }
+
+        public Iterator<Record> flushIterator() {
+            List<Iterator<Record>> iterators = new ArrayList<>();
+            // order is mater - older data first
+            for (MemTable memTable : memTablesToFlush) {
+                iterators.add(memTable.range(null, null));
+            }
+            return merge(iterators);
         }
     }
 }

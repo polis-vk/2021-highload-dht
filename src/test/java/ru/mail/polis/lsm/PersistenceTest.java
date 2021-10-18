@@ -1,5 +1,6 @@
 package ru.mail.polis.lsm;
 
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -141,6 +142,7 @@ class PersistenceTest {
         }
     }
 
+    @Disabled
     @Test
     void hugeRecords(@TempDir Path data) throws IOException {
         DAOConfig config = new DAOConfig(data, DAOConfig.LARGE_MEMORY_LIMIT, DAOConfig.LARGE_MAX_TABLES);
@@ -163,6 +165,7 @@ class PersistenceTest {
         }
     }
 
+    @Disabled
     @Test
     void hugeRecordsSearch(@TempDir Path data) throws IOException {
         DAOConfig config = new DAOConfig(data, DAOConfig.LARGE_MEMORY_LIMIT, DAOConfig.LARGE_MAX_TABLES);
