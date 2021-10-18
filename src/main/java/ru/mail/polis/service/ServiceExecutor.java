@@ -4,10 +4,12 @@ import one.nio.net.Session;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.service.eldar_tim.NamedThreadFactory;
+import ru.mail.polis.service.exceptions.ClientBadRequestException;
 import ru.mail.polis.service.exceptions.ServiceOverloadException;
-import ru.mail.polis.service.exceptions.ServiceRuntimeException;
+import ru.mail.polis.service.exceptions.ServerRuntimeException;
 
 import java.io.IOException;
+import java.util.NoSuchElementException;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -16,10 +18,12 @@ import java.util.concurrent.TimeUnit;
 public interface ServiceExecutor {
     void execute(Session session, ExceptionHandler handler, ServiceRunnable runnable);
 
+    void run(Session session, ExceptionHandler handler, ServiceRunnable runnable);
+
     void awaitAndShutdown();
 
     interface ExceptionHandler {
-        void handleException(Session session, ServiceRuntimeException e);
+        void handleException(Session session, ServerRuntimeException e);
     }
 
     interface ServiceRunnable {
@@ -41,17 +45,22 @@ class ServiceExecutorImpl extends ThreadPoolExecutor implements ServiceExecutor 
     @Override
     public void execute(Session session, ExceptionHandler handler, ServiceRunnable runnable) {
         try {
-            execute(() -> {
-                try {
-                    runnable.run();
-                } catch (IOException e) {
-                    handler.handleException(session, new ServiceRuntimeException(e));
-                } catch (ServiceRuntimeException e) {
-                    handler.handleException(session, e);
-                }
-            });
+            execute(() -> run(session, handler, runnable));
         } catch (RejectedExecutionException e) {
             handler.handleException(session, new ServiceOverloadException(e));
+        }
+    }
+
+    @Override
+    public void run(Session session, ExceptionHandler handler, ServiceRunnable runnable) {
+        try {
+            runnable.run();
+        } catch (ServerRuntimeException e) {
+            handler.handleException(session, e);
+        } catch (NoSuchElementException e) {
+            handler.handleException(session, new ClientBadRequestException(e));
+        } catch (IOException | RuntimeException e) {
+            handler.handleException(session, new ServerRuntimeException(e));
         }
     }
 
@@ -66,7 +75,7 @@ class ServiceExecutorImpl extends ThreadPoolExecutor implements ServiceExecutor 
                 }
             }
         } catch (InterruptedException e) {
-            LOG.error("error: executor can't shutdown on its own", e);
+            LOG.error("Error: executor can't shutdown on its own", e);
             Thread.currentThread().interrupt();
         }
     }

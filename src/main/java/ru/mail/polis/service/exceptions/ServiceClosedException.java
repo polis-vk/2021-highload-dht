@@ -2,8 +2,7 @@ package ru.mail.polis.service.exceptions;
 
 import one.nio.http.Response;
 
-@SuppressWarnings("PMD.AtLeastOneConstructor")
-public class ServiceClosedException extends ServiceRuntimeException {
+public class ServiceClosedException extends ServerRuntimeException {
 
     @Override
     public String description() {

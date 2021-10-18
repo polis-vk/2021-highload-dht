@@ -2,7 +2,7 @@ package ru.mail.polis.service.exceptions;
 
 import one.nio.http.Response;
 
-public class ServiceOverloadException extends ServiceRuntimeException {
+public class ServiceOverloadException extends ServerRuntimeException {
 
     public ServiceOverloadException() {
         super();
@@ -14,7 +14,7 @@ public class ServiceOverloadException extends ServiceRuntimeException {
 
     @Override
     public String description() {
-        return "Server overloaded";
+        return "Service is overloaded";
     }
 
     @Override

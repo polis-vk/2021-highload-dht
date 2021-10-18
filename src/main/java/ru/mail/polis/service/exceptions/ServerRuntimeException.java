@@ -2,19 +2,19 @@ package ru.mail.polis.service.exceptions;
 
 import one.nio.http.Response;
 
-public class ServiceRuntimeException extends RuntimeException implements HttpException {
+public class ServerRuntimeException extends RuntimeException implements HttpException {
 
-    public ServiceRuntimeException() {
+    public ServerRuntimeException() {
         super();
     }
 
-    public ServiceRuntimeException(Exception e) {
+    public ServerRuntimeException(Exception e) {
         super(e);
     }
 
     @Override
     public String description() {
-        return "Internal server error";
+        return "Internal server error: " + getMessage();
     }
 
     @Override

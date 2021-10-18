@@ -19,6 +19,7 @@
         <exclude name="ShortMethodName"/>
         <exclude name="ShortVariable"/>
         <exclude name="UselessParentheses"/>
+        <exclude name="AtLeastOneConstructor"/>
     </rule>
     <rule ref="category/java/codestyle.xml/ClassNamingConventions">
         <properties>
@@ -51,10 +52,16 @@
     <rule ref="category/java/multithreading.xml">
         <exclude name="AvoidSynchronizedAtMethodLevel"/>
         <exclude name="DoNotUseThreads"/>
+        <exclude name="AvoidUsingVolatile"/>
     </rule>
     <rule ref="category/java/performance.xml">
         <exclude name="AvoidInstantiatingObjectsInLoops"/>
     </rule>
     <rule ref="category/java/security.xml"/>
+    <rule ref="category/java/codestyle.xml/ConfusingTernary">
+        <properties>
+            <property name="ignoreElseIf" value="true" />
+        </properties>
+    </rule>
 
 </ruleset>
