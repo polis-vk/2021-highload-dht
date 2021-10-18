@@ -25,8 +25,9 @@ public class NamedThreadFactory implements ThreadFactory {
     @Override
     public Thread newThread(@Nonnull Runnable r) {
         StringBuilder sb = new StringBuilder();
-        sb.append(name).append(' ').append(threadNumber.getAndIncrement());
-        if (totalThreads > 0) {
+        sb.append(name);
+        if (totalThreads > 1) {
+            sb.append(' ').append(threadNumber.getAndIncrement());
             sb.append('/').append(totalThreads);
         }
 

@@ -33,7 +33,7 @@ public final class ServiceFactory {
     /** Число рабочих потоков. */
     private static final int WORKERS_NUMBER = Runtime.getRuntime().availableProcessors();
     /** Лимит очереди запросов, после превышения которого последующие будут отвергнуты. */
-    private static final int TASKS_LIMIT = WORKERS_NUMBER * 10;
+    private static final int TASKS_LIMIT = WORKERS_NUMBER * 100;
 
     private ServiceFactory() {
         // Not supposed to be instantiated
