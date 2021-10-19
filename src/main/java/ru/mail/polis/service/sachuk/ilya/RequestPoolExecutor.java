@@ -31,9 +31,4 @@ public class RequestPoolExecutor {
     public boolean isQueueFull() {
         return queue.size() == executorConfig.queueSize;
     }
-
-    public int getQueueSize() {
-        return queue.size();
-    }
-
 }

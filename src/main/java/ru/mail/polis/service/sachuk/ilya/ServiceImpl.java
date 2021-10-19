@@ -6,8 +6,6 @@ import one.nio.http.HttpSession;
 import one.nio.http.Request;
 import one.nio.http.Response;
 import one.nio.server.AcceptorConfig;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.service.Service;
 
@@ -15,8 +13,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 
 public class ServiceImpl extends HttpServer implements Service {
-    private final Logger logger = LoggerFactory.getLogger(ServiceImpl.class);
-
     private static final String ENTITY_PATH = "/v0/entity";
     private static final String STATUS_PATH = "/v0/status";
 
@@ -71,8 +67,6 @@ public class ServiceImpl extends HttpServer implements Service {
     @Override
     public void handleRequest(Request request, HttpSession session) {
         String path = request.getPath();
-
-//        logger.info(String.valueOf(requestPoolExecutor.getQueueSize()));
 
         if (requestPoolExecutor.isQueueFull()) {
             try {
