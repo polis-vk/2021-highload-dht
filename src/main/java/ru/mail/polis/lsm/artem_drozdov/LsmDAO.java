@@ -32,7 +32,9 @@ public class LsmDAO implements DAO {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(LsmDAO.class);
 
-    private static final int FLUSH_TASKS_LIMIT = 3;
+    static final int FLUSH_TASKS_LIMIT = 3;
+
+    private final DaoMonitoringService daoMonitoringService = new LsmDaoMonitoringService(this);
 
     private final ConcurrentLinkedDeque<NavigableMap<ByteBuffer, Record>> tablesForFlush =
             new ConcurrentLinkedDeque<>();
@@ -78,11 +80,11 @@ public class LsmDAO implements DAO {
 
     @Override
     public void upsert(Record record) {
+        daoMonitoringService.onUpsertStarted();
         int recordSize = sizeOf(record);
         if (memoryConsumption.addAndGet(recordSize) > config.memoryLimit) {
             synchronized (this) {
-                if (memoryConsumption.get() > config.memoryLimit) {
-
+                if (memoryConsumption.get() > config.memoryLimit && state == DAOState.OK) {
                     memoryConsumption.set(recordSize);
 
                     tablesForFlush.add(memoryStorage);
@@ -91,19 +93,24 @@ public class LsmDAO implements DAO {
                         doFlush();
                     } catch (RejectedExecutionException e) {
                         LOGGER.warn("Failed to process flush task. Reached limit: {}", FLUSH_TASKS_LIMIT);
-                        state = DAOState.FLUSH_TASKS_LIMIT;
+
+                        this.state = DAOState.FLUSH_TASKS_LIMIT;
+                        daoMonitoringService.onStateChanged(state);
                     }
                 }
             }
         }
         memoryStorage.put(record.getKey(), record);
+        daoMonitoringService.onUpsertFinished();
     }
 
     private void doFlush() {
         flushExecutor.execute(() -> {
             NavigableMap<ByteBuffer, Record> snapshotToFlush = tablesForFlush.poll();
             if (snapshotToFlush != null) {
+                daoMonitoringService.onFlushStarted();
                 doSnapshotFlush(snapshotToFlush.values().iterator());
+                daoMonitoringService.onFlushFinished();
             }
         });
     }
@@ -134,6 +141,10 @@ public class LsmDAO implements DAO {
     @Override
     public DAOState getState() {
         return state;
+    }
+
+    public void setState(DAOState newState) {
+        state = newState;
     }
 
     private NavigableMap<ByteBuffer, Record> newStorage() {
@@ -242,6 +253,9 @@ public class LsmDAO implements DAO {
             current = delegate.next();
             return current;
         }
+    }
 
+    public int remainingTablesForFlush() {
+        return tablesForFlush.size();
     }
 }
