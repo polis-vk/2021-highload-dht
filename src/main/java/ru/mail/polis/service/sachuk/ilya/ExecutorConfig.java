@@ -7,7 +7,6 @@ public class ExecutorConfig {
     public final int threadNumber;
     public final int queueSize;
 
-
     public ExecutorConfig() {
         this(DEFAULT_THREAD_NUMBER, DEFAULT_QUEUE_SIZE);
     }
