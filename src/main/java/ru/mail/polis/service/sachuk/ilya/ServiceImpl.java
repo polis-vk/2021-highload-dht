@@ -13,23 +13,15 @@ import ru.mail.polis.service.Service;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
 
 public class ServiceImpl extends HttpServer implements Service {
-    private Logger logger = LoggerFactory.getLogger(ServiceImpl.class);
+    private final Logger logger = LoggerFactory.getLogger(ServiceImpl.class);
 
     private static final String ENTITY_PATH = "/v0/entity";
     private static final String STATUS_PATH = "/v0/status";
 
     private final EntityRequestHandler entityRequestHandler;
     private final RequestPoolExecutor requestPoolExecutor = new RequestPoolExecutor(new ExecutorConfig(32, 300));
-//    private final ExecutorService executorService = Executors.newFixedThreadPool(4);
-//    private final ExecutorService executorService = new ThreadPoolExecutor(32, 32, 0L, TimeUnit.MILLISECONDS,
-//            new LinkedBlockingQueue<>(300));
 
     public ServiceImpl(int port, DAO dao) throws IOException {
         super(configFrom(port));
@@ -77,18 +69,26 @@ public class ServiceImpl extends HttpServer implements Service {
     }
 
     @Override
-    public void handleRequest(Request request, HttpSession session) throws IOException {
-
-        RequestTask requestTask = new RequestTask(request, session);
-
-
+    public void handleRequest(Request request, HttpSession session) {
         String path = request.getPath();
+
+//        logger.info(String.valueOf(requestPoolExecutor.getQueueSize()));
+
+        if (requestPoolExecutor.isQueueFull()) {
+            try {
+                session.sendResponse(new Response(Response.SERVICE_UNAVAILABLE));
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+            return;
+        }
 
         switch (path) {
             case ENTITY_PATH:
-                String id = request.getParameter("id=");
-                executorService.execute(() -> {
+                requestPoolExecutor.addTask(() -> {
+                    String id = request.getParameter("id=");
                     Response response = entityRequest(request, id);
+
                     try {
                         session.sendResponse(response);
                     } catch (IOException e) {
@@ -97,7 +97,7 @@ public class ServiceImpl extends HttpServer implements Service {
                 });
                 break;
             case STATUS_PATH:
-                executorService.execute(() -> {
+                requestPoolExecutor.addTask(() -> {
                     Response response = status();
                     try {
                         session.sendResponse(response);
@@ -107,7 +107,7 @@ public class ServiceImpl extends HttpServer implements Service {
                 });
                 break;
             default:
-                executorService.execute(() -> {
+                requestPoolExecutor.addTask(() -> {
                     try {
                         handleDefault(request, session);
                     } catch (IOException e) {
