@@ -7,7 +7,9 @@ import one.nio.http.Response;
 import ru.mail.polis.RecordUtil;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.Record;
+import ru.mail.polis.lsm.artem_drozdov.DAOState;
 
+import javax.annotation.Nullable;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
@@ -21,17 +23,15 @@ public class MainController implements Controller {
     }
 
     @SuppressWarnings("unused")
-    @Path("/v0/status")
     public Response status(Request request) {
         return new Response(Response.OK, Response.EMPTY);
     }
 
     @SuppressWarnings("unused")
-    @Path("/v0/entity")
-    public Response entity(@Param(value = "id", required = true) String id,
+    public Response entity(@Nullable String id,
                            Request request) {
-        if (id.isBlank()) {
-            return new Response(Response.BAD_REQUEST, "id can't be blank".getBytes(StandardCharsets.UTF_8));
+        if (id == null || id.isBlank()) {
+            return new Response(Response.BAD_REQUEST, "Id can't be blank".getBytes(StandardCharsets.UTF_8));
         }
         switch (request.getMethod()) {
             case Request.METHOD_GET:
@@ -70,6 +70,10 @@ public class MainController implements Controller {
         ByteBuffer key = ByteBuffer.wrap(id.getBytes(StandardCharsets.UTF_8));
         dao.upsert(Record.tombstone(key));
         return new Response(Response.ACCEPTED, Response.EMPTY);
+    }
+
+    public DAOState getDaoState() {
+        return dao.getState();
     }
 
 }
