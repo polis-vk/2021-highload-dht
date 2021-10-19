@@ -17,7 +17,7 @@ class MemTable {
 
     public long putAndGetSize(Record record) {
         Record prev = internalStorage.put(record.getKey(), record);
-        return size.addAndGet(sizeOf(record) - sizeOf(prev));
+        return size.addAndGet(sizeOf(record));
     }
 
     private int sizeOf(Record record) {

@@ -69,6 +69,7 @@ public class LsmDAO implements DAO {
     public void upsert(Record record) {
         Storage storage = this.storage.get();
         long consumption = storage.currentMemTable.putAndGetSize(record);
+
         if (consumption > config.memoryLimit) {
 
             boolean success = this.storage.compareAndSet(storage, storage.prepareFlush());
