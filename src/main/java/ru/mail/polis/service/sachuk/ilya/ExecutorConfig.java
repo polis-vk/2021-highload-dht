@@ -1,8 +1,8 @@
 package ru.mail.polis.service.sachuk.ilya;
 
 public class ExecutorConfig {
-    public static final int DEFAULT_THREAD_NUMBER = 4;
-    public static final int DEFAULT_QUEUE_SIZE = 64;
+    public static final int DEFAULT_THREAD_NUMBER = 16;
+    public static final int DEFAULT_QUEUE_SIZE = 256;
 
     public final int threadNumber;
     public final int queueSize;

@@ -15,6 +15,9 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 public class ServiceImpl extends HttpServer implements Service {
     private Logger logger = LoggerFactory.getLogger(ServiceImpl.class);
@@ -23,8 +26,10 @@ public class ServiceImpl extends HttpServer implements Service {
     private static final String STATUS_PATH = "/v0/status";
 
     private final EntityRequestHandler entityRequestHandler;
-    private final RequestPoolExecutor requestPoolExecutor = new RequestPoolExecutor(new ExecutorConfig());
-    private final ExecutorService executorService = Executors.newFixedThreadPool(4);
+    private final RequestPoolExecutor requestPoolExecutor = new RequestPoolExecutor(new ExecutorConfig(32, 300));
+//    private final ExecutorService executorService = Executors.newFixedThreadPool(4);
+//    private final ExecutorService executorService = new ThreadPoolExecutor(32, 32, 0L, TimeUnit.MILLISECONDS,
+//            new LinkedBlockingQueue<>(300));
 
     public ServiceImpl(int port, DAO dao) throws IOException {
         super(configFrom(port));
@@ -44,7 +49,7 @@ public class ServiceImpl extends HttpServer implements Service {
         return httpServerConfig;
     }
 
-    public Response entityRequest(Request request, String id) {
+    private Response entityRequest(Request request, String id) {
 
         if (id == null || id.isBlank()) {
             return new Response(Response.BAD_REQUEST, Response.EMPTY);
@@ -62,7 +67,7 @@ public class ServiceImpl extends HttpServer implements Service {
         }
     }
 
-    public Response status() {
+    private Response status() {
         return new Response(Response.OK, Response.EMPTY);
     }
 
