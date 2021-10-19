@@ -78,11 +78,10 @@ public class ServiceImpl extends HttpServer implements Service {
 
 
         String path = request.getPath();
-        logger.info(path);
 
         switch (path) {
             case ENTITY_PATH:
-                String id = request.getParameter("id");
+                String id = request.getParameter("id=");
                 executorService.execute(() -> {
                     Response response = entityRequest(request, id);
                     try {
@@ -91,7 +90,6 @@ public class ServiceImpl extends HttpServer implements Service {
                         throw new UncheckedIOException(e);
                     }
                 });
-                logger.info(id);
                 break;
             case STATUS_PATH:
                 executorService.execute(() -> {
