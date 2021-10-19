@@ -1,8 +1,11 @@
 package ru.mail.polis.lsm.artem_drozdov;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.DAOConfig;
 import ru.mail.polis.lsm.Record;
+import ru.mail.polis.lsm.korneev.MemStorage;
 
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
@@ -15,22 +18,25 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.NavigableMap;
-import java.util.concurrent.ConcurrentLinkedDeque;
-import java.util.concurrent.ConcurrentSkipListMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class LsmDAO implements DAO {
 
-    private final ConcurrentLinkedDeque<SSTable> tables = new ConcurrentLinkedDeque<>();
+    private static final Logger LOGGER = LoggerFactory.getLogger(LsmDAO.class);
+
     @SuppressWarnings({"FieldCanBeLocal", "unused"})
     private final DAOConfig config;
-    private NavigableMap<ByteBuffer, Record> memoryStorage = newStorage();
-    @GuardedBy("this")
-    private int memoryConsumption;
+    private final AtomicInteger memoryConsumption = new AtomicInteger();
+    private volatile MemStorage memoryStorage;
+
+    private final ExecutorService compactService = Executors.newSingleThreadExecutor();
 
     public LsmDAO(DAOConfig config) throws IOException {
         this.config = config;
-        List<SSTable> ssTables = SSTable.loadFromDir(config.dir);
-        tables.addAll(ssTables);
+        this.memoryStorage = MemStorage.init(SSTable.loadFromDir(config.dir));
     }
 
     private static Iterator<Record> merge(List<Iterator<Record>> iterators) {
@@ -51,51 +57,80 @@ public class LsmDAO implements DAO {
 
     @Override
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
-        synchronized (this) {
-            Iterator<Record> sstableRanges = sstableRanges(fromKey, toKey);
-            Iterator<Record> memoryRange = map(fromKey, toKey).values().iterator();
-            Iterator<Record> iterator =
-                    new RecordMergingIterator(
-                            new PeekingIterator<>(sstableRanges),
-                            new PeekingIterator<>(memoryRange));
-            return new TombstoneFilteringIterator(iterator);
-        }
+
+        MemStorage memStorage = this.memoryStorage;
+
+        Iterator<Record> sstableRanges = sstableRanges(memStorage, fromKey, toKey);
+
+        Iterator<Record> currentMemoryRange = map(memStorage.currentStorage, fromKey, toKey).values().iterator();
+        Iterator<Record> toWriteMemoryRange = map(memStorage.storageToWrite, fromKey, toKey).values().iterator();
+        Iterator<Record> memory = new RecordMergingIterator(
+                new PeekingIterator<>(currentMemoryRange),
+                new PeekingIterator<>(toWriteMemoryRange)
+        );
+
+        Iterator<Record> iterator =
+                new RecordMergingIterator(
+                        new PeekingIterator<>(sstableRanges),
+                        new PeekingIterator<>(memory));
+
+        return new TombstoneFilteringIterator(iterator);
     }
 
     @Override
     public void upsert(Record record) {
-        synchronized (this) {
-            memoryConsumption += sizeOf(record);
-            if (memoryConsumption > config.memoryLimit) {
-                try {
-                    flush();
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
+        int recordSize = sizeOf(record);
+        if (memoryConsumption.addAndGet(recordSize) > config.memoryLimit) {
+            synchronized (this) {
+                if (memoryConsumption.get() > config.memoryLimit) {
+                    memoryStorage = memoryStorage.prepareFlush();
+
+                    int prev = memoryConsumption.getAndSet(recordSize);
+
+                    try {
+                        SSTable ssTable = flush();
+                        memoryStorage = memoryStorage.afterFlush(ssTable);
+                        if (needCompact()) {
+                            compact();
+                        }
+                    } catch (IOException e) {
+                        memoryConsumption.addAndGet(prev);
+                        throw new UncheckedIOException(e);
+                    }
                 }
-                memoryConsumption = sizeOf(record);
             }
         }
 
-        memoryStorage.put(record.getKey(), record);
+        memoryStorage.currentStorage.put(record.getKey(), record);
+    }
+
+    private boolean needCompact() {
+        return memoryStorage.tableList.size() > config.maxTables;
     }
 
     @Override
-    public void closeAndCompact() {
-        synchronized (this) {
-            final SSTable table;
-            try {
-                table = SSTable.compact(config.dir, range(null, null));
-            } catch (IOException e) {
-                throw new UncheckedIOException("Can't compact", e);
-            }
-            tables.clear();
-            tables.add(table);
-            memoryStorage = newStorage();
-        }
-    }
+    public void compact() {
+        compactService.execute(() -> {
+            synchronized (this) {
+                try {
+                    if (!needCompact()) {
+                        return;
+                    }
 
-    private NavigableMap<ByteBuffer, Record> newStorage() {
-        return new ConcurrentSkipListMap<>();
+
+                    SSTable result;
+                    try {
+                        result = SSTable.compact(config.dir, sstableRanges(memoryStorage, null, null));
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
+
+                    memoryStorage = memoryStorage.afterCompaction(result);
+                } catch (Exception e) {
+                    LOGGER.error("Can npt run compaction", e);
+                }
+            }
+        });
     }
 
     private int sizeOf(Record record) {
@@ -104,39 +139,48 @@ public class LsmDAO implements DAO {
 
     @Override
     public void close() throws IOException {
+        compactService.shutdown();
+        try {
+            if (!compactService.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS)) {
+                throw new IllegalStateException("Can not await for termination");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(e);
+        }
+
         synchronized (this) {
+            memoryStorage = memoryStorage.prepareFlush();
             flush();
+            memoryStorage = null;
         }
     }
 
     @GuardedBy("this")
-    private void flush() throws IOException {
+    private SSTable flush() throws IOException {
         Path dir = config.dir;
-        Path file = dir.resolve(SSTable.SSTABLE_FILE_PREFIX + tables.size());
+        Path file = dir.resolve(SSTable.SSTABLE_FILE_PREFIX + memoryStorage.tableList.size());
 
-        SSTable ssTable = SSTable.write(memoryStorage.values().iterator(), file);
-        tables.add(ssTable);
-        memoryStorage = new ConcurrentSkipListMap<>();
+        return SSTable.write(memoryStorage.storageToWrite.values().iterator(), file);
     }
 
-    private Iterator<Record> sstableRanges(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
-        List<Iterator<Record>> iterators = new ArrayList<>(tables.size());
-        for (SSTable ssTable : tables) {
+    private Iterator<Record> sstableRanges(MemStorage memStorage, @Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
+        List<Iterator<Record>> iterators = new ArrayList<>(memStorage.tableList.size());
+        for (SSTable ssTable : memStorage.tableList) {
             iterators.add(ssTable.range(fromKey, toKey));
         }
         return merge(iterators);
     }
 
-    private NavigableMap<ByteBuffer, Record> map(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
+    private NavigableMap<ByteBuffer, Record> map(NavigableMap<ByteBuffer, Record> storage, @Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
         if (fromKey == null && toKey == null) {
-            return memoryStorage;
+            return storage;
         } else if (fromKey == null) {
-            return memoryStorage.headMap(toKey, false);
+            return storage.headMap(toKey, false);
         } else if (toKey == null) {
-            return memoryStorage.tailMap(fromKey, true);
+            return storage.tailMap(fromKey, true);
         } else {
-            return memoryStorage.subMap(fromKey, true, toKey, false);
+            return storage.subMap(fromKey, true, toKey, false);
         }
     }
-
 }
