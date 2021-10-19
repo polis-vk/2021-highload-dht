@@ -7,7 +7,7 @@ public class RequestTask {
     public final Session session;
     public final Request request;
 
-    public RequestTask(Session session, Request request) {
+    public RequestTask(Request request, Session session) {
         this.session = session;
         this.request = request;
     }
