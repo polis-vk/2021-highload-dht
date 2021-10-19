@@ -16,7 +16,8 @@ public class RequestPoolExecutor {
         this.executorConfig = executorConfig;
 
         this.queue = new LinkedBlockingQueue<>(executorConfig.queueSize);
-        this.executorService = new ThreadPoolExecutor(executorConfig.threadNumber,
+        this.executorService = new ThreadPoolExecutor(
+                executorConfig.threadNumber,
                 executorConfig.threadNumber,
                 0L,
                 TimeUnit.MILLISECONDS,

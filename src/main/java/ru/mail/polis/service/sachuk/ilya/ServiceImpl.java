@@ -17,7 +17,9 @@ public class ServiceImpl extends HttpServer implements Service {
     private static final String STATUS_PATH = "/v0/status";
 
     private final EntityRequestHandler entityRequestHandler;
-    private final RequestPoolExecutor requestPoolExecutor = new RequestPoolExecutor(new ExecutorConfig(32, 300));
+    private final RequestPoolExecutor requestPoolExecutor = new RequestPoolExecutor(
+            new ExecutorConfig(32, 300)
+    );
 
     public ServiceImpl(int port, DAO dao) throws IOException {
         super(configFrom(port));
