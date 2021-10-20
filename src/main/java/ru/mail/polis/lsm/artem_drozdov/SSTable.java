@@ -226,9 +226,7 @@ public class SSTable implements Closeable {
 
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
         ByteBuffer buffer = mmap.asReadOnlyBuffer();
-
         int maxSize = mmap.remaining();
-
         int fromOffset = fromKey == null ? 0 : offset(buffer, fromKey);
         int toOffset = toKey == null ? maxSize : offset(buffer, toKey);
 
@@ -247,7 +245,6 @@ public class SSTable implements Closeable {
         } catch (IOException e) {
             exception = e;
         }
-
         try {
             free(idx);
         } catch (IOException e) {
@@ -257,7 +254,6 @@ public class SSTable implements Closeable {
                 exception.addSuppressed(e);
             }
         }
-
         if (exception != null) {
             throw exception;
         }
@@ -267,7 +263,6 @@ public class SSTable implements Closeable {
         int left = 0;
         int rightLimit = idx.remaining() / Integer.BYTES;
         int right = rightLimit;
-
         int keyToFindSize = keyToFind.remaining();
 
         while (left < right) {
@@ -281,11 +276,9 @@ public class SSTable implements Closeable {
             if (mismatchPos == -1) {
                 return offset;
             }
-
             if (existingKeySize == keyToFindSize && mismatchPos == existingKeySize) {
                 return offset;
             }
-
             final int result;
             if (mismatchPos < existingKeySize && mismatchPos < keyToFindSize) {
                 result = Byte.compare(
@@ -297,19 +290,15 @@ public class SSTable implements Closeable {
             } else {
                 result = -1;
             }
-
             if (result > 0) {
                 left = mid + 1;
             } else {
                 right = mid;
             }
         }
-
         if (left >= rightLimit) {
             return -1;
         }
-
         return idx.getInt(left * Integer.BYTES);
     }
-
 }
