@@ -2,6 +2,7 @@ package ru.mail.polis.lsm.sachuk.ilya;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import ru.mail.polis.ThreadUtils;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.DAOConfig;
 import ru.mail.polis.lsm.Record;
@@ -26,7 +27,6 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -149,8 +149,8 @@ public class DaoImpl implements DAO {
             isClosed.set(true);
             checkForPrevTask();
 
-            awaitForShutdown(flushExecutor);
-            awaitForShutdown(executorService);
+            ThreadUtils.awaitForShutdown(flushExecutor);
+            ThreadUtils.awaitForShutdown(executorService);
 
             if (memoryConsumption.get() > 0) {
                 memoryStorage = memoryStorage.prepareFlush();
@@ -158,18 +158,6 @@ public class DaoImpl implements DAO {
                 memoryStorage = memoryStorage.afterFlush(ssTable);
             }
             closeSSTables();
-        }
-    }
-
-    private void awaitForShutdown(ExecutorService executorService) {
-        executorService.shutdown();
-        try {
-            if (!executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS)) {
-                throw new IllegalStateException("Can't await for termination");
-            }
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            throw new IllegalStateException(e);
         }
     }
 
