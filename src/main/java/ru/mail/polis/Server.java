@@ -41,20 +41,7 @@ public final class Server {
         // Not instantiable
     }
 
-    /**
-     * Starts single node cluster at HTTP port 8080 and
-     * temporary data storage if storage path not supplied.
-     */
-    public static void main(String[] args) throws IOException {
-        // Temporary storage in the file system
-        final Path data;
-        if (args.length > 0) {
-            data = Path.of(args[0]);
-        } else {
-            data = FileUtils.createTempDirectory();
-        }
-        LOG.info("Storing data at {}", data);
-
+    private static void startDao(Path data) {
         // Start the storage
         try {
             DAO dao = DAOFactory.create(new DAOConfig(data));
@@ -75,5 +62,22 @@ public final class Server {
         } catch (IOException e) {
             e.printStackTrace();
         }
+    }
+
+    /**
+     * Starts single node cluster at HTTP port 8080 and
+     * temporary data storage if storage path not supplied.
+     */
+    public static void main(String[] args) throws IOException {
+        // Temporary storage in the file system
+        final Path data;
+        if (args.length > 0) {
+            data = Path.of(args[0]);
+        } else {
+            data = FileUtils.createTempDirectory();
+        }
+        LOG.info("Storing data at {}", data);
+        startDao(data);
+
     }
 }
