@@ -356,8 +356,11 @@ Transfer/sec:      8.24MB
 
 |     | CPU | Alloc | Lock |
 | --- | --- | ----- | ---- |
-| GET | [ссылка](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin-content/graphs/stage2/getCpuConcurrentServer.html) | [ссылка](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin-content/graphs/stage2/getAllocConcurrentServer.html) | [ссылка](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin-content/graphs/stage2/getLockConcurrentServer.html) |   
-| PUT | [ссылка](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin-content/graphs/stage2/putCpuConcurrentServer.html) | [ссылка](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin-content/graphs/stage2/putAllocConcurrentServer.html) | [ссылка](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin-content/graphs/stage2/putLockConcurrentServer.html) |
+| GET | [ссылка](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin-content/graphs/stage3/getCpuConcurrentServer.html) | [ссылка](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin-content/graphs/stage3/getAllocConcurrentServer.html) | [ссылка](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin-content/graphs/stage3/getLockConcurrentServer.html) |   
+| PUT | [ссылка](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin-content/graphs/stage3/putCpuConcurrentServer.html) | [ссылка](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin-content/graphs/stage3/putAllocConcurrentServer.html) | [ссылка](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin-content/graphs/stage3/putLockConcurrentServer.html) |
 
 ## Выводы
 
+* До начала выполнения работы думалось, что количество вызовов NativeSelector.epollWait должно уменьшиться, поскольку теперь селекторы должно обрабатывать немного больше потоков, но это значение практически не поменялось.   
+* Из-за этого после профилировки возникло такое ощущение, что новые потоки вообще не поднимались, хотя в пуле разрешено до 32 потоков
+* По графам блокировок и по графам процессора, однако, видно, что потоки постоянно блокируются при попытке взять задачу из ArrayBlockingQueue
