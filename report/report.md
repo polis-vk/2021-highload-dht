@@ -1,9 +1,8 @@
-./profiler.sh -d 80 -e lock -f hw2lock_get.html 712  
-./profiler.sh -d 80 -e lock -f hw2alloc_get.html 712  
-./profiler.sh -d 80 -e lock -f hw2cpu_get.html 712
+./profiler.sh -d 90 -e lock -f hw3lock_put.html 712  
+./profiler.sh -d 90 -e alloc -f hw3alloc_put.html 712  
+./profiler.sh -d 90 -f hw3cpu_put.html 712
 
 wrk -c 64 -t 3 -d 1m -R 10000 -L -s get.lua http://localhost:8080
-
 
 wrk -c 120 -t 3 -d 2m -R 20000 -L -s put.lua http://localhost:8080  
 Running 2m test @ http://localhost:8080  
@@ -11,21 +10,21 @@ Running 2m test @ http://localhost:8080
 Thread calibration: mean lat.: 5.503ms, rate sampling interval: 25ms  
 Thread calibration: mean lat.: 6.219ms, rate sampling interval: 25ms  
 Thread calibration: mean lat.: 8.923ms, rate sampling interval: 28ms  
-Thread Stats   Avg      Stdev     Max   +/- Stdev  
-Latency     2.40ms    3.10ms  60.38ms   90.78%  
-Req/Sec     6.81k     1.04k   17.52k    81.71%  
+Thread Stats Avg Stdev Max +/- Stdev  
+Latency 2.40ms 3.10ms 60.38ms 90.78%  
+Req/Sec 6.81k 1.04k 17.52k 81.71%  
 Latency Distribution (HdrHistogram - Recorded Latency)  
-50.000%    1.49ms  
-75.000%    2.32ms  
-90.000%    5.15ms  
-99.000%   15.56ms  
-99.900%   31.49ms  
-99.990%   47.90ms  
-99.999%   57.06ms  
-100.000%   60.42ms  
+50.000% 1.49ms  
+75.000% 2.32ms  
+90.000% 5.15ms  
+99.000% 15.56ms  
+99.900% 31.49ms  
+99.990% 47.90ms  
+99.999% 57.06ms  
+100.000% 60.42ms
 
 Detailed Percentile spectrum:  
-Value   Percentile   TotalCount 1/(1-Percentile)  
+Value Percentile TotalCount 1/(1-Percentile)
 
        0.058     0.000000            1         1.00
        0.614     0.100000       219676         1.11
@@ -135,22 +134,23 @@ Value   Percentile   TotalCount 1/(1-Percentile)
       60.383     1.000000      2195952   2097152.00
       60.415     1.000000      2195953   2330168.89
       60.415     1.000000      2195953          inf
-[Mean    =        2.399, StdDeviation   =        3.096]  
-[Max     =       60.384, Total count    =      2195953]  
-[Buckets =           27, SubBuckets     =         2048]  
+
+[Mean = 2.399, StdDeviation = 3.096]  
+[Max = 60.384, Total count = 2195953]  
+[Buckets = 27, SubBuckets = 2048]
 ----------------------------------------------------------  
 2392009 requests in 2.00m, 152.84MB read  
 Requests/sec:  19933.65  
-Transfer/sec:      1.27MB        
+Transfer/sec:      1.27MB
 
 ----
 
 
-root@DESKTOP-E01FUOQ:~/async-profiler# ./profiler.sh -d 80 -f hw2cpu_get.html 4307  
-root@DESKTOP-E01FUOQ:~/async-profiler# ./profiler.sh -d 80 -e alloc -f hw2alloc_get.html 4307  
-root@DESKTOP-E01FUOQ:~/async-profiler# ./profiler.sh -d 80 -e lock -f hw2lock_get.html 4307  
+./profiler.sh -d 90 -e lock -f hw3lock_get.html 712  
+./profiler.sh -d 90 -e alloc -f hw3alloc_get.html 712  
+./profiler.sh -d 90 -f hw3cpu_get.html 712
 
-#GET
+# GET
 
 По наполненной базе
 
@@ -160,21 +160,21 @@ Running 2m test @ http://localhost:8080
 Thread calibration: mean lat.: 99.163ms, rate sampling interval: 688ms  
 Thread calibration: mean lat.: 98.822ms, rate sampling interval: 688ms  
 Thread calibration: mean lat.: 106.299ms, rate sampling interval: 711ms  
-Thread Stats   Avg      Stdev     Max   +/- Stdev  
-Latency     5.10ms    7.53ms  51.04ms   86.15%  
-Req/Sec     6.67k    92.75     7.02k    79.24%  
+Thread Stats Avg Stdev Max +/- Stdev  
+Latency 5.10ms 7.53ms 51.04ms 86.15%  
+Req/Sec 6.67k 92.75 7.02k 79.24%  
 Latency Distribution (HdrHistogram - Recorded Latency)  
-50.000%    1.78ms  
-75.000%    4.50ms  
-90.000%   16.67ms  
-99.000%   33.63ms  
-99.900%   42.59ms  
-99.990%   47.07ms  
-99.999%   50.21ms  
-100.000%   51.07ms  
+50.000% 1.78ms  
+75.000% 4.50ms  
+90.000% 16.67ms  
+99.000% 33.63ms  
+99.900% 42.59ms  
+99.990% 47.07ms  
+99.999% 50.21ms  
+100.000% 51.07ms
 
 Detailed Percentile spectrum:  
-Value   Percentile   TotalCount 1/(1-Percentile)  
+Value Percentile TotalCount 1/(1-Percentile)
 
        0.100     0.000000            1         1.00
        0.799     0.100000       219727         1.11
@@ -284,26 +284,26 @@ Value   Percentile   TotalCount 1/(1-Percentile)
       51.007     1.000000      2196336   2097152.00
       51.071     1.000000      2196337   2330168.89
       51.071     1.000000      2196337          inf
-[Mean    =        5.104, StdDeviation   =        7.526]  
-[Max     =       51.040, Total count    =      2196337]  
-[Buckets =           27, SubBuckets     =         2048]  
+
+[Mean = 5.104, StdDeviation = 7.526]  
+[Max = 51.040, Total count = 2196337]  
+[Buckets = 27, SubBuckets = 2048]
 ----------------------------------------------------------
 2398078 requests in 2.00m, 168.89MB read  
 Requests/sec:  19983.84  
-Transfer/sec:      1.41MB  
+Transfer/sec:      1.41MB
 
-#ВЫВОДЫ:
+# ВЫВОДЫ:
 
-[cpu_put]()
-[alloc_put]()
-[lock_put]()
+[cpu_put](hw3cpu_put.html)
+[alloc_put](hw3alloc_put.html)
+[lock_put](hw3lock_put.html)
 
-##Put:
+## Put:
 
+[cpu_get](hw3cpu_get.html)
+[alloc_get](hw3alloc_get.html)
+[lock_get](hw3lock_get.html)
 
-
-[cpu_get]()
-[alloc_get]()
-[lock_get]()
-##Get:
+## Get:
 
