@@ -101,7 +101,7 @@ public class LsmDAO implements DAO {
 
     private Storage doFlush() throws IOException {
         while (true) {
-            Storage storageToFlush = LsmDAO.this.storage.get();
+            Storage storageToFlush = this.storage.get();
             List<MemTable> storageToWrite = storageToFlush.memTablesToFlush;
             if (storageToWrite.isEmpty()) {
                 return storageToFlush;
@@ -109,7 +109,7 @@ public class LsmDAO implements DAO {
 
             SSTable newTable = flushAll(storageToFlush);
 
-            LsmDAO.this.storage.updateAndGet(currentValue -> currentValue.afterFlush(storageToWrite, newTable));
+            this.storage.updateAndGet(currentValue -> currentValue.afterFlush(storageToWrite, newTable));
         }
     }
 

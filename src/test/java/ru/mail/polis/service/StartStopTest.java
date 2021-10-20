@@ -49,6 +49,7 @@ import static org.junit.jupiter.api.Assertions.*;
 class StartStopTest extends TestBase {
     private static final long TIMEOUT_MS = TimeUnit.SECONDS.toMillis(1);
     private static final Duration TIMEOUT = Duration.ofMillis(TIMEOUT_MS * 2);
+    private static final int SIZE_QUEUE = 500;
 
     private int port;
     private Path data;
@@ -79,7 +80,7 @@ class StartStopTest extends TestBase {
         data = FileUtils.createTempDirectory();
         dao = DAOFactory.create(new DAOConfig(data));
         port = randomPort();
-        kvService = ServiceFactory.create(port, dao);
+        kvService = ServiceFactory.create(port, dao, SIZE_QUEUE);
         reset();
     }
 

@@ -46,13 +46,14 @@ class SingleNodeTest extends TestBase {
     private static int port;
     private static Service storage;
     private static HttpClient client;
+    private static final int SIZE_QUEUE = 500;
 
     @BeforeAll
     static void beforeAll() throws Exception {
         port = randomPort();
         daoConfig = new DAOConfig(FileUtils.createTempDirectory());
         dao = DAOFactory.create(daoConfig);
-        storage = ServiceFactory.create(port, dao);
+        storage = ServiceFactory.create(port, dao, SIZE_QUEUE);
         storage.start();
         Thread.sleep(TimeUnit.SECONDS.toMillis(1));
         reset();
@@ -240,7 +241,7 @@ class SingleNodeTest extends TestBase {
             java.nio.file.Files.createDirectory(daoConfig.dir);
             dao = DAOFactory.create(daoConfig);
             port = randomPort();
-            storage = ServiceFactory.create(port, dao);
+            storage = ServiceFactory.create(port, dao, SIZE_QUEUE);
             storage.start();
             Thread.sleep(TimeUnit.SECONDS.toMillis(1));
             reset();

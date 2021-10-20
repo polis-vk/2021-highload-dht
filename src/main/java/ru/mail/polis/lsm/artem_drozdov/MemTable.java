@@ -12,16 +12,21 @@ import java.util.concurrent.atomic.AtomicLong;
 
 class MemTable {
 
-    private final NavigableMap<ByteBuffer, Record> internalStorage = new ConcurrentSkipListMap<>();
-    private final AtomicLong size = new AtomicLong();
+    private final NavigableMap<ByteBuffer, Record> internalStorage;
+    private final AtomicLong size;
+
+    public MemTable() {
+        this.internalStorage = new ConcurrentSkipListMap<>();
+        this.size = new AtomicLong();
+    }
 
     public long putAndGetSize(Record record) {
-        Record prev = internalStorage.put(record.getKey(), record);
+        internalStorage.put(record.getKey(), record);
         return size.addAndGet(sizeOf(record));
     }
 
     private int sizeOf(Record record) {
-        return record == null ? 0 : SSTable.sizeOf(record);
+        return SSTable.sizeOf(record);
     }
 
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {

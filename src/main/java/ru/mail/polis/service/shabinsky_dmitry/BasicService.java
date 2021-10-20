@@ -12,6 +12,7 @@ import ru.mail.polis.lsm.Record;
 import ru.mail.polis.service.Service;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
@@ -23,15 +24,15 @@ import java.util.concurrent.TimeUnit;
 
 public final class BasicService extends HttpServer implements Service {
 
-    private final static String STATUS_PATH = "/v0/status";
-    private final static String ENTITY_PATH = "/v0/entity";
+    public final static String STATUS_PATH = "/v0/status";
+    public final static String ENTITY_PATH = "/v0/entity";
 
-    private final static Response BAD_RESP = new Response(Response.BAD_REQUEST, Response.EMPTY);
-    private final static Response UNAVAILABLE_RESP = new Response(Response.SERVICE_UNAVAILABLE, Response.EMPTY);
+    private final Response badResponse = new Response(Response.BAD_REQUEST, Response.EMPTY);
+    private final Response unavailableResponse = new Response(Response.SERVICE_UNAVAILABLE, Response.EMPTY);
 
     private final DAO dao;
     private final BlockingQueue<Runnable> workQueue;
-    private final int LENGTH_WORK_QUEUE;
+    private final int lengthQueue;
     private final ExecutorService executor;
 
     public BasicService(final int port, final DAO dao, final int lengthWorkQueue) throws IOException {
@@ -39,8 +40,8 @@ public final class BasicService extends HttpServer implements Service {
         this.dao = dao;
 
         int coreSize = Runtime.getRuntime().availableProcessors();
-        this.LENGTH_WORK_QUEUE = lengthWorkQueue;
-        this.workQueue = new LinkedBlockingQueue<>(LENGTH_WORK_QUEUE);
+        this.lengthQueue = lengthWorkQueue;
+        this.workQueue = new LinkedBlockingQueue<>(lengthQueue);
         this.executor = new ThreadPoolExecutor(
             coreSize,
             coreSize,
@@ -88,30 +89,42 @@ public final class BasicService extends HttpServer implements Service {
 
         final String path = request.getPath();
         switch (path) {
+
+            //without exec block
             case STATUS_PATH:
                 sendResponse(session, status());
                 break;
+
+            // with exec block
             case ENTITY_PATH:
                 if (isQueueFull()) {
-                    sendResponse(session, UNAVAILABLE_RESP);
-                    return;
+                    sendResponse(session, unavailableResponse);
+                    break;
                 }
-                executor.execute(() -> sendResponse(session, entity(request, request.getParameter("id"))));
+
+                String id = request.getParameter("id=");
+                if (id == null) {
+                    sendResponse(session, badResponse);
+                    break;
+                }
+
+                executor.execute(() -> sendResponse(session, entity(request, id)));
                 break;
+
             default:
-                sendResponse(session, BAD_RESP);
+                sendResponse(session, badResponse);
         }
     }
 
     private boolean isQueueFull() {
-        return workQueue.size() >= LENGTH_WORK_QUEUE;
+        return workQueue.size() >= lengthQueue;
     }
 
     private void sendResponse(HttpSession session, Response response) {
         try {
             session.sendResponse(response);
         } catch (IOException e) {
-            e.printStackTrace();
+            throw new UncheckedIOException(e);
         }
     }
 
