@@ -43,7 +43,8 @@ public final class ServiceFactory {
      */
     public static Service create(
             final int port,
-            final DAO dao) throws IOException {
+            final DAO dao,
+            final int lengthWorkQueue) throws IOException {
         if (Runtime.getRuntime().maxMemory() > MAX_HEAP) {
             throw new IllegalStateException("The heap is too big. Consider setting Xmx.");
         }
@@ -54,6 +55,6 @@ public final class ServiceFactory {
 
         Objects.requireNonNull(dao);
 
-        return new BasicService(port, dao);
+        return new BasicService(port, dao, lengthWorkQueue);
     }
 }

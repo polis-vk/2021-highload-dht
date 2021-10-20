@@ -4,7 +4,6 @@ import one.nio.http.HttpServer;
 import one.nio.http.HttpServerConfig;
 import one.nio.http.HttpSession;
 import one.nio.http.Param;
-import one.nio.http.Path;
 import one.nio.http.Request;
 import one.nio.http.Response;
 import one.nio.server.AcceptorConfig;
@@ -16,17 +15,39 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 public final class BasicService extends HttpServer implements Service {
 
-    private final DAO dao;
+    private final static String STATUS_PATH = "/v0/status";
+    private final static String ENTITY_PATH = "/v0/entity";
 
-    public BasicService(
-        final int port,
-        final DAO dao
-    ) throws IOException {
+    private final static Response BAD_RESP = new Response(Response.BAD_REQUEST, Response.EMPTY);
+    private final static Response UNAVAILABLE_RESP = new Response(Response.SERVICE_UNAVAILABLE, Response.EMPTY);
+
+    private final DAO dao;
+    private final BlockingQueue<Runnable> workQueue;
+    private final int LENGTH_WORK_QUEUE;
+    private final ExecutorService executor;
+
+    public BasicService(final int port, final DAO dao, final int lengthWorkQueue) throws IOException {
         super(from(port));
         this.dao = dao;
+
+        int coreSize = Runtime.getRuntime().availableProcessors();
+        this.LENGTH_WORK_QUEUE = lengthWorkQueue;
+        this.workQueue = new LinkedBlockingQueue<>(LENGTH_WORK_QUEUE);
+        this.executor = new ThreadPoolExecutor(
+            coreSize,
+            coreSize,
+            0L,
+            TimeUnit.MILLISECONDS,
+            this.workQueue
+        );
     }
 
     private static HttpServerConfig from(final int port) {
@@ -38,12 +59,10 @@ public final class BasicService extends HttpServer implements Service {
         return config;
     }
 
-    @Path("/v0/status")
     public Response status() {
         return Response.ok("I'm ok");
     }
 
-    @Path("/v0/entity")
     public Response entity(
         final Request request,
         @Param(value = "id", required = true) final String id
@@ -62,7 +81,38 @@ public final class BasicService extends HttpServer implements Service {
             default:
                 return new Response(Response.METHOD_NOT_ALLOWED, "Wrong method".getBytes(StandardCharsets.UTF_8));
         }
+    }
 
+    @Override
+    public void handleRequest(Request request, HttpSession session) {
+
+        final String path = request.getPath();
+        switch (path) {
+            case STATUS_PATH:
+                sendResponse(session, status());
+                break;
+            case ENTITY_PATH:
+                if (isQueueFull()) {
+                    sendResponse(session, UNAVAILABLE_RESP);
+                    return;
+                }
+                executor.execute(() -> sendResponse(session, entity(request, request.getParameter("id"))));
+                break;
+            default:
+                sendResponse(session, BAD_RESP);
+        }
+    }
+
+    private boolean isQueueFull() {
+        return workQueue.size() >= LENGTH_WORK_QUEUE;
+    }
+
+    private void sendResponse(HttpSession session, Response response) {
+        try {
+            session.sendResponse(response);
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
     }
 
     @Override
