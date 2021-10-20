@@ -106,7 +106,7 @@ public class SSTable implements Closeable {
     }
 
     public static SSTable compact(Path dir, Iterator<Record> records) throws IOException {
-        Path compaction = dir.resolve("compaction");
+        Path compaction = dir.resolve(COMPACTION_FILE_NAME);
         writeImpl(records, compaction);
 
         for (int i = 0; ; i++) {

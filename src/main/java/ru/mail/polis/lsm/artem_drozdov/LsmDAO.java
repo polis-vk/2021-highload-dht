@@ -8,7 +8,6 @@ import ru.mail.polis.lsm.Record;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -93,7 +92,6 @@ public class LsmDAO implements DAO {
                     LOGGER.info("Flush finished");
                 } catch (IOException e) {
                     LOGGER.error("Fail to flush", e);
-                    throw new UncheckedIOException(e);
                 }
             });
         }
@@ -120,7 +118,6 @@ public class LsmDAO implements DAO {
                 performCompact(doFlush());
             } catch (IOException e) {
                 LOGGER.error("can't compact", e);
-                throw new UncheckedIOException(e);
             }
         });
     }
