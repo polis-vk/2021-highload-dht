@@ -1,0 +1,700 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8'>
+<style>
+	body {margin: 0; padding: 10px; background-color: #ffffff}
+	h1 {margin: 5px 0 0 0; font-size: 18px; font-weight: normal; text-align: center}
+	header {margin: -24px 0 5px 0; line-height: 24px}
+	button {font: 12px sans-serif; cursor: pointer}
+	p {margin: 5px 0 5px 0}
+	a {color: #0366d6}
+	#hl {position: absolute; display: none; overflow: hidden; white-space: nowrap; pointer-events: none; background-color: #ffffe0; outline: 1px solid #ffc000; height: 15px}
+	#hl span {padding: 0 3px 0 3px}
+	#status {overflow: hidden; white-space: nowrap}
+	#match {overflow: hidden; white-space: nowrap; display: none; float: right; text-align: right}
+	#reset {cursor: pointer}
+</style>
+</head>
+<body style='font: 12px Verdana, sans-serif'>
+<h1>Allocation profile</h1>
+<header style='text-align: left'><button id='reverse' title='Reverse'>&#x1f53b;</button>&nbsp;&nbsp;<button id='search' title='Search'>&#x1f50d;</button></header>
+<header style='text-align: right'>Produced by <a href='https://github.com/jvm-profiling-tools/async-profiler'>async-profiler</a></header>
+<canvas id='canvas' style='width: 100%; height: 928px'></canvas>
+<div id='hl'><span></span></div>
+<p id='match'>Matched: <span id='matchval'></span> <span id='reset' title='Clear'>&#x274c;</span></p>
+<p id='status'>&nbsp;</p>
+<script>
+	// Copyright 2020 Andrei Pangin
+	// Licensed under the Apache License, Version 2.0.
+	'use strict';
+	var root, rootLevel, px, pattern;
+	var reverse = false;
+	const levels = Array(58);
+	for (let h = 0; h < levels.length; h++) {
+		levels[h] = [];
+	}
+
+	const canvas = document.getElementById('canvas');
+	const c = canvas.getContext('2d');
+	const hl = document.getElementById('hl');
+	const status = document.getElementById('status');
+
+	const canvasWidth = canvas.offsetWidth;
+	const canvasHeight = canvas.offsetHeight;
+	canvas.style.width = canvasWidth + 'px';
+	canvas.width = canvasWidth * (devicePixelRatio || 1);
+	canvas.height = canvasHeight * (devicePixelRatio || 1);
+	if (devicePixelRatio) c.scale(devicePixelRatio, devicePixelRatio);
+	c.font = document.body.style.font;
+
+	const palette = [
+		[0x50e150, 30, 30, 30],
+		[0x50bebe, 30, 30, 30],
+		[0xe17d00, 30, 30,  0],
+		[0xc8c83c, 30, 30, 10],
+		[0xe15a5a, 30, 40, 40],
+	];
+
+	function getColor(p) {
+		const v = Math.random();
+		return '#' + (p[0] + ((p[1] * v) << 16 | (p[2] * v) << 8 | (p[3] * v))).toString(16);
+	}
+
+	function f(level, left, width, type, title) {
+		levels[level].push({left: left, width: width, color: getColor(palette[type]), title: title});
+	}
+
+	function samples(n) {
+		return n === 1 ? '1 sample' : n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',') + ' samples';
+	}
+
+	function pct(a, b) {
+		return a >= b ? '100' : (100 * a / b).toFixed(2);
+	}
+
+	function findFrame(frames, x) {
+		let left = 0;
+		let right = frames.length - 1;
+
+		while (left <= right) {
+			const mid = (left + right) >>> 1;
+			const f = frames[mid];
+
+			if (f.left > x) {
+				right = mid - 1;
+			} else if (f.left + f.width <= x) {
+				left = mid + 1;
+			} else {
+				return f;
+			}
+		}
+
+		if (frames[left] && (frames[left].left - x) * px < 0.5) return frames[left];
+		if (frames[right] && (x - (frames[right].left + frames[right].width)) * px < 0.5) return frames[right];
+
+		return null;
+	}
+
+	function search(r) {
+		if (r && (r = prompt('Enter regexp to search:', '')) === null) {
+			return;
+		}
+
+		pattern = r ? RegExp(r) : undefined;
+		const matched = render(root, rootLevel);
+		document.getElementById('matchval').textContent = pct(matched, root.width) + '%';
+		document.getElementById('match').style.display = r ? 'inherit' : 'none';
+	}
+
+	function render(newRoot, newLevel) {
+		if (root) {
+			c.fillStyle = '#ffffff';
+			c.fillRect(0, 0, canvasWidth, canvasHeight);
+		}
+
+		root = newRoot || levels[0][0];
+		rootLevel = newLevel || 0;
+		px = canvasWidth / root.width;
+
+		const x0 = root.left;
+		const x1 = x0 + root.width;
+		const marked = [];
+
+		function mark(f) {
+			return marked[f.left] >= f.width || (marked[f.left] = f.width);
+		}
+
+		function totalMarked() {
+			let total = 0;
+			let left = 0;
+			Object.keys(marked).sort(function(a, b) { return a - b; }).forEach(function(x) {
+				if (+x >= left) {
+					total += marked[x];
+					left = +x + marked[x];
+				}
+			});
+			return total;
+		}
+
+		function drawFrame(f, y, alpha) {
+			if (f.left < x1 && f.left + f.width > x0) {
+				c.fillStyle = pattern && f.title.match(pattern) && mark(f) ? '#ee00ee' : f.color;
+				c.fillRect((f.left - x0) * px, y, f.width * px, 15);
+
+				if (f.width * px >= 21) {
+					const chars = Math.floor(f.width * px / 7);
+					const title = f.title.length <= chars ? f.title : f.title.substring(0, chars - 2) + '..';
+					c.fillStyle = '#000000';
+					c.fillText(title, Math.max(f.left - x0, 0) * px + 3, y + 12, f.width * px - 6);
+				}
+
+				if (alpha) {
+					c.fillStyle = 'rgba(255, 255, 255, 0.5)';
+					c.fillRect((f.left - x0) * px, y, f.width * px, 15);
+				}
+			}
+		}
+
+		for (let h = 0; h < levels.length; h++) {
+			const y = reverse ? h * 16 : canvasHeight - (h + 1) * 16;
+			const frames = levels[h];
+			for (let i = 0; i < frames.length; i++) {
+				drawFrame(frames[i], y, h < rootLevel);
+			}
+		}
+
+		return totalMarked();
+	}
+
+	canvas.onmousemove = function() {
+		const h = Math.floor((reverse ? event.offsetY : (canvasHeight - event.offsetY)) / 16);
+		if (h >= 0 && h < levels.length) {
+			const f = findFrame(levels[h], event.offsetX / px + root.left);
+			if (f) {
+				hl.style.left = (Math.max(f.left - root.left, 0) * px + canvas.offsetLeft) + 'px';
+				hl.style.width = (Math.min(f.width, root.width) * px) + 'px';
+				hl.style.top = ((reverse ? h * 16 : canvasHeight - (h + 1) * 16) + canvas.offsetTop) + 'px';
+				hl.firstChild.textContent = f.title;
+				hl.style.display = 'block';
+				canvas.title = f.title + '\n(' + samples(f.width) + ', ' + pct(f.width, levels[0][0].width) + '%)';
+				canvas.style.cursor = 'pointer';
+				canvas.onclick = function() {
+					if (f != root) {
+						render(f, h);
+						canvas.onmousemove();
+					}
+				};
+				status.textContent = 'Function: ' + canvas.title;
+				return;
+			}
+		}
+		canvas.onmouseout();
+	}
+
+	canvas.onmouseout = function() {
+		hl.style.display = 'none';
+		status.textContent = '\xa0';
+		canvas.title = '';
+		canvas.style.cursor = '';
+		canvas.onclick = '';
+	}
+
+	document.getElementById('reverse').onclick = function() {
+		reverse = !reverse;
+		render();
+	}
+
+	document.getElementById('search').onclick = function() {
+		search(true);
+	}
+
+	document.getElementById('reset').onclick = function() {
+		search(false);
+	}
+
+	window.onkeydown = function() {
+		if (event.ctrlKey && event.keyCode === 70) {
+			event.preventDefault();
+			search(true);
+		} else if (event.keyCode === 27) {
+			search(false);
+		}
+	}
+f(0,0,69898,4,'all')
+f(1,0,40481,0,'java/util/concurrent/ForkJoinWorkerThread.run')
+f(2,0,40481,0,'java/util/concurrent/ForkJoinPool.runWorker')
+f(3,0,40481,0,'java/util/concurrent/ForkJoinPool.scan')
+f(4,0,40481,0,'java/util/concurrent/ForkJoinPool$WorkQueue.topLevelExec')
+f(5,0,40481,0,'java/util/concurrent/ForkJoinTask.doExec')
+f(6,0,40481,0,'java/util/concurrent/ForkJoinTask$RunnableExecuteAction.exec')
+f(7,0,40481,0,'ru/mail/polis/service/avightclav/BasicService$$Lambda$67/1320138665.run')
+f(8,0,40481,0,'ru/mail/polis/service/avightclav/BasicService.lambda$handleRequest$1')
+f(9,0,1107,0,'one/nio/http/HttpSession.sendResponse')
+f(10,0,1107,0,'one/nio/http/HttpSession.writeResponse')
+f(11,0,1082,0,'one/nio/http/Response.toBytes')
+f(12,0,1082,0,'one/nio/util/ByteArrayBuilder.<init>')
+f(13,0,1082,1,'byte[]')
+f(11,1082,25,0,'one/nio/net/Session.write')
+f(12,1082,25,1,'one.nio.net.Session$ArrayQueueItem')
+f(9,1107,53,0,'one/nio/http/Request.getParameter')
+f(10,1107,53,0,'one/nio/http/Request.getParameter')
+f(11,1107,53,0,'java/lang/String.substring')
+f(12,1107,53,0,'java/lang/StringLatin1.newString')
+f(13,1107,14,1,'java.lang.String')
+f(13,1121,39,0,'java/util/Arrays.copyOfRange')
+f(14,1121,39,1,'byte[]')
+f(9,1160,598,0,'one/nio/http/Request.getPath')
+f(10,1160,598,0,'java/lang/String.substring')
+f(11,1160,598,0,'java/lang/StringLatin1.newString')
+f(12,1160,579,1,'java.lang.String')
+f(12,1739,19,0,'java/util/Arrays.copyOfRange')
+f(13,1739,19,1,'byte[]')
+f(9,1758,38723,0,'ru/mail/polis/service/avightclav/BasicService.get')
+f(10,1758,29,0,'java/lang/String.getBytes')
+f(11,1758,29,0,'java/lang/StringCoding.encode')
+f(12,1758,29,0,'java/lang/StringCoding.encodeUTF8')
+f(13,1758,29,0,'java/util/Arrays.copyOf')
+f(14,1758,29,1,'byte[]')
+f(10,1787,44,0,'java/nio/ByteBuffer.wrap')
+f(11,1787,44,0,'java/nio/ByteBuffer.wrap')
+f(12,1787,44,1,'java.nio.HeapByteBuffer')
+f(10,1831,22,1,'one.nio.http.Response')
+f(10,1853,101,0,'one/nio/http/Response.<init>')
+f(11,1853,43,1,'byte[]')
+f(11,1896,33,1,'java.lang.String[]')
+f(11,1929,25,1,'java.lang.String')
+f(10,1954,82,0,'ru/mail/polis/lsm/DAO.nextKey')
+f(11,1954,82,0,'java/nio/ByteBuffer.allocate')
+f(12,1954,42,1,'java.nio.HeapByteBuffer')
+f(12,1996,40,0,'java/nio/HeapByteBuffer.<init>')
+f(13,1996,40,1,'byte[]')
+f(10,2036,78,0,'ru/mail/polis/lsm/Record.getValue')
+f(11,2036,78,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(12,2036,78,0,'java/nio/DirectByteBufferR.duplicate')
+f(13,2036,78,1,'java.nio.DirectByteBufferR')
+f(10,2114,37386,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO.range')
+f(11,2114,37386,0,'ru/mail/polis/lsm/artem_drozdov/Storage.range')
+f(12,2114,22,1,'ru.mail.polis.lsm.artem_drozdov.util.RecordIterators$MergingIterator')
+f(12,2136,43,1,'ru.mail.polis.lsm.artem_drozdov.util.RecordIterators$PeekingIterator')
+f(12,2179,483,0,'ru/mail/polis/lsm/artem_drozdov/Storage.map')
+f(13,2179,23,0,'java/lang/invoke/Invokers$Holder.linkToTargetMethod')
+f(14,2179,23,0,'java/lang/invoke/DirectMethodHandle$Holder.invokeStatic')
+f(15,2179,23,0,'ru/mail/polis/lsm/artem_drozdov/Storage$$Lambda$70/792725860.get$Lambda')
+f(16,2179,23,1,'ru.mail.polis.lsm.artem_drozdov.Storage$$Lambda$70')
+f(13,2202,90,0,'java/util/Collection.stream')
+f(14,2202,41,0,'java/util/TreeMap$Values.spliterator')
+f(15,2202,41,1,'java.util.TreeMap$ValueSpliterator')
+f(14,2243,49,0,'java/util/stream/StreamSupport.stream')
+f(15,2243,49,1,'java.util.stream.ReferencePipeline$Head')
+f(13,2292,16,0,'java/util/concurrent/ConcurrentSkipListMap$SubMap.values')
+f(14,2292,16,1,'java.util.concurrent.ConcurrentSkipListMap$Values')
+f(13,2308,27,0,'java/util/concurrent/ConcurrentSkipListMap$Values.iterator')
+f(14,2308,27,1,'java.util.concurrent.ConcurrentSkipListMap$SubMap$SubMapValueIterator')
+f(13,2335,44,0,'java/util/concurrent/ConcurrentSkipListMap.subMap')
+f(14,2335,44,0,'java/util/concurrent/ConcurrentSkipListMap.subMap')
+f(15,2335,44,0,'java/util/concurrent/ConcurrentSkipListMap.subMap')
+f(16,2335,44,1,'java.util.concurrent.ConcurrentSkipListMap$SubMap')
+f(13,2379,36,0,'java/util/stream/Collectors.toList')
+f(14,2379,36,1,'java.util.stream.Collectors$CollectorImpl')
+f(13,2415,115,0,'java/util/stream/ReferencePipeline.collect')
+f(14,2415,82,0,'java/util/stream/AbstractPipeline.evaluate')
+f(15,2415,82,0,'java/util/stream/ReduceOps$ReduceOp.evaluateSequential')
+f(16,2415,47,0,'java/util/stream/AbstractPipeline.wrapAndCopyInto')
+f(17,2415,22,0,'java/util/stream/AbstractPipeline.copyInto')
+f(18,2415,22,0,'java/util/stream/Sink$ChainedReference.begin')
+f(19,2415,22,0,'java/util/stream/ReduceOps$3ReducingSink.begin')
+f(20,2415,22,0,'java/util/stream/Collectors$$Lambda$78/1984050732.get')
+f(21,2415,22,1,'java.util.ArrayList')
+f(17,2437,25,0,'java/util/stream/AbstractPipeline.wrapSink')
+f(18,2437,25,0,'java/util/stream/ReferencePipeline$3.opWrapSink')
+f(19,2437,25,1,'java.util.stream.ReferencePipeline$3$1')
+f(16,2462,35,0,'java/util/stream/ReduceOps$3.makeSink')
+f(17,2462,35,0,'java/util/stream/ReduceOps$3.makeSink')
+f(18,2462,35,1,'java.util.stream.ReduceOps$3ReducingSink')
+f(14,2497,33,0,'java/util/stream/ReduceOps.makeRef')
+f(15,2497,33,1,'java.util.stream.ReduceOps$3')
+f(13,2530,68,0,'java/util/stream/ReferencePipeline.map')
+f(14,2530,68,1,'java.util.stream.ReferencePipeline$3')
+f(13,2598,20,1,'ru.mail.polis.lsm.artem_drozdov.util.RecordIterators$MergingIterator')
+f(13,2618,44,1,'ru.mail.polis.lsm.artem_drozdov.util.RecordIterators$PeekingIterator')
+f(12,2662,36158,0,'ru/mail/polis/lsm/artem_drozdov/Storage.sstableRanges')
+f(13,2662,25,1,'java.util.ArrayList')
+f(13,2687,787,0,'java/util/ArrayList.<init>')
+f(14,2687,787,1,'java.lang.Object[]')
+f(13,3474,15442,0,'ru/mail/polis/lsm/artem_drozdov/SSTable.range')
+f(14,3474,10947,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(15,3474,10947,0,'java/nio/DirectByteBufferR.duplicate')
+f(16,3474,10947,1,'java.nio.DirectByteBufferR')
+f(14,14421,4495,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators.range')
+f(15,14421,4495,1,'ru.mail.polis.lsm.artem_drozdov.util.RecordIterators$1')
+f(13,18916,19904,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators.merge')
+f(14,18916,70,0,'java/util/ArrayList.subList')
+f(15,18916,70,1,'java.util.ArrayList$SubList')
+f(14,18986,22,1,'ru.mail.polis.lsm.artem_drozdov.util.RecordIterators$MergingIterator')
+f(14,19008,49,1,'ru.mail.polis.lsm.artem_drozdov.util.RecordIterators$PeekingIterator')
+f(14,19057,19763,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators.merge')
+f(15,19057,117,0,'java/util/ArrayList$SubList.subList')
+f(16,19057,117,1,'java.util.ArrayList$SubList')
+f(15,19174,64,1,'ru.mail.polis.lsm.artem_drozdov.util.RecordIterators$MergingIterator')
+f(15,19238,102,1,'ru.mail.polis.lsm.artem_drozdov.util.RecordIterators$PeekingIterator')
+f(15,19340,19480,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators.merge')
+f(16,19340,243,0,'java/util/ArrayList$SubList.subList')
+f(17,19340,243,1,'java.util.ArrayList$SubList')
+f(16,19583,103,1,'ru.mail.polis.lsm.artem_drozdov.util.RecordIterators$MergingIterator')
+f(16,19686,200,1,'ru.mail.polis.lsm.artem_drozdov.util.RecordIterators$PeekingIterator')
+f(16,19886,18934,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators.merge')
+f(17,19886,498,0,'java/util/ArrayList$SubList.subList')
+f(18,19886,498,1,'java.util.ArrayList$SubList')
+f(17,20384,213,1,'ru.mail.polis.lsm.artem_drozdov.util.RecordIterators$MergingIterator')
+f(17,20597,389,1,'ru.mail.polis.lsm.artem_drozdov.util.RecordIterators$PeekingIterator')
+f(17,20986,17834,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators.merge')
+f(18,20986,1041,0,'java/util/ArrayList$SubList.subList')
+f(19,20986,1041,1,'java.util.ArrayList$SubList')
+f(18,22027,366,1,'ru.mail.polis.lsm.artem_drozdov.util.RecordIterators$MergingIterator')
+f(18,22393,716,1,'ru.mail.polis.lsm.artem_drozdov.util.RecordIterators$PeekingIterator')
+f(18,23109,15711,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators.merge')
+f(19,23109,1955,0,'java/util/ArrayList$SubList.subList')
+f(20,23109,1955,1,'java.util.ArrayList$SubList')
+f(19,25064,720,1,'ru.mail.polis.lsm.artem_drozdov.util.RecordIterators$MergingIterator')
+f(19,25784,1543,1,'ru.mail.polis.lsm.artem_drozdov.util.RecordIterators$PeekingIterator')
+f(19,27327,11493,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators.merge')
+f(20,27327,3313,0,'java/util/ArrayList$SubList.subList')
+f(21,27327,3313,1,'java.util.ArrayList$SubList')
+f(20,30640,1477,1,'ru.mail.polis.lsm.artem_drozdov.util.RecordIterators$MergingIterator')
+f(20,32117,3052,1,'ru.mail.polis.lsm.artem_drozdov.util.RecordIterators$PeekingIterator')
+f(20,35169,3651,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators.merge')
+f(21,35169,1290,1,'ru.mail.polis.lsm.artem_drozdov.util.RecordIterators$MergingIterator')
+f(21,36459,2361,1,'ru.mail.polis.lsm.artem_drozdov.util.RecordIterators$PeekingIterator')
+f(12,38820,680,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators.filterTombstones')
+f(13,38820,22,1,'ru.mail.polis.lsm.artem_drozdov.util.RecordIterators$2')
+f(13,38842,658,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$2.<init>')
+f(14,38842,658,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$2.nextNotTombstone')
+f(15,38842,658,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$MergingIterator.next')
+f(16,38842,658,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$MergingIterator.next')
+f(17,38842,658,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$PeekingIterator.next')
+f(18,38842,658,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$PeekingIterator.peek')
+f(19,38842,658,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$MergingIterator.next')
+f(20,38842,658,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$MergingIterator.next')
+f(21,38842,658,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$PeekingIterator.next')
+f(22,38842,658,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$PeekingIterator.peek')
+f(23,38842,658,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$MergingIterator.next')
+f(24,38842,658,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$MergingIterator.next')
+f(25,38842,658,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$PeekingIterator.next')
+f(26,38842,658,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$PeekingIterator.peek')
+f(27,38842,658,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$MergingIterator.next')
+f(28,38842,658,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$MergingIterator.next')
+f(29,38842,2,0,'ru/mail/polis/lsm/Record.getKey')
+f(30,38842,2,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(31,38842,2,0,'java/nio/DirectByteBufferR.duplicate')
+f(32,38842,2,1,'java.nio.DirectByteBufferR')
+f(29,38844,642,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$PeekingIterator.next')
+f(30,38844,642,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$PeekingIterator.peek')
+f(31,38844,642,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$MergingIterator.next')
+f(32,38844,642,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$MergingIterator.next')
+f(33,38844,4,0,'ru/mail/polis/lsm/Record.getKey')
+f(34,38844,4,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(35,38844,4,0,'java/nio/DirectByteBufferR.duplicate')
+f(36,38844,4,1,'java.nio.DirectByteBufferR')
+f(33,38848,628,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$PeekingIterator.next')
+f(34,38848,628,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$PeekingIterator.peek')
+f(35,38848,628,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$MergingIterator.next')
+f(36,38848,628,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$MergingIterator.next')
+f(37,38848,8,0,'ru/mail/polis/lsm/Record.getKey')
+f(38,38848,8,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(39,38848,8,0,'java/nio/DirectByteBufferR.duplicate')
+f(40,38848,8,1,'java.nio.DirectByteBufferR')
+f(37,38856,584,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$PeekingIterator.next')
+f(38,38856,584,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$PeekingIterator.peek')
+f(39,38856,584,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$MergingIterator.next')
+f(40,38856,584,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$MergingIterator.next')
+f(41,38856,19,0,'ru/mail/polis/lsm/Record.getKey')
+f(42,38856,19,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(43,38856,19,0,'java/nio/DirectByteBufferR.duplicate')
+f(44,38856,19,1,'java.nio.DirectByteBufferR')
+f(41,38875,490,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$PeekingIterator.next')
+f(42,38875,490,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$PeekingIterator.peek')
+f(43,38875,490,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$MergingIterator.next')
+f(44,38875,490,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$MergingIterator.next')
+f(45,38875,16,0,'ru/mail/polis/lsm/Record.getKey')
+f(46,38875,16,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(47,38875,16,0,'java/nio/DirectByteBufferR.duplicate')
+f(48,38875,16,1,'java.nio.DirectByteBufferR')
+f(45,38891,337,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$PeekingIterator.next')
+f(46,38891,337,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$PeekingIterator.peek')
+f(47,38891,115,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$1.next')
+f(48,38891,115,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$1.next')
+f(49,38891,85,0,'ru/mail/polis/lsm/Record.of')
+f(50,38891,39,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(51,38891,39,0,'java/nio/DirectByteBufferR.duplicate')
+f(52,38891,39,1,'java.nio.DirectByteBufferR')
+f(50,38930,8,1,'ru.mail.polis.lsm.Record')
+f(50,38938,38,0,'ru/mail/polis/lsm/Record.<init>')
+f(51,38938,38,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(52,38938,38,0,'java/nio/DirectByteBufferR.duplicate')
+f(53,38938,38,1,'java.nio.DirectByteBufferR')
+f(49,38976,30,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$1.read')
+f(50,38976,30,0,'java/nio/DirectByteBufferR.slice')
+f(51,38976,30,1,'java.nio.DirectByteBufferR')
+f(47,39006,222,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$MergingIterator.next')
+f(48,39006,222,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$MergingIterator.next')
+f(49,39006,13,0,'ru/mail/polis/lsm/Record.getKey')
+f(50,39006,13,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(51,39006,13,0,'java/nio/DirectByteBufferR.duplicate')
+f(52,39006,13,1,'java.nio.DirectByteBufferR')
+f(49,39019,115,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$PeekingIterator.next')
+f(50,39019,115,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$PeekingIterator.peek')
+f(51,39019,115,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$1.next')
+f(52,39019,115,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$1.next')
+f(53,39019,73,0,'ru/mail/polis/lsm/Record.of')
+f(54,39019,25,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(55,39019,25,0,'java/nio/DirectByteBufferR.duplicate')
+f(56,39019,25,1,'java.nio.DirectByteBufferR')
+f(54,39044,5,1,'ru.mail.polis.lsm.Record')
+f(54,39049,43,0,'ru/mail/polis/lsm/Record.<init>')
+f(55,39049,43,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(56,39049,43,0,'java/nio/DirectByteBufferR.duplicate')
+f(57,39049,43,1,'java.nio.DirectByteBufferR')
+f(53,39092,42,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$1.read')
+f(54,39092,42,0,'java/nio/DirectByteBufferR.slice')
+f(55,39092,42,1,'java.nio.DirectByteBufferR')
+f(49,39134,94,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$PeekingIterator.peek')
+f(50,39134,94,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$1.next')
+f(51,39134,94,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$1.next')
+f(52,39134,62,0,'ru/mail/polis/lsm/Record.of')
+f(53,39134,26,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(54,39134,26,0,'java/nio/DirectByteBufferR.duplicate')
+f(55,39134,26,1,'java.nio.DirectByteBufferR')
+f(53,39160,5,1,'ru.mail.polis.lsm.Record')
+f(53,39165,31,0,'ru/mail/polis/lsm/Record.<init>')
+f(54,39165,31,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(55,39165,31,0,'java/nio/DirectByteBufferR.duplicate')
+f(56,39165,31,1,'java.nio.DirectByteBufferR')
+f(52,39196,32,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$1.read')
+f(53,39196,32,0,'java/nio/DirectByteBufferR.slice')
+f(54,39196,32,1,'java.nio.DirectByteBufferR')
+f(45,39228,137,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$PeekingIterator.peek')
+f(46,39228,78,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$1.next')
+f(47,39228,78,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$1.next')
+f(48,39228,37,0,'ru/mail/polis/lsm/Record.of')
+f(49,39228,16,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(50,39228,16,0,'java/nio/DirectByteBufferR.duplicate')
+f(51,39228,16,1,'java.nio.DirectByteBufferR')
+f(49,39244,6,1,'ru.mail.polis.lsm.Record')
+f(49,39250,15,0,'ru/mail/polis/lsm/Record.<init>')
+f(50,39250,15,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(51,39250,15,0,'java/nio/DirectByteBufferR.duplicate')
+f(52,39250,15,1,'java.nio.DirectByteBufferR')
+f(48,39265,41,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$1.read')
+f(49,39265,41,0,'java/nio/DirectByteBufferR.slice')
+f(50,39265,41,1,'java.nio.DirectByteBufferR')
+f(46,39306,59,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$MergingIterator.next')
+f(47,39306,59,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$MergingIterator.next')
+f(48,39306,59,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$PeekingIterator.next')
+f(49,39306,59,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$PeekingIterator.peek')
+f(50,39306,59,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$1.next')
+f(51,39306,59,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$1.next')
+f(52,39306,39,0,'ru/mail/polis/lsm/Record.of')
+f(53,39306,19,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(54,39306,19,0,'java/nio/DirectByteBufferR.duplicate')
+f(55,39306,19,1,'java.nio.DirectByteBufferR')
+f(53,39325,4,1,'ru.mail.polis.lsm.Record')
+f(53,39329,16,0,'ru/mail/polis/lsm/Record.<init>')
+f(54,39329,16,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(55,39329,16,0,'java/nio/DirectByteBufferR.duplicate')
+f(56,39329,16,1,'java.nio.DirectByteBufferR')
+f(52,39345,20,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$1.read')
+f(53,39345,20,0,'java/nio/DirectByteBufferR.slice')
+f(54,39345,20,1,'java.nio.DirectByteBufferR')
+f(41,39365,75,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$PeekingIterator.peek')
+f(42,39365,75,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$MergingIterator.next')
+f(43,39365,75,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$MergingIterator.next')
+f(44,39365,75,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$PeekingIterator.next')
+f(45,39365,75,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$PeekingIterator.peek')
+f(46,39365,47,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$1.next')
+f(47,39365,47,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$1.next')
+f(48,39365,31,0,'ru/mail/polis/lsm/Record.of')
+f(49,39365,15,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(50,39365,15,0,'java/nio/DirectByteBufferR.duplicate')
+f(51,39365,15,1,'java.nio.DirectByteBufferR')
+f(49,39380,1,1,'ru.mail.polis.lsm.Record')
+f(49,39381,15,0,'ru/mail/polis/lsm/Record.<init>')
+f(50,39381,15,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(51,39381,15,0,'java/nio/DirectByteBufferR.duplicate')
+f(52,39381,15,1,'java.nio.DirectByteBufferR')
+f(48,39396,16,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$1.read')
+f(49,39396,16,0,'java/nio/DirectByteBufferR.slice')
+f(50,39396,16,1,'java.nio.DirectByteBufferR')
+f(46,39412,28,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$MergingIterator.next')
+f(47,39412,28,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$MergingIterator.next')
+f(48,39412,28,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$PeekingIterator.next')
+f(49,39412,28,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$PeekingIterator.peek')
+f(50,39412,28,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$1.next')
+f(51,39412,28,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$1.next')
+f(52,39412,15,0,'ru/mail/polis/lsm/Record.of')
+f(53,39412,10,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(54,39412,10,0,'java/nio/DirectByteBufferR.duplicate')
+f(55,39412,10,1,'java.nio.DirectByteBufferR')
+f(53,39422,5,0,'ru/mail/polis/lsm/Record.<init>')
+f(54,39422,5,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(55,39422,5,0,'java/nio/DirectByteBufferR.duplicate')
+f(56,39422,5,1,'java.nio.DirectByteBufferR')
+f(52,39427,13,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$1.read')
+f(53,39427,13,0,'java/nio/DirectByteBufferR.slice')
+f(54,39427,13,1,'java.nio.DirectByteBufferR')
+f(37,39440,36,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$PeekingIterator.peek')
+f(38,39440,36,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$MergingIterator.next')
+f(39,39440,36,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$MergingIterator.next')
+f(40,39440,36,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$PeekingIterator.next')
+f(41,39440,36,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$PeekingIterator.peek')
+f(42,39440,36,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$MergingIterator.next')
+f(43,39440,36,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$MergingIterator.next')
+f(44,39440,36,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$PeekingIterator.next')
+f(45,39440,36,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$PeekingIterator.peek')
+f(46,39440,24,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$1.next')
+f(47,39440,24,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$1.next')
+f(48,39440,18,0,'ru/mail/polis/lsm/Record.of')
+f(49,39440,11,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(50,39440,11,0,'java/nio/DirectByteBufferR.duplicate')
+f(51,39440,11,1,'java.nio.DirectByteBufferR')
+f(49,39451,7,0,'ru/mail/polis/lsm/Record.<init>')
+f(50,39451,7,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(51,39451,7,0,'java/nio/DirectByteBufferR.duplicate')
+f(52,39451,7,1,'java.nio.DirectByteBufferR')
+f(48,39458,6,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$1.read')
+f(49,39458,6,0,'java/nio/DirectByteBufferR.slice')
+f(50,39458,6,1,'java.nio.DirectByteBufferR')
+f(46,39464,12,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$MergingIterator.next')
+f(47,39464,12,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$MergingIterator.next')
+f(48,39464,12,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$PeekingIterator.next')
+f(49,39464,12,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$PeekingIterator.peek')
+f(50,39464,12,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$1.next')
+f(51,39464,12,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$1.next')
+f(52,39464,12,0,'ru/mail/polis/lsm/Record.of')
+f(53,39464,8,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(54,39464,8,0,'java/nio/DirectByteBufferR.duplicate')
+f(55,39464,8,1,'java.nio.DirectByteBufferR')
+f(53,39472,1,1,'ru.mail.polis.lsm.Record')
+f(53,39473,3,0,'ru/mail/polis/lsm/Record.<init>')
+f(54,39473,3,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(55,39473,3,0,'java/nio/DirectByteBufferR.duplicate')
+f(56,39473,3,1,'java.nio.DirectByteBufferR')
+f(33,39476,10,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$PeekingIterator.peek')
+f(34,39476,10,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$MergingIterator.next')
+f(35,39476,10,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$MergingIterator.next')
+f(36,39476,10,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$PeekingIterator.next')
+f(37,39476,10,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$PeekingIterator.peek')
+f(38,39476,10,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$MergingIterator.next')
+f(39,39476,10,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$MergingIterator.next')
+f(40,39476,10,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$PeekingIterator.next')
+f(41,39476,10,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$PeekingIterator.peek')
+f(42,39476,10,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$MergingIterator.next')
+f(43,39476,10,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$MergingIterator.next')
+f(44,39476,10,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$PeekingIterator.next')
+f(45,39476,10,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$PeekingIterator.peek')
+f(46,39476,8,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$1.next')
+f(47,39476,8,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$1.next')
+f(48,39476,2,0,'ru/mail/polis/lsm/Record.of')
+f(49,39476,1,1,'ru.mail.polis.lsm.Record')
+f(49,39477,1,0,'ru/mail/polis/lsm/Record.<init>')
+f(50,39477,1,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(51,39477,1,0,'java/nio/DirectByteBufferR.duplicate')
+f(52,39477,1,1,'java.nio.DirectByteBufferR')
+f(48,39478,6,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$1.read')
+f(49,39478,6,0,'java/nio/DirectByteBufferR.slice')
+f(50,39478,6,1,'java.nio.DirectByteBufferR')
+f(46,39484,2,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$MergingIterator.next')
+f(47,39484,2,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$MergingIterator.next')
+f(48,39484,2,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$PeekingIterator.next')
+f(49,39484,2,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$PeekingIterator.peek')
+f(50,39484,2,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$1.next')
+f(51,39484,2,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$1.next')
+f(52,39484,2,0,'ru/mail/polis/lsm/Record.of')
+f(53,39484,1,1,'ru.mail.polis.lsm.Record')
+f(53,39485,1,0,'ru/mail/polis/lsm/Record.<init>')
+f(54,39485,1,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(55,39485,1,0,'java/nio/DirectByteBufferR.duplicate')
+f(56,39485,1,1,'java.nio.DirectByteBufferR')
+f(29,39486,14,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$PeekingIterator.peek')
+f(30,39486,14,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$MergingIterator.next')
+f(31,39486,14,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$MergingIterator.next')
+f(32,39486,14,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$PeekingIterator.next')
+f(33,39486,14,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$PeekingIterator.peek')
+f(34,39486,14,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$MergingIterator.next')
+f(35,39486,14,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$MergingIterator.next')
+f(36,39486,14,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$PeekingIterator.next')
+f(37,39486,14,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$PeekingIterator.peek')
+f(38,39486,14,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$MergingIterator.next')
+f(39,39486,14,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$MergingIterator.next')
+f(40,39486,14,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$PeekingIterator.next')
+f(41,39486,14,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$PeekingIterator.peek')
+f(42,39486,14,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$MergingIterator.next')
+f(43,39486,14,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$MergingIterator.next')
+f(44,39486,14,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$PeekingIterator.next')
+f(45,39486,14,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$PeekingIterator.peek')
+f(46,39486,9,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$1.next')
+f(47,39486,9,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$1.next')
+f(48,39486,7,0,'ru/mail/polis/lsm/Record.of')
+f(49,39486,4,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(50,39486,4,0,'java/nio/DirectByteBufferR.duplicate')
+f(51,39486,4,1,'java.nio.DirectByteBufferR')
+f(49,39490,3,0,'ru/mail/polis/lsm/Record.<init>')
+f(50,39490,3,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(51,39490,3,0,'java/nio/DirectByteBufferR.duplicate')
+f(52,39490,3,1,'java.nio.DirectByteBufferR')
+f(48,39493,2,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$1.read')
+f(49,39493,2,0,'java/nio/DirectByteBufferR.slice')
+f(50,39493,2,1,'java.nio.DirectByteBufferR')
+f(46,39495,5,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$MergingIterator.next')
+f(47,39495,5,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$MergingIterator.next')
+f(48,39495,5,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$PeekingIterator.next')
+f(49,39495,5,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$PeekingIterator.peek')
+f(50,39495,5,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$1.next')
+f(51,39495,5,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$1.next')
+f(52,39495,2,0,'ru/mail/polis/lsm/Record.of')
+f(53,39495,2,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(54,39495,2,0,'java/nio/DirectByteBufferR.duplicate')
+f(55,39495,2,1,'java.nio.DirectByteBufferR')
+f(52,39497,3,0,'ru/mail/polis/lsm/artem_drozdov/util/RecordIterators$1.read')
+f(53,39497,3,0,'java/nio/DirectByteBufferR.slice')
+f(54,39497,3,1,'java.nio.DirectByteBufferR')
+f(10,39500,981,0,'ru/mail/polis/service/avightclav/BasicService.extractBytes')
+f(11,39500,981,1,'byte[]')
+f(1,40481,29417,0,'one/nio/server/SelectorThread.run')
+f(2,40481,1293,0,'one/nio/net/NativeSelector.select')
+f(3,40481,1293,1,'one.nio.net.NativeSelector$2')
+f(2,41774,28124,0,'one/nio/net/Session.process')
+f(3,41774,28124,0,'one/nio/http/HttpSession.processRead')
+f(4,41774,28124,0,'one/nio/http/HttpSession.processHttpBuffer')
+f(5,41774,2997,0,'one/nio/http/HttpSession.handleParsedRequest')
+f(6,41774,2997,0,'ru/mail/polis/service/avightclav/BasicService.handleRequest')
+f(7,41774,34,0,'java/lang/invoke/Invokers$Holder.linkToTargetMethod')
+f(8,41774,34,0,'java/lang/invoke/DirectMethodHandle$Holder.invokeStatic')
+f(9,41774,34,0,'ru/mail/polis/service/avightclav/BasicService$$Lambda$67/1320138665.get$Lambda')
+f(10,41774,34,1,'ru.mail.polis.service.avightclav.BasicService$$Lambda$67')
+f(7,41808,2963,0,'java/util/concurrent/ForkJoinPool.execute')
+f(8,41808,2963,1,'java.util.concurrent.ForkJoinTask$RunnableExecuteAction')
+f(5,44771,16215,0,'one/nio/http/HttpSession.parseRequest')
+f(6,44771,3105,1,'one.nio.http.Request')
+f(6,47876,4872,0,'one/nio/http/Request.<init>')
+f(7,47876,3062,1,'java.lang.String[]')
+f(7,50938,1810,2,'java.lang.String[]')
+f(6,52748,8238,0,'one/nio/util/Utf8.read')
+f(7,52748,8238,0,'one/nio/util/Utf8.read')
+f(8,52748,2418,1,'char[]')
+f(8,55166,535,2,'char[]')
+f(8,55701,1797,1,'java.lang.String')
+f(8,57498,3488,0,'java/lang/String.<init>')
+f(9,57498,3488,0,'java/lang/String.<init>')
+f(10,57498,3488,0,'java/lang/StringUTF16.compress')
+f(11,57498,3488,1,'byte[]')
+f(5,60986,8912,0,'one/nio/util/Utf8.read')
+f(6,60986,8912,0,'one/nio/util/Utf8.read')
+f(7,60986,2368,1,'char[]')
+f(7,63354,3137,1,'java.lang.String')
+f(7,66491,3407,0,'java/lang/String.<init>')
+f(8,66491,3407,0,'java/lang/String.<init>')
+f(9,66491,3407,0,'java/lang/StringUTF16.compress')
+f(10,66491,3407,1,'byte[]')
+render();
+</script></body></html>

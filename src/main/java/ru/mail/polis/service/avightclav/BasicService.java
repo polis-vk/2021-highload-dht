@@ -4,10 +4,12 @@ import one.nio.http.HttpServer;
 import one.nio.http.HttpServerConfig;
 import one.nio.http.HttpSession;
 import one.nio.http.Param;
-import one.nio.http.Path;
 import one.nio.http.Request;
 import one.nio.http.Response;
 import one.nio.server.AcceptorConfig;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import ru.mail.polis.Server;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.Record;
 import ru.mail.polis.service.Service;
@@ -16,9 +18,14 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class BasicService extends HttpServer implements Service {
     private final DAO dao;
+    private final ExecutorService executor = Executors.newWorkStealingPool();
+
+    private static final Logger LOG = LoggerFactory.getLogger(Server.class);
 
     public BasicService(final int port, final DAO dao) throws IOException {
         super(from(port));
@@ -35,16 +42,58 @@ public class BasicService extends HttpServer implements Service {
     }
 
     @Override
-    public void handleDefault(final Request request, final HttpSession session) throws IOException {
-        session.sendResponse(new Response(Response.BAD_REQUEST, Response.EMPTY));
+    public void handleRequest(Request request, HttpSession session) throws IOException {
+        executor.execute(() -> {
+            try {
+                String path = request.getPath();
+                switch (path) {
+                    case "/v0/status":
+                        if (request.getMethod() == Request.METHOD_GET) {
+                            executor.execute(() -> {
+                                try {
+                                    session.sendResponse(this.status());
+                                } catch (IOException e) {
+                                    e.printStackTrace();
+                                }
+                            });
+                        }
+                        break;
+                    case "/v0/entity":
+                        final String id = request.getParameter("id", "=");
+                        if (id.equals("=")) {
+                            session.sendResponse(new Response(Response.BAD_REQUEST, "12".getBytes()));
+                            return;
+                        }
+                        switch (request.getMethod()) {
+                            case Request.METHOD_GET:
+                                session.sendResponse(this.get(id));
+                                return;
+                            case Request.METHOD_PUT:
+                                session.sendResponse(this.put(id, request.getBody()));
+                                return;
+                            case Request.METHOD_DELETE:
+                                session.sendResponse(this.delete(id));
+                                return;
+                            default:
+                                session.sendResponse(new Response(
+                                        Response.METHOD_NOT_ALLOWED,
+                                        "Wrong method".getBytes(StandardCharsets.UTF_8))
+                                );
+                                return;
+                        }
+                    default:
+                        session.sendResponse(new Response(Response.BAD_REQUEST, Response.EMPTY));
+                }
+            } catch (IOException e) {
+                LOG.error("Request handling IO exception", e);
+            }
+        });
     }
 
-    @Path("/v0/status")
     public Response status() {
         return Response.ok("I'm ok");
     }
 
-    @Path("/v0/entity")
     public Response entity(
             final Request request,
             @Param(value = "id", required = true) final String id) {
