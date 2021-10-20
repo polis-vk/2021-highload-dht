@@ -86,9 +86,7 @@ public final class BasicService extends HttpServer implements Service {
 
     @Override
     public void handleRequest(Request request, HttpSession session) {
-
-        final String path = request.getPath();
-        switch (path) {
+        switch (request.getPath()) {
 
             //without exec block
             case STATUS_PATH:
