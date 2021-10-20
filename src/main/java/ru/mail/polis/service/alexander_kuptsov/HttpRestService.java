@@ -21,18 +21,9 @@ import java.util.concurrent.TimeUnit;
 public class HttpRestService extends HttpServer implements Service {
     private static final Logger logger = LoggerFactory.getLogger(HttpRestService.class);
 
-    private static final class RequestPath {
-        public static final String STATUS = "/v0/status";
-        public static final String ENTITY = "/v0/entity";
-    }
-
-    private static final class RequestParameters {
-        public static final String ID = "id";
-        public static final String EMPTY_ID = "=";
-    }
-
     private static final int THREADS_COUNT = 8;
     private static final int QUEUE_CAPACITY = 128;
+
     private final ThreadPoolExecutor executor = new ThreadPoolExecutor(
             THREADS_COUNT,
             THREADS_COUNT,
@@ -42,6 +33,22 @@ public class HttpRestService extends HttpServer implements Service {
     );
 
     private final DAO dao;
+
+    private static final class RequestPath {
+        public static final String STATUS = "/v0/status";
+        public static final String ENTITY = "/v0/entity";
+
+        private RequestPath() {
+        }
+    }
+
+    private static final class RequestParameters {
+        public static final String ID = "id";
+        public static final String EMPTY_ID = "=";
+
+        private RequestParameters() {
+        }
+    }
 
     public HttpRestService(final int port,
                            final DAO dao) throws IOException {
@@ -91,6 +98,7 @@ public class HttpRestService extends HttpServer implements Service {
             }
             default: {
                 response = handleDefaultRequest();
+                break;
             }
         }
         try {
@@ -123,11 +131,11 @@ public class HttpRestService extends HttpServer implements Service {
      *
      * @param request {@link Request}
      * @return HTTP code 200 with data
-     * HTTP code 201
-     * HTTP code 202
-     * HTTP code 400
-     * HTTP code 404
-     * HTTP code 405
+     *  HTTP code 201
+     *  HTTP code 202
+     *  HTTP code 400
+     *  HTTP code 404
+     *  HTTP code 405
      */
     private Response entity(final Request request) {
         String id = request.getParameter(RequestParameters.ID);
@@ -158,7 +166,7 @@ public class HttpRestService extends HttpServer implements Service {
      *
      * @param id data key
      * @return HTTP code 200 with data
-     * HTTP code 404
+     *  HTTP code 404
      */
     private Response get(String id) {
         final ByteBuffer key = HttpServiceUtils.wrapIdToBuffer(id);

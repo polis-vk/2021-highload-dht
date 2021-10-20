@@ -11,7 +11,11 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
+import java.util.NoSuchElementException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -34,10 +38,10 @@ public class LsmDAO implements DAO {
 
     @Override
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
-        Storage storage = this.storage.get();
+        Storage currentStorage = this.storage.get();
 
-        Iterator<Record> sstableRanges = sstableRanges(storage, fromKey, toKey);
-        Iterator<Record> memoryRange = storage.iterator(fromKey, toKey);
+        Iterator<Record> sstableRanges = sstableRanges(currentStorage, fromKey, toKey);
+        Iterator<Record> memoryRange = currentStorage.iterator(fromKey, toKey);
         Iterator<Record> iterator = mergeTwo(new PeekingIterator(sstableRanges), new PeekingIterator(memoryRange));
         return filterTombstones(iterator);
     }
@@ -89,14 +93,14 @@ public class LsmDAO implements DAO {
 
     private Storage doFlush() throws IOException {
         while (true) {
-            Storage storageToFlush = LsmDAO.this.storage.get();
+            Storage storageToFlush = this.storage.get(); // Lsm.this
             List<MemTable> storagesToWrite = storageToFlush.memTablesToFlush;
             if (storagesToWrite.isEmpty()) {
                 return storageToFlush;
             }
             SSTable newTable = flushAll(storageToFlush);
 
-            LsmDAO.this.storage.updateAndGet(currentValue -> currentValue.afterFlush(storagesToWrite, newTable));
+            this.storage.updateAndGet(currentValue -> currentValue.afterFlush(storagesToWrite, newTable));
         }
     }
 
@@ -211,14 +215,22 @@ public class LsmDAO implements DAO {
             newTables.addAll(ssTables);
             newTables.add(newTable);
 
-            List<MemTable> newMemTablesToFlush = memTablesToFlush.subList(writtenStorages.size(), memTablesToFlush.size());
+            List<MemTable> newMemTablesToFlush = memTablesToFlush.subList(
+                    writtenStorages.size(), memTablesToFlush.size()
+            );
             return new Storage(currentMemTable, new ArrayList<>(newMemTablesToFlush), newTables);
         }
 
         // It is assumed that memTablesToFlush starts with writtenStorages
         public Storage afterCompaction(List<MemTable> writtenStorages, SSTable ssTable) {
-            List<MemTable> newMemTablesToFlush = memTablesToFlush.subList(writtenStorages.size(), memTablesToFlush.size());
-            return new Storage(currentMemTable, new ArrayList<>(newMemTablesToFlush), Collections.singletonList(ssTable));
+            List<MemTable> newMemTablesToFlush = memTablesToFlush.subList(
+                    writtenStorages.size(), memTablesToFlush.size()
+            );
+            return new Storage(
+                    currentMemTable,
+                    new ArrayList<>(newMemTablesToFlush),
+                    Collections.singletonList(ssTable)
+            );
         }
 
         public Iterator<Record> iterator(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {

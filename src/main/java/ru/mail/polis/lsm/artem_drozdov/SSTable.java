@@ -147,9 +147,7 @@ public class SSTable implements Closeable {
     }
 
     public static int sizeOf(Record record) {
-        int keySize = Integer.BYTES + record.getKeySize();
-        int valueSize = Integer.BYTES + record.getValueSize();
-        return keySize + valueSize;
+        return Integer.BYTES + record.getKeySize() + Integer.BYTES + record.getValueSize();
     }
 
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
@@ -198,18 +196,13 @@ public class SSTable implements Closeable {
     }
 
     private static FileChannel openForWrite(Path tmpFileName) throws IOException {
-        return FileChannel.open(
-                tmpFileName,
-                StandardOpenOption.CREATE_NEW,
-                StandardOpenOption.WRITE,
+        return FileChannel.open(tmpFileName, StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE,
                 StandardOpenOption.TRUNCATE_EXISTING
         );
     }
 
-    private static void writeValueWithSize(
-            ByteBuffer value,
-            WritableByteChannel channel,
-            ByteBuffer tmp) throws IOException {
+    private static void writeValueWithSize(ByteBuffer value, WritableByteChannel channel, ByteBuffer tmp)
+            throws IOException {
         if (tmp.capacity() > value.remaining() + Integer.BYTES) {
             tmp.position(0);
             tmp.putInt(value.remaining());
@@ -281,8 +274,7 @@ public class SSTable implements Closeable {
             }
 
             if (mismatchPos < existingKeySize && mismatchPos < keyToFindSize) {
-                result = Byte.compare(
-                        keyToFind.get(keyToFind.position() + mismatchPos),
+                result = Byte.compare(keyToFind.get(keyToFind.position() + mismatchPos),
                         buffer.get(buffer.position() + mismatchPos)
                 );
             } else if (mismatchPos >= existingKeySize) {
