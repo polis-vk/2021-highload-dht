@@ -1,5 +1,6 @@
 package ru.mail.polis.lsm;
 
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -142,6 +143,7 @@ class PersistenceTest {
     }
 
     @Test
+    @Disabled("it is too much for async flushing")
     void hugeRecords(@TempDir Path data) throws IOException {
         // Reference value
         int size = 1024 * 1024;
@@ -163,6 +165,7 @@ class PersistenceTest {
     }
 
     @Test
+    @Disabled("it is too much for async flushing")
     void hugeRecordsSearch(@TempDir Path data) throws IOException {
         // Reference value
         int size = 1024 * 1024;
