@@ -18,7 +18,7 @@ public class ServiceImpl extends HttpServer implements Service {
 
     private final EntityRequestHandler entityRequestHandler;
     private final RequestPoolExecutor requestPoolExecutor = new RequestPoolExecutor(
-            new ExecutorConfig(32, 300)
+            new ExecutorConfig(16, 1000)
     );
 
     public ServiceImpl(int port, DAO dao) throws IOException {
@@ -68,8 +68,6 @@ public class ServiceImpl extends HttpServer implements Service {
 
     @Override
     public void handleRequest(Request request, HttpSession session) {
-        String path = request.getPath();
-
         if (requestPoolExecutor.isQueueFull()) {
             requestPoolExecutor.executeNow(() -> {
                 try {
@@ -81,37 +79,30 @@ public class ServiceImpl extends HttpServer implements Service {
             return;
         }
 
-        switch (path) {
-            case ENTITY_PATH:
-                requestPoolExecutor.addTask(() -> {
+        requestPoolExecutor.addTask(() -> {
+            String path = request.getPath();
+            Response response;
+            switch (path) {
+                case ENTITY_PATH:
                     String id = request.getParameter("id=");
-                    Response response = entityRequest(request, id);
-
-                    try {
-                        session.sendResponse(response);
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
-                });
-                break;
-            case STATUS_PATH:
-                requestPoolExecutor.addTask(() -> {
-                    Response response = status();
-                    try {
-                        session.sendResponse(response);
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
-                });
-                break;
-            default:
-                requestPoolExecutor.addTask(() -> {
+                    response = entityRequest(request, id);
+                    break;
+                case STATUS_PATH:
+                    response = status();
+                    break;
+                default:
                     try {
                         handleDefault(request, session);
                     } catch (IOException e) {
                         throw new UncheckedIOException(e);
                     }
-                });
-        }
+                    return;
+            }
+            try {
+                session.sendResponse(response);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        });
     }
 }
