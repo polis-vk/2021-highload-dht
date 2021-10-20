@@ -10,6 +10,7 @@ import java.util.NavigableMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 
 public class Storage {
+    final NavigableMap<ByteBuffer, Record> EMPTY_STORAGE = Collections.emptyNavigableMap();
     final NavigableMap<ByteBuffer, Record> currentStorage;
     final NavigableMap<ByteBuffer, Record> tmpStorage;
     final List<SSTable> tables;
@@ -29,14 +30,15 @@ public class Storage {
     }
 
     public Storage afterFlush(SSTable ssNewTable){
-        List<SSTable> ssNewTables = new ArrayList<>(tables);
+        List<SSTable> ssNewTables = new ArrayList<>(tables.size()+1);
+        ssNewTables.addAll(tables);
         ssNewTables.add(ssNewTable);
-        return new Storage(currentStorage,Collections.emptyNavigableMap(),ssNewTables);
+        return new Storage(currentStorage,EMPTY_STORAGE,ssNewTables);
     }
 
     public Storage afterCompaction(SSTable table){
         List<SSTable> tables = Collections.singletonList(table);
-        return new Storage(currentStorage,Collections.emptyNavigableMap(),tables);
+        return new Storage(currentStorage,EMPTY_STORAGE,tables);
     }
 
 }
