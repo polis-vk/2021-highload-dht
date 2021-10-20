@@ -19,8 +19,8 @@ public class DefaultRequestHandler implements RequestHandler {
 
     private static final Logger LOG = LoggerFactory.getLogger(DefaultRequestHandler.class);
 
-    private static final int THREADS_AMOUNT = 10;
-    private static final int REQUESTS_QUEUE_SIZE = 10_000;
+    private static final int THREADS_AMOUNT = 3;
+    private static final int REQUESTS_QUEUE_SIZE = 100;
 
     private final MainController controller;
 
