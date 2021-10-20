@@ -44,14 +44,10 @@ class ServiceExecutorImpl extends ThreadPoolExecutor implements ServiceExecutor 
 
     @Override
     public void execute(Session session, ExceptionHandler handler, ServiceRunnable runnable) {
-        if (getQueue().remainingCapacity() > 0) {
-            try {
-                execute(() -> run(session, handler, runnable));
-            } catch (RejectedExecutionException e) {
-                handler.handleException(session, new ServiceOverloadException(e));
-            }
-        } else {
-            handler.handleException(session, new ServiceOverloadException());
+        try {
+            execute(() -> run(session, handler, runnable));
+        } catch (RejectedExecutionException e) {
+            handler.handleException(session, new ServiceOverloadException(e));
         }
     }
 

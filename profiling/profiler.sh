@@ -12,7 +12,7 @@ fi
 
 SERVER_PID=$(jps | grep "Server" | cut -d " " -f1)
 
-CMD="async-profiler -d 60 -e $1 -f "output/$OUTPUT.html" "$SERVER_PID""
+CMD="async-profiler -d 135 -e $1 -f "output/$OUTPUT.html" "$SERVER_PID""
 
 echo -e "$ $CMD\n"
 eval $CMD

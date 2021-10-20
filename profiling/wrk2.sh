@@ -20,7 +20,7 @@ else
 fi
 
 mkdir output &>/dev/null
-CMD="wrk2 -c 128 -t 8 -d 65s -R 70000 -L -s "$SCRIPT" http://localhost:8080/ >> "output/$OUTPUT.txt""
+CMD="wrk2 -c 128 -t 8 -d 125s -R 50000 -L -s "$SCRIPT" http://localhost:8080/ >> "output/$OUTPUT.txt""
 
 echo -e "$ $CMD"
 echo -e "$ $CMD\n\n" > "output/$OUTPUT.txt"
