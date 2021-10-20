@@ -2,10 +2,10 @@ package ru.mail.polis.service.alexander_kuptsov;
 
 import one.nio.http.HttpServer;
 import one.nio.http.HttpSession;
-import one.nio.http.Param;
-import one.nio.http.Path;
 import one.nio.http.Request;
 import one.nio.http.Response;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.Record;
 import ru.mail.polis.service.Service;
@@ -14,8 +14,33 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 public class HttpRestService extends HttpServer implements Service {
+    private static final Logger logger = LoggerFactory.getLogger(HttpRestService.class);
+
+    private static final class RequestPath {
+        public static final String STATUS = "/v0/status";
+        public static final String ENTITY = "/v0/entity";
+    }
+
+    private static final class RequestParameters {
+        public static final String ID = "id";
+        public static final String EMPTY_ID = "=";
+    }
+
+    private static final int THREADS_COUNT = 8;
+    private static final int QUEUE_CAPACITY = 128;
+    private final ThreadPoolExecutor executor = new ThreadPoolExecutor(
+            THREADS_COUNT,
+            THREADS_COUNT,
+            0L,
+            TimeUnit.MILLISECONDS,
+            new LinkedBlockingQueue<>(QUEUE_CAPACITY)
+    );
+
     private final DAO dao;
 
     public HttpRestService(final int port,
@@ -25,8 +50,58 @@ public class HttpRestService extends HttpServer implements Service {
     }
 
     @Override
-    public void handleDefault(Request request, HttpSession session) throws IOException {
-        session.sendResponse(new Response(Response.BAD_REQUEST, Response.EMPTY));
+    public void handleRequest(Request request, HttpSession session) throws IOException {
+        synchronized (this) {
+            if (canExecuteRequest()) {
+                executor.execute(() -> doHandleRequest(request, session));
+                return;
+            }
+        }
+        logger.info("Can't handle request");
+        var unavailableResponse = new Response(Response.SERVICE_UNAVAILABLE, Response.EMPTY);
+        session.sendResponse(unavailableResponse);
+    }
+
+    @Override
+    public synchronized void stop() {
+        executor.shutdown();
+        try {
+            if (!executor.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS)) {
+                throw new IllegalStateException("Can't await for termination");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(e);
+        }
+        super.stop();
+    }
+
+    private void doHandleRequest(Request request, HttpSession session) {
+        Response response;
+        String requestPath = request.getPath();
+
+        switch (requestPath) {
+            case RequestPath.STATUS: {
+                response = status();
+                break;
+            }
+            case RequestPath.ENTITY: {
+                response = entity(request);
+                break;
+            }
+            default: {
+                response = handleDefaultRequest();
+            }
+        }
+        try {
+            session.sendResponse(response);
+        } catch (IOException e) {
+            logger.error("Can't send response", e);
+        }
+    }
+
+    private boolean canExecuteRequest() {
+        return executor.getQueue().remainingCapacity() > 0;
     }
 
     /**
@@ -34,8 +109,7 @@ public class HttpRestService extends HttpServer implements Service {
      *
      * @return HTTP code 200
      */
-    @Path("/v0/status")
-    public Response status() {
+    private Response status() {
         return Response.ok("OK");
     }
 
@@ -48,18 +122,16 @@ public class HttpRestService extends HttpServer implements Service {
      * </pre>
      *
      * @param request {@link Request}
-     * @param id      data key
      * @return HTTP code 200 with data
-     *         HTTP code 201
-     *         HTTP code 202
-     *         HTTP code 400
-     *         HTTP code 404
-     *         HTTP code 405
+     * HTTP code 201
+     * HTTP code 202
+     * HTTP code 400
+     * HTTP code 404
+     * HTTP code 405
      */
-    @Path("/v0/entity")
-    public Response entity(final Request request,
-                           @Param(value = "id", required = true) final String id) {
-        if (id.isBlank()) {
+    private Response entity(final Request request) {
+        String id = request.getParameter(RequestParameters.ID);
+        if (id == null || id.equals(RequestParameters.EMPTY_ID)) {
             return new Response(Response.BAD_REQUEST, "Bad id".getBytes(StandardCharsets.UTF_8));
         }
         switch (request.getMethod()) {
@@ -72,8 +144,13 @@ public class HttpRestService extends HttpServer implements Service {
             default:
                 return new Response(
                         Response.METHOD_NOT_ALLOWED,
-                        "Wrong method. Try GET/PUT/DELETE".getBytes(StandardCharsets.UTF_8));
+                        "Wrong method. Try GET/PUT/DELETE".getBytes(StandardCharsets.UTF_8)
+                );
         }
+    }
+
+    private Response handleDefaultRequest() {
+        return new Response(Response.BAD_REQUEST, Response.EMPTY);
     }
 
     /**
@@ -81,7 +158,7 @@ public class HttpRestService extends HttpServer implements Service {
      *
      * @param id data key
      * @return HTTP code 200 with data
-     *         HTTP code 404
+     * HTTP code 404
      */
     private Response get(String id) {
         final ByteBuffer key = HttpServiceUtils.wrapIdToBuffer(id);

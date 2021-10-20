@@ -7,16 +7,11 @@ import ru.mail.polis.lsm.DAOConfig;
 import ru.mail.polis.lsm.Record;
 
 import javax.annotation.Nullable;
-import javax.annotation.concurrent.GuardedBy;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.Iterator;
-import java.util.List;
-import java.util.NoSuchElementException;
+import java.util.*;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -107,11 +102,8 @@ public class LsmDAO implements DAO {
 
     private void performCompactNeed(Storage storage) throws IOException {
         logger.info("Compact started");
-
         SSTable result = SSTable.compact(config.dir, sstableRanges(storage, null, null));
-
         this.storage.updateAndGet(currentValue -> currentValue.afterCompaction(storage.memTablesToFlush, result));
-
         logger.info("Compact finished");
     }
 
@@ -242,7 +234,6 @@ public class LsmDAO implements DAO {
             }
             iterators.add(currentMemTable.range(fromKey, toKey));
 
-            //Iterator<Record> memory = mergeTwo(new PeekingIterator(memoryRange), new PeekingIterator(tmpMemoryRange));
             return merge(iterators);
         }
 
