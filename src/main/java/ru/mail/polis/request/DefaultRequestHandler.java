@@ -36,15 +36,19 @@ public class DefaultRequestHandler implements RequestHandler {
         try {
             executorService.execute(() -> {
                 Response response = processRequest(request);
-                try {
-                    session.sendResponse(response);
-                } catch (IOException e) {
-                    LOG.info("Failed to send response: {}", response);
-                }
+                sendResponse(session, response);
             });
         } catch (RejectedExecutionException e) {
             LOG.info("Failed to add new request to executorService: {}", request, e);
             session.sendResponse(new Response(Response.SERVICE_UNAVAILABLE, Response.EMPTY));
+        }
+    }
+
+    private void sendResponse(HttpSession session, Response response) {
+        try {
+            session.sendResponse(response);
+        } catch (IOException e) {
+            LOG.info("Failed to send response: {}", response);
         }
     }
 
