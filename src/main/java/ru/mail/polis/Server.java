@@ -60,7 +60,7 @@ public final class Server {
                         }
                     }));
         } catch (IOException e) {
-            e.printStackTrace();
+            LOG.error("IO caught in dao initializing", e);
         }
     }
 
