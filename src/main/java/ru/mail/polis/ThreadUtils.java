@@ -3,7 +3,7 @@ package ru.mail.polis;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 
-public class ThreadUtils {
+public final class ThreadUtils {
     private ThreadUtils() {
 
     }
