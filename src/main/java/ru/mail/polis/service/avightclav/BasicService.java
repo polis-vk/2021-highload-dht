@@ -65,6 +65,7 @@ public class BasicService extends HttpServer implements Service {
                 break;
             default:
                 session.sendResponse(new Response(Response.BAD_REQUEST, Response.EMPTY));
+                break;
         }
     }
 
@@ -89,6 +90,7 @@ public class BasicService extends HttpServer implements Service {
                         Response.METHOD_NOT_ALLOWED,
                         "Wrong method".getBytes(StandardCharsets.UTF_8))
                 );
+                break;
         }
     }
 
