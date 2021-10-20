@@ -23,4 +23,10 @@ final class MyConfigFactory {
         resConfig.maxWorkers = maxWorkers;
         return resConfig;
     }
+
+    public static HttpServerConfig fromPortWorkersKeepAlive(int port, int maxWorkers, int keepAlive) {
+        HttpServerConfig resConfig = fromPortWorkers(port, maxWorkers);
+        resConfig.keepAlive = keepAlive;
+        return resConfig;
+    }
 }
