@@ -11,7 +11,6 @@ import java.io.IOException;
 import java.util.NoSuchElementException;
 import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.ForkJoinWorkerThread;
-import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -38,14 +37,10 @@ public class LimitedServiceExecutor extends ForkJoinPool implements ServiceExecu
             return;
         }
 
-        try {
-            execute(() -> {
-                queueSize.decrementAndGet();
-                run(session, handler, runnable);
-            });
-        } catch (RejectedExecutionException e) {
-            handler.handleException(session, new ServiceOverloadException(e));
-        }
+        execute(() -> {
+            queueSize.decrementAndGet();
+            run(session, handler, runnable);
+        });
     }
 
     private boolean requestExecute() {

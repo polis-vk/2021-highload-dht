@@ -1,0 +1,1080 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8'>
+<style>
+	body {margin: 0; padding: 10px; background-color: #ffffff}
+	h1 {margin: 5px 0 0 0; font-size: 18px; font-weight: normal; text-align: center}
+	header {margin: -24px 0 5px 0; line-height: 24px}
+	button {font: 12px sans-serif; cursor: pointer}
+	p {margin: 5px 0 5px 0}
+	a {color: #0366d6}
+	#hl {position: absolute; display: none; overflow: hidden; white-space: nowrap; pointer-events: none; background-color: #ffffe0; outline: 1px solid #ffc000; height: 15px}
+	#hl span {padding: 0 3px 0 3px}
+	#status {overflow: hidden; white-space: nowrap}
+	#match {overflow: hidden; white-space: nowrap; display: none; float: right; text-align: right}
+	#reset {cursor: pointer}
+</style>
+</head>
+<body style='font: 12px Verdana, sans-serif'>
+<h1>Flame Graph</h1>
+<header style='text-align: left'><button id='reverse' title='Reverse'>&#x1f53b;</button>&nbsp;&nbsp;<button id='search' title='Search'>&#x1f50d;</button></header>
+<header style='text-align: right'>Produced by <a href='https://github.com/jvm-profiling-tools/async-profiler'>async-profiler</a></header>
+<canvas id='canvas' style='width: 100%; height: 832px'></canvas>
+<div id='hl'><span></span></div>
+<p id='match'>Matched: <span id='matchval'></span> <span id='reset' title='Clear'>&#x274c;</span></p>
+<p id='status'>&nbsp;</p>
+<script>
+	// Copyright 2020 Andrei Pangin
+	// Licensed under the Apache License, Version 2.0.
+	'use strict';
+	var root, rootLevel, px, pattern;
+	var reverse = false;
+	const levels = Array(52);
+	for (let h = 0; h < levels.length; h++) {
+		levels[h] = [];
+	}
+
+	const canvas = document.getElementById('canvas');
+	const c = canvas.getContext('2d');
+	const hl = document.getElementById('hl');
+	const status = document.getElementById('status');
+
+	const canvasWidth = canvas.offsetWidth;
+	const canvasHeight = canvas.offsetHeight;
+	canvas.style.width = canvasWidth + 'px';
+	canvas.width = canvasWidth * (devicePixelRatio || 1);
+	canvas.height = canvasHeight * (devicePixelRatio || 1);
+	if (devicePixelRatio) c.scale(devicePixelRatio, devicePixelRatio);
+	c.font = document.body.style.font;
+
+	const palette = [
+		[0x50e150, 30, 30, 30],
+		[0x50bebe, 30, 30, 30],
+		[0xe17d00, 30, 30,  0],
+		[0xc8c83c, 30, 30, 10],
+		[0xe15a5a, 30, 40, 40],
+	];
+
+	function getColor(p) {
+		const v = Math.random();
+		return '#' + (p[0] + ((p[1] * v) << 16 | (p[2] * v) << 8 | (p[3] * v))).toString(16);
+	}
+
+	function f(level, left, width, type, title) {
+		levels[level].push({left: left, width: width, color: getColor(palette[type]), title: title});
+	}
+
+	function samples(n) {
+		return n === 1 ? '1 sample' : n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',') + ' samples';
+	}
+
+	function pct(a, b) {
+		return a >= b ? '100' : (100 * a / b).toFixed(2);
+	}
+
+	function findFrame(frames, x) {
+		let left = 0;
+		let right = frames.length - 1;
+
+		while (left <= right) {
+			const mid = (left + right) >>> 1;
+			const f = frames[mid];
+
+			if (f.left > x) {
+				right = mid - 1;
+			} else if (f.left + f.width <= x) {
+				left = mid + 1;
+			} else {
+				return f;
+			}
+		}
+
+		if (frames[left] && (frames[left].left - x) * px < 0.5) return frames[left];
+		if (frames[right] && (x - (frames[right].left + frames[right].width)) * px < 0.5) return frames[right];
+
+		return null;
+	}
+
+	function search(r) {
+		if (r && (r = prompt('Enter regexp to search:', '')) === null) {
+			return;
+		}
+
+		pattern = r ? RegExp(r) : undefined;
+		const matched = render(root, rootLevel);
+		document.getElementById('matchval').textContent = pct(matched, root.width) + '%';
+		document.getElementById('match').style.display = r ? 'inherit' : 'none';
+	}
+
+	function render(newRoot, newLevel) {
+		if (root) {
+			c.fillStyle = '#ffffff';
+			c.fillRect(0, 0, canvasWidth, canvasHeight);
+		}
+
+		root = newRoot || levels[0][0];
+		rootLevel = newLevel || 0;
+		px = canvasWidth / root.width;
+
+		const x0 = root.left;
+		const x1 = x0 + root.width;
+		const marked = [];
+
+		function mark(f) {
+			return marked[f.left] >= f.width || (marked[f.left] = f.width);
+		}
+
+		function totalMarked() {
+			let total = 0;
+			let left = 0;
+			for (let x in marked) {
+				if (+x >= left) {
+					total += marked[x];
+					left = +x + marked[x];
+				}
+			}
+			return total;
+		}
+
+		function drawFrame(f, y, alpha) {
+			if (f.left < x1 && f.left + f.width > x0) {
+				c.fillStyle = pattern && f.title.match(pattern) && mark(f) ? '#ee00ee' : f.color;
+				c.fillRect((f.left - x0) * px, y, f.width * px, 15);
+
+				if (f.width * px >= 21) {
+					const chars = Math.floor(f.width * px / 7);
+					const title = f.title.length <= chars ? f.title : f.title.substring(0, chars - 2) + '..';
+					c.fillStyle = '#000000';
+					c.fillText(title, Math.max(f.left - x0, 0) * px + 3, y + 12, f.width * px - 6);
+				}
+
+				if (alpha) {
+					c.fillStyle = 'rgba(255, 255, 255, 0.5)';
+					c.fillRect((f.left - x0) * px, y, f.width * px, 15);
+				}
+			}
+		}
+
+		for (let h = 0; h < levels.length; h++) {
+			const y = reverse ? h * 16 : canvasHeight - (h + 1) * 16;
+			const frames = levels[h];
+			for (let i = 0; i < frames.length; i++) {
+				drawFrame(frames[i], y, h < rootLevel);
+			}
+		}
+
+		return totalMarked();
+	}
+
+	canvas.onmousemove = function() {
+		const h = Math.floor((reverse ? event.offsetY : (canvasHeight - event.offsetY)) / 16);
+		if (h >= 0 && h < levels.length) {
+			const f = findFrame(levels[h], event.offsetX / px + root.left);
+			if (f) {
+				hl.style.left = (Math.max(f.left - root.left, 0) * px + canvas.offsetLeft) + 'px';
+				hl.style.width = (Math.min(f.width, root.width) * px) + 'px';
+				hl.style.top = ((reverse ? h * 16 : canvasHeight - (h + 1) * 16) + canvas.offsetTop) + 'px';
+				hl.firstChild.textContent = f.title;
+				hl.style.display = 'block';
+				canvas.title = f.title + '\n(' + samples(f.width) + ', ' + pct(f.width, levels[0][0].width) + '%)';
+				canvas.style.cursor = 'pointer';
+				canvas.onclick = function() {
+					if (f != root) {
+						render(f, h);
+						canvas.onmousemove();
+					}
+				};
+				status.textContent = 'Function: ' + canvas.title;
+				return;
+			}
+		}
+		canvas.onmouseout();
+	}
+
+	canvas.onmouseout = function() {
+		hl.style.display = 'none';
+		status.textContent = '\xa0';
+		canvas.title = '';
+		canvas.style.cursor = '';
+		canvas.onclick = '';
+	}
+
+	document.getElementById('reverse').onclick = function() {
+		reverse = !reverse;
+		render();
+	}
+
+	document.getElementById('search').onclick = function() {
+		search(true);
+	}
+
+	document.getElementById('reset').onclick = function() {
+		search(false);
+	}
+
+	window.onkeydown = function() {
+		if (event.ctrlKey && event.keyCode === 70) {
+			event.preventDefault();
+			search(true);
+		} else if (event.keyCode === 27) {
+			search(false);
+		}
+	}
+f(0,0,1269006,4,'all')
+f(1,0,1,1,'java.lang.ClassCastException')
+f(1,1,6,1,'java.lang.String')
+f(1,7,3454,0,'java/lang/Thread.run')
+f(2,7,3454,0,'java/util/concurrent/ThreadPoolExecutor$Worker.run')
+f(3,7,3454,0,'java/util/concurrent/ThreadPoolExecutor.runWorker')
+f(4,7,3453,0,'java/util/concurrent/FutureTask.run')
+f(5,7,1,1,'java.lang.Class[]')
+f(5,8,3452,0,'java/util/concurrent/Executors$RunnableAdapter.call')
+f(6,8,3452,0,'ru/mail/polis/lsm/eldar_tim/AwaitableExecutor$$Lambda$98/1113303674.run')
+f(7,8,3452,0,'ru/mail/polis/lsm/eldar_tim/AwaitableExecutor.lambda$execute$0')
+f(8,8,40,1,'ru.mail.polis.lsm.eldar_tim.AwaitableExecutor$Context')
+f(8,48,3412,0,'ru/mail/polis/lsm/eldar_tim/LsmDAO$$Lambda$97/123286773.run')
+f(9,48,3412,0,'ru/mail/polis/lsm/eldar_tim/LsmDAO.lambda$scheduleFlush$1')
+f(10,48,4,0,'ch/qos/logback/classic/Logger.debug')
+f(11,48,4,0,'ch/qos/logback/classic/Logger.filterAndLog_0_Or3Plus')
+f(12,48,4,0,'ch/qos/logback/classic/Logger.buildLoggingEventAndAppend')
+f(13,48,4,0,'ch/qos/logback/classic/Logger.callAppenders')
+f(14,48,4,0,'ch/qos/logback/classic/Logger.appendLoopOnAppenders')
+f(15,48,4,0,'ch/qos/logback/core/spi/AppenderAttachableImpl.appendLoopOnAppenders')
+f(16,48,4,0,'ch/qos/logback/core/UnsynchronizedAppenderBase.doAppend')
+f(17,48,4,0,'ch/qos/logback/core/OutputStreamAppender.append')
+f(18,48,4,0,'ch/qos/logback/core/OutputStreamAppender.subAppend')
+f(19,48,4,0,'ch/qos/logback/core/encoder/LayoutWrappingEncoder.encode')
+f(20,48,4,0,'ch/qos/logback/classic/layout/TTLLLayout.doLayout')
+f(21,48,4,0,'ch/qos/logback/classic/layout/TTLLLayout.doLayout')
+f(22,48,1,0,'ch/qos/logback/core/util/CachingDateFormatter.format')
+f(23,48,1,0,'java/text/DateFormat.format')
+f(24,48,1,0,'java/text/SimpleDateFormat.format')
+f(25,48,1,0,'java/text/SimpleDateFormat.format')
+f(26,48,1,0,'java/util/Calendar.setTime')
+f(27,48,1,0,'java/util/Calendar.setTimeInMillis')
+f(28,48,1,0,'java/util/GregorianCalendar.computeFields')
+f(29,48,1,0,'java/util/GregorianCalendar.computeFields')
+f(30,48,1,0,'java/util/Calendar.internalSet')
+f(31,48,1,1,'byte[]')
+f(22,49,3,0,'java/lang/StringBuilder.append')
+f(23,49,3,0,'java/lang/AbstractStringBuilder.append')
+f(24,49,3,0,'java/lang/AbstractStringBuilder.ensureCapacityInternal')
+f(25,49,3,0,'java/util/Arrays.copyOf')
+f(26,49,3,1,'byte[]')
+f(10,52,3408,0,'ru/mail/polis/lsm/eldar_tim/LsmDAO.flush')
+f(11,52,3408,0,'ru/mail/polis/lsm/eldar_tim/components/SSTable.write')
+f(12,52,4,0,'ru/mail/polis/lsm/eldar_tim/components/SSTable.<init>')
+f(13,52,4,0,'ru/mail/polis/lsm/eldar_tim/components/SSTable.open')
+f(14,52,3,0,'java/nio/channels/FileChannel.open')
+f(15,52,1,1,'java.util.HashSet')
+f(15,53,2,0,'java/nio/channels/FileChannel.open')
+f(16,53,2,0,'sun/nio/fs/UnixFileSystemProvider.newFileChannel')
+f(17,53,2,0,'sun/nio/fs/UnixChannelFactory.newFileChannel')
+f(18,53,2,0,'sun/nio/fs/UnixChannelFactory.newFileChannel')
+f(19,53,2,0,'sun/nio/ch/FileChannelImpl.open')
+f(20,53,1,1,'sun.nio.ch.FileChannelImpl')
+f(20,54,1,0,'sun/nio/ch/FileChannelImpl.<init>')
+f(21,54,1,0,'sun/nio/ch/NativeThreadSet.<init>')
+f(22,54,1,1,'long[]')
+f(14,55,1,0,'sun/nio/ch/FileChannelImpl.map')
+f(15,55,1,1,'sun.nio.ch.FileChannelImpl$Unmapper')
+f(12,56,3404,0,'ru/mail/polis/lsm/eldar_tim/components/SSTable.writeImpl')
+f(13,56,1,0,'java/util/Collections$UnmodifiableCollection$1.hasNext')
+f(14,56,1,0,'java/util/concurrent/ConcurrentSkipListMap$Iter.hasNext')
+f(15,56,1,1,'java.lang.String')
+f(13,57,1737,0,'ru/mail/polis/lsm/Record.getKey')
+f(14,57,1737,0,'java/nio/HeapByteBufferR.asReadOnlyBuffer')
+f(15,57,1737,0,'java/nio/HeapByteBufferR.duplicate')
+f(16,57,1737,1,'java.nio.HeapByteBufferR')
+f(13,1794,1663,0,'ru/mail/polis/lsm/Record.getValue')
+f(14,1794,1663,0,'java/nio/HeapByteBufferR.asReadOnlyBuffer')
+f(15,1794,1663,0,'java/nio/HeapByteBufferR.duplicate')
+f(16,1794,1663,1,'java.nio.HeapByteBufferR')
+f(13,3457,2,0,'ru/mail/polis/lsm/eldar_tim/components/SSTable.getFile')
+f(14,3457,2,0,'ru/mail/polis/lsm/eldar_tim/components/SSTable.resolveWithExt')
+f(15,3457,2,0,'java/nio/file/Path.resolveSibling')
+f(16,3457,2,0,'sun/nio/fs/UnixFileSystem.getPath')
+f(17,3457,2,0,'sun/nio/fs/UnixPath.<init>')
+f(18,3457,2,0,'sun/nio/fs/UnixPath.encode')
+f(19,3457,2,1,'byte[]')
+f(13,3459,1,0,'ru/mail/polis/lsm/eldar_tim/components/SSTable.rename')
+f(14,3459,1,1,'java.nio.file.CopyOption[]')
+f(4,3460,1,0,'java/util/concurrent/ThreadPoolExecutor.getTask')
+f(5,3460,1,0,'java/util/concurrent/LinkedBlockingQueue.take')
+f(6,3460,1,0,'java/util/concurrent/locks/AbstractQueuedSynchronizer$ConditionObject.await')
+f(7,3460,1,0,'java/util/concurrent/locks/AbstractQueuedSynchronizer$ConditionObject.addConditionWaiter')
+f(8,3460,1,1,'java.util.concurrent.locks.AbstractQueuedSynchronizer$Node')
+f(1,3461,617753,0,'java/util/concurrent/ForkJoinWorkerThread.run')
+f(2,3461,617753,0,'java/util/concurrent/ForkJoinPool.runWorker')
+f(3,3461,617753,0,'java/util/concurrent/ForkJoinPool.scan')
+f(4,3461,617753,0,'java/util/concurrent/ForkJoinPool$WorkQueue.topLevelExec')
+f(5,3461,617753,0,'java/util/concurrent/ForkJoinTask.doExec')
+f(6,3461,617753,0,'java/util/concurrent/ForkJoinTask$RunnableExecuteAction.exec')
+f(7,3461,617753,0,'ru/mail/polis/service/eldar_tim/LimitedServiceExecutor$$Lambda$85/1963642168.run')
+f(8,3461,617753,0,'ru/mail/polis/service/eldar_tim/LimitedServiceExecutor.lambda$execute$1')
+f(9,3461,617753,0,'ru/mail/polis/service/eldar_tim/LimitedServiceExecutor.run')
+f(10,3461,617753,0,'ru/mail/polis/service/eldar_tim/HttpServerImpl$$Lambda$75/1555652114.run')
+f(11,3461,617753,0,'ru/mail/polis/service/eldar_tim/HttpServerImpl.lambda$handleRequest$2')
+f(12,3461,617753,0,'ru/mail/polis/service/eldar_tim/HttpServerImpl$$Lambda$64/2129144075.handleRequest')
+f(13,3461,617753,0,'ru/mail/polis/service/eldar_tim/HttpServerImpl.entity')
+f(14,3461,25333,0,'one/nio/http/HttpSession.sendResponse')
+f(15,3461,25333,0,'one/nio/http/HttpSession.writeResponse')
+f(16,3461,17607,0,'one/nio/http/Response.toBytes')
+f(17,3461,17607,0,'one/nio/util/ByteArrayBuilder.<init>')
+f(18,3461,17554,1,'byte[]')
+f(18,21015,53,2,'byte[]')
+f(16,21068,7726,0,'one/nio/net/Session.write')
+f(17,21068,7726,1,'one.nio.net.Session$ArrayQueueItem')
+f(14,28794,19341,0,'one/nio/http/Request.getRequiredParameter')
+f(15,28794,19341,0,'one/nio/http/Request.getParameter')
+f(16,28794,19341,0,'java/lang/String.substring')
+f(17,28794,19341,0,'java/lang/StringLatin1.newString')
+f(18,28794,13409,1,'java.lang.String')
+f(18,42203,5932,0,'java/util/Arrays.copyOfRange')
+f(19,42203,5932,1,'byte[]')
+f(14,48135,541305,0,'ru/mail/polis/service/eldar_tim/HttpServerImpl.get')
+f(15,48135,2948,0,'java/lang/String.getBytes')
+f(16,48135,2948,0,'java/lang/StringCoding.encode')
+f(17,48135,2948,0,'java/lang/StringCoding.encodeUTF8')
+f(18,48135,2948,0,'java/util/Arrays.copyOf')
+f(19,48135,2948,1,'byte[]')
+f(15,51083,4561,0,'java/nio/ByteBuffer.wrap')
+f(16,51083,4561,0,'java/nio/ByteBuffer.wrap')
+f(17,51083,4561,1,'java.nio.HeapByteBuffer')
+f(15,55644,2259,1,'one.nio.http.Response')
+f(15,57903,9402,0,'one/nio/http/Response.<init>')
+f(16,57903,3908,1,'byte[]')
+f(16,61811,3183,1,'java.lang.String[]')
+f(16,64994,2311,1,'java.lang.String')
+f(15,67305,7849,0,'ru/mail/polis/lsm/DAO.nextKey')
+f(16,67305,7849,0,'java/nio/ByteBuffer.allocate')
+f(17,67305,4701,1,'java.nio.HeapByteBuffer')
+f(17,72006,3148,0,'java/nio/HeapByteBuffer.<init>')
+f(18,72006,3148,1,'byte[]')
+f(15,75154,6187,0,'ru/mail/polis/lsm/Record.getValue')
+f(16,75154,6173,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(17,75154,6173,0,'java/nio/DirectByteBufferR.duplicate')
+f(18,75154,6160,1,'java.nio.DirectByteBufferR')
+f(18,81314,13,2,'java.nio.DirectByteBufferR')
+f(16,81327,14,0,'java/nio/HeapByteBufferR.asReadOnlyBuffer')
+f(17,81327,14,0,'java/nio/HeapByteBufferR.duplicate')
+f(18,81327,14,1,'java.nio.HeapByteBufferR')
+f(15,81341,449268,0,'ru/mail/polis/lsm/eldar_tim/LsmDAO.range')
+f(16,81341,5474,0,'java/util/Collections$UnmodifiableCollection.iterator')
+f(17,81341,2363,1,'java.util.Collections$UnmodifiableCollection$1')
+f(17,83704,3111,0,'java/util/Collections$UnmodifiableCollection$1.<init>')
+f(18,83704,3111,0,'java/util/concurrent/ConcurrentSkipListMap$Values.iterator')
+f(19,83704,3111,1,'java.util.concurrent.ConcurrentSkipListMap$SubMap$SubMapValueIterator')
+f(16,86815,3120,0,'java/util/Collections$UnmodifiableMap.values')
+f(17,86815,1574,0,'java/util/Collections.unmodifiableCollection')
+f(18,86815,1574,1,'java.util.Collections$UnmodifiableCollection')
+f(17,88389,1546,0,'java/util/concurrent/ConcurrentSkipListMap$SubMap.values')
+f(18,88389,1546,1,'java.util.concurrent.ConcurrentSkipListMap$Values')
+f(16,89935,1618,0,'java/util/concurrent/ConcurrentSkipListMap$SubMap.values')
+f(17,89935,1618,1,'java.util.concurrent.ConcurrentSkipListMap$Values')
+f(16,91553,3089,0,'java/util/concurrent/ConcurrentSkipListMap$Values.iterator')
+f(17,91553,3089,1,'java.util.concurrent.ConcurrentSkipListMap$SubMap$SubMapValueIterator')
+f(16,94642,96,1,'ru.mail.polis.lsm.eldar_tim.iterators.TombstonesFilterIterator')
+f(16,94738,12278,0,'ru/mail/polis/lsm/eldar_tim/components/Utils.map')
+f(17,94738,7699,0,'java/util/Collections$UnmodifiableSortedMap.subMap')
+f(18,94738,3174,1,'java.util.Collections$UnmodifiableSortedMap')
+f(18,97912,4525,0,'java/util/concurrent/ConcurrentSkipListMap.subMap')
+f(19,97912,4525,0,'java/util/concurrent/ConcurrentSkipListMap.subMap')
+f(20,97912,4525,0,'java/util/concurrent/ConcurrentSkipListMap.subMap')
+f(21,97912,4525,1,'java.util.concurrent.ConcurrentSkipListMap$SubMap')
+f(17,102437,4579,0,'java/util/concurrent/ConcurrentSkipListMap.subMap')
+f(18,102437,4579,0,'java/util/concurrent/ConcurrentSkipListMap.subMap')
+f(19,102437,4579,0,'java/util/concurrent/ConcurrentSkipListMap.subMap')
+f(20,102437,4579,1,'java.util.concurrent.ConcurrentSkipListMap$SubMap')
+f(16,107016,14016,0,'ru/mail/polis/lsm/eldar_tim/components/Utils.mergeTwo')
+f(17,107016,4698,1,'ru.mail.polis.lsm.eldar_tim.iterators.MergeIterator')
+f(17,111714,9318,1,'ru.mail.polis.lsm.eldar_tim.iterators.PeekingIterator')
+f(16,121032,407245,0,'ru/mail/polis/lsm/eldar_tim/components/Utils.sstableRanges')
+f(17,121032,2356,1,'java.util.ArrayList')
+f(17,123388,9941,0,'java/util/ArrayList.<init>')
+f(18,123388,9909,1,'java.lang.Object[]')
+f(18,133297,32,2,'java.lang.Object[]')
+f(17,133329,16,0,'java/util/ArrayList.iterator')
+f(18,133329,16,1,'java.util.ArrayList$Itr')
+f(17,133345,183687,0,'ru/mail/polis/lsm/eldar_tim/components/SSTable.range')
+f(18,133345,1,0,'java/lang/ClassLoader.loadClass')
+f(19,133345,1,0,'jdk/internal/loader/ClassLoaders$AppClassLoader.loadClass')
+f(20,133345,1,0,'jdk/internal/loader/BuiltinClassLoader.loadClass')
+f(21,133345,1,0,'jdk/internal/loader/BuiltinClassLoader.loadClassOrNull')
+f(22,133345,1,0,'jdk/internal/loader/BuiltinClassLoader.findClassOnClassPathOrNull')
+f(23,133345,1,0,'jdk/internal/loader/BuiltinClassLoader.defineClass')
+f(24,133345,1,0,'jdk/internal/loader/Resource.getBytes')
+f(25,133345,1,0,'java/util/Arrays.copyOf')
+f(26,133345,1,1,'byte[]')
+f(18,133346,131183,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(19,133346,131183,0,'java/nio/DirectByteBufferR.duplicate')
+f(20,133346,131001,1,'java.nio.DirectByteBufferR')
+f(20,264347,182,2,'java.nio.DirectByteBufferR')
+f(18,264529,52503,1,'ru.mail.polis.lsm.eldar_tim.iterators.RangeIterator')
+f(17,317032,211245,0,'ru/mail/polis/lsm/eldar_tim/components/Utils.merge')
+f(18,317032,5944,0,'java/util/ArrayList.subList')
+f(19,317032,5944,1,'java.util.ArrayList$SubList')
+f(18,322976,198309,0,'ru/mail/polis/lsm/eldar_tim/components/Utils.merge')
+f(19,322976,11432,0,'java/util/ArrayList$SubList.subList')
+f(20,322976,11432,1,'java.util.ArrayList$SubList')
+f(19,334408,173173,0,'ru/mail/polis/lsm/eldar_tim/components/Utils.merge')
+f(20,334408,19340,0,'java/util/ArrayList$SubList.subList')
+f(21,334408,19340,1,'java.util.ArrayList$SubList')
+f(20,353748,129446,0,'ru/mail/polis/lsm/eldar_tim/components/Utils.merge')
+f(21,353748,25258,0,'java/util/ArrayList$SubList.subList')
+f(22,353748,25258,1,'java.util.ArrayList$SubList')
+f(21,379006,63995,0,'ru/mail/polis/lsm/eldar_tim/components/Utils.merge')
+f(22,379006,8193,0,'java/util/ArrayList$SubList.subList')
+f(23,379006,8193,1,'java.util.ArrayList$SubList')
+f(22,387199,9294,0,'ru/mail/polis/lsm/eldar_tim/components/Utils.merge')
+f(23,387199,9294,0,'ru/mail/polis/lsm/eldar_tim/components/Utils.mergeTwo')
+f(24,387199,3017,1,'ru.mail.polis.lsm.eldar_tim.iterators.MergeIterator')
+f(24,390216,6277,1,'ru.mail.polis.lsm.eldar_tim.iterators.PeekingIterator')
+f(22,396493,46508,0,'ru/mail/polis/lsm/eldar_tim/components/Utils.mergeTwo')
+f(23,396493,15432,1,'ru.mail.polis.lsm.eldar_tim.iterators.MergeIterator')
+f(23,411925,31076,1,'ru.mail.polis.lsm.eldar_tim.iterators.PeekingIterator')
+f(21,443001,40193,0,'ru/mail/polis/lsm/eldar_tim/components/Utils.mergeTwo')
+f(22,443001,13394,1,'ru.mail.polis.lsm.eldar_tim.iterators.MergeIterator')
+f(22,456395,26799,1,'ru.mail.polis.lsm.eldar_tim.iterators.PeekingIterator')
+f(20,483194,24387,0,'ru/mail/polis/lsm/eldar_tim/components/Utils.mergeTwo')
+f(21,483194,8165,1,'ru.mail.polis.lsm.eldar_tim.iterators.MergeIterator')
+f(21,491359,16222,1,'ru.mail.polis.lsm.eldar_tim.iterators.PeekingIterator')
+f(19,507581,13704,0,'ru/mail/polis/lsm/eldar_tim/components/Utils.mergeTwo')
+f(20,507581,4719,1,'ru.mail.polis.lsm.eldar_tim.iterators.MergeIterator')
+f(20,512300,8985,1,'ru.mail.polis.lsm.eldar_tim.iterators.PeekingIterator')
+f(18,521285,6992,0,'ru/mail/polis/lsm/eldar_tim/components/Utils.mergeTwo')
+f(19,521285,2348,1,'ru.mail.polis.lsm.eldar_tim.iterators.MergeIterator')
+f(19,523633,4644,1,'ru.mail.polis.lsm.eldar_tim.iterators.PeekingIterator')
+f(16,528277,2332,0,'ru/mail/polis/lsm/eldar_tim/iterators/TombstonesFilterIterator.<init>')
+f(17,528277,2332,1,'ru.mail.polis.lsm.eldar_tim.iterators.PeekingIterator')
+f(15,530609,55818,0,'ru/mail/polis/lsm/eldar_tim/iterators/TombstonesFilterIterator.hasNext')
+f(16,530609,55818,0,'ru/mail/polis/lsm/eldar_tim/iterators/PeekingIterator.peek')
+f(17,530609,55818,0,'ru/mail/polis/lsm/eldar_tim/iterators/MergeIterator.next')
+f(18,530609,55818,0,'ru/mail/polis/lsm/eldar_tim/iterators/MergeIterator.next')
+f(19,530609,30,0,'ru/mail/polis/lsm/Record.getKey')
+f(20,530609,14,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(21,530609,14,0,'java/nio/DirectByteBufferR.duplicate')
+f(22,530609,14,1,'java.nio.DirectByteBufferR')
+f(20,530623,16,0,'java/nio/HeapByteBufferR.asReadOnlyBuffer')
+f(21,530623,16,0,'java/nio/HeapByteBufferR.duplicate')
+f(22,530623,16,1,'java.nio.HeapByteBufferR')
+f(19,530639,55704,0,'ru/mail/polis/lsm/eldar_tim/iterators/PeekingIterator.next')
+f(20,530639,55704,0,'ru/mail/polis/lsm/eldar_tim/iterators/PeekingIterator.peek')
+f(21,530639,55704,0,'ru/mail/polis/lsm/eldar_tim/iterators/MergeIterator.next')
+f(22,530639,55704,0,'ru/mail/polis/lsm/eldar_tim/iterators/MergeIterator.next')
+f(23,530639,279,0,'ru/mail/polis/lsm/Record.getKey')
+f(24,530639,279,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(25,530639,279,0,'java/nio/DirectByteBufferR.duplicate')
+f(26,530639,279,1,'java.nio.DirectByteBufferR')
+f(23,530918,53765,0,'ru/mail/polis/lsm/eldar_tim/iterators/PeekingIterator.next')
+f(24,530918,53765,0,'ru/mail/polis/lsm/eldar_tim/iterators/PeekingIterator.peek')
+f(25,530918,52720,0,'ru/mail/polis/lsm/eldar_tim/iterators/MergeIterator.next')
+f(26,530918,52720,0,'ru/mail/polis/lsm/eldar_tim/iterators/MergeIterator.next')
+f(27,530918,567,0,'ru/mail/polis/lsm/Record.getKey')
+f(28,530918,567,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(29,530918,567,0,'java/nio/DirectByteBufferR.duplicate')
+f(30,530918,567,1,'java.nio.DirectByteBufferR')
+f(27,531485,48652,0,'ru/mail/polis/lsm/eldar_tim/iterators/PeekingIterator.next')
+f(28,531485,48652,0,'ru/mail/polis/lsm/eldar_tim/iterators/PeekingIterator.peek')
+f(29,531485,45938,0,'ru/mail/polis/lsm/eldar_tim/iterators/MergeIterator.next')
+f(30,531485,45938,0,'ru/mail/polis/lsm/eldar_tim/iterators/MergeIterator.next')
+f(31,531485,981,0,'ru/mail/polis/lsm/Record.getKey')
+f(32,531485,981,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(33,531485,981,0,'java/nio/DirectByteBufferR.duplicate')
+f(34,531485,981,1,'java.nio.DirectByteBufferR')
+f(31,532466,38531,0,'ru/mail/polis/lsm/eldar_tim/iterators/PeekingIterator.next')
+f(32,532466,38531,0,'ru/mail/polis/lsm/eldar_tim/iterators/PeekingIterator.peek')
+f(33,532466,33750,0,'ru/mail/polis/lsm/eldar_tim/iterators/MergeIterator.next')
+f(34,532466,33750,0,'ru/mail/polis/lsm/eldar_tim/iterators/MergeIterator.next')
+f(35,532466,1180,0,'ru/mail/polis/lsm/Record.getKey')
+f(36,532466,1180,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(37,532466,1180,0,'java/nio/DirectByteBufferR.duplicate')
+f(38,532466,1180,1,'java.nio.DirectByteBufferR')
+f(35,533646,25023,0,'ru/mail/polis/lsm/eldar_tim/iterators/PeekingIterator.next')
+f(36,533646,25023,0,'ru/mail/polis/lsm/eldar_tim/iterators/PeekingIterator.peek')
+f(37,533646,17249,0,'ru/mail/polis/lsm/eldar_tim/iterators/MergeIterator.next')
+f(38,533646,17249,0,'ru/mail/polis/lsm/eldar_tim/iterators/MergeIterator.next')
+f(39,533646,797,0,'ru/mail/polis/lsm/Record.getKey')
+f(40,533646,797,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(41,533646,797,0,'java/nio/DirectByteBufferR.duplicate')
+f(42,533646,794,1,'java.nio.DirectByteBufferR')
+f(42,534440,3,2,'java.nio.DirectByteBufferR')
+f(39,534443,11432,0,'ru/mail/polis/lsm/eldar_tim/iterators/PeekingIterator.next')
+f(40,534443,11432,0,'ru/mail/polis/lsm/eldar_tim/iterators/PeekingIterator.peek')
+f(41,534443,1677,0,'ru/mail/polis/lsm/eldar_tim/iterators/MergeIterator.next')
+f(42,534443,1677,0,'ru/mail/polis/lsm/eldar_tim/iterators/MergeIterator.next')
+f(43,534443,57,0,'ru/mail/polis/lsm/Record.getKey')
+f(44,534443,57,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(45,534443,57,0,'java/nio/DirectByteBufferR.duplicate')
+f(46,534443,57,1,'java.nio.DirectByteBufferR')
+f(43,534500,1175,0,'ru/mail/polis/lsm/eldar_tim/iterators/PeekingIterator.next')
+f(44,534500,1175,0,'ru/mail/polis/lsm/eldar_tim/iterators/PeekingIterator.peek')
+f(45,534500,1175,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.next')
+f(46,534500,1175,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.next')
+f(47,534500,794,0,'ru/mail/polis/lsm/Record.of')
+f(48,534500,372,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(49,534500,372,0,'java/nio/DirectByteBufferR.duplicate')
+f(50,534500,372,1,'java.nio.DirectByteBufferR')
+f(48,534872,64,1,'ru.mail.polis.lsm.Record')
+f(48,534936,358,0,'ru/mail/polis/lsm/Record.<init>')
+f(49,534936,358,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(50,534936,358,0,'java/nio/DirectByteBufferR.duplicate')
+f(51,534936,358,1,'java.nio.DirectByteBufferR')
+f(47,535294,381,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.read')
+f(48,535294,381,0,'java/nio/DirectByteBufferR.slice')
+f(49,535294,381,1,'java.nio.DirectByteBufferR')
+f(43,535675,445,0,'ru/mail/polis/lsm/eldar_tim/iterators/PeekingIterator.peek')
+f(44,535675,445,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.next')
+f(45,535675,445,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.next')
+f(46,535675,302,0,'ru/mail/polis/lsm/Record.of')
+f(47,535675,138,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(48,535675,138,0,'java/nio/DirectByteBufferR.duplicate')
+f(49,535675,138,1,'java.nio.DirectByteBufferR')
+f(47,535813,23,1,'ru.mail.polis.lsm.Record')
+f(47,535836,141,0,'ru/mail/polis/lsm/Record.<init>')
+f(48,535836,141,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(49,535836,141,0,'java/nio/DirectByteBufferR.duplicate')
+f(50,535836,141,1,'java.nio.DirectByteBufferR')
+f(46,535977,143,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.read')
+f(47,535977,143,0,'java/nio/DirectByteBufferR.slice')
+f(48,535977,143,1,'java.nio.DirectByteBufferR')
+f(41,536120,9755,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.next')
+f(42,536120,9755,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.next')
+f(43,536120,6618,0,'ru/mail/polis/lsm/Record.of')
+f(44,536120,3000,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(45,536120,3000,0,'java/nio/DirectByteBufferR.duplicate')
+f(46,536120,2984,1,'java.nio.DirectByteBufferR')
+f(46,539104,16,2,'java.nio.DirectByteBufferR')
+f(44,539120,576,1,'ru.mail.polis.lsm.Record')
+f(44,539696,3042,0,'ru/mail/polis/lsm/Record.<init>')
+f(45,539696,3042,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(46,539696,3042,0,'java/nio/DirectByteBufferR.duplicate')
+f(47,539696,3034,1,'java.nio.DirectByteBufferR')
+f(47,542730,8,2,'java.nio.DirectByteBufferR')
+f(43,542738,3137,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.read')
+f(44,542738,3137,0,'java/nio/DirectByteBufferR.slice')
+f(45,542738,3118,1,'java.nio.DirectByteBufferR')
+f(45,545856,19,2,'java.nio.DirectByteBufferR')
+f(39,545875,5020,0,'ru/mail/polis/lsm/eldar_tim/iterators/PeekingIterator.peek')
+f(40,545875,471,0,'ru/mail/polis/lsm/eldar_tim/iterators/MergeIterator.next')
+f(41,545875,471,0,'ru/mail/polis/lsm/eldar_tim/iterators/MergeIterator.next')
+f(42,545875,471,0,'ru/mail/polis/lsm/eldar_tim/iterators/PeekingIterator.next')
+f(43,545875,471,0,'ru/mail/polis/lsm/eldar_tim/iterators/PeekingIterator.peek')
+f(44,545875,471,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.next')
+f(45,545875,471,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.next')
+f(46,545875,325,0,'ru/mail/polis/lsm/Record.of')
+f(47,545875,158,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(48,545875,158,0,'java/nio/DirectByteBufferR.duplicate')
+f(49,545875,158,1,'java.nio.DirectByteBufferR')
+f(47,546033,26,1,'ru.mail.polis.lsm.Record')
+f(47,546059,141,0,'ru/mail/polis/lsm/Record.<init>')
+f(48,546059,141,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(49,546059,141,0,'java/nio/DirectByteBufferR.duplicate')
+f(50,546059,141,1,'java.nio.DirectByteBufferR')
+f(46,546200,146,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.read')
+f(47,546200,146,0,'java/nio/DirectByteBufferR.slice')
+f(48,546200,146,1,'java.nio.DirectByteBufferR')
+f(40,546346,4549,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.next')
+f(41,546346,4549,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.next')
+f(42,546346,3129,0,'ru/mail/polis/lsm/Record.of')
+f(43,546346,1452,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(44,546346,1452,0,'java/nio/DirectByteBufferR.duplicate')
+f(45,546346,1451,1,'java.nio.DirectByteBufferR')
+f(45,547797,1,2,'java.nio.DirectByteBufferR')
+f(43,547798,247,1,'ru.mail.polis.lsm.Record')
+f(43,548045,1430,0,'ru/mail/polis/lsm/Record.<init>')
+f(44,548045,1430,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(45,548045,1430,0,'java/nio/DirectByteBufferR.duplicate')
+f(46,548045,1430,1,'java.nio.DirectByteBufferR')
+f(42,549475,1420,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.read')
+f(43,549475,1420,0,'java/nio/DirectByteBufferR.slice')
+f(44,549475,1420,1,'java.nio.DirectByteBufferR')
+f(37,550895,7774,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.next')
+f(38,550895,7774,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.next')
+f(39,550895,5313,0,'ru/mail/polis/lsm/Record.of')
+f(40,550895,2418,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(41,550895,2418,0,'java/nio/DirectByteBufferR.duplicate')
+f(42,550895,2418,1,'java.nio.DirectByteBufferR')
+f(40,553313,438,1,'ru.mail.polis.lsm.Record')
+f(40,553751,2457,0,'ru/mail/polis/lsm/Record.<init>')
+f(41,553751,2457,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(42,553751,2457,0,'java/nio/DirectByteBufferR.duplicate')
+f(43,553751,2449,1,'java.nio.DirectByteBufferR')
+f(43,556200,8,2,'java.nio.DirectByteBufferR')
+f(39,556208,2461,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.read')
+f(40,556208,2461,0,'java/nio/DirectByteBufferR.slice')
+f(41,556208,2454,1,'java.nio.DirectByteBufferR')
+f(41,558662,7,2,'java.nio.DirectByteBufferR')
+f(35,558669,7547,0,'ru/mail/polis/lsm/eldar_tim/iterators/PeekingIterator.peek')
+f(36,558669,4882,0,'ru/mail/polis/lsm/eldar_tim/iterators/MergeIterator.next')
+f(37,558669,4882,0,'ru/mail/polis/lsm/eldar_tim/iterators/MergeIterator.next')
+f(38,558669,4882,0,'ru/mail/polis/lsm/eldar_tim/iterators/PeekingIterator.next')
+f(39,558669,4882,0,'ru/mail/polis/lsm/eldar_tim/iterators/PeekingIterator.peek')
+f(40,558669,252,0,'ru/mail/polis/lsm/eldar_tim/iterators/MergeIterator.next')
+f(41,558669,252,0,'ru/mail/polis/lsm/eldar_tim/iterators/MergeIterator.next')
+f(42,558669,252,0,'ru/mail/polis/lsm/eldar_tim/iterators/PeekingIterator.next')
+f(43,558669,252,0,'ru/mail/polis/lsm/eldar_tim/iterators/PeekingIterator.peek')
+f(44,558669,252,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.next')
+f(45,558669,252,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.next')
+f(46,558669,163,0,'ru/mail/polis/lsm/Record.of')
+f(47,558669,84,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(48,558669,84,0,'java/nio/DirectByteBufferR.duplicate')
+f(49,558669,84,1,'java.nio.DirectByteBufferR')
+f(47,558753,12,1,'ru.mail.polis.lsm.Record')
+f(47,558765,67,0,'ru/mail/polis/lsm/Record.<init>')
+f(48,558765,67,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(49,558765,67,0,'java/nio/DirectByteBufferR.duplicate')
+f(50,558765,67,1,'java.nio.DirectByteBufferR')
+f(46,558832,89,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.read')
+f(47,558832,89,0,'java/nio/DirectByteBufferR.slice')
+f(48,558832,89,1,'java.nio.DirectByteBufferR')
+f(40,558921,4630,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.next')
+f(41,558921,4630,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.next')
+f(42,558921,3197,0,'ru/mail/polis/lsm/Record.of')
+f(43,558921,1508,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(44,558921,1508,0,'java/nio/DirectByteBufferR.duplicate')
+f(45,558921,1508,1,'java.nio.DirectByteBufferR')
+f(43,560429,248,1,'ru.mail.polis.lsm.Record')
+f(43,560677,1441,0,'ru/mail/polis/lsm/Record.<init>')
+f(44,560677,1441,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(45,560677,1441,0,'java/nio/DirectByteBufferR.duplicate')
+f(46,560677,1441,1,'java.nio.DirectByteBufferR')
+f(42,562118,1433,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.read')
+f(43,562118,1433,0,'java/nio/DirectByteBufferR.slice')
+f(44,562118,1430,1,'java.nio.DirectByteBufferR')
+f(44,563548,3,2,'java.nio.DirectByteBufferR')
+f(36,563551,2665,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.next')
+f(37,563551,2665,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.next')
+f(38,563551,1842,0,'ru/mail/polis/lsm/Record.of')
+f(39,563551,819,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(40,563551,819,0,'java/nio/DirectByteBufferR.duplicate')
+f(41,563551,818,1,'java.nio.DirectByteBufferR')
+f(41,564369,1,2,'java.nio.DirectByteBufferR')
+f(39,564370,170,1,'ru.mail.polis.lsm.Record')
+f(39,564540,853,0,'ru/mail/polis/lsm/Record.<init>')
+f(40,564540,853,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(41,564540,853,0,'java/nio/DirectByteBufferR.duplicate')
+f(42,564540,853,1,'java.nio.DirectByteBufferR')
+f(38,565393,823,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.read')
+f(39,565393,823,0,'java/nio/DirectByteBufferR.slice')
+f(40,565393,823,1,'java.nio.DirectByteBufferR')
+f(33,566216,4781,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.next')
+f(34,566216,4781,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.next')
+f(35,566216,3323,0,'ru/mail/polis/lsm/Record.of')
+f(36,566216,1475,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(37,566216,1475,0,'java/nio/DirectByteBufferR.duplicate')
+f(38,566216,1473,1,'java.nio.DirectByteBufferR')
+f(38,567689,2,2,'java.nio.DirectByteBufferR')
+f(36,567691,329,1,'ru.mail.polis.lsm.Record')
+f(36,568020,1519,0,'ru/mail/polis/lsm/Record.<init>')
+f(37,568020,1519,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(38,568020,1519,0,'java/nio/DirectByteBufferR.duplicate')
+f(39,568020,1516,1,'java.nio.DirectByteBufferR')
+f(39,569536,3,2,'java.nio.DirectByteBufferR')
+f(35,569539,1458,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.read')
+f(36,569539,1458,0,'java/nio/DirectByteBufferR.slice')
+f(37,569539,1454,1,'java.nio.DirectByteBufferR')
+f(37,570993,4,2,'java.nio.DirectByteBufferR')
+f(31,570997,6426,0,'ru/mail/polis/lsm/eldar_tim/iterators/PeekingIterator.peek')
+f(32,570997,4982,0,'ru/mail/polis/lsm/eldar_tim/iterators/MergeIterator.next')
+f(33,570997,4982,0,'ru/mail/polis/lsm/eldar_tim/iterators/MergeIterator.next')
+f(34,570997,4982,0,'ru/mail/polis/lsm/eldar_tim/iterators/PeekingIterator.next')
+f(35,570997,4982,0,'ru/mail/polis/lsm/eldar_tim/iterators/PeekingIterator.peek')
+f(36,570997,1144,0,'ru/mail/polis/lsm/eldar_tim/iterators/MergeIterator.next')
+f(37,570997,1144,0,'ru/mail/polis/lsm/eldar_tim/iterators/MergeIterator.next')
+f(38,570997,1144,0,'ru/mail/polis/lsm/eldar_tim/iterators/PeekingIterator.next')
+f(39,570997,1144,0,'ru/mail/polis/lsm/eldar_tim/iterators/PeekingIterator.peek')
+f(40,570997,1144,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.next')
+f(41,570997,1144,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.next')
+f(42,570997,783,0,'ru/mail/polis/lsm/Record.of')
+f(43,570997,354,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(44,570997,354,0,'java/nio/DirectByteBufferR.duplicate')
+f(45,570997,354,1,'java.nio.DirectByteBufferR')
+f(43,571351,60,1,'ru.mail.polis.lsm.Record')
+f(43,571411,369,0,'ru/mail/polis/lsm/Record.<init>')
+f(44,571411,369,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(45,571411,369,0,'java/nio/DirectByteBufferR.duplicate')
+f(46,571411,369,1,'java.nio.DirectByteBufferR')
+f(42,571780,361,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.read')
+f(43,571780,361,0,'java/nio/DirectByteBufferR.slice')
+f(44,571780,361,1,'java.nio.DirectByteBufferR')
+f(36,572141,3838,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.next')
+f(37,572141,3838,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.next')
+f(38,572141,2677,0,'ru/mail/polis/lsm/Record.of')
+f(39,572141,1215,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(40,572141,1215,0,'java/nio/DirectByteBufferR.duplicate')
+f(41,572141,1215,1,'java.nio.DirectByteBufferR')
+f(39,573356,234,1,'ru.mail.polis.lsm.Record')
+f(39,573590,1228,0,'ru/mail/polis/lsm/Record.<init>')
+f(40,573590,1228,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(41,573590,1228,0,'java/nio/DirectByteBufferR.duplicate')
+f(42,573590,1227,1,'java.nio.DirectByteBufferR')
+f(42,574817,1,2,'java.nio.DirectByteBufferR')
+f(38,574818,1161,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.read')
+f(39,574818,1161,0,'java/nio/DirectByteBufferR.slice')
+f(40,574818,1161,1,'java.nio.DirectByteBufferR')
+f(32,575979,1444,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.next')
+f(33,575979,1444,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.next')
+f(34,575979,943,0,'ru/mail/polis/lsm/Record.of')
+f(35,575979,414,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(36,575979,414,0,'java/nio/DirectByteBufferR.duplicate')
+f(37,575979,414,1,'java.nio.DirectByteBufferR')
+f(35,576393,92,1,'ru.mail.polis.lsm.Record')
+f(35,576485,437,0,'ru/mail/polis/lsm/Record.<init>')
+f(36,576485,437,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(37,576485,437,0,'java/nio/DirectByteBufferR.duplicate')
+f(38,576485,437,1,'java.nio.DirectByteBufferR')
+f(34,576922,501,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.read')
+f(35,576922,501,0,'java/nio/DirectByteBufferR.slice')
+f(36,576922,501,1,'java.nio.DirectByteBufferR')
+f(29,577423,2714,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.next')
+f(30,577423,2714,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.next')
+f(31,577423,1844,0,'ru/mail/polis/lsm/Record.of')
+f(32,577423,828,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(33,577423,828,0,'java/nio/DirectByteBufferR.duplicate')
+f(34,577423,828,1,'java.nio.DirectByteBufferR')
+f(32,578251,173,1,'ru.mail.polis.lsm.Record')
+f(32,578424,843,0,'ru/mail/polis/lsm/Record.<init>')
+f(33,578424,843,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(34,578424,843,0,'java/nio/DirectByteBufferR.duplicate')
+f(35,578424,843,1,'java.nio.DirectByteBufferR')
+f(31,579267,870,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.read')
+f(32,579267,870,0,'java/nio/DirectByteBufferR.slice')
+f(33,579267,870,1,'java.nio.DirectByteBufferR')
+f(27,580137,3501,0,'ru/mail/polis/lsm/eldar_tim/iterators/PeekingIterator.peek')
+f(28,580137,2994,0,'ru/mail/polis/lsm/eldar_tim/iterators/MergeIterator.next')
+f(29,580137,2994,0,'ru/mail/polis/lsm/eldar_tim/iterators/MergeIterator.next')
+f(30,580137,2994,0,'ru/mail/polis/lsm/eldar_tim/iterators/PeekingIterator.next')
+f(31,580137,2994,0,'ru/mail/polis/lsm/eldar_tim/iterators/PeekingIterator.peek')
+f(32,580137,684,0,'ru/mail/polis/lsm/eldar_tim/iterators/MergeIterator.next')
+f(33,580137,684,0,'ru/mail/polis/lsm/eldar_tim/iterators/MergeIterator.next')
+f(34,580137,684,0,'ru/mail/polis/lsm/eldar_tim/iterators/PeekingIterator.next')
+f(35,580137,684,0,'ru/mail/polis/lsm/eldar_tim/iterators/PeekingIterator.peek')
+f(36,580137,684,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.next')
+f(37,580137,684,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.next')
+f(38,580137,472,0,'ru/mail/polis/lsm/Record.of')
+f(39,580137,208,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(40,580137,208,0,'java/nio/DirectByteBufferR.duplicate')
+f(41,580137,208,1,'java.nio.DirectByteBufferR')
+f(39,580345,34,1,'ru.mail.polis.lsm.Record')
+f(39,580379,230,0,'ru/mail/polis/lsm/Record.<init>')
+f(40,580379,230,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(41,580379,230,0,'java/nio/DirectByteBufferR.duplicate')
+f(42,580379,230,1,'java.nio.DirectByteBufferR')
+f(38,580609,212,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.read')
+f(39,580609,212,0,'java/nio/DirectByteBufferR.slice')
+f(40,580609,212,1,'java.nio.DirectByteBufferR')
+f(32,580821,2310,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.next')
+f(33,580821,2310,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.next')
+f(34,580821,1575,0,'ru/mail/polis/lsm/Record.of')
+f(35,580821,736,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(36,580821,736,0,'java/nio/DirectByteBufferR.duplicate')
+f(37,580821,736,1,'java.nio.DirectByteBufferR')
+f(35,581557,115,1,'ru.mail.polis.lsm.Record')
+f(35,581672,724,0,'ru/mail/polis/lsm/Record.<init>')
+f(36,581672,724,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(37,581672,724,0,'java/nio/DirectByteBufferR.duplicate')
+f(38,581672,724,1,'java.nio.DirectByteBufferR')
+f(34,582396,735,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.read')
+f(35,582396,735,0,'java/nio/DirectByteBufferR.slice')
+f(36,582396,735,1,'java.nio.DirectByteBufferR')
+f(28,583131,507,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.next')
+f(29,583131,507,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.next')
+f(30,583131,347,0,'ru/mail/polis/lsm/Record.of')
+f(31,583131,164,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(32,583131,164,0,'java/nio/DirectByteBufferR.duplicate')
+f(33,583131,164,1,'java.nio.DirectByteBufferR')
+f(31,583295,35,1,'ru.mail.polis.lsm.Record')
+f(31,583330,148,0,'ru/mail/polis/lsm/Record.<init>')
+f(32,583330,148,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(33,583330,148,0,'java/nio/DirectByteBufferR.duplicate')
+f(34,583330,148,1,'java.nio.DirectByteBufferR')
+f(30,583478,160,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.read')
+f(31,583478,160,0,'java/nio/DirectByteBufferR.slice')
+f(32,583478,160,1,'java.nio.DirectByteBufferR')
+f(25,583638,1045,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.next')
+f(26,583638,1045,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.next')
+f(27,583638,699,0,'ru/mail/polis/lsm/Record.of')
+f(28,583638,314,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(29,583638,314,0,'java/nio/DirectByteBufferR.duplicate')
+f(30,583638,314,1,'java.nio.DirectByteBufferR')
+f(28,583952,59,1,'ru.mail.polis.lsm.Record')
+f(28,584011,326,0,'ru/mail/polis/lsm/Record.<init>')
+f(29,584011,326,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(30,584011,326,0,'java/nio/DirectByteBufferR.duplicate')
+f(31,584011,326,1,'java.nio.DirectByteBufferR')
+f(27,584337,346,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.read')
+f(28,584337,346,0,'java/nio/DirectByteBufferR.slice')
+f(29,584337,346,1,'java.nio.DirectByteBufferR')
+f(23,584683,1660,0,'ru/mail/polis/lsm/eldar_tim/iterators/PeekingIterator.peek')
+f(24,584683,1387,0,'ru/mail/polis/lsm/eldar_tim/iterators/MergeIterator.next')
+f(25,584683,1387,0,'ru/mail/polis/lsm/eldar_tim/iterators/MergeIterator.next')
+f(26,584683,1387,0,'ru/mail/polis/lsm/eldar_tim/iterators/PeekingIterator.next')
+f(27,584683,1387,0,'ru/mail/polis/lsm/eldar_tim/iterators/PeekingIterator.peek')
+f(28,584683,188,0,'ru/mail/polis/lsm/eldar_tim/iterators/MergeIterator.next')
+f(29,584683,188,0,'ru/mail/polis/lsm/eldar_tim/iterators/MergeIterator.next')
+f(30,584683,188,0,'ru/mail/polis/lsm/eldar_tim/iterators/PeekingIterator.next')
+f(31,584683,188,0,'ru/mail/polis/lsm/eldar_tim/iterators/PeekingIterator.peek')
+f(32,584683,188,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.next')
+f(33,584683,188,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.next')
+f(34,584683,117,0,'ru/mail/polis/lsm/Record.of')
+f(35,584683,45,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(36,584683,45,0,'java/nio/DirectByteBufferR.duplicate')
+f(37,584683,45,1,'java.nio.DirectByteBufferR')
+f(35,584728,10,1,'ru.mail.polis.lsm.Record')
+f(35,584738,62,0,'ru/mail/polis/lsm/Record.<init>')
+f(36,584738,62,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(37,584738,62,0,'java/nio/DirectByteBufferR.duplicate')
+f(38,584738,62,1,'java.nio.DirectByteBufferR')
+f(34,584800,71,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.read')
+f(35,584800,71,0,'java/nio/DirectByteBufferR.slice')
+f(36,584800,71,1,'java.nio.DirectByteBufferR')
+f(28,584871,1199,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.next')
+f(29,584871,1199,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.next')
+f(30,584871,829,0,'ru/mail/polis/lsm/Record.of')
+f(31,584871,380,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(32,584871,380,0,'java/nio/DirectByteBufferR.duplicate')
+f(33,584871,380,1,'java.nio.DirectByteBufferR')
+f(31,585251,87,1,'ru.mail.polis.lsm.Record')
+f(31,585338,362,0,'ru/mail/polis/lsm/Record.<init>')
+f(32,585338,362,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(33,585338,362,0,'java/nio/DirectByteBufferR.duplicate')
+f(34,585338,362,1,'java.nio.DirectByteBufferR')
+f(30,585700,370,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.read')
+f(31,585700,370,0,'java/nio/DirectByteBufferR.slice')
+f(32,585700,370,1,'java.nio.DirectByteBufferR')
+f(24,586070,273,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.next')
+f(25,586070,273,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.next')
+f(26,586070,189,0,'ru/mail/polis/lsm/Record.of')
+f(27,586070,92,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(28,586070,92,0,'java/nio/DirectByteBufferR.duplicate')
+f(29,586070,92,1,'java.nio.DirectByteBufferR')
+f(27,586162,18,1,'ru.mail.polis.lsm.Record')
+f(27,586180,79,0,'ru/mail/polis/lsm/Record.<init>')
+f(28,586180,79,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(29,586180,79,0,'java/nio/DirectByteBufferR.duplicate')
+f(30,586180,79,1,'java.nio.DirectByteBufferR')
+f(26,586259,84,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.read')
+f(27,586259,84,0,'java/nio/DirectByteBufferR.slice')
+f(28,586259,84,1,'java.nio.DirectByteBufferR')
+f(19,586343,84,0,'ru/mail/polis/lsm/eldar_tim/iterators/PeekingIterator.peek')
+f(20,586343,84,0,'ru/mail/polis/lsm/eldar_tim/iterators/MergeIterator.next')
+f(21,586343,84,0,'ru/mail/polis/lsm/eldar_tim/iterators/MergeIterator.next')
+f(22,586343,84,0,'ru/mail/polis/lsm/eldar_tim/iterators/PeekingIterator.next')
+f(23,586343,84,0,'ru/mail/polis/lsm/eldar_tim/iterators/PeekingIterator.peek')
+f(24,586343,84,0,'ru/mail/polis/lsm/eldar_tim/iterators/MergeIterator.next')
+f(25,586343,84,0,'ru/mail/polis/lsm/eldar_tim/iterators/MergeIterator.next')
+f(26,586343,84,0,'ru/mail/polis/lsm/eldar_tim/iterators/PeekingIterator.next')
+f(27,586343,84,0,'ru/mail/polis/lsm/eldar_tim/iterators/PeekingIterator.peek')
+f(28,586343,84,0,'ru/mail/polis/lsm/eldar_tim/iterators/MergeIterator.next')
+f(29,586343,84,0,'ru/mail/polis/lsm/eldar_tim/iterators/MergeIterator.next')
+f(30,586343,84,0,'ru/mail/polis/lsm/eldar_tim/iterators/PeekingIterator.next')
+f(31,586343,84,0,'ru/mail/polis/lsm/eldar_tim/iterators/PeekingIterator.peek')
+f(32,586343,84,0,'ru/mail/polis/lsm/eldar_tim/iterators/MergeIterator.next')
+f(33,586343,84,0,'ru/mail/polis/lsm/eldar_tim/iterators/MergeIterator.next')
+f(34,586343,84,0,'ru/mail/polis/lsm/eldar_tim/iterators/PeekingIterator.next')
+f(35,586343,84,0,'ru/mail/polis/lsm/eldar_tim/iterators/PeekingIterator.peek')
+f(36,586343,84,0,'ru/mail/polis/lsm/eldar_tim/iterators/MergeIterator.next')
+f(37,586343,84,0,'ru/mail/polis/lsm/eldar_tim/iterators/MergeIterator.next')
+f(38,586343,84,0,'ru/mail/polis/lsm/eldar_tim/iterators/PeekingIterator.next')
+f(39,586343,84,0,'ru/mail/polis/lsm/eldar_tim/iterators/PeekingIterator.peek')
+f(40,586343,84,0,'ru/mail/polis/lsm/eldar_tim/iterators/MergeIterator.next')
+f(41,586343,84,0,'ru/mail/polis/lsm/eldar_tim/iterators/MergeIterator.next')
+f(42,586343,84,0,'ru/mail/polis/lsm/eldar_tim/iterators/PeekingIterator.next')
+f(43,586343,84,0,'ru/mail/polis/lsm/eldar_tim/iterators/PeekingIterator.peek')
+f(44,586343,84,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.next')
+f(45,586343,84,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.next')
+f(46,586343,58,0,'ru/mail/polis/lsm/Record.of')
+f(47,586343,33,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(48,586343,33,0,'java/nio/DirectByteBufferR.duplicate')
+f(49,586343,33,1,'java.nio.DirectByteBufferR')
+f(47,586376,4,1,'ru.mail.polis.lsm.Record')
+f(47,586380,21,0,'ru/mail/polis/lsm/Record.<init>')
+f(48,586380,21,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(49,586380,21,0,'java/nio/DirectByteBufferR.duplicate')
+f(50,586380,21,1,'java.nio.DirectByteBufferR')
+f(46,586401,26,0,'ru/mail/polis/lsm/eldar_tim/iterators/RangeIterator.read')
+f(47,586401,26,0,'java/nio/DirectByteBufferR.slice')
+f(48,586401,26,1,'java.nio.DirectByteBufferR')
+f(15,586427,3013,0,'ru/mail/polis/service/eldar_tim/HttpServerImpl.extractBytes')
+f(16,586427,3013,1,'byte[]')
+f(14,589440,31774,0,'ru/mail/polis/service/eldar_tim/HttpServerImpl.put')
+f(15,589440,2926,0,'java/lang/String.getBytes')
+f(16,589440,2926,0,'java/lang/StringCoding.encode')
+f(17,589440,2926,0,'java/lang/StringCoding.encodeUTF8')
+f(18,589440,2926,0,'java/util/Arrays.copyOf')
+f(19,589440,2926,1,'byte[]')
+f(15,592366,253,0,'java/nio/ByteBuffer.wrap')
+f(16,592366,253,0,'java/nio/ByteBuffer.wrap')
+f(17,592366,253,1,'java.nio.HeapByteBuffer')
+f(15,592619,2327,1,'one.nio.http.Response')
+f(15,594946,9263,0,'one/nio/http/Response.<init>')
+f(16,594946,3942,1,'byte[]')
+f(16,598888,3031,1,'java.lang.String[]')
+f(16,601919,2290,1,'java.lang.String')
+f(15,604209,11788,0,'ru/mail/polis/lsm/Record.of')
+f(16,604209,522,0,'java/nio/HeapByteBuffer.asReadOnlyBuffer')
+f(17,604209,522,1,'java.nio.HeapByteBufferR')
+f(16,604731,2239,1,'ru.mail.polis.lsm.Record')
+f(16,606970,9027,0,'ru/mail/polis/lsm/Record.<init>')
+f(17,606970,9027,0,'java/nio/HeapByteBufferR.asReadOnlyBuffer')
+f(18,606970,9027,0,'java/nio/HeapByteBufferR.duplicate')
+f(19,606970,9027,1,'java.nio.HeapByteBufferR')
+f(15,615997,5217,0,'ru/mail/polis/lsm/eldar_tim/LsmDAO.upsert')
+f(16,615997,2,0,'ru/mail/polis/lsm/eldar_tim/LsmDAO.scheduleFlush')
+f(17,615997,2,0,'ru/mail/polis/lsm/eldar_tim/AwaitableExecutor.execute')
+f(18,615997,1,0,'java/lang/invoke/MethodHandleNatives.linkCallSite')
+f(19,615997,1,0,'java/lang/invoke/MethodHandleNatives.linkCallSiteImpl')
+f(20,615997,1,0,'java/lang/invoke/CallSite.makeSite')
+f(21,615997,1,0,'java/lang/invoke/BootstrapMethodInvoker.invoke')
+f(22,615997,1,0,'java/lang/invoke/Invokers$Holder.invokeExact_MT')
+f(23,615997,1,0,'java/lang/invoke/DirectMethodHandle$Holder.invokeStatic')
+f(24,615997,1,0,'java/lang/invoke/LambdaMetafactory.metafactory')
+f(25,615997,1,0,'java/lang/invoke/InnerClassLambdaMetafactory.buildCallSite')
+f(26,615997,1,0,'java/lang/invoke/InnerClassLambdaMetafactory.spinInnerClass')
+f(27,615997,1,0,'java/lang/invoke/InnerClassLambdaMetafactory.generateConstructor')
+f(28,615997,1,0,'jdk/internal/org/objectweb/asm/ClassWriter.visitMethod')
+f(29,615997,1,0,'jdk/internal/org/objectweb/asm/MethodWriter.<init>')
+f(30,615997,1,0,'jdk/internal/org/objectweb/asm/ClassWriter.newUTF8')
+f(31,615997,1,0,'jdk/internal/org/objectweb/asm/ByteVector.putUTF8')
+f(32,615997,1,0,'jdk/internal/org/objectweb/asm/ByteVector.enlarge')
+f(33,615997,1,1,'byte[]')
+f(18,615998,1,0,'java/util/concurrent/Executors$DelegatedExecutorService.submit')
+f(19,615998,1,0,'java/util/concurrent/AbstractExecutorService.submit')
+f(20,615998,1,0,'java/util/concurrent/AbstractExecutorService.newTaskFor')
+f(21,615998,1,0,'java/util/concurrent/FutureTask.<init>')
+f(22,615998,1,0,'java/util/concurrent/Executors.callable')
+f(23,615998,1,1,'java.util.concurrent.Executors$RunnableAdapter')
+f(16,615999,5215,0,'ru/mail/polis/lsm/eldar_tim/components/LimitedMemTable.put')
+f(17,615999,5215,0,'ru/mail/polis/lsm/eldar_tim/components/AbstractMemTable.put')
+f(18,615999,566,0,'java/util/concurrent/ConcurrentSkipListMap.put')
+f(19,615999,566,0,'java/util/concurrent/ConcurrentSkipListMap.doPut')
+f(20,615999,202,1,'java.util.concurrent.ConcurrentSkipListMap$Index')
+f(20,616201,364,1,'java.util.concurrent.ConcurrentSkipListMap$Node')
+f(18,616565,4649,0,'ru/mail/polis/lsm/Record.getKey')
+f(19,616565,4649,0,'java/nio/HeapByteBufferR.asReadOnlyBuffer')
+f(20,616565,4649,0,'java/nio/HeapByteBufferR.duplicate')
+f(21,616565,4649,1,'java.nio.HeapByteBufferR')
+f(1,621214,42724,0,'one/nio/server/AcceptorThread.run')
+f(2,621214,42632,0,'one/nio/http/HttpServer.createSession')
+f(3,621214,42632,0,'one/nio/http/HttpServer.createSession')
+f(4,621214,1919,1,'one.nio.http.HttpSession')
+f(4,623133,120,2,'one.nio.http.HttpSession')
+f(4,623253,40593,0,'one/nio/http/HttpSession.<init>')
+f(5,623253,3704,1,'byte[]')
+f(5,626957,36817,2,'byte[]')
+f(5,663774,72,1,'java.util.LinkedList')
+f(2,663846,92,0,'one/nio/net/NativeSocket.acceptNonBlocking')
+f(3,663846,92,0,'one/nio/net/NativeSocket.acceptNonBlocking')
+f(4,663846,92,1,'one.nio.net.NativeSocket')
+f(1,663938,605068,0,'one/nio/server/SelectorThread.run')
+f(2,663938,20168,0,'one/nio/net/NativeSelector.select')
+f(3,663938,20168,1,'one.nio.net.NativeSelector$2')
+f(2,684106,584900,0,'one/nio/net/Session.process')
+f(3,684106,584900,0,'one/nio/http/HttpSession.processRead')
+f(4,684106,584869,0,'one/nio/http/HttpSession.processHttpBuffer')
+f(5,684106,146136,0,'one/nio/http/HttpSession.handleParsedRequest')
+f(6,684106,146136,0,'ru/mail/polis/service/eldar_tim/HttpServerImpl.handleRequest')
+f(7,684106,36995,0,'java/lang/invoke/Invokers$Holder.linkToTargetMethod')
+f(8,684106,36995,0,'java/lang/invoke/DirectMethodHandle$Holder.invokeStatic')
+f(9,684106,14636,0,'ru/mail/polis/service/eldar_tim/HttpServerImpl$$Lambda$72/1928948355.get$Lambda')
+f(10,684106,14636,1,'ru.mail.polis.service.eldar_tim.HttpServerImpl$$Lambda$72')
+f(9,698742,22359,0,'ru/mail/polis/service/eldar_tim/HttpServerImpl$$Lambda$75/1555652114.get$Lambda')
+f(10,698742,22359,1,'ru.mail.polis.service.eldar_tim.HttpServerImpl$$Lambda$75')
+f(7,721101,53565,0,'one/nio/http/Request.getPath')
+f(8,721101,53565,0,'java/lang/String.substring')
+f(9,721101,53565,0,'java/lang/StringLatin1.newString')
+f(10,721101,23151,1,'java.lang.String')
+f(10,744252,30414,0,'java/util/Arrays.copyOfRange')
+f(11,744252,30414,1,'byte[]')
+f(7,774666,55576,0,'ru/mail/polis/service/eldar_tim/LimitedServiceExecutor.execute')
+f(8,774666,29032,0,'java/lang/invoke/Invokers$Holder.linkToTargetMethod')
+f(9,774666,29032,0,'java/lang/invoke/DirectMethodHandle$Holder.invokeStatic')
+f(10,774666,29032,0,'ru/mail/polis/service/eldar_tim/LimitedServiceExecutor$$Lambda$85/1963642168.get$Lambda')
+f(11,774666,29032,1,'ru.mail.polis.service.eldar_tim.LimitedServiceExecutor$$Lambda$85')
+f(8,803698,22879,0,'java/util/concurrent/ForkJoinPool.execute')
+f(9,803698,22879,1,'java.util.concurrent.ForkJoinTask$RunnableExecuteAction')
+f(8,826577,116,1,'ru.mail.polis.service.exceptions.ServiceOverloadException')
+f(8,826693,1159,0,'ru/mail/polis/service/eldar_tim/HttpServerImpl$$Lambda$72/1928948355.handleException')
+f(9,826693,1159,0,'ru/mail/polis/service/eldar_tim/HttpServerImpl.exceptionHandler')
+f(10,826693,1159,0,'ru/mail/polis/service/eldar_tim/HttpServerImpl.sendError')
+f(11,826693,1159,0,'one/nio/http/HttpSession.sendError')
+f(12,826693,82,1,'one.nio.http.Response')
+f(12,826775,723,0,'one/nio/http/HttpSession.writeResponse')
+f(13,826775,472,0,'one/nio/http/Response.toBytes')
+f(14,826775,472,0,'one/nio/util/ByteArrayBuilder.<init>')
+f(15,826775,433,1,'byte[]')
+f(15,827208,39,2,'byte[]')
+f(13,827247,251,0,'one/nio/net/Session.write')
+f(14,827247,251,1,'one.nio.net.Session$ArrayQueueItem')
+f(12,827498,354,0,'one/nio/http/Response.<init>')
+f(13,827498,162,1,'byte[]')
+f(13,827660,104,1,'java.lang.String[]')
+f(13,827764,88,1,'java.lang.String')
+f(8,827852,2390,0,'ru/mail/polis/service/exceptions/ServiceOverloadException.<init>')
+f(9,827852,2390,0,'ru/mail/polis/service/exceptions/ServerRuntimeException.<init>')
+f(10,827852,2390,0,'java/lang/RuntimeException.<init>')
+f(11,827852,2390,0,'java/lang/Exception.<init>')
+f(12,827852,2390,0,'java/lang/Throwable.<init>')
+f(13,827852,2390,0,'java/lang/Throwable.fillInStackTrace')
+f(14,827852,2390,0,'java/lang/Throwable.fillInStackTrace')
+f(15,827852,413,1,'int[]')
+f(15,828265,44,2,'int[]')
+f(15,828309,604,1,'java.lang.Object[]')
+f(15,828913,65,2,'java.lang.Object[]')
+f(15,828978,602,1,'long[]')
+f(15,829580,391,2,'long[]')
+f(15,829971,254,1,'short[]')
+f(15,830225,17,2,'short[]')
+f(5,830242,242222,0,'one/nio/http/HttpSession.parseRequest')
+f(6,830242,38495,1,'one.nio.http.Request')
+f(6,868737,75690,0,'one/nio/http/Request.<init>')
+f(7,868737,75154,1,'java.lang.String[]')
+f(7,943891,536,2,'java.lang.String[]')
+f(6,944427,128037,0,'one/nio/util/Utf8.read')
+f(7,944427,128037,0,'one/nio/util/Utf8.read')
+f(8,944427,69086,1,'char[]')
+f(8,1013513,310,2,'char[]')
+f(8,1013823,22284,1,'java.lang.String')
+f(8,1036107,36357,0,'java/lang/String.<init>')
+f(9,1036107,36357,0,'java/lang/String.<init>')
+f(10,1036107,36357,0,'java/lang/StringUTF16.compress')
+f(11,1036107,36357,1,'byte[]')
+f(5,1072464,13634,0,'one/nio/http/HttpSession.startParsingRequestBody')
+f(6,1072464,13634,1,'byte[]')
+f(5,1086098,19343,0,'one/nio/http/Request.getHeader')
+f(6,1086098,19343,0,'one/nio/http/Request.trim')
+f(7,1086098,19343,0,'java/lang/String.substring')
+f(8,1086098,19343,0,'java/lang/StringLatin1.newString')
+f(9,1086098,9144,1,'java.lang.String')
+f(9,1095242,10199,0,'java/util/Arrays.copyOfRange')
+f(10,1095242,10199,1,'byte[]')
+f(5,1105441,163534,0,'one/nio/util/Utf8.read')
+f(6,1105441,163534,0,'one/nio/util/Utf8.read')
+f(7,1105441,75509,1,'char[]')
+f(7,1180950,74,2,'char[]')
+f(7,1181024,33102,1,'java.lang.String')
+f(7,1214126,54849,0,'java/lang/String.<init>')
+f(8,1214126,54849,0,'java/lang/String.<init>')
+f(9,1214126,54849,0,'java/lang/StringUTF16.compress')
+f(10,1214126,54849,1,'byte[]')
+f(4,1268975,31,0,'one/nio/net/Session.read')
+f(5,1268975,31,0,'one/nio/net/NativeSocket.read')
+f(6,1268975,1,1,'byte[]')
+f(6,1268976,3,1,'one.nio.net.SocketClosedException')
+f(6,1268979,27,0,'one/nio/net/SocketClosedException.<init>')
+f(7,1268979,27,0,'java/net/SocketException.<init>')
+f(8,1268979,27,0,'java/io/IOException.<init>')
+f(9,1268979,27,0,'java/lang/Exception.<init>')
+f(10,1268979,27,0,'java/lang/Throwable.<init>')
+f(11,1268979,27,0,'java/lang/Throwable.fillInStackTrace')
+f(12,1268979,27,0,'java/lang/Throwable.fillInStackTrace')
+f(13,1268979,1,1,'int[]')
+f(13,1268980,4,1,'java.lang.Object[]')
+f(13,1268984,3,2,'java.lang.Object[]')
+f(13,1268987,5,1,'long[]')
+f(13,1268992,9,2,'long[]')
+f(13,1269001,5,1,'short[]')
+render();
+</script></body></html>
