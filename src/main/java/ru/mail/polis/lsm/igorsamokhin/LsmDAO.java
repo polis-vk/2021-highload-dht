@@ -57,7 +57,7 @@ public class LsmDAO implements DAO {
     @Override
     public void upsert(Record record) throws RuntimeException {
         Storage currentStorage = this.storage.get();
-        if (currentStorage.memTablesToFlush.size() > config.maxTables) {
+        if (currentStorage.memTablesToFlush.size() > config.maxMemTables) {
             throw new RuntimeException("To many requests on flush");
         }
         int consumption = currentStorage.currentMemTable.putAndGetSize(record);
