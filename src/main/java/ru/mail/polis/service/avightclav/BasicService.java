@@ -45,49 +45,52 @@ public class BasicService extends HttpServer implements Service {
     public void handleRequest(Request request, HttpSession session) throws IOException {
         executor.execute(() -> {
             try {
-                String path = request.getPath();
-                switch (path) {
-                    case "/v0/status":
-                        if (request.getMethod() == Request.METHOD_GET) {
-                            executor.execute(() -> {
-                                try {
-                                    session.sendResponse(this.status());
-                                } catch (IOException e) {
-                                    e.printStackTrace();
-                                }
-                            });
-                        }
-                        break;
-                    case "/v0/entity":
-                        final String id = request.getParameter("id", "=");
-                        if (id.equals("=")) {
-                            session.sendResponse(new Response(Response.BAD_REQUEST, "12".getBytes()));
-                            return;
-                        }
-                        switch (request.getMethod()) {
-                            case Request.METHOD_GET:
-                                session.sendResponse(this.get(id));
-                                return;
-                            case Request.METHOD_PUT:
-                                session.sendResponse(this.put(id, request.getBody()));
-                                return;
-                            case Request.METHOD_DELETE:
-                                session.sendResponse(this.delete(id));
-                                return;
-                            default:
-                                session.sendResponse(new Response(
-                                        Response.METHOD_NOT_ALLOWED,
-                                        "Wrong method".getBytes(StandardCharsets.UTF_8))
-                                );
-                                return;
-                        }
-                    default:
-                        session.sendResponse(new Response(Response.BAD_REQUEST, Response.EMPTY));
-                }
+                pathWiring(request, session);
             } catch (IOException e) {
                 LOG.error("Request handling IO exception", e);
             }
         });
+    }
+
+    private void pathWiring(Request request, HttpSession session) throws IOException {
+        String path = request.getPath();
+        switch (path) {
+            case "/v0/status":
+                if (request.getMethod() == Request.METHOD_GET) {
+                    executor.execute(() -> {
+                        try {
+                            session.sendResponse(this.status());
+                        } catch (IOException e) {
+                            e.printStackTrace();
+                        }
+                    });
+                }
+                break;
+            case "/v0/entity":
+                final String id = request.getParameter("id", "=");
+                if ("=".equals(id)) {
+                    session.sendResponse(new Response(Response.BAD_REQUEST, "12".getBytes()));
+                    return;
+                }
+                switch (request.getMethod()) {
+                    case Request.METHOD_GET:
+                        session.sendResponse(this.get(id));
+                        return;
+                    case Request.METHOD_PUT:
+                        session.sendResponse(this.put(id, request.getBody()));
+                        return;
+                    case Request.METHOD_DELETE:
+                        session.sendResponse(this.delete(id));
+                        return;
+                    default:
+                        session.sendResponse(new Response(
+                                Response.METHOD_NOT_ALLOWED,
+                                "Wrong method".getBytes(StandardCharsets.UTF_8))
+                        );
+                        return;
+                }
+        }
+        session.sendResponse(new Response(Response.BAD_REQUEST, Response.EMPTY));
     }
 
     public Response status() {
