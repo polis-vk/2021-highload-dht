@@ -1,20 +1,24 @@
 package ru.mail.polis.controller;
 
-import one.nio.http.Param;
-import one.nio.http.Path;
 import one.nio.http.Request;
 import one.nio.http.Response;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import ru.mail.polis.RecordUtil;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.Record;
 import ru.mail.polis.lsm.artem_drozdov.DAOState;
+import ru.mail.polis.lsm.artem_drozdov.LsmDAO;
 
 import javax.annotation.Nullable;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
+import java.util.concurrent.RejectedExecutionException;
 
 public class MainController implements Controller {
+
+    private static final Logger LOGGER = LoggerFactory.getLogger(MainController.class);
 
     private final DAO dao;
 
@@ -62,7 +66,12 @@ public class MainController implements Controller {
     private Response put(final String id, final byte[] payload) {
         ByteBuffer key = ByteBuffer.wrap(id.getBytes(StandardCharsets.UTF_8));
         ByteBuffer value = ByteBuffer.wrap(payload);
-        dao.upsert(Record.of(key, value));
+        try {
+            dao.upsert(Record.of(key, value));
+        } catch (RejectedExecutionException e) {
+            LOGGER.info("Failed to process flush task. Reached limit: {}", LsmDAO.FLUSH_TASKS_LIMIT);
+            return new Response(Response.SERVICE_UNAVAILABLE, Response.EMPTY);
+        }
         return new Response(Response.CREATED, Response.EMPTY);
     }
 

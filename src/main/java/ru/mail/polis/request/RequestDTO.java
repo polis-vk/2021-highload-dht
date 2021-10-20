@@ -23,9 +23,11 @@ public class RequestDTO {
 
     @Override
     public String toString() {
-        return "RequestDTO{" +
-                "request=" + request +
-                ", session=" + session +
-                '}';
+        return "RequestDTO{"
+                + "request="
+                + request
+                + ", session="
+                + session
+                + '}';
     }
 }

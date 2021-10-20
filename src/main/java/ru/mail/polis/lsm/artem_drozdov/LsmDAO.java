@@ -1,7 +1,5 @@
 package ru.mail.polis.lsm.artem_drozdov;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.DAOConfig;
 import ru.mail.polis.lsm.Record;
@@ -20,7 +18,6 @@ import java.util.NoSuchElementException;
 import java.util.SortedMap;
 import java.util.concurrent.ConcurrentLinkedDeque;
 import java.util.concurrent.ConcurrentSkipListMap;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -30,18 +27,14 @@ import java.util.stream.Collectors;
 
 public class LsmDAO implements DAO {
 
-    private static final Logger LOGGER = LoggerFactory.getLogger(LsmDAO.class);
-
-    static final int FLUSH_TASKS_LIMIT = 3;
-
-    private final DaoMonitoringService daoMonitoringService = new LsmDaoMonitoringService(this);
+    public static final int FLUSH_TASKS_LIMIT = 3;
 
     private final ConcurrentLinkedDeque<NavigableMap<ByteBuffer, Record>> tablesForFlush =
             new ConcurrentLinkedDeque<>();
 
     private DAOState state = DAOState.OK;
 
-    private final ExecutorService flushExecutor = new ThreadPoolExecutor(1, 1,
+    private final ThreadPoolExecutor flushExecutor = new ThreadPoolExecutor(1, 1,
             0L, TimeUnit.MILLISECONDS,
             new LinkedBlockingQueue<>(FLUSH_TASKS_LIMIT));
 
@@ -80,7 +73,6 @@ public class LsmDAO implements DAO {
 
     @Override
     public void upsert(Record record) {
-        daoMonitoringService.onUpsertStarted();
         int recordSize = sizeOf(record);
         if (memoryConsumption.addAndGet(recordSize) > config.memoryLimit) {
             synchronized (this) {
@@ -89,28 +81,18 @@ public class LsmDAO implements DAO {
 
                     tablesForFlush.add(memoryStorage);
                     memoryStorage = newStorage();
-                    try {
-                        doFlush();
-                    } catch (RejectedExecutionException e) {
-                        LOGGER.warn("Failed to process flush task. Reached limit: {}", FLUSH_TASKS_LIMIT);
-
-                        this.state = DAOState.FLUSH_TASKS_LIMIT;
-                        daoMonitoringService.onStateChanged(state);
-                    }
+                    doFlush();
                 }
             }
         }
         memoryStorage.put(record.getKey(), record);
-        daoMonitoringService.onUpsertFinished();
     }
 
     private void doFlush() {
         flushExecutor.execute(() -> {
             NavigableMap<ByteBuffer, Record> snapshotToFlush = tablesForFlush.poll();
             if (snapshotToFlush != null) {
-                daoMonitoringService.onFlushStarted();
                 doSnapshotFlush(snapshotToFlush.values().iterator());
-                daoMonitoringService.onFlushFinished();
             }
         });
     }
