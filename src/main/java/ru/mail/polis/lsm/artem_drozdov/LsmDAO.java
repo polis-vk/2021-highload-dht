@@ -54,10 +54,10 @@ public class LsmDAO implements DAO {
 
     @Override
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
-        Storage storage = this.storage.get();
+        Storage storageSnap = this.storage.get();
 
-        Iterator<Record> sstableRanges = sstableRanges(storage, fromKey, toKey);
-        Iterator<Record> memoryRange = storage.iterator(fromKey, toKey);
+        Iterator<Record> sstableRanges = sstableRanges(storageSnap, fromKey, toKey);
+        Iterator<Record> memoryRange = storageSnap.iterator(fromKey, toKey);
 
         Iterator<Record> iterator = new RecordMergingIterator(
             new PeekingIterator<>(sstableRanges), new PeekingIterator<>(memoryRange));
@@ -67,18 +67,18 @@ public class LsmDAO implements DAO {
 
     @Override
     public void upsert(Record record) {
-        Storage storage = this.storage.get();
-        long consumption = storage.currentMemTable.putAndGetSize(record);
+        Storage storageSnap = this.storage.get();
+        long consumption = storageSnap.currentMemTable.putAndGetSize(record);
 
         if (consumption > config.memoryLimit) {
 
-            boolean success = this.storage.compareAndSet(storage, storage.prepareFlush());
+            boolean success = this.storage.compareAndSet(storageSnap, storageSnap.prepareFlush());
             if (!success) {
                 // another thread updated the storage
                 return;
             }
 
-            if (storage.memTablesToFlush.isEmpty()) {
+            if (storageSnap.memTablesToFlush.isEmpty()) {
                 // another thread already works on these storages
                 return;
             }
@@ -87,7 +87,7 @@ public class LsmDAO implements DAO {
                 try {
                     LOGGER.info("Start flush");
                     Storage newStorage = doFlush();
-                    if (storage.ssTables.size() > config.maxTables) {
+                    if (storageSnap.ssTables.size() > config.maxTables) {
                         performCompact(newStorage);
                     }
                     LOGGER.info("Flush finished");

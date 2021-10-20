@@ -24,8 +24,8 @@ import java.util.concurrent.TimeUnit;
 
 public final class BasicService extends HttpServer implements Service {
 
-    public final static String STATUS_PATH = "/v0/status";
-    public final static String ENTITY_PATH = "/v0/entity";
+    public static final String STATUS_PATH = "/v0/status";
+    public static final String ENTITY_PATH = "/v0/entity";
 
     private final Response badResponse = new Response(Response.BAD_REQUEST, Response.EMPTY);
     private final Response unavailableResponse = new Response(Response.SERVICE_UNAVAILABLE, Response.EMPTY);
