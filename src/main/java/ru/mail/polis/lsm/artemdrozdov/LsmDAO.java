@@ -31,7 +31,7 @@ public class LsmDAO implements DAO {
 
     @SuppressWarnings({"FieldCanBeLocal", "unused"})
     private final DAOConfig config;
-
+    @SuppressWarnings("PMD.AvoidUsingVolatile")
     private volatile SmartStorage smartStorage = SmartStorage.createEmpty();
 
     private static final int POLL_LIMIT = 20 * 1024 * 1024;
