@@ -1,6 +1,6 @@
 ./profiler.sh -d 90 -e lock -f hw3lock_put.html 712  
 ./profiler.sh -d 90 -e alloc -f hw3alloc_put.html 712  
-./profiler.sh -d 90 -f hw3cpu_put.html 712
+./profiler.sh -d 90 -f hw3cpu_put.html 712  
 
 wrk -c 64 -t 3 -d 1m -R 10000 -L -s get.lua http://localhost:8080
 
