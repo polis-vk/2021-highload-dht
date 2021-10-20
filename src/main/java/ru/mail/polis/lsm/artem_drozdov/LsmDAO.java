@@ -25,7 +25,7 @@ public class LsmDAO implements DAO {
 
     private static final Logger logger = LoggerFactory.getLogger(LsmDAO.class);
 
-    private final AtomicReference<Storage> storage;
+    private final AtomicReference<Storage> memTableStorage;
 
     private final DAOConfig config;
 
@@ -33,12 +33,12 @@ public class LsmDAO implements DAO {
 
     public LsmDAO(DAOConfig config) throws IOException {
         this.config = config;
-        storage = new AtomicReference<>(Storage.init(SSTable.loadFromDir(config.dir)));
+        memTableStorage = new AtomicReference<>(Storage.init(SSTable.loadFromDir(config.dir)));
     }
 
     @Override
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
-        Storage currentStorage = this.storage.get();
+        Storage currentStorage = this.memTableStorage.get();
 
         Iterator<Record> sstableRanges = sstableRanges(currentStorage, fromKey, toKey);
         Iterator<Record> memoryRange = currentStorage.iterator(fromKey, toKey);
@@ -48,10 +48,10 @@ public class LsmDAO implements DAO {
 
     @Override
     public void upsert(Record record) {
-        Storage storage = this.storage.get();
+        Storage storage = this.memTableStorage.get();
         long consumption = storage.currentMemTable.putAndGetSize(record);
         if (consumption > config.memoryLimit) {
-            boolean success = this.storage.compareAndSet(storage, storage.prepareFlush());
+            boolean success = this.memTableStorage.compareAndSet(storage, storage.prepareFlush());
             if (!success) {
                 // another thread updated storage
                 return;
@@ -93,21 +93,21 @@ public class LsmDAO implements DAO {
 
     private Storage doFlush() throws IOException {
         while (true) {
-            Storage storageToFlush = this.storage.get(); // Lsm.this
+            Storage storageToFlush = this.memTableStorage.get(); // Lsm.this
             List<MemTable> storagesToWrite = storageToFlush.memTablesToFlush;
             if (storagesToWrite.isEmpty()) {
                 return storageToFlush;
             }
             SSTable newTable = flushAll(storageToFlush);
 
-            this.storage.updateAndGet(currentValue -> currentValue.afterFlush(storagesToWrite, newTable));
+            this.memTableStorage.updateAndGet(currentValue -> currentValue.afterFlush(storagesToWrite, newTable));
         }
     }
 
     private void performCompactNeed(Storage storage) throws IOException {
         logger.info("Compact started");
         SSTable result = SSTable.compact(config.dir, sstableRanges(storage, null, null));
-        this.storage.updateAndGet(currentValue -> currentValue.afterCompaction(storage.memTablesToFlush, result));
+        this.memTableStorage.updateAndGet(currentValue -> currentValue.afterCompaction(storage.memTablesToFlush, result));
         logger.info("Compact finished");
     }
 
@@ -122,7 +122,7 @@ public class LsmDAO implements DAO {
             Thread.currentThread().interrupt();
             throw new IllegalStateException(e);
         }
-        flushAll(storage.get().prepareFlush());
+        flushAll(memTableStorage.get().prepareFlush());
     }
 
     private SSTable flushAll(Storage storage) throws IOException {

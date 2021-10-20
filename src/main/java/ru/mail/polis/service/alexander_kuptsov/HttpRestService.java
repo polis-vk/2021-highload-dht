@@ -131,11 +131,11 @@ public class HttpRestService extends HttpServer implements Service {
      *
      * @param request {@link Request}
      * @return HTTP code 200 with data
-     *  HTTP code 201
-     *  HTTP code 202
-     *  HTTP code 400
-     *  HTTP code 404
-     *  HTTP code 405
+     *         HTTP code 201
+     *         HTTP code 202
+     *         HTTP code 400
+     *         HTTP code 404
+     *         HTTP code 405
      */
     private Response entity(final Request request) {
         String id = request.getParameter(RequestParameters.ID);
@@ -166,7 +166,7 @@ public class HttpRestService extends HttpServer implements Service {
      *
      * @param id data key
      * @return HTTP code 200 with data
-     *  HTTP code 404
+     *         HTTP code 404
      */
     private Response get(String id) {
         final ByteBuffer key = HttpServiceUtils.wrapIdToBuffer(id);
