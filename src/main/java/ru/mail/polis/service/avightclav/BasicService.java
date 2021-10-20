@@ -67,30 +67,35 @@ public class BasicService extends HttpServer implements Service {
                 }
                 break;
             case "/v0/entity":
-                final String id = request.getParameter("id", "=");
-                if ("=".equals(id)) {
-                    session.sendResponse(new Response(Response.BAD_REQUEST, "12".getBytes()));
-                    return;
-                }
-                switch (request.getMethod()) {
-                    case Request.METHOD_GET:
-                        session.sendResponse(this.get(id));
-                        return;
-                    case Request.METHOD_PUT:
-                        session.sendResponse(this.put(id, request.getBody()));
-                        return;
-                    case Request.METHOD_DELETE:
-                        session.sendResponse(this.delete(id));
-                        return;
-                    default:
-                        session.sendResponse(new Response(
-                                Response.METHOD_NOT_ALLOWED,
-                                "Wrong method".getBytes(StandardCharsets.UTF_8))
-                        );
-                        return;
-                }
+                entityWiring(request, session);
+                return;
+            default:
+                session.sendResponse(new Response(Response.BAD_REQUEST, Response.EMPTY));
         }
-        session.sendResponse(new Response(Response.BAD_REQUEST, Response.EMPTY));
+    }
+
+    private void entityWiring(Request request, HttpSession session) throws IOException {
+        final String id = request.getParameter("id", "=");
+        if ("=".equals(id)) {
+            session.sendResponse(new Response(Response.BAD_REQUEST, "12".getBytes()));
+            return;
+        }
+        switch (request.getMethod()) {
+            case Request.METHOD_GET:
+                session.sendResponse(this.get(id));
+                return;
+            case Request.METHOD_PUT:
+                session.sendResponse(this.put(id, request.getBody()));
+                return;
+            case Request.METHOD_DELETE:
+                session.sendResponse(this.delete(id));
+                return;
+            default:
+                session.sendResponse(new Response(
+                        Response.METHOD_NOT_ALLOWED,
+                        "Wrong method".getBytes(StandardCharsets.UTF_8))
+                );
+        }
     }
 
     public Response status() {
