@@ -87,7 +87,10 @@ public class AlexServer extends HttpServer {
                         break;
                     default:
                         httpSession.sendResponse(
-                                new Response(Response.METHOD_NOT_ALLOWED, "Wrong method!".getBytes(StandardCharsets.UTF_8))
+                                new Response(
+                                        Response.METHOD_NOT_ALLOWED,
+                                        "Wrong method!".getBytes(StandardCharsets.UTF_8)
+                                )
                         );
                         break;
                 }

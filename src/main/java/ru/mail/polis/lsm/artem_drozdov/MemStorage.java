@@ -9,7 +9,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
-public class MemStorage {
+public final class MemStorage {
 
     public final MemTable currentMemTable;
     public final List<MemTable> memTablesToWrite;
@@ -45,7 +45,11 @@ public class MemStorage {
     // it is assumed that memTablesToWrite start with writtenStorages
     public MemStorage afterCompaction(List<MemTable> writtenStorages, SSTable ssTable) {
         List<MemTable> newMemTablesToFlush = memTablesToWrite.subList(writtenStorages.size(), memTablesToWrite.size());
-        return new MemStorage(currentMemTable, new ArrayList<>(newMemTablesToFlush), Collections.singletonList(ssTable));
+        return new MemStorage(
+                currentMemTable,
+                new ArrayList<>(newMemTablesToFlush),
+                Collections.singletonList(ssTable)
+        );
     }
 
     public Iterator<Record> iterator(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {

@@ -96,7 +96,7 @@ public class LsmDAO implements DAO {
 
     private MemStorage doFlush() throws IOException {
         while (true) {
-            MemStorage storageToFlush = LsmDAO.this.memoryStorage.get();
+            MemStorage storageToFlush = this.memoryStorage.get();
             List<MemTable> storagesToWrite = storageToFlush.memTablesToWrite;
             if (storagesToWrite.isEmpty()) {
                 return storageToFlush;
@@ -104,7 +104,7 @@ public class LsmDAO implements DAO {
 
             SSTable newTable = flushAll(storageToFlush);
 
-            LsmDAO.this.memoryStorage.updateAndGet(currentValue -> currentValue.afterFlush(storagesToWrite, newTable));
+            this.memoryStorage.updateAndGet(currentValue -> currentValue.afterFlush(storagesToWrite, newTable));
         }
     }
 
@@ -118,7 +118,9 @@ public class LsmDAO implements DAO {
     private void performCompact(MemStorage memStorage) {
         try {
             SSTable result = SSTable.compact(config.dir, memStorage.ssTableIterator(null, null));
-            this.memoryStorage.updateAndGet(currentValue -> currentValue.afterCompaction(memStorage.memTablesToWrite, result));
+            this.memoryStorage.updateAndGet(currentValue ->
+                    currentValue.afterCompaction(memStorage.memTablesToWrite, result)
+            );
         } catch (Exception e) {
             LOGGER.error("Can npt run compaction", e);
         }
