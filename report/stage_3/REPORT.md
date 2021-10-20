@@ -15,10 +15,11 @@
 В синхронной реализации потоки-селекторы выполняют всю работу по вставке
 и извлечению данных самостоятельно.
 
-- [wrk2 для GET-PUT запросов](./profiling/wrk2_before.txt)
-- [async-profiler CPU](./profiling/wrk2_before.txt)
-- [async-profiler ALLOC](./profiling/wrk2_before.txt)
-- [async-profiler LOCK](./profiling/wrk2_before.txt)
+- [wrk2 PUT](./profiling/blocking_queue/sync/wrk2_sync2_put.txt)
+- [wrk2 GET](./profiling/blocking_queue/sync/wrk2_sync2_get.txt)
+- [async-profiler CPU](./profiling/blocking_queue/sync/profiler_cpu_sync2.html)
+- [async-profiler ALLOC](./profiling/blocking_queue/sync/profiler_alloc_sync2.html)
+- [async-profiler LOCK](./profiling/blocking_queue/sync/profiler_lock_sync2.html)
 
 ### [Асинхронный сервер](https://github.com/CRaFT4ik/2021-highload-dht/blob/stage_3/src/main/java/ru/mail/polis/service/eldar_tim/HttpServerImpl.java)
 
@@ -49,15 +50,10 @@
  - [async-profiler ALLOC](profiling/blocking_queue/async/profiler_alloc_workers2.html)
  - [async-profiler LOCK](profiling/blocking_queue/async/profiler_lock_workers2.html)
 
-Результаты измерений **синхронной** реализации на лимите очереди 1000:
-- [wrk2 PUT](profiling/blocking_queue/sync/wrk2_sync2_put.txt)
-- [wrk2 GET](profiling/blocking_queue/sync/wrk2_sync2_get.txt)
-- [async-profiler CPU](profiling/blocking_queue/sync/profiler_cpu_sync2.html)
-- [async-profiler ALLOC](profiling/blocking_queue/sync/profiler_alloc_sync2.html)
-- [async-profiler LOCK](profiling/blocking_queue/sync/profiler_lock_sync2.html)
+Результаты измерений **синхронной** реализации приведены чуть выше.
 
 Из сравнения результатов wrk2 видим, что синхронная реализация работает быстрее.
-Да, при таком лимите мы все ещё не отсекаем чрезмерную нагрузку.
+Да, при таком лимите мы все ещё не отсекаем чрезмерную нагрузку (нет 2xx и 3xx ответов).
 
 Попробуем уменьшить очередь до 128:
 - [wrk2 PUT](profiling/blocking_queue/async/wrk2_workers128_put.txt)
