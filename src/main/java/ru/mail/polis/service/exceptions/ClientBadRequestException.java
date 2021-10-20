@@ -4,8 +4,8 @@ import one.nio.http.Response;
 
 public class ClientBadRequestException extends ServerRuntimeException implements HttpException {
 
-    public ClientBadRequestException(Exception e) {
-        super(e);
+    public ClientBadRequestException(Throwable cause) {
+        super(cause);
     }
 
     @Override

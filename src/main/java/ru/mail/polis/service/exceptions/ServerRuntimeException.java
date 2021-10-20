@@ -8,8 +8,8 @@ public class ServerRuntimeException extends RuntimeException implements HttpExce
         super();
     }
 
-    public ServerRuntimeException(Exception e) {
-        super(e);
+    public ServerRuntimeException(Throwable cause) {
+        super(cause);
     }
 
     @Override

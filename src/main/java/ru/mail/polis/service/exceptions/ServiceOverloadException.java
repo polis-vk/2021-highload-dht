@@ -8,8 +8,8 @@ public class ServiceOverloadException extends ServerRuntimeException {
         super();
     }
 
-    public ServiceOverloadException(Exception e) {
-        super(e);
+    public ServiceOverloadException(Throwable cause) {
+        super(cause);
     }
 
     @Override

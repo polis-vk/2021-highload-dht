@@ -6,7 +6,8 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class NamedThreadFactory implements ThreadFactory {
-    private final String name;
+    
+    private final String threadName;
     private final int totalThreads;
 
     private final AtomicInteger threadNumber = new AtomicInteger(1);
@@ -17,22 +18,26 @@ public class NamedThreadFactory implements ThreadFactory {
     }
 
     public NamedThreadFactory(String threadName, int totalThreads) {
-        this.name = threadName;
+        this.threadName = threadName;
         this.totalThreads = totalThreads;
         delegate = Executors.defaultThreadFactory();
     }
 
     @Override
     public Thread newThread(@Nonnull Runnable r) {
+        String name = buildName(this.threadName, threadNumber.getAndIncrement(), totalThreads);
+        Thread t = delegate.newThread(r);
+        t.setName(name);
+        return t;
+    }
+
+    public static String buildName(String threadName, int threadNumber, int totalThreads) {
         StringBuilder sb = new StringBuilder();
-        sb.append(name);
+        sb.append(threadName);
         if (totalThreads > 1) {
-            sb.append(' ').append(threadNumber.getAndIncrement());
+            sb.append(' ').append(threadNumber);
             sb.append('/').append(totalThreads);
         }
-
-        Thread t = delegate.newThread(r);
-        t.setName(sb.toString());
-        return t;
+        return sb.toString();
     }
 }

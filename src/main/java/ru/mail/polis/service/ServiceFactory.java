@@ -18,6 +18,8 @@ package ru.mail.polis.service;
 
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.service.eldar_tim.HttpServerImpl;
+import ru.mail.polis.service.eldar_tim.LimitedServiceExecutor;
+import ru.mail.polis.service.eldar_tim.ServiceExecutor;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -59,7 +61,7 @@ public final class ServiceFactory {
 
         Objects.requireNonNull(dao);
 
-        ServiceExecutor executor = new ServiceExecutorImpl("worker", WORKERS_NUMBER, TASKS_LIMIT);
+        ServiceExecutor executor = new LimitedServiceExecutor("worker", WORKERS_NUMBER, TASKS_LIMIT);
         return new HttpServerImpl(port, dao, executor);
     }
 }
