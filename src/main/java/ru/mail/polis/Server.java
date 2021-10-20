@@ -66,14 +66,18 @@ public final class Server {
             Runtime.getRuntime().addShutdownHook(
                     new Thread(() -> {
                         storage.stop();
-                        try {
-                            dao.close();
-                        } catch (IOException e) {
-                            throw new RuntimeException("Can't close dao", e);
-                        }
+                        closeDao(dao);
                     }));
         } catch (Exception e) {
             throw new IllegalStateException(e);
+        }
+    }
+
+    private static void closeDao(DAO dao) {
+        try {
+            dao.close();
+        } catch (IOException e) {
+            throw new RuntimeException("Can't close dao", e);
         }
     }
 }
