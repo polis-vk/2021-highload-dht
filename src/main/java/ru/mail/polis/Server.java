@@ -41,24 +41,25 @@ public final class Server {
         // Not instantiable
     }
 
+    private static void addRuntimeHook(Service storage, DAO dao) {
+        Runtime.getRuntime().addShutdownHook(
+                new Thread(() -> {
+                    storage.stop();
+                    try {
+                        dao.close();
+                    } catch (IOException e) {
+                        throw new RuntimeException("Can't close dao", e);
+                    }
+                }));
+    }
+
     private static void startDao(Path data) {
         // Start the storage
         try {
             DAO dao = DAOFactory.create(new DAOConfig(data));
-            final Service storage =
-                    ServiceFactory.create(
-                            PORT,
-                            dao);
+            final Service storage = ServiceFactory.create(PORT, dao);
             storage.start();
-            Runtime.getRuntime().addShutdownHook(
-                    new Thread(() -> {
-                        storage.stop();
-                        try {
-                            dao.close();
-                        } catch (IOException e) {
-                            throw new RuntimeException("Can't close dao", e);
-                        }
-                    }));
+            addRuntimeHook(storage, dao);
         } catch (IOException e) {
             LOG.error("IO caught in dao initializing", e);
         }
