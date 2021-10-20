@@ -20,6 +20,7 @@
         <exclude name="ShortVariable"/>
         <exclude name="UselessParentheses"/>
         <exclude name="AtLeastOneConstructor"/>
+        <exclude name="ConfusingTernary"/>
     </rule>
     <rule ref="category/java/codestyle.xml/ClassNamingConventions">
         <properties>
@@ -58,10 +59,4 @@
         <exclude name="AvoidInstantiatingObjectsInLoops"/>
     </rule>
     <rule ref="category/java/security.xml"/>
-    <rule ref="category/java/codestyle.xml/ConfusingTernary">
-        <properties>
-            <property name="ignoreElseIf" value="true" />
-        </properties>
-    </rule>
-
 </ruleset>
