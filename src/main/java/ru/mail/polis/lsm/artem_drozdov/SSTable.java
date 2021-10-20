@@ -45,8 +45,7 @@ public class SSTable implements Closeable {
     private final MappedByteBuffer idx;
 
     public static List<SSTable> loadFromDir(Path dir) throws IOException {
-        Path compaction = dir.resolve(COMPACTION_FILE_NAME);
-        if (Files.exists(compaction)) {
+        if (Files.exists(dir.resolve(COMPACTION_FILE_NAME))) {
             finishCompaction(dir);
         }
         List<SSTable> result = new ArrayList<>();
@@ -88,8 +87,7 @@ public class SSTable implements Closeable {
                     writeInt(-1, fileChannel, size);
                 } else {
                     // value is null for tombstones only
-                    ByteBuffer value = Objects.requireNonNull(record.getValue());
-                    writeValueWithSize(value, fileChannel, size);
+                    writeValueWithSize(Objects.requireNonNull(record.getValue()), fileChannel, size);
                 }
             }
             fileChannel.force(false);
@@ -141,9 +139,8 @@ public class SSTable implements Closeable {
     }
 
     public SSTable(Path file) throws IOException {
-        Path indexFile = getIndexFile(file);
         mmap = open(file);
-        idx = open(indexFile);
+        idx = open(getIndexFile(file));
     }
 
     public static int sizeOf(Record record) {

@@ -107,7 +107,8 @@ public class LsmDAO implements DAO {
     private void performCompactNeed(Storage storage) throws IOException {
         logger.info("Compact started");
         SSTable result = SSTable.compact(config.dir, sstableRanges(storage, null, null));
-        this.memTableStorage.updateAndGet(currentValue -> currentValue.afterCompaction(storage.memTablesToFlush, result));
+        this.memTableStorage.updateAndGet(
+                currentValue -> currentValue.afterCompaction(storage.memTablesToFlush, result));
         logger.info("Compact finished");
     }
 
