@@ -56,20 +56,20 @@ public class LsmDAO implements DAO {
     @SuppressWarnings("PMD.AvoidUncheckedExceptionsInSignatures") //I need it because it is hard to remember
     @Override
     public void upsert(Record record) throws RuntimeException {
-        Storage storage = this.storage.get();
-        if (storage.memTablesToFlush.size() > config.maxTables) {
+        Storage currentStorage = this.storage.get();
+        if (currentStorage.memTablesToFlush.size() > config.maxTables) {
             throw new RuntimeException("To many requests on flush");
         }
-        int consumption = storage.currentMemTable.putAndGetSize(record);
+        int consumption = currentStorage.currentMemTable.putAndGetSize(record);
 
         if (consumption > config.memoryLimit) {
-            boolean success = this.storage.compareAndSet(storage, storage.prepareFlush());
+            boolean success = this.storage.compareAndSet(currentStorage, currentStorage.prepareFlush());
             if (!success) {
                 //another thread updated the storage
                 return;
             }
 
-            if (!storage.memTablesToFlush.isEmpty()) {
+            if (!currentStorage.memTablesToFlush.isEmpty()) {
                 //another thread already works on those storages
                 return;
             }
@@ -77,7 +77,7 @@ public class LsmDAO implements DAO {
             executors.execute(() -> {
                 try {
                     Storage newStorage = doFlush();
-                    if (storage.ssTables.size() > config.maxTables) {
+                    if (currentStorage.ssTables.size() > config.maxTables) {
                         performCompactIfNeed(newStorage);
                     }
                 } catch (IOException e) {
@@ -100,7 +100,7 @@ public class LsmDAO implements DAO {
             if (storagesToWrite.isEmpty()) {
                 return storageToFlush;
             }
-            SSTable newTable = flushAll(storageToFlush);
+            SSTable newTable = flushAll(storageToFlush.flushIterator());
             this.storage.updateAndGet(currentValue -> currentValue.afterFlush(storagesToWrite, newTable));
         }
     }
@@ -108,10 +108,6 @@ public class LsmDAO implements DAO {
     private SSTable flushAll(Iterator<Record> iterator) throws IOException {
         String newFileName = getNewFileName();
         return writeStorage(iterator, config.dir.resolve(newFileName));
-    }
-
-    private SSTable flushAll(Storage storage) throws IOException {
-        return flushAll(storage.flushIterator());
     }
 
     private SSTable writeStorage(Iterator<Record> iterator, Path filePath) throws IOException {

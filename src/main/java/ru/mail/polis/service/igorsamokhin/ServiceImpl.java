@@ -54,15 +54,19 @@ public class ServiceImpl extends HttpServer implements Service {
 
         try {
             executor.execute(() -> {
-                try {
-                    Response response = invokeHandler(request);
-                    session.sendResponse(response);
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
+                task(request, session);
             });
         } catch (RejectedExecutionException e) {
             session.sendResponse(UtilResponses.serviceUnavailableRequest());
+        }
+    }
+
+    private void task(Request request, HttpSession session) {
+        try {
+            Response response = invokeHandler(request);
+            session.sendResponse(response);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 
