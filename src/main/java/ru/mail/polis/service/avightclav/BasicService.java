@@ -57,18 +57,12 @@ public class BasicService extends HttpServer implements Service {
         switch (path) {
             case "/v0/status":
                 if (request.getMethod() == Request.METHOD_GET) {
-                    executor.execute(() -> {
-                        try {
-                            session.sendResponse(this.status());
-                        } catch (IOException e) {
-                            e.printStackTrace();
-                        }
-                    });
+                    session.sendResponse(this.status());
                 }
                 break;
             case "/v0/entity":
                 entityWiring(request, session);
-                return;
+                break;
             default:
                 session.sendResponse(new Response(Response.BAD_REQUEST, Response.EMPTY));
         }
@@ -77,19 +71,19 @@ public class BasicService extends HttpServer implements Service {
     private void entityWiring(Request request, HttpSession session) throws IOException {
         final String id = request.getParameter("id", "=");
         if ("=".equals(id)) {
-            session.sendResponse(new Response(Response.BAD_REQUEST, "12".getBytes()));
+            session.sendResponse(new Response(Response.BAD_REQUEST, "Wrong id".getBytes()));
             return;
         }
         switch (request.getMethod()) {
             case Request.METHOD_GET:
                 session.sendResponse(this.get(id));
-                return;
+                break;
             case Request.METHOD_PUT:
                 session.sendResponse(this.put(id, request.getBody()));
-                return;
+                break;
             case Request.METHOD_DELETE:
                 session.sendResponse(this.delete(id));
-                return;
+                break;
             default:
                 session.sendResponse(new Response(
                         Response.METHOD_NOT_ALLOWED,
