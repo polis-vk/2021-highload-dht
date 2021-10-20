@@ -11,9 +11,12 @@ import ru.mail.polis.service.Service;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 
 public class BasicService extends HttpServer implements Service {
     private final DaoWrapper daoWrapper;
+    private final Executor longTasksService = Executors.newFixedThreadPool(4);//TODO so, we need to think about order..
 
     public BasicService(int port, DAO dao) throws IOException {
         super(MyConfigFactory.fromPortWorkers(port, 4));
@@ -31,22 +34,52 @@ public class BasicService extends HttpServer implements Service {
     }
 
     @Path("/v0/entity")
-    public Response entity(
+    public void entity(
             final Request request,
-            @Param(value = "id", required = true) final String id
-    ) {
+            @Param(value = "id", required = true) final String id,
+            HttpSession localSession
+    ) throws IOException {
         if (id.isBlank()) {
-            return new Response(Response.BAD_REQUEST, "Undefined method".getBytes(StandardCharsets.UTF_8));
+            Response response = new Response(Response.BAD_REQUEST, "Undefined method".getBytes(StandardCharsets.UTF_8));
+            localSession.sendResponse(response);
         }
         switch (request.getMethod()) {
             case Request.METHOD_GET:
-                return this.daoWrapper.getEntity(id);
+                this.longTasksService.execute(() -> {
+                            Response response = this.daoWrapper.getEntity(id);
+                            try {
+                                localSession.sendResponse(response);
+                            } catch (IOException e) {
+                                e.printStackTrace();
+                            }
+                        }
+                );
+                break;
             case Request.METHOD_PUT:
-                return this.daoWrapper.putEntity(id, request.getBody());
+                this.longTasksService.execute(() -> {
+                            Response response = this.daoWrapper.putEntity(id, request.getBody());
+                            try {
+                                localSession.sendResponse(response);
+                            } catch (IOException e) {
+                                e.printStackTrace();
+                            }
+                        }
+                );
+                break;
             case Request.METHOD_DELETE:
-                return this.daoWrapper.deleteEntity(id);
+                this.longTasksService.execute(() -> {
+                            Response response = this.daoWrapper.deleteEntity(id);
+                            try {
+                                localSession.sendResponse(response);
+                            } catch (IOException e) {
+                                e.printStackTrace();
+                            }
+                        }
+                );
+                break;
             default:
-                return new Response(Response.BAD_REQUEST, "Undefined method".getBytes(StandardCharsets.UTF_8));
+                Response response = new Response(Response.BAD_REQUEST, "Undefined method".getBytes(StandardCharsets.UTF_8));
+                localSession.sendResponse(response);
         }
 
     }
