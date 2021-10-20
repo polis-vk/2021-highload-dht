@@ -71,11 +71,13 @@ public class ServiceImpl extends HttpServer implements Service {
         String path = request.getPath();
 
         if (requestPoolExecutor.isQueueFull()) {
-            try {
-                session.sendResponse(new Response(Response.SERVICE_UNAVAILABLE));
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
+            requestPoolExecutor.executeNow(() -> {
+                try {
+                    session.sendResponse(new Response(Response.SERVICE_UNAVAILABLE));
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            });
             return;
         }
 
