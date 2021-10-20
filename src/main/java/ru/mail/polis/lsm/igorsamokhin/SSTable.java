@@ -150,7 +150,7 @@ class SSTable {
 
         File[] files = dir.toFile().listFiles();
         if (files == null) {
-            return null;
+            throw new IOException("Fail on compaction");
         }
         Arrays.sort(files, (a, b) -> {
             int compareTo = a.compareTo(b);

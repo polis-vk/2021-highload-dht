@@ -51,7 +51,7 @@ class PersistenceTest {
     }
 
     @Test
-    void remove(@TempDir Path data) throws IOException {
+    void remove(@TempDir Path data) throws IOException, InterruptedException {
         // Reference value
         ByteBuffer key = wrap("SOME_KEY");
         ByteBuffer value = wrap("SOME_VALUE");
@@ -141,7 +141,7 @@ class PersistenceTest {
     }
 
     @Test
-    void hugeRecords(@TempDir Path data) throws IOException {
+    void hugeRecords(@TempDir Path data) throws IOException, InterruptedException {
         // Reference value
         int size = 1024 * 1024;
         byte[] suffix = sizeBasedRandomData(size);
@@ -162,7 +162,7 @@ class PersistenceTest {
     }
 
     @Test
-    void hugeRecordsSearch(@TempDir Path data) throws IOException {
+    void hugeRecordsSearch(@TempDir Path data) throws IOException, InterruptedException {
         // Reference value
         int size = 1024 * 1024;
         byte[] suffix = sizeBasedRandomData(size);
@@ -244,13 +244,21 @@ class PersistenceTest {
         assertEquals(value, next.getValue());
     }
 
-    private void prepareHugeDao(@TempDir Path data, int recordsCount, byte[] suffix) throws IOException {
+    private void prepareHugeDao(@TempDir Path data, int recordsCount, byte[] suffix) throws IOException, InterruptedException {
         try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
             for (int i = 0; i < recordsCount; i++) {
                 ByteBuffer key = keyWithSuffix(i, suffix);
                 ByteBuffer value = valueWithSuffix(i, suffix);
 
-                dao.upsert(Record.of(key, value));
+                boolean wasUpsert = true;
+                while (wasUpsert) {
+                    try {
+                        dao.upsert(Record.of(key, value));
+                        wasUpsert = false;
+                    } catch (RuntimeException e) {
+                        Thread.sleep(50);
+                    }
+                }
             }
         }
     }

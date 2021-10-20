@@ -10,81 +10,81 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
-import java.util.SortedMap;
-import java.util.concurrent.ConcurrentSkipListMap;
 
 @SuppressWarnings("JdkObsolete")
 @ThreadSafe
 public final class Storage {
-    private static final SortedMap<ByteBuffer, Record> EMPTY_STORAGE = Collections.emptySortedMap();
-    public final List<SSTable> tables;
-    public final SortedMap<ByteBuffer, Record> currentStorage;
-    public final SortedMap<ByteBuffer, Record> storageToWrite;
+    public final MemTable currentMemTable;
+    public final List<MemTable> memTablesToFlush;
+    public final List<SSTable> ssTables;
 
-    private Storage(List<SSTable> tables,
-                    SortedMap<ByteBuffer, Record> currentStorage,
-                    SortedMap<ByteBuffer, Record> storageToWrite) {
-        this.tables = tables;
-        this.currentStorage = currentStorage;
-        this.storageToWrite = storageToWrite;
+    private Storage(MemTable currentMemTable, List<MemTable> memTablesToFlush, List<SSTable> ssTables) {
+        this.currentMemTable = currentMemTable;
+        this.memTablesToFlush = memTablesToFlush;
+        this.ssTables = ssTables;
     }
 
     public static Storage init(List<SSTable> tables) {
-        return new Storage(tables,
-                new ConcurrentSkipListMap<>(),
-                EMPTY_STORAGE);
+        return new Storage(new MemTable(), Collections.emptyList(), tables);
     }
 
     public Storage prepareFlush() {
-        return new Storage(tables, new ConcurrentSkipListMap<>(), currentStorage);
+        ArrayList<MemTable> storagesToFlush = new ArrayList<>(this.memTablesToFlush.size() + 1);
+        storagesToFlush.addAll(this.memTablesToFlush);
+        storagesToFlush.add(currentMemTable);
+        return new Storage(new MemTable(), storagesToFlush, ssTables);
     }
 
-    public Storage afterFlush(SSTable newTable) {
-        List<SSTable> newTables = new ArrayList<>(tables.size() + 1);
-        newTables.addAll(tables);
+    public Storage afterFlush(List<MemTable> writtenStorage, SSTable newTable) {
+        List<SSTable> newTables = new ArrayList<>(ssTables.size() + 1);
+        newTables.addAll(ssTables);
         newTables.add(newTable);
-        return new Storage(newTables, currentStorage, EMPTY_STORAGE);
+
+        List<MemTable> newMemTablesToFlush = memTablesToFlush.subList(writtenStorage.size(),
+                memTablesToFlush.size());
+        return new Storage(currentMemTable, new ArrayList<>(newMemTablesToFlush), newTables);
     }
 
-    public Storage afterCompaction(SSTable table) {
-        List<SSTable> ssTables = Collections.singletonList(table);
-        return new Storage(ssTables, currentStorage, EMPTY_STORAGE);
-    }
-
-    private Iterator<Record> sstableRanges(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
-        List<Iterator<Record>> iterators = new ArrayList<>(tables.size());
-        for (SSTable sstable : tables) {
-            iterators.add(sstable.range(fromKey, toKey));
-        }
-        return LsmDAO.merge(iterators);
+    public Storage afterCompaction(List<MemTable> writtenStorage, SSTable table) {
+        List<MemTable> newMemTablesToFlush = memTablesToFlush.subList(writtenStorage.size(), memTablesToFlush.size());
+        return new Storage(currentMemTable, new ArrayList<>(newMemTablesToFlush), Collections.singletonList(table));
     }
 
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
-        Iterator<Record> sstableRanges = sstableRanges(fromKey, toKey);
+        List<Iterator<Record>> iterators = new ArrayList<>(ssTables.size());
+        for (SSTable sstable : ssTables) {
+            iterators.add(sstable.range(fromKey, toKey));
+        }
 
-        Iterator<Record> currentMemoryRange = getSubMap(currentStorage, fromKey, toKey)
-                .values()
-                .iterator();
+        for (MemTable memTable : memTablesToFlush) {
+            iterators.add(memTable.range(fromKey, toKey));
+        }
 
-        Iterator<Record> flushingMemoryRange = getSubMap(storageToWrite, fromKey, toKey)
-                .values()
-                .iterator();
+        iterators.add(currentMemTable.range(fromKey, toKey));
+        return merge(iterators);
+    }
 
-        return LsmDAO.merge(List.of(sstableRanges, flushingMemoryRange, currentMemoryRange));
+    public Iterator<Record> flushIterator() {
+        List<Iterator<Record>> iterators = new ArrayList<>(memTablesToFlush.size());
+
+        for (MemTable memTable : memTablesToFlush) {
+            iterators.add(memTable.range(null, null));
+        }
+        return merge(iterators);
+    }
+
+    public Iterator<Record> compactIterator() {
+        List<Iterator<Record>> iterators = new ArrayList<>(ssTables.size());
+        for (SSTable sstable : ssTables) {
+            iterators.add(sstable.range(null, null));
+        }
+        return merge(iterators);
     }
 
     /**
-     * Create sub map.
+     * Merge iterators into one iterator.
      */
-    public static SortedMap<ByteBuffer, Record> getSubMap(SortedMap<ByteBuffer, Record> memoryStorage,
-                                                          @Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
-        if (fromKey == null && toKey == null) {
-            return memoryStorage;
-        } else if (fromKey == null) {
-            return memoryStorage.headMap(toKey);
-        } else if (toKey == null) {
-            return memoryStorage.tailMap(fromKey);
-        }
-        return memoryStorage.subMap(fromKey, toKey);
+    public static Iterator<Record> merge(List<Iterator<Record>> iterators) {
+        return new MergingIterator(iterators);
     }
 }

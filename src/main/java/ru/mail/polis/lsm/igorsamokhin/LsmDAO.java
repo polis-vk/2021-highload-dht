@@ -12,23 +12,18 @@ import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.List;
-import java.util.SortedMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.locks.ReadWriteLock;
-import java.util.concurrent.locks.ReentrantReadWriteLock;
+import java.util.concurrent.atomic.AtomicReference;
 
-@SuppressWarnings("JdkObsolete")
 public class LsmDAO implements DAO {
     @SuppressWarnings("PMD.AvoidUsingVolatile")//Storage is final class
-    private volatile Storage storage;
+    private final AtomicReference<Storage> storage = new AtomicReference<>();
     private final DAOConfig config;
-    private final AtomicInteger memoryConsumption = new AtomicInteger(0);
 
     private final AtomicInteger fileN;
-    private final ReadWriteLock rwLock = new ReentrantReadWriteLock();
 
     private final ExecutorService executors = Executors.newSingleThreadExecutor();
 
@@ -42,7 +37,7 @@ public class LsmDAO implements DAO {
 
         List<SSTable> ssTables = SSTable.loadFromDir(config.dir);
         fileN = new AtomicInteger(ssTables.size());
-        storage = Storage.init(ssTables);
+        storage.set(Storage.init(ssTables));
     }
 
     private String getNewFileName() {
@@ -52,55 +47,75 @@ public class LsmDAO implements DAO {
 
     @Override
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
-        return this.storage.range(fromKey, toKey);
+        return this.storage.get().range(fromKey, toKey);
     }
 
+    /**
+     * Throws RuntimeException when it is too many requests on upsert.
+     */
+    @SuppressWarnings("PMD.AvoidUncheckedExceptionsInSignatures") //I need it because it is hard to remember
     @Override
-    public void upsert(Record record) {
-        int size = record.size();
-        if (memoryConsumption.addAndGet(size) > config.memoryLimit) {
-            rwLock.writeLock().lock();
-            try {
-                if (memoryConsumption.get() > config.memoryLimit) {
-                    storage = storage.prepareFlush();
-                    memoryConsumption.set(size);
-                    storage.currentStorage.put(record.getKey(), record);
-                    flushTask();
-                }
-            } finally {
-                rwLock.writeLock().unlock();
-            }
-        } else {
-            storage.currentStorage.put(record.getKey(), record);
+    public void upsert(Record record) throws RuntimeException {
+        Storage storage = this.storage.get();
+        if (storage.memTablesToFlush.size() > config.maxTables) {
+            throw new RuntimeException("To many requests on flush");
         }
+        int consumption = storage.currentMemTable.putAndGetSize(record);
 
-    }
+        if (consumption > config.memoryLimit) {
+            boolean success = this.storage.compareAndSet(storage, storage.prepareFlush());
+            if (!success) {
+                //another thread updated the storage
+                return;
+            }
 
-    private void flushTask() {
-        executors.execute(() -> {
-            rwLock.readLock().lock();
-            try {
-                SSTable table;
+            if (!storage.memTablesToFlush.isEmpty()) {
+                //another thread already works on those storages
+                return;
+            }
+
+            executors.execute(() -> {
                 try {
-                    table = flush();
+                    Storage newStorage = doFlush();
+                    if (storage.ssTables.size() > config.maxTables) {
+                        performCompactIfNeed(newStorage);
+                    }
                 } catch (IOException e) {
                     throw new UncheckedIOException(e);
                 }
-                storage = storage.afterFlush(table);
-                compactTask();
-            } finally {
-                rwLock.readLock().unlock();
+            });
+        }
+    }
+
+    private void performCompactIfNeed(Storage storage) throws IOException {
+        SSTable result = SSTable.compact(config.dir, storage.compactIterator(), getNewFileName());
+
+        this.storage.updateAndGet(curr -> curr.afterCompaction(storage.memTablesToFlush, result));
+    }
+
+    private Storage doFlush() throws IOException {
+        while (true) {
+            Storage storageToFlush = this.storage.get();
+            List<MemTable> storagesToWrite = storageToFlush.memTablesToFlush;
+            if (storagesToWrite.isEmpty()) {
+                return storageToFlush;
             }
-        });
+            SSTable newTable = flushAll(storageToFlush);
+            this.storage.updateAndGet(currentValue -> currentValue.afterFlush(storagesToWrite, newTable));
+        }
     }
 
-    private SSTable flush() throws IOException {
+    private SSTable flushAll(Iterator<Record> iterator) throws IOException {
         String newFileName = getNewFileName();
-        return writeStorage(storage.storageToWrite, config.dir.resolve(newFileName));
+        return writeStorage(iterator, config.dir.resolve(newFileName));
     }
 
-    private SSTable writeStorage(SortedMap<ByteBuffer, Record> storage, Path filePath) throws IOException {
-        SSTable.write(storage.values().iterator(), filePath);
+    private SSTable flushAll(Storage storage) throws IOException {
+        return flushAll(storage.flushIterator());
+    }
+
+    private SSTable writeStorage(Iterator<Record> iterator, Path filePath) throws IOException {
+        SSTable.write(iterator, filePath);
         return SSTable.loadFromFile(filePath);
     }
 
@@ -116,52 +131,26 @@ public class LsmDAO implements DAO {
             throw new IllegalStateException(e);
         }
 
-        rwLock.writeLock().lock();
-        try {
-            storage = storage.prepareFlush();
-            SSTable table = flush();
-            storage = storage.afterFlush(table);
-            for (SSTable ssTable : storage.tables) {
+        synchronized (this) {
+            Storage old = this.storage.getAndSet(null);
+            SSTable table = flushAll(old.currentMemTable.range(null, null));
+            table.close();
+            for (SSTable ssTable : old.ssTables) {
                 ssTable.close();
             }
-            storage = null;
-        } finally {
-            rwLock.writeLock().unlock();
-        }
-    }
-
-    private void compactTask() {
-        if (this.storage.tables.size() < config.maxTables) {
-            return;
-        }
-        compaction();
-    }
-
-    private void compaction() {
-        SSTable compactFile = null;
-        try {
-            compactFile = SSTable.compact(config.dir, this.range(null, null), getNewFileName());
-            Storage s = this.storage;
-            this.storage = storage.afterCompaction(compactFile);
-            for (SSTable t : s.tables) {
-                t.close();
-            }
-        } catch (IOException e) {
-            throw new UncheckedIOException("Can't compact", e);
         }
     }
 
     @Override
     public void compact() {
-        rwLock.writeLock();
-        compaction();
-        rwLock.writeLock();
-    }
-
-    /**
-     * Merge iterators into one iterator.
-     */
-    public static Iterator<Record> merge(List<Iterator<Record>> iterators) {
-        return new MergingIterator(iterators);
+        executors.execute(() -> {
+            synchronized (this) {
+                try {
+                    performCompactIfNeed(doFlush());
+                } catch (IOException e) {
+                    throw new UncheckedIOException(e);
+                }
+            }
+        });
     }
 }
