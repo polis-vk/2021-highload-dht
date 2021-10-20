@@ -58,22 +58,26 @@ public final class Server {
         // Start the storage
         DAO dao = DAOFactory.create(new DAOConfig(data));
         try {
-            final Service storage =
-                    ServiceFactory.create(
-                            PORT,
-                            dao);
-            storage.start();
-            Runtime.getRuntime().addShutdownHook(
-                    new Thread(() -> {
-                        storage.stop();
-                        try {
-                            dao.close();
-                        } catch (IOException e) {
-                            throw new RuntimeException("Can't close dao", e);
-                        }
-                    }));
+            runService(dao);
         } catch (IOException e) {
             LOG.error("Service IO exception", e);
         }
+    }
+
+    private static void runService(DAO dao) throws IOException {
+        final Service storage =
+                ServiceFactory.create(
+                        PORT,
+                        dao);
+        storage.start();
+        Runtime.getRuntime().addShutdownHook(
+                new Thread(() -> {
+                    storage.stop();
+                    try {
+                        dao.close();
+                    } catch (IOException e) {
+                        throw new RuntimeException("Can't close dao", e);
+                    }
+                }));
     }
 }
