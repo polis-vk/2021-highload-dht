@@ -37,7 +37,12 @@ public class BasicService extends HttpServer implements Service {
                         processEntity(request, localSession);
                         return;
                     default:
-                        localSession.sendResponse(new Response(Response.BAD_REQUEST, "Not found".getBytes(StandardCharsets.UTF_8)));
+                        localSession.sendResponse(
+                                new Response(
+                                        Response.BAD_REQUEST,
+                                        "Not found".getBytes(StandardCharsets.UTF_8))
+                        );
+                        break;
                 }
             } catch (IOException e) {
                 SERVICE_LOGGER.error("IOException caught handleDefault", e);
@@ -80,6 +85,7 @@ public class BasicService extends HttpServer implements Service {
                                 "Undefined method".getBytes(StandardCharsets.UTF_8)
                         )
                 );
+                break;
         }
 
     }
