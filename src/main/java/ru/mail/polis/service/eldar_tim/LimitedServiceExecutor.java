@@ -9,7 +9,10 @@ import ru.mail.polis.service.exceptions.ServiceOverloadException;
 
 import java.io.IOException;
 import java.util.NoSuchElementException;
-import java.util.concurrent.*;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ForkJoinPool;
+import java.util.concurrent.ForkJoinWorkerThread;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
@@ -91,7 +94,7 @@ public class LimitedServiceExecutor implements ServiceExecutor {
             @Override
             public ForkJoinWorkerThread newThread(ForkJoinPool pool) {
                 String name = NamedThreadFactory.buildName(threadName, threadNumber.getAndIncrement(), defaultWorkers);
-                ForkJoinWorkerThread t =  ForkJoinPool.defaultForkJoinWorkerThreadFactory.newThread(pool);
+                ForkJoinWorkerThread t = ForkJoinPool.defaultForkJoinWorkerThreadFactory.newThread(pool);
                 t.setName(name);
                 return t;
             }
