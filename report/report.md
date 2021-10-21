@@ -311,15 +311,29 @@ Allocs:
 Была идея, где есть общая очередь и потоки крутятся в while(true) и берут задачи из общей очереди. Разницы
 особо нет. Показывает практически одинаковые значения, но из-за самого этого цикла возникили сомнения.
 
+## Put:
 [cpu_put](hw33cpu_put.html)
 [alloc_put](hw33alloc_put.html)
 [lock_put](hw33lock_put.html)
 
-## Put:
 
+## Get:
 [cpu_get](hw33cpu_get.html)
 [alloc_get](hw33alloc_get.html)
 [lock_get](hw33lock_get.html)
 
-## Get:
+Сравнение:
 
+До                                                             После
+Thread Stats   Avg      Stdev     Max   +/- Stdev              Thread Stats     Avg     Stdev    Max +/-    Stdev
+Latency     1.36ms    6.09ms 302.34ms   99.57%                 Latency          2.75ms 26.67ms 818.69ms     99.58%
+Req/Sec     3.52k   470.77    35.70k    89.83%                 Req/Sec           3.52k 772.74   59.78k      94.70%
+Latency Distribution (HdrHistogram - Recorded Latency)         Latency Distribution (HdrHistogram - Recorded Latency)
+50.000%    1.07ms                                              50.000%     1.15ms
+75.000%    1.48ms                                              75.000%     1.60ms
+90.000%    1.85ms                                               
+99.000%    4.44ms                                               
+99.900%   56.77ms                                               
+99.990%  271.61ms                                               
+99.999%  298.49ms                                               
+100.000%  302.59ms                                              
