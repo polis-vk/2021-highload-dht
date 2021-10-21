@@ -8,6 +8,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public class RequestPoolExecutor {
 
@@ -15,6 +16,7 @@ public class RequestPoolExecutor {
     private final ExecutorService mainExecutor;
     private final ExecutorService helpExecutor;
     private final BlockingQueue<Runnable> queue;
+    private final AtomicBoolean isEnd = new AtomicBoolean(false);
 
     public RequestPoolExecutor(ExecutorConfig executorConfig) {
         this.executorConfig = executorConfig;
@@ -25,14 +27,35 @@ public class RequestPoolExecutor {
                 executorConfig.threadNumber,
                 0L,
                 TimeUnit.MILLISECONDS,
-                queue
+                new LinkedBlockingQueue<>()
         );
 
         this.helpExecutor = Executors.newFixedThreadPool(10);
+
+        startExecutor();
+    }
+
+    private void startExecutor() {
+        mainExecutor.execute(() -> {
+            while (!isEnd.get()) {
+                Runnable runnable;
+                try {
+                    runnable = queue.take();
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    throw new IllegalStateException(e);
+                }
+                runnable.run();
+            }
+        });
     }
 
     public void addTask(Runnable runnable) {
-        mainExecutor.execute(runnable);
+        if (isEnd.get()) {
+            throw new IllegalStateException("No longer accept tasks to execute");
+        }
+
+        queue.add(runnable);
     }
 
     public boolean isQueueFull() {
@@ -44,6 +67,8 @@ public class RequestPoolExecutor {
     }
 
     public void close() {
+        isEnd.set(true);
+
         ThreadUtils.awaitForShutdown(mainExecutor);
         ThreadUtils.awaitForShutdown(helpExecutor);
     }
