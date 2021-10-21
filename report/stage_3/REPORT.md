@@ -15,11 +15,11 @@
 В синхронной реализации потоки-селекторы выполняют всю работу по вставке
 и извлечению данных самостоятельно.
 
-- [wrk2 PUT](./profiling/blocking_queue/sync/wrk2_sync2_put.txt)
-- [wrk2 GET](./profiling/blocking_queue/sync/wrk2_sync2_get.txt)
-- [async-profiler CPU](./profiling/blocking_queue/sync/profiler_cpu_sync2.html)
-- [async-profiler ALLOC](./profiling/blocking_queue/sync/profiler_alloc_sync2.html)
-- [async-profiler LOCK](./profiling/blocking_queue/sync/profiler_lock_sync2.html)
+- [wrk2 PUT](profiling/sync/wrk2_sync2_put.txt)
+- [wrk2 GET](profiling/sync/wrk2_sync2_get.txt)
+- [async-profiler CPU](profiling/sync/profiler_cpu_sync2.html)
+- [async-profiler ALLOC](profiling/sync/profiler_alloc_sync2.html)
+- [async-profiler LOCK](profiling/sync/profiler_lock_sync2.html)
 
 ### [Асинхронный сервер](https://github.com/CRaFT4ik/2021-highload-dht/blob/stage_3/src/main/java/ru/mail/polis/service/eldar_tim/HttpServerImpl.java)
 
@@ -44,32 +44,32 @@
 не показал производительность лучше, чем синхронная обработка запросов.
 
 Результаты измерений **асинхронной** реализации на лимите очереди 1000:
- - [wrk2 PUT](profiling/blocking_queue/async/wrk2_workers2_put.txt)
- - [wrk2 GET](profiling/blocking_queue/async/wrk2_workers2_get.txt)
- - [async-profiler CPU](profiling/blocking_queue/async/profiler_cpu_workers2.html)
- - [async-profiler ALLOC](profiling/blocking_queue/async/profiler_alloc_workers2.html)
- - [async-profiler LOCK](profiling/blocking_queue/async/profiler_lock_workers2.html)
+ - [wrk2 PUT](profiling/async/threadpool/wrk2_workers2_put.txt)
+ - [wrk2 GET](profiling/async/threadpool/wrk2_workers2_get.txt)
+ - [async-profiler CPU](profiling/async/threadpool/profiler_cpu_workers2.html)
+ - [async-profiler ALLOC](profiling/async/threadpool/profiler_alloc_workers2.html)
+ - [async-profiler LOCK](profiling/async/threadpool/profiler_lock_workers2.html)
 
-Результаты измерений **синхронной** реализации приведены чуть выше.
+Note: Результаты измерений **синхронной** реализации приведены выше.
 
 Из сравнения результатов wrk2 видим, что синхронная реализация работает быстрее.
 Да, при таком лимите мы все ещё не отсекаем чрезмерную нагрузку (нет 2xx и 3xx ответов).
 
 Попробуем уменьшить очередь до 128:
-- [wrk2 PUT](profiling/blocking_queue/async/wrk2_workers128_put.txt)
-- [wrk2 GET](profiling/blocking_queue/async/wrk2_workers128_get.txt)
+- [wrk2 PUT](profiling/async/threadpool/wrk2_workers128_put.txt)
+- [wrk2 GET](profiling/async/threadpool/wrk2_workers128_get.txt)
 
-Видим ещё результаты ещё хуже. Производительность упала, и это при том, 
+Видим результаты ещё хуже. Производительность упала, и это при том, 
 что уже почти 100_000 запросов было отсечено. Что-то тут не так:
-взглянем на профиль LOCK и поймем в чем дело. Потоки очень много вызывают
+взглянем на профиль LOCK и поймем в чем дело. Потоки-рабочие очень много вызывают
 `LinkedBlockingQueue.take()` и застревают на нем на какое-то время, что
 приводит к задержкам.
 
 Уменьшим очередь ещё сильнее (до 32):
-- [wrk2 PUT](profiling/blocking_queue/async/wrk2_workers32_put.txt)
-- [wrk2 GET](profiling/blocking_queue/async/wrk2_workers32_get.txt)
+- [wrk2 PUT](profiling/async/threadpool/wrk2_workers32_put.txt)
+- [wrk2 GET](profiling/async/threadpool/wrk2_workers32_get.txt)
 
-Все встало на свои места? Вроде бы да. Я тоже так подумал, пока не сделал
+Все встало на свои места? Вроде бы да. Я так и подумал, пока не сделал
 ещё несколько тестов подряд. Результат был нестабилен, и на 99.999 - 100 перцентилях
 появились резкие скачки вплоть до 200 мс.
 
@@ -78,8 +78,8 @@
 
 #### Реализация без блокирующих очередей
 
-Я решил наследовать свой ExecutorService от `ForkJoinPool`, который не использует общую
-блокирующую очередь.
+Я решил использовать в качестве исполнителя `ForkJoinPool`, который не использует общую
+блокирующую очередь. 
 Также я не планировал использовать никакие `fork()` и `join()`, предоставляемый этим
 сервисом, поскольку задачи-запросы уже итак поделены и самодостаточны.
 Вместо этого установил флаг `asyncMode` в конструкторе `ForkJoinPool`:
@@ -92,17 +92,18 @@ only process event-style asynchronous tasks. For default value, use false.
 ```
 
 Встал вопрос, как отсекать лишние запросы, когда нет очереди.
-В ответ на это, я решил ввести атомарный счетчик в своем сервисе, имитирующий очередь.
+В ответ на это, я решил ввести атомарный счетчик [в своем сервисе-исполнителе](https://github.com/CRaFT4ik/2021-highload-dht/blob/stage_3/src/main/java/ru/mail/polis/service/eldar_tim/LimitedServiceExecutor.java),
+имитирующий очередь.
 Ни один поток не блокируется, пока инкриминирует или проверяет его. Такой подход
 показал наибольшую производительность.
 
 Результаты измерений для асинхронной реализации (лимит очереди - 32 элемента):
 
-- [wrk2 PUT](profiling/nonblocking/wrk2_workers32_put.txt)
-- [wrk2 GET](profiling/nonblocking/wrk2_workers32_get.txt)
-- [async-profiler CPU](profiling/nonblocking/profiler_cpu_workers32.html)
-- [async-profiler ALLOC](profiling/nonblocking/profiler_alloc_workers32.html)
-- [async-profiler LOCK](profiling/nonblocking/profiler_lock_workers32.html)
+- [wrk2 PUT](profiling/async/forkjoinpool/wrk2_workers32_put.txt)
+- [wrk2 GET](profiling/async/forkjoinpool/wrk2_workers32_get.txt)
+- [async-profiler CPU](profiling/async/forkjoinpool/profiler_cpu_workers32.html)
+- [async-profiler ALLOC](profiling/async/forkjoinpool/profiler_alloc_workers32.html)
+- [async-profiler LOCK](profiling/async/forkjoinpool/profiler_lock_workers32.html)
 
 Видим, что не так много запросов (по сравнению с общим количеством) было отсечено.
 Но отсечения есть, а это значит реализация работает, и работает корректно.
