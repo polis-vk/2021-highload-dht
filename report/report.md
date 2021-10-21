@@ -311,15 +311,15 @@ Allocs:
 Есть сомнение на счет while(true), до этого вставлял очередь, в которую сейчас кладу задачи, в сам executor. Разницы
 особо нет. Показывает практически одинаковые значения.
 
-[cpu_put](hw3cpu_put.html)
-[alloc_put](hw3alloc_put.html)
-[lock_put](hw3lock_put.html)
+[cpu_put](hw3cpu_put.html)  
+[alloc_put](hw3alloc_put.html)  
+[lock_put](hw3lock_put.html)  
 
 ## Put:
 
-[cpu_get](hw3cpu_get.html)
-[alloc_get](hw3alloc_get.html)
-[lock_get](hw3lock_get.html)
+[cpu_get](hw3cpu_get.html)  
+[alloc_get](hw3alloc_get.html)  
+[lock_get](hw3lock_get.html)  
 
 ## Get:
 
