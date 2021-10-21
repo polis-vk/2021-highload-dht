@@ -26,6 +26,8 @@ import ru.mail.polis.service.ServiceFactory;
 
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
  * Starts storage and waits for shutdown.
@@ -57,8 +59,13 @@ public final class Server {
 
         // Start the storage
         DAO dao = DAOFactory.create(new DAOConfig(data));
-        final Service storage = ServiceFactory.create(PORT, dao);
+
+        Set<String> topology = new HashSet<>();
+        topology.add("http://localhost:8080");
+
+        Service storage = ServiceFactory.create(PORT, dao, topology);
         storage.start();
+
         Runtime.getRuntime().addShutdownHook(
                 new Thread(() -> {
                     storage.stop();
