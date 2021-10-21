@@ -9,25 +9,26 @@ import ru.mail.polis.service.exceptions.ServiceOverloadException;
 
 import java.io.IOException;
 import java.util.NoSuchElementException;
-import java.util.concurrent.ForkJoinPool;
-import java.util.concurrent.ForkJoinWorkerThread;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.*;
 import java.util.concurrent.atomic.AtomicInteger;
 
-public class LimitedServiceExecutor extends ForkJoinPool implements ServiceExecutor {
+/**
+ * Исполнитель задач с ограниченной очередью. Использует ForkJoinPool в своей основе.
+ * Задачи, которые не помещаются в очередь, будут отвергнуты: вызывается указанный обработчик ошибок.
+ */
+public class LimitedServiceExecutor implements ServiceExecutor {
 
     private static final Logger LOG = LoggerFactory.getLogger(LimitedServiceExecutor.class);
 
-    private final AtomicInteger queueSize = new AtomicInteger();
     private final int queueLimit;
+    private final ExecutorService delegate;
+
+    private final AtomicInteger queueSize = new AtomicInteger();
 
     public LimitedServiceExecutor(String threadName, int defaultWorkers, int queueLimit) {
-        super(defaultWorkers, getThreadFactory(threadName, defaultWorkers),
-                (t, e) -> {
-                    throw new ServerRuntimeException(e);
-                }, true);
-
         this.queueLimit = queueLimit;
+        this.delegate = new ForkJoinPool(defaultWorkers,
+                getThreadFactory(threadName, defaultWorkers), null, true);
     }
 
     @Override
@@ -37,7 +38,7 @@ public class LimitedServiceExecutor extends ForkJoinPool implements ServiceExecu
             return;
         }
 
-        execute(() -> {
+        delegate.execute(() -> {
             queueSize.decrementAndGet();
             run(session, handler, runnable);
         });
@@ -70,10 +71,10 @@ public class LimitedServiceExecutor extends ForkJoinPool implements ServiceExecu
     @Override
     public void awaitAndShutdown() {
         try {
-            shutdown();
-            if (!awaitTermination(1, TimeUnit.MINUTES)) {
-                shutdownNow();
-                if (!awaitTermination(1, TimeUnit.MINUTES)) {
+            delegate.shutdown();
+            if (!delegate.awaitTermination(60, TimeUnit.SECONDS)) {
+                delegate.shutdownNow();
+                if (!delegate.awaitTermination(30, TimeUnit.SECONDS)) {
                     throw new InterruptedException();
                 }
             }
@@ -83,14 +84,14 @@ public class LimitedServiceExecutor extends ForkJoinPool implements ServiceExecu
         }
     }
 
-    private static ForkJoinWorkerThreadFactory getThreadFactory(String threadName, int defaultWorkers) {
-        return new ForkJoinWorkerThreadFactory() {
+    private static ForkJoinPool.ForkJoinWorkerThreadFactory getThreadFactory(String threadName, int defaultWorkers) {
+        return new ForkJoinPool.ForkJoinWorkerThreadFactory() {
             private final AtomicInteger threadNumber = new AtomicInteger(1);
 
             @Override
             public ForkJoinWorkerThread newThread(ForkJoinPool pool) {
                 String name = NamedThreadFactory.buildName(threadName, threadNumber.getAndIncrement(), defaultWorkers);
-                ForkJoinWorkerThread t = defaultForkJoinWorkerThreadFactory.newThread(pool);
+                ForkJoinWorkerThread t =  ForkJoinPool.defaultForkJoinWorkerThreadFactory.newThread(pool);
                 t.setName(name);
                 return t;
             }
