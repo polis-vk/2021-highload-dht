@@ -100,17 +100,15 @@ public class LsmDAO implements DAO {
                 } catch (IOException e) {
                     memoryConsumption.addAndGet(-rollbackSize);
                     memoryStorage.putAll(flushStorage); // restore data + new data
-                    Thread.currentThread().interrupt();
+                    return;
                 } finally {
                     semaphore.release();
                 }
             });
 
             compactExecutor.execute(() -> {
-                synchronized (this) {
-                    if (tableStorage.isCompact(config.tableLimit)) {
-                        compact();
-                    }
+                if (tableStorage.isCompact(config.tableLimit)) {
+                    compact();
                 }
             });
 
