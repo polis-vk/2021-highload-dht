@@ -17,6 +17,9 @@
 package ru.mail.polis.service;
 
 import ru.mail.polis.lsm.DAO;
+import ru.mail.polis.service.gasparyansokrat.ServiceConfig;
+import ru.mail.polis.service.gasparyansokrat.ServiceImpl;
+import ru.mail.polis.service.gasparyansokrat.ThreadPoolConfig;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -59,7 +62,8 @@ public final class ServiceFactory {
         if (topology.isEmpty()) {
             throw new IllegalArgumentException("Empty cluster");
         }
-
-        throw new UnsupportedOperationException("Implement me!");
+        //throw new UnsupportedOperationException("Implement me!");
+        ServiceConfig servConfig = new ServiceConfig(port, ThreadPoolConfig.MAX_THREAD_POOL, "localhost");
+        return new ServiceImpl(servConfig, topology, dao);
     }
 }

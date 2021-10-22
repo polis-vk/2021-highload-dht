@@ -12,24 +12,26 @@ import ru.mail.polis.service.Service;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.Iterator;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.LinkedBlockingDeque;
+import java.util.Set;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
+
 
 public class ServiceImpl extends HttpServer implements Service {
 
     private static final Logger LOG = LoggerFactory.getLogger(ServiceImpl.class);
     private final ServiceDAO servDAO;
     private final ThreadPoolExecutor executor;
+    private final Set<String> topology;
 
     /**
      * some doc.
      */
-    public ServiceImpl(final ServiceConfig servConf, final ThreadPoolConfig tpc, final DAO dao) throws IOException {
+    public ServiceImpl(final ServiceConfig servConf, final Set<String> topology, final DAO dao) throws IOException {
         super(HttpConfigFactory.buildHttpConfig(servConf));
-        BlockingQueue<Runnable> threadQueue = new LinkedBlockingDeque<>(tpc.queueSize);
-        this.executor = new ThreadPoolExecutor(tpc.poolSize, tpc.MAX_THREAD_POOL, tpc.keepAlive, tpc.unit, threadQueue);
+        this.executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(servConf.poolSize);
         this.servDAO = new ServiceDAO(dao);
+        this.topology = topology;
     }
 
     public Response status() {
