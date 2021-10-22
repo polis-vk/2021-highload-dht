@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 (c) Odnoklassniki
+ * Copyright 2021 (c) Odnoklassniki
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -79,5 +79,9 @@ abstract public class TestBase {
         result.put(right.duplicate());
         result.rewind();
         return result;
+    }
+
+    protected static String endpoint(final int port) {
+        return "http://localhost:" + port;
     }
 }

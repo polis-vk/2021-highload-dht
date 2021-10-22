@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 (c) Odnoklassniki
+ * Copyright 2021 (c) Odnoklassniki
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,6 +36,7 @@ import ru.mail.polis.lsm.DAOFactory;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -79,7 +80,7 @@ class StartStopTest extends TestBase {
         data = FileUtils.createTempDirectory();
         dao = DAOFactory.create(new DAOConfig(data));
         port = randomPort();
-        kvService = ServiceFactory.create(port, dao);
+        kvService = ServiceFactory.create(port, dao, Collections.singleton(endpoint(port)));
         reset();
     }
 
@@ -103,7 +104,7 @@ class StartStopTest extends TestBase {
     }
 
     @Test
-    @DisabledOnOs(OS.WINDOWS)
+    @EnabledOnOs(OS.LINUX)
     void create() {
         assertTimeoutPreemptively(TIMEOUT, () -> {
             assertThrows(PoolException.class, this::status);
@@ -111,8 +112,8 @@ class StartStopTest extends TestBase {
     }
 
     @Test
-    @EnabledOnOs(OS.WINDOWS)
-    void createOnWindows() throws InterruptedException {
+    @DisabledOnOs(OS.LINUX)
+    void createOnNonLinux() throws InterruptedException {
         assertNotFinishesIn(this::status);
     }
 
@@ -127,7 +128,7 @@ class StartStopTest extends TestBase {
     }
 
     @Test
-    @DisabledOnOs(OS.WINDOWS)
+    @EnabledOnOs(OS.LINUX)
     void stop() {
         assertTimeoutPreemptively(TIMEOUT, () -> {
             makeLifecycle();
@@ -138,8 +139,8 @@ class StartStopTest extends TestBase {
     }
 
     @Test
-    @EnabledOnOs(OS.WINDOWS)
-    void stopOnWindows() throws InterruptedException {
+    @DisabledOnOs(OS.LINUX)
+    void stopOnNonLinux() throws InterruptedException {
         assertNotFinishesIn(() -> {
             makeLifecycle();
 
