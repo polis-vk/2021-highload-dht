@@ -55,10 +55,10 @@ public abstract class RoutingRequestHandler implements RequestHandler {
             return target.httpClient.invoke(request);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            LOG.error("Proxy error", e);
+            LOG.debug("Proxy error", e);
             return new Response(Response.INTERNAL_ERROR, "Proxy error".getBytes(StandardCharsets.UTF_8));
         } catch (PoolException | IOException | HttpException e) {
-            LOG.error("Proxy error", e);
+            LOG.debug("Proxy error", e);
             return new Response(Response.INTERNAL_ERROR, "Proxy error".getBytes(StandardCharsets.UTF_8));
         }
     }
