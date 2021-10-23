@@ -32,6 +32,7 @@ import java.util.Set;
  */
 public final class ServiceFactory {
     private static final long MAX_HEAP = 512 * 1024 * 1024;
+    private static final int SIZE_INTERVAL = 32768;
 
     private ServiceFactory() {
         // Not supposed to be instantiated
@@ -62,8 +63,8 @@ public final class ServiceFactory {
         if (topology.isEmpty()) {
             throw new IllegalArgumentException("Empty cluster");
         }
-        //throw new UnsupportedOperationException("Implement me!");
-        ServiceConfig servConfig = new ServiceConfig(port, ThreadPoolConfig.MAX_THREAD_POOL, "localhost");
+
+        ServiceConfig servConfig = new ServiceConfig(port, ThreadPoolConfig.MAX_THREAD_POOL, "localhost", SIZE_INTERVAL);
         return new ServiceImpl(servConfig, topology, dao);
     }
 }

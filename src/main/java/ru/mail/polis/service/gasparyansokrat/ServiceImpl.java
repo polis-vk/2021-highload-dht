@@ -20,9 +20,8 @@ import java.util.concurrent.ThreadPoolExecutor;
 public class ServiceImpl extends HttpServer implements Service {
 
     private static final Logger LOG = LoggerFactory.getLogger(ServiceImpl.class);
-    private final ServiceDAO servDAO;
     private final ThreadPoolExecutor executor;
-    private final Set<String> topology;
+    private final ClusterService clusterService;
 
     /**
      * some doc.
@@ -30,8 +29,7 @@ public class ServiceImpl extends HttpServer implements Service {
     public ServiceImpl(final ServiceConfig servConf, final Set<String> topology, final DAO dao) throws IOException {
         super(HttpConfigFactory.buildHttpConfig(servConf));
         this.executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(servConf.poolSize);
-        this.servDAO = new ServiceDAO(dao);
-        this.topology = topology;
+        this.clusterService = new ClusterService(dao, topology, servConf);
     }
 
     public Response status() {
@@ -77,7 +75,7 @@ public class ServiceImpl extends HttpServer implements Service {
             if (id.isEmpty()) {
                 return new Response(Response.BAD_REQUEST, Response.EMPTY);
             } else {
-                return servDAO.handleRequest(method, id, request);
+                return clusterService.handleRequest(method, id, request);
             }
         } catch (IOException e) {
             throw new UncheckedIOException("Bad request", e);
