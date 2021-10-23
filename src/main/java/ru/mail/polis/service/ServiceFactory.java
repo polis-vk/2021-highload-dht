@@ -16,12 +16,18 @@
 
 package ru.mail.polis.service;
 
+import ru.mail.polis.Cluster;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.service.eldar_tim.HttpServerImpl;
 import ru.mail.polis.service.eldar_tim.LimitedServiceExecutor;
 import ru.mail.polis.service.eldar_tim.ServiceExecutor;
+import ru.mail.polis.sharding.ConsistentHashRouter;
+import ru.mail.polis.sharding.HashRouter;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collection;
+import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
@@ -68,7 +74,32 @@ public final class ServiceFactory {
             throw new IllegalArgumentException("Empty cluster");
         }
 
+        Collection<Cluster.Node> clusterNodes = buildClusterNodes(topology);
+        Cluster.Node currentNode = findClusterNode(port, clusterNodes);
+
+        HashRouter<Cluster.Node> hashRouter = new ConsistentHashRouter<>(clusterNodes, 30);
         ServiceExecutor executor = new LimitedServiceExecutor("worker", WORKERS_NUMBER, TASKS_LIMIT);
-        return new HttpServerImpl(port, dao, executor);
+        return new HttpServerImpl(dao, currentNode, hashRouter, executor);
+    }
+
+    private static Collection<Cluster.Node> buildClusterNodes(Set<String> topologyRaw) {
+        List<Cluster.Node> topology = new ArrayList<>(topologyRaw.size());
+        for (String endpoint : topologyRaw) {
+            String[] host_port = endpoint.replaceFirst(".*://", "").split(":");;
+            String ip = host_port[0];
+            int port = Integer.parseInt(host_port[1]);
+            Cluster.Node node = new Cluster.Node(ip, port);
+            topology.add(node);
+        }
+        return topology;
+    }
+
+    private static Cluster.Node findClusterNode(int port, Collection<Cluster.Node> topology) {
+        for (Cluster.Node node : topology) {
+            if (node.port == port) {
+                return node;
+            }
+        }
+        throw new IllegalArgumentException("Port not presented in the collection");
     }
 }

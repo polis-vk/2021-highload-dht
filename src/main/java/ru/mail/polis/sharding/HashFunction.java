@@ -1,4 +1,4 @@
-package ru.mail.polis.service.sharding;
+package ru.mail.polis.sharding;
 
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;

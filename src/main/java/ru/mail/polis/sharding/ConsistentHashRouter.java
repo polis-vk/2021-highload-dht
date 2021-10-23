@@ -1,4 +1,4 @@
-package ru.mail.polis.service.sharding;
+package ru.mail.polis.sharding;
 
 import javax.annotation.Nonnull;
 import java.util.Collection;
@@ -10,8 +10,8 @@ import java.util.TreeMap;
  *
  * @author Eldar Timraleev
  */
-public class ConsistentHashRouter<T extends Node> {
-    private final SortedMap<Long, VirtualNode<T>> ring = new TreeMap<>();
+public class ConsistentHashRouter<T extends Node> implements HashRouter<T> {
+    private final SortedMap<Long, VirtualNode> ring = new TreeMap<>();
     private final HashFunction hashFunction;
 
     public ConsistentHashRouter(@Nonnull Collection<T> nodes, int copiesOfEach) {
@@ -25,24 +25,26 @@ public class ConsistentHashRouter<T extends Node> {
         }
     }
 
-    public void addNode(T node, int copies) {
+    public void addNode(Node node, int copies) {
         int existingCount = countVirtualNodes(node);
         for (int i = 0; i < copies; i++) {
-            VirtualNode<T> virtualNode = new VirtualNode<>(node, existingCount + i);
+            VirtualNode virtualNode = new VirtualNode(node, existingCount + i);
             long hash = hashFunction.hash(virtualNode.getKey());
             ring.put(hash, virtualNode);
         }
     }
 
+    @Override
+    @SuppressWarnings("unchecked")
     public T route(@Nonnull String key) {
-        SortedMap<Long, VirtualNode<T>> tailMap = ring.tailMap(hashFunction.hash(key));
+        SortedMap<Long, VirtualNode> tailMap = ring.tailMap(hashFunction.hash(key));
         long virtualNodeKey = !tailMap.isEmpty() ? tailMap.firstKey() : ring.firstKey();
-        return ring.get(virtualNodeKey).node;
+        return (T) ring.get(virtualNodeKey).node;
     }
 
     private int countVirtualNodes(Node node) {
         int counter = 0;
-        for (VirtualNode<T> virtualNode : ring.values()) {
+        for (VirtualNode virtualNode : ring.values()) {
             if (virtualNode.isWorkerFor(node)) {
                 counter++;
             }

@@ -75,4 +75,19 @@ public final class Cluster {
                     }));
         }
     }
+
+    public static class Node implements ru.mail.polis.sharding.Node {
+        public final String ip;
+        public final int port;
+
+        public Node(String ip, int port) {
+            this.ip = ip;
+            this.port = port;
+        }
+
+        @Override
+        public String getKey() {
+            return ip + ":" + port;
+        }
+    }
 }
