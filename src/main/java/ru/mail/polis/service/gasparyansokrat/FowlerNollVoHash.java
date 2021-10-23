@@ -6,10 +6,10 @@ public final class FowlerNollVoHash {
     private static final int FNV_PRIME = 0x01000193;
 
     /**
-     * some docus.
+     * Creates instance of hash function.
      */
     FowlerNollVoHash() {
-
+        // The explicit constructor
     }
 
     public int hash(final byte[] k) {
