@@ -32,7 +32,7 @@ import java.util.Set;
  */
 public final class ServiceFactory {
     private static final long MAX_HEAP = 512 * 1024 * 1024;
-    private static final int SIZE_INTERVAL = 32768;
+    private static final int SIZE_INTERVAL = 32_768;
 
     private ServiceFactory() {
         // Not supposed to be instantiated
