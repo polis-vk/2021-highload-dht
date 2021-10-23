@@ -16,7 +16,6 @@ import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 
-
 public class ServiceImpl extends HttpServer implements Service {
 
     private static final Logger LOG = LoggerFactory.getLogger(ServiceImpl.class);

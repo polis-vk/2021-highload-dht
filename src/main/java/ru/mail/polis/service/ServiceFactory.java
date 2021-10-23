@@ -64,7 +64,7 @@ public final class ServiceFactory {
             throw new IllegalArgumentException("Empty cluster");
         }
 
-        ServiceConfig servConfig = new ServiceConfig(port, ThreadPoolConfig.MAX_THREAD_POOL, "localhost", SIZE_INTERVAL);
+        ServiceConfig servConfig = new ServiceConfig(port, ThreadPoolConfig.MAX_THREADS, "localhost", SIZE_INTERVAL);
         return new ServiceImpl(servConfig, topology, dao);
     }
 }

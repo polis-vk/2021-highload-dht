@@ -8,42 +8,36 @@ import one.nio.net.ConnectionString;
 import one.nio.pool.PoolException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
 import ru.mail.polis.lsm.DAO;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
 import java.util.Hashtable;
 import java.util.Map;
 import java.util.Set;
 
-
-
 public class ClusterService {
     private static final Logger LOG = LoggerFactory.getLogger(ClusterService.class);
     private String selfNode;
-    private final ConsistentHash ClusterNodes;
+    private final ConsistentHash clusterNodes;
     private final ServiceDAO servDAO;
-    private Map<String, HttpClient> clusterServers;
+    private final Map<String, HttpClient> clusterServers;
     private static final String DAO_URI_PARAMETER = "/v0/entity?id=";
-
 
     ClusterService(final DAO dao, final Set<String> topology, final ServiceConfig servConf) {
         this.servDAO = new ServiceDAO(dao);
-        this.selfNode = new String();
-        this.ClusterNodes = new ConsistentHashImpl(topology, servConf.clusterIntervals);
+        this.clusterNodes = new ConsistentHashImpl(topology, servConf.clusterIntervals);
         this.clusterServers = new Hashtable<>();
         buildTopology(servConf.port, topology);
     }
 
-    private void buildTopology(final int port, final Set<String> topology) {
+    private void buildTopology(final int port, final Set<String> topologies) {
         final String sport = String.valueOf(port);
-        for(final String _topology : topology) {
-            if (_topology.contains(sport)) {
-                this.selfNode = _topology;
+        for (final String topology : topologies) {
+            if (topology.contains(sport)) {
+                this.selfNode = topology;
             } else {
-                this.clusterServers.put(_topology, new HttpClient(new ConnectionString(_topology)));
+                this.clusterServers.put(topology, new HttpClient(new ConnectionString(topology)));
             }
         }
     }
@@ -89,7 +83,7 @@ public class ClusterService {
     }
 
     public Response handleRequest(final int method, final String id, final Request request) throws IOException {
-        final String node = ClusterNodes.getNode(id);
+        final String node = clusterNodes.getNode(id);
         if (node.equals(selfNode)) {
             return servDAO.handleRequest(method, id, request);
         } else {
