@@ -10,39 +10,39 @@ import java.util.TreeMap;
  *
  * @author Eldar Timraleev
  */
-public class ConsistentHashRouter {
-    private final SortedMap<Long, VirtualNode> ring = new TreeMap<>();
+public class ConsistentHashRouter<T extends Node> {
+    private final SortedMap<Long, VirtualNode<T>> ring = new TreeMap<>();
     private final HashFunction hashFunction;
 
-    public ConsistentHashRouter(@Nonnull Collection<Node> nodes, int copiesOfEach) {
+    public ConsistentHashRouter(@Nonnull Collection<T> nodes, int copiesOfEach) {
         this(nodes, copiesOfEach, new HashFunction.HashMD5());
     }
 
-    public ConsistentHashRouter(@Nonnull Collection<Node> nodes, int copiesOfEach, @Nonnull HashFunction hashFunction) {
+    public ConsistentHashRouter(@Nonnull Collection<T> nodes, int copiesOfEach, @Nonnull HashFunction hashFunction) {
         this.hashFunction = hashFunction;
-        for (Node node : nodes) {
+        for (T node : nodes) {
             addNode(node, copiesOfEach);
         }
     }
 
-    public void addNode(Node node, int copies) {
+    public void addNode(T node, int copies) {
         int existingCount = countVirtualNodes(node);
         for (int i = 0; i < copies; i++) {
-            VirtualNode virtualNode = new VirtualNode(node, existingCount + i);
+            VirtualNode<T> virtualNode = new VirtualNode<>(node, existingCount + i);
             long hash = hashFunction.hash(virtualNode.getKey());
             ring.put(hash, virtualNode);
         }
     }
 
-    public Node route(@Nonnull String key) {
-        SortedMap<Long, VirtualNode> tailMap = ring.tailMap(hashFunction.hash(key));
+    public T route(@Nonnull String key) {
+        SortedMap<Long, VirtualNode<T>> tailMap = ring.tailMap(hashFunction.hash(key));
         long virtualNodeKey = !tailMap.isEmpty() ? tailMap.firstKey() : ring.firstKey();
         return ring.get(virtualNodeKey).node;
     }
 
     private int countVirtualNodes(Node node) {
         int counter = 0;
-        for (VirtualNode virtualNode : ring.values()) {
+        for (VirtualNode<T> virtualNode : ring.values()) {
             if (virtualNode.isWorkerFor(node)) {
                 counter++;
             }

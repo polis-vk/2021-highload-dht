@@ -2,11 +2,11 @@ package ru.mail.polis.service.sharding;
 
 import javax.annotation.Nonnull;
 
-class VirtualNode implements Node {
-    public final Node node;
+class VirtualNode<T extends Node> implements Node {
+    public final T node;
     public final int id;
 
-    protected VirtualNode(@Nonnull Node node, int id) {
+    protected VirtualNode(@Nonnull T node, int id) {
         this.node = node;
         this.id = id;
     }
