@@ -115,10 +115,10 @@ public class HttpServerImpl extends HttpServer implements Service {
     }
 
     private void sendError(String description, String httpCode, HttpSession session, Exception e) {
-        //LOG.warn("Error: {}", description); Занимает место в LOCK-профайле
+        LOG.warn("Error: {}", description, e); // Занимает место в LOCK-профайле
         try {
             String code = httpCode == null ? Response.INTERNAL_ERROR : httpCode;
-            session.sendError(code, e.getMessage());
+            session.sendError(code, description);
         } catch (IOException ex) {
             LOG.error("Unable to send error: {}", description, ex);
         }

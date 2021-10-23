@@ -1,20 +1,23 @@
 package ru.mail.polis.service.eldar_tim.handlers;
 
-import one.nio.http.HttpClient;
 import one.nio.http.HttpException;
 import one.nio.http.Request;
 import one.nio.http.RequestHandler;
 import one.nio.http.Response;
-import one.nio.net.ConnectionString;
 import one.nio.pool.PoolException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import ru.mail.polis.Cluster;
 import ru.mail.polis.sharding.HashRouter;
 
 import javax.annotation.Nullable;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
 public abstract class RoutingRequestHandler implements RequestHandler {
+
+    private static final Logger LOG = LoggerFactory.getLogger(RoutingRequestHandler.class);
 
     private final Cluster.Node self;
     private final HashRouter<Cluster.Node> router;
@@ -23,6 +26,9 @@ public abstract class RoutingRequestHandler implements RequestHandler {
         this.self = self;
         this.router = router;
     }
+
+    @Nullable
+    protected abstract String getRouteKey(Request request);
 
     /**
      * Redirects the request to the host specified by the router.
@@ -45,32 +51,21 @@ public abstract class RoutingRequestHandler implements RequestHandler {
     }
 
     private Response redirect(Cluster.Node target, Request request) {
-        HttpClient client = new HttpClient(new ConnectionString("http://" + target.ip + ":" + target.port));
         try {
-            final Response response;
-            switch (request.getMethod()) {
-                case Request.METHOD_GET:
-                    response = client.get(request.getURI(), request.getHeaders());
-                    break;
-                case Request.METHOD_PUT:
-                    response = client.put(request.getURI(), request.getBody(), request.getHeaders());
-                    break;
-                case Request.METHOD_DELETE:
-                    response = client.delete(request.getURI(), request.getHeaders());
-                    break;
-                default:
-                    response = new Response(Response.BAD_REQUEST,
-                            "This method unsupported by proxy".getBytes(StandardCharsets.UTF_8));
-            }
-            return response;
+            return target.httpClient.invoke(request);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            return new Response(Response.INTERNAL_ERROR, e.getMessage().getBytes(StandardCharsets.UTF_8));
+            LOG.error("Proxy error", e);
+            return new Response(Response.INTERNAL_ERROR, "Proxy error".getBytes(StandardCharsets.UTF_8));
         } catch (PoolException | IOException | HttpException e) {
-            return new Response(Response.INTERNAL_ERROR, e.getMessage().getBytes(StandardCharsets.UTF_8));
+            LOG.error("Proxy error", e);
+            return new Response(Response.INTERNAL_ERROR, "Proxy error".getBytes(StandardCharsets.UTF_8));
         }
     }
 
-    @Nullable
-    protected abstract String getRouteKey(Request request);
+    protected final byte[] extractBytes(ByteBuffer buffer) {
+        final byte[] result = new byte[buffer.remaining()];
+        buffer.get(result);
+        return result;
+    }
 }

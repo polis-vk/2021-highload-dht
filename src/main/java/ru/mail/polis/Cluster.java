@@ -16,6 +16,8 @@
 
 package ru.mail.polis;
 
+import one.nio.http.HttpClient;
+import one.nio.net.ConnectionString;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.lsm.DAO;
@@ -79,10 +81,12 @@ public final class Cluster {
     public static class Node implements ru.mail.polis.sharding.Node {
         public final String ip;
         public final int port;
+        public final HttpClient httpClient;
 
         public Node(String ip, int port) {
             this.ip = ip;
             this.port = port;
+            httpClient = new HttpClient(new ConnectionString("http://" + ip + ":" + port));
         }
 
         @Override

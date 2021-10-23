@@ -85,7 +85,7 @@ public final class ServiceFactory {
     private static Collection<Cluster.Node> buildClusterNodes(Set<String> topologyRaw) {
         List<Cluster.Node> topology = new ArrayList<>(topologyRaw.size());
         for (String endpoint : topologyRaw) {
-            String[] host_port = endpoint.replaceFirst(".*://", "").split(":");;
+            String[] host_port = endpoint.replaceFirst(".*://", "").split(":");
             String ip = host_port[0];
             int port = Integer.parseInt(host_port[1]);
             Cluster.Node node = new Cluster.Node(ip, port);

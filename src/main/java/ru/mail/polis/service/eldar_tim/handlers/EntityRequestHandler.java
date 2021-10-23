@@ -78,10 +78,4 @@ public class EntityRequestHandler extends RoutingRequestHandler {
         dao.upsert(Record.tombstone(key));
         return new Response(Response.ACCEPTED, Response.EMPTY);
     }
-
-    private static byte[] extractBytes(ByteBuffer buffer) {
-        final byte[] result = new byte[buffer.remaining()];
-        buffer.get(result);
-        return result;
-    }
 }
