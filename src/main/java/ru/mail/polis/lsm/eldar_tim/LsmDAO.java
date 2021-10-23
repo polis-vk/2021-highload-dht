@@ -15,10 +15,12 @@ import ru.mail.polis.service.exceptions.ServiceClosedException;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.Iterator;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static ru.mail.polis.lsm.eldar_tim.components.SSTable.sizeOf;
 import static ru.mail.polis.lsm.eldar_tim.components.Utils.map;
@@ -104,7 +106,7 @@ public class LsmDAO implements DAO {
 
     @Override
     public void close() throws IOException {
-        LOG.info("{} is closing...", getClass().getName());
+        LOG.info("Closing...");
 
         serverIsDown = true;
 
@@ -116,7 +118,7 @@ public class LsmDAO implements DAO {
         flush(storage.memTableToFlush);
         storage = null;
 
-        LOG.info("{} closed", getClass().getName());
+        LOG.info("Closed");
     }
 
     private synchronized void scheduleFlush() {
@@ -125,6 +127,7 @@ public class LsmDAO implements DAO {
 
         storage = storage.beforeFlush();
 
+        AtomicInteger flushAttempts = new AtomicInteger();
         executorFlush.execute(context -> {
             try {
                 LOG.debug("Flushing...");
@@ -132,9 +135,14 @@ public class LsmDAO implements DAO {
                 storage = storage.afterFlush(flushedTable);
                 LOG.debug("Flush completed");
             } catch (IOException e) {
-                LOG.error("Flush error, retrying soon", e);
-                context.sleep(config.flushRetryTimeMs);
-                context.relaunch();
+                int attempt = flushAttempts.incrementAndGet();
+                LOG.error("Flush error, attempt: {}", attempt, e);
+                if (attempt < 3) {
+                    context.sleep(config.flushRetryTimeMs);
+                    context.relaunch();
+                } else {
+                    throw new UncheckedIOException("Flush error", e);
+                }
             }
             // compact(); need to support ByteBuffer with files over 2Gb first
         });

@@ -61,7 +61,7 @@ public final class Server {
         DAO dao = DAOFactory.create(new DAOConfig(data));
 
         Set<String> topology = new HashSet<>();
-        topology.add("http://localhost:8080");
+        topology.add("http://localhost:" + PORT);
 
         Service storage = ServiceFactory.create(PORT, dao, topology);
         storage.start();

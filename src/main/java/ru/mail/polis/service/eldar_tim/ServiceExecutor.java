@@ -16,6 +16,7 @@ public interface ServiceExecutor {
         void handleException(Session session, ServerRuntimeException e);
     }
 
+    @FunctionalInterface
     interface ServiceRunnable {
         void run() throws IOException;
     }
