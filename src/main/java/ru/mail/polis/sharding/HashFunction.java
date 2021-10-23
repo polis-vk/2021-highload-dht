@@ -7,18 +7,15 @@ public interface HashFunction {
     long hash(String key);
 
     class HashMD5 implements HashFunction {
-        private final MessageDigest instance;
-
-        public HashMD5() {
+        @Override
+        public long hash(String key) {
+            final MessageDigest instance;
             try {
                 instance = MessageDigest.getInstance("MD5");
             } catch (NoSuchAlgorithmException e) {
                 throw new RuntimeException(e);
             }
-        }
 
-        @Override
-        public synchronized long hash(String key) {
             instance.reset();
             instance.update(key.getBytes());
             byte[] digest = instance.digest();
