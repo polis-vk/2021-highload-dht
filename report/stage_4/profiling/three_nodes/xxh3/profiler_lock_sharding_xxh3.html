@@ -1,0 +1,346 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8'>
+<style>
+	body {margin: 0; padding: 10px; background-color: #ffffff}
+	h1 {margin: 5px 0 0 0; font-size: 18px; font-weight: normal; text-align: center}
+	header {margin: -24px 0 5px 0; line-height: 24px}
+	button {font: 12px sans-serif; cursor: pointer}
+	p {margin: 5px 0 5px 0}
+	a {color: #0366d6}
+	#hl {position: absolute; display: none; overflow: hidden; white-space: nowrap; pointer-events: none; background-color: #ffffe0; outline: 1px solid #ffc000; height: 15px}
+	#hl span {padding: 0 3px 0 3px}
+	#status {overflow: hidden; white-space: nowrap}
+	#match {overflow: hidden; white-space: nowrap; display: none; float: right; text-align: right}
+	#reset {cursor: pointer}
+</style>
+</head>
+<body style='font: 12px Verdana, sans-serif'>
+<h1>Flame Graph</h1>
+<header style='text-align: left'><button id='reverse' title='Reverse'>&#x1f53b;</button>&nbsp;&nbsp;<button id='search' title='Search'>&#x1f50d;</button></header>
+<header style='text-align: right'>Produced by <a href='https://github.com/jvm-profiling-tools/async-profiler'>async-profiler</a></header>
+<canvas id='canvas' style='width: 100%; height: 400px'></canvas>
+<div id='hl'><span></span></div>
+<p id='match'>Matched: <span id='matchval'></span> <span id='reset' title='Clear'>&#x274c;</span></p>
+<p id='status'>&nbsp;</p>
+<script>
+	// Copyright 2020 Andrei Pangin
+	// Licensed under the Apache License, Version 2.0.
+	'use strict';
+	var root, rootLevel, px, pattern;
+	var reverse = false;
+	const levels = Array(25);
+	for (let h = 0; h < levels.length; h++) {
+		levels[h] = [];
+	}
+
+	const canvas = document.getElementById('canvas');
+	const c = canvas.getContext('2d');
+	const hl = document.getElementById('hl');
+	const status = document.getElementById('status');
+
+	const canvasWidth = canvas.offsetWidth;
+	const canvasHeight = canvas.offsetHeight;
+	canvas.style.width = canvasWidth + 'px';
+	canvas.width = canvasWidth * (devicePixelRatio || 1);
+	canvas.height = canvasHeight * (devicePixelRatio || 1);
+	if (devicePixelRatio) c.scale(devicePixelRatio, devicePixelRatio);
+	c.font = document.body.style.font;
+
+	const palette = [
+		[0x50e150, 30, 30, 30],
+		[0x50bebe, 30, 30, 30],
+		[0xe17d00, 30, 30,  0],
+		[0xc8c83c, 30, 30, 10],
+		[0xe15a5a, 30, 40, 40],
+	];
+
+	function getColor(p) {
+		const v = Math.random();
+		return '#' + (p[0] + ((p[1] * v) << 16 | (p[2] * v) << 8 | (p[3] * v))).toString(16);
+	}
+
+	function f(level, left, width, type, title) {
+		levels[level].push({left: left, width: width, color: getColor(palette[type]), title: title});
+	}
+
+	function samples(n) {
+		return n === 1 ? '1 sample' : n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',') + ' samples';
+	}
+
+	function pct(a, b) {
+		return a >= b ? '100' : (100 * a / b).toFixed(2);
+	}
+
+	function findFrame(frames, x) {
+		let left = 0;
+		let right = frames.length - 1;
+
+		while (left <= right) {
+			const mid = (left + right) >>> 1;
+			const f = frames[mid];
+
+			if (f.left > x) {
+				right = mid - 1;
+			} else if (f.left + f.width <= x) {
+				left = mid + 1;
+			} else {
+				return f;
+			}
+		}
+
+		if (frames[left] && (frames[left].left - x) * px < 0.5) return frames[left];
+		if (frames[right] && (x - (frames[right].left + frames[right].width)) * px < 0.5) return frames[right];
+
+		return null;
+	}
+
+	function search(r) {
+		if (r && (r = prompt('Enter regexp to search:', '')) === null) {
+			return;
+		}
+
+		pattern = r ? RegExp(r) : undefined;
+		const matched = render(root, rootLevel);
+		document.getElementById('matchval').textContent = pct(matched, root.width) + '%';
+		document.getElementById('match').style.display = r ? 'inherit' : 'none';
+	}
+
+	function render(newRoot, newLevel) {
+		if (root) {
+			c.fillStyle = '#ffffff';
+			c.fillRect(0, 0, canvasWidth, canvasHeight);
+		}
+
+		root = newRoot || levels[0][0];
+		rootLevel = newLevel || 0;
+		px = canvasWidth / root.width;
+
+		const x0 = root.left;
+		const x1 = x0 + root.width;
+		const marked = [];
+
+		function mark(f) {
+			return marked[f.left] >= f.width || (marked[f.left] = f.width);
+		}
+
+		function totalMarked() {
+			let total = 0;
+			let left = 0;
+			for (let x in marked) {
+				if (+x >= left) {
+					total += marked[x];
+					left = +x + marked[x];
+				}
+			}
+			return total;
+		}
+
+		function drawFrame(f, y, alpha) {
+			if (f.left < x1 && f.left + f.width > x0) {
+				c.fillStyle = pattern && f.title.match(pattern) && mark(f) ? '#ee00ee' : f.color;
+				c.fillRect((f.left - x0) * px, y, f.width * px, 15);
+
+				if (f.width * px >= 21) {
+					const chars = Math.floor(f.width * px / 7);
+					const title = f.title.length <= chars ? f.title : f.title.substring(0, chars - 2) + '..';
+					c.fillStyle = '#000000';
+					c.fillText(title, Math.max(f.left - x0, 0) * px + 3, y + 12, f.width * px - 6);
+				}
+
+				if (alpha) {
+					c.fillStyle = 'rgba(255, 255, 255, 0.5)';
+					c.fillRect((f.left - x0) * px, y, f.width * px, 15);
+				}
+			}
+		}
+
+		for (let h = 0; h < levels.length; h++) {
+			const y = reverse ? h * 16 : canvasHeight - (h + 1) * 16;
+			const frames = levels[h];
+			for (let i = 0; i < frames.length; i++) {
+				drawFrame(frames[i], y, h < rootLevel);
+			}
+		}
+
+		return totalMarked();
+	}
+
+	canvas.onmousemove = function() {
+		const h = Math.floor((reverse ? event.offsetY : (canvasHeight - event.offsetY)) / 16);
+		if (h >= 0 && h < levels.length) {
+			const f = findFrame(levels[h], event.offsetX / px + root.left);
+			if (f) {
+				hl.style.left = (Math.max(f.left - root.left, 0) * px + canvas.offsetLeft) + 'px';
+				hl.style.width = (Math.min(f.width, root.width) * px) + 'px';
+				hl.style.top = ((reverse ? h * 16 : canvasHeight - (h + 1) * 16) + canvas.offsetTop) + 'px';
+				hl.firstChild.textContent = f.title;
+				hl.style.display = 'block';
+				canvas.title = f.title + '\n(' + samples(f.width) + ', ' + pct(f.width, levels[0][0].width) + '%)';
+				canvas.style.cursor = 'pointer';
+				canvas.onclick = function() {
+					if (f != root) {
+						render(f, h);
+						canvas.onmousemove();
+					}
+				};
+				status.textContent = 'Function: ' + canvas.title;
+				return;
+			}
+		}
+		canvas.onmouseout();
+	}
+
+	canvas.onmouseout = function() {
+		hl.style.display = 'none';
+		status.textContent = '\xa0';
+		canvas.title = '';
+		canvas.style.cursor = '';
+		canvas.onclick = '';
+	}
+
+	document.getElementById('reverse').onclick = function() {
+		reverse = !reverse;
+		render();
+	}
+
+	document.getElementById('search').onclick = function() {
+		search(true);
+	}
+
+	document.getElementById('reset').onclick = function() {
+		search(false);
+	}
+
+	window.onkeydown = function() {
+		if (event.ctrlKey && event.keyCode === 70) {
+			event.preventDefault();
+			search(true);
+		} else if (event.keyCode === 27) {
+			search(false);
+		}
+	}
+f(0,0,634492,4,'all')
+f(1,0,372698,0,'java/util/concurrent/ForkJoinWorkerThread.run')
+f(2,0,372698,0,'java/util/concurrent/ForkJoinPool.runWorker')
+f(3,0,372698,0,'java/util/concurrent/ForkJoinPool.scan')
+f(4,0,372698,0,'java/util/concurrent/ForkJoinPool$WorkQueue.topLevelExec')
+f(5,0,372698,0,'java/util/concurrent/ForkJoinTask.doExec')
+f(6,0,372698,0,'java/util/concurrent/ForkJoinTask$RunnableExecuteAction.exec')
+f(7,0,372698,0,'ru/mail/polis/service/eldar_tim/LimitedServiceExecutor$$Lambda$86/1501780943.run')
+f(8,0,372698,0,'ru/mail/polis/service/eldar_tim/LimitedServiceExecutor.lambda$execute$0')
+f(9,0,372698,0,'ru/mail/polis/service/eldar_tim/LimitedServiceExecutor.run')
+f(10,0,372698,0,'ru/mail/polis/service/eldar_tim/HttpServerImpl$$Lambda$71/501561267.run')
+f(11,0,372698,0,'ru/mail/polis/service/eldar_tim/HttpServerImpl.lambda$handleRequest$1')
+f(12,0,372698,0,'ru/mail/polis/service/eldar_tim/handlers/EntityRequestHandler.handleRequest')
+f(13,0,372642,0,'one/nio/http/HttpSession.sendResponse')
+f(14,0,372642,1,'one.nio.http.HttpSession')
+f(13,372642,36,0,'ru/mail/polis/service/eldar_tim/handlers/EntityRequestHandler.get')
+f(14,372642,36,0,'ru/mail/polis/lsm/eldar_tim/LsmDAO.range')
+f(15,372642,1,1,'int[]')
+f(15,372643,11,0,'java/lang/ClassLoader.loadClass')
+f(16,372643,11,0,'jdk/internal/loader/ClassLoaders$AppClassLoader.loadClass')
+f(17,372643,11,0,'jdk/internal/loader/BuiltinClassLoader.loadClass')
+f(18,372643,11,0,'jdk/internal/loader/BuiltinClassLoader.loadClassOrNull')
+f(19,372643,11,1,'java.lang.Object')
+f(15,372654,2,0,'java/util/Collections$UnmodifiableCollection.iterator')
+f(16,372654,2,0,'java/util/Collections$UnmodifiableCollection$1.<init>')
+f(17,372654,2,0,'java/util/concurrent/ConcurrentSkipListMap$Values.iterator')
+f(18,372654,2,1,'int[]')
+f(15,372656,21,0,'ru/mail/polis/lsm/eldar_tim/components/Utils.mergeTwo')
+f(16,372656,1,1,'int[]')
+f(16,372657,20,0,'java/lang/ClassLoader.loadClass')
+f(17,372657,20,0,'jdk/internal/loader/ClassLoaders$AppClassLoader.loadClass')
+f(18,372657,20,0,'jdk/internal/loader/BuiltinClassLoader.loadClass')
+f(19,372657,20,0,'jdk/internal/loader/BuiltinClassLoader.loadClassOrNull')
+f(20,372657,20,1,'java.lang.Object')
+f(15,372677,1,0,'ru/mail/polis/lsm/eldar_tim/components/Utils.sstableRanges')
+f(16,372677,1,0,'ru/mail/polis/lsm/eldar_tim/components/SSTable.range')
+f(17,372677,1,0,'java/lang/ClassLoader.loadClass')
+f(18,372677,1,0,'jdk/internal/loader/ClassLoaders$AppClassLoader.loadClass')
+f(19,372677,1,0,'jdk/internal/loader/BuiltinClassLoader.loadClass')
+f(20,372677,1,0,'jdk/internal/loader/BuiltinClassLoader.loadClassOrNull')
+f(21,372677,1,1,'java.lang.Object')
+f(13,372678,20,0,'ru/mail/polis/service/eldar_tim/handlers/EntityRequestHandler.put')
+f(14,372678,20,0,'ru/mail/polis/lsm/eldar_tim/LsmDAO.upsert')
+f(15,372678,8,0,'ru/mail/polis/lsm/eldar_tim/components/LimitedMemTable.put')
+f(16,372678,8,0,'ru/mail/polis/lsm/eldar_tim/components/AbstractMemTable.put')
+f(17,372678,8,0,'java/util/concurrent/ConcurrentSkipListMap.put')
+f(18,372678,8,0,'java/util/concurrent/ConcurrentSkipListMap.doPut')
+f(19,372678,8,0,'java/util/concurrent/ConcurrentSkipListMap.cpr')
+f(20,372678,8,0,'java/nio/ByteBuffer.compareTo')
+f(21,372678,8,0,'java/nio/ByteBuffer.compareTo')
+f(22,372678,8,0,'java/nio/BufferMismatch.mismatch')
+f(23,372678,7,1,'int[]')
+f(23,372685,1,0,'jdk/internal/util/ArraysSupport.<clinit>')
+f(24,372685,1,1,'int[]')
+f(15,372686,12,0,'ru/mail/polis/lsm/eldar_tim/components/LimitedMemTable.requestFlush')
+f(16,372686,12,0,'java/util/concurrent/atomic/AtomicBoolean.compareAndSet')
+f(17,372686,1,1,'java.lang.Object[]')
+f(17,372687,11,0,'java/lang/invoke/MethodHandleNatives.findMethodHandleType')
+f(18,372687,11,0,'java/lang/invoke/MethodType.makeImpl')
+f(19,372687,11,0,'java/lang/invoke/MethodType$ConcurrentWeakInternSet.get')
+f(20,372687,11,0,'java/lang/invoke/MethodType$ConcurrentWeakInternSet.expungeStaleElements')
+f(21,372687,11,0,'java/lang/ref/ReferenceQueue.poll')
+f(22,372687,11,1,'java.lang.ref.ReferenceQueue$Lock')
+f(1,372698,261794,0,'one/nio/server/SelectorThread.run')
+f(2,372698,261794,0,'one/nio/net/Session.process')
+f(3,372698,1396,1,'one.nio.http.HttpSession')
+f(3,374094,260398,0,'one/nio/http/HttpSession.processRead')
+f(4,374094,260398,0,'one/nio/http/HttpSession.processHttpBuffer')
+f(5,374094,260398,0,'one/nio/http/HttpSession.handleParsedRequest')
+f(6,374094,260398,0,'ru/mail/polis/service/eldar_tim/HttpServerImpl.handleRequest')
+f(7,374094,10,0,'ru/mail/polis/service/eldar_tim/LimitedServiceExecutor.execute')
+f(8,374094,2,0,'java/util/concurrent/ForkJoinPool.execute')
+f(9,374094,2,0,'java/util/concurrent/ForkJoinPool.externalSubmit')
+f(10,374094,2,0,'java/util/concurrent/ForkJoinPool.externalPush')
+f(11,374094,2,0,'java/util/concurrent/ForkJoinPool.signalWork')
+f(12,374094,2,0,'java/util/concurrent/ForkJoinPool.tryAddWorker')
+f(13,374094,2,0,'java/util/concurrent/ForkJoinPool.createWorker')
+f(14,374094,2,0,'ru/mail/polis/service/eldar_tim/LimitedServiceExecutor$1.newThread')
+f(15,374094,2,0,'java/util/concurrent/ForkJoinPool$DefaultForkJoinWorkerThreadFactory.newThread')
+f(16,374094,2,0,'java/security/AccessController.doPrivileged')
+f(17,374094,2,0,'java/util/concurrent/ForkJoinPool$DefaultForkJoinWorkerThreadFactory$1.run')
+f(18,374094,2,0,'java/util/concurrent/ForkJoinPool$DefaultForkJoinWorkerThreadFactory$1.run')
+f(19,374094,2,0,'java/util/concurrent/ForkJoinWorkerThread.<init>')
+f(20,374094,2,0,'java/lang/Thread.<init>')
+f(21,374094,2,0,'java/lang/Thread.<init>')
+f(22,374094,2,0,'java/lang/Thread.<init>')
+f(23,374094,2,0,'java/lang/Thread.nextThreadID')
+f(24,374094,2,1,'java.lang.Class')
+f(8,374096,8,0,'ru/mail/polis/service/eldar_tim/HttpServerImpl$$Lambda$66/668665271.handleException')
+f(9,374096,8,0,'ru/mail/polis/service/eldar_tim/HttpServerImpl.exceptionHandler')
+f(10,374096,8,0,'ru/mail/polis/service/eldar_tim/HttpServerImpl.sendError')
+f(11,374096,8,0,'ch/qos/logback/classic/Logger.debug')
+f(12,374096,8,0,'ch/qos/logback/classic/Logger.filterAndLog_2')
+f(13,374096,8,0,'ch/qos/logback/classic/Logger.buildLoggingEventAndAppend')
+f(14,374096,8,0,'ch/qos/logback/classic/spi/LoggingEvent.<init>')
+f(15,374096,6,0,'ch/qos/logback/classic/spi/ThrowableProxy.<init>')
+f(16,374096,2,0,'ch/qos/logback/classic/spi/ThrowableProxyUtil.steArrayToStepArray')
+f(17,374096,2,0,'java/lang/ClassLoader.loadClass')
+f(18,374096,2,0,'jdk/internal/loader/ClassLoaders$AppClassLoader.loadClass')
+f(19,374096,2,0,'jdk/internal/loader/BuiltinClassLoader.loadClass')
+f(20,374096,2,0,'jdk/internal/loader/BuiltinClassLoader.loadClassOrNull')
+f(21,374096,2,1,'java.lang.Object')
+f(16,374098,2,1,'int[]')
+f(16,374100,2,0,'java/lang/ClassLoader.loadClass')
+f(17,374100,2,0,'jdk/internal/loader/ClassLoaders$AppClassLoader.loadClass')
+f(18,374100,2,0,'jdk/internal/loader/BuiltinClassLoader.loadClass')
+f(19,374100,2,0,'jdk/internal/loader/BuiltinClassLoader.loadClassOrNull')
+f(20,374100,2,1,'java.lang.Object')
+f(15,374102,2,0,'java/lang/ClassLoader.loadClass')
+f(16,374102,2,0,'jdk/internal/loader/ClassLoaders$AppClassLoader.loadClass')
+f(17,374102,2,0,'jdk/internal/loader/BuiltinClassLoader.loadClass')
+f(18,374102,2,0,'jdk/internal/loader/BuiltinClassLoader.loadClassOrNull')
+f(19,374102,2,1,'java.lang.Object')
+f(7,374104,260388,0,'ru/mail/polis/service/eldar_tim/handlers/RoutingRequestHandler.checkAndRedirect')
+f(8,374104,260388,0,'ru/mail/polis/service/eldar_tim/handlers/RoutingRequestHandler.redirect')
+f(9,374104,260388,0,'one/nio/http/HttpClient.invoke')
+f(10,374104,260388,0,'one/nio/http/HttpClient.invoke')
+f(11,374104,124025,0,'one/nio/pool/Pool.borrowObject')
+f(12,374104,124025,1,'one.nio.http.HttpClient')
+f(11,498129,136363,0,'one/nio/pool/Pool.returnObject')
+f(12,498129,136363,1,'one.nio.http.HttpClient')
+render();
+</script></body></html>
