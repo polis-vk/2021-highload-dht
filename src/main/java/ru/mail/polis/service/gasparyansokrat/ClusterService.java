@@ -31,13 +31,13 @@ public class ClusterService {
         buildTopology(servConf.port, topology);
     }
 
-    private void buildTopology(final int port, final Set<String> topologies) {
+    private void buildTopology(final int port, final Set<String> topology) {
         final String sport = String.valueOf(port);
-        for (final String topology : topologies) {
-            if (topology.contains(sport)) {
-                this.selfNode = topology;
+        for (final String node : topology) {
+            if (node.contains(sport)) {
+                this.selfNode = node;
             } else {
-                this.clusterServers.put(topology, new HttpClient(new ConnectionString(topology)));
+                this.clusterServers.put(node, new HttpClient(new ConnectionString(node)));
             }
         }
     }
