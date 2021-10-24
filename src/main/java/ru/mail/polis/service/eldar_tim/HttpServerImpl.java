@@ -85,12 +85,14 @@ public class HttpServerImpl extends HttpServer implements Service {
         if (requestHandler == statusHandler) {
             workers.run(session, this::exceptionHandler, () -> requestHandler.handleRequest(request, session));
         } else if (requestHandler != null) {
-            Response redirected = requestHandler.checkAndRedirect(request);
-            if (redirected != null) {
-                sendResponse(redirected, session);
-            } else {
-                workers.execute(session, this::exceptionHandler, () -> requestHandler.handleRequest(request, session));
-            }
+            workers.execute(session, this::exceptionHandler, () -> {
+                Response redirected = requestHandler.checkAndRedirect(request);
+                if (redirected != null) {
+                    sendResponse(redirected, session);
+                } else {
+                    requestHandler.handleRequest(request, session);
+                }
+            });
         } else {
             handleDefault(request, session);
         }
@@ -115,7 +117,7 @@ public class HttpServerImpl extends HttpServer implements Service {
     }
 
     private void sendError(String description, String httpCode, HttpSession session, Exception e) {
-        LOG.debug("Error: {}", description, e);
+        // LOG.debug("Error: {}", description, e); Влияет на результаты профилирования
         try {
             String code = httpCode == null ? Response.INTERNAL_ERROR : httpCode;
             session.sendError(code, description);
