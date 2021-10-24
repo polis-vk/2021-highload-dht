@@ -7,7 +7,9 @@
 
     <description>Technopolis Java Rule Set</description>
 
-    <rule ref="category/java/bestpractices.xml"/>
+    <rule ref="category/java/bestpractices.xml">
+        <exclude name="AvoidMessageDigestField"/>
+    </rule>
     <rule ref="category/java/codestyle.xml">
         <exclude name="CommentDefaultAccessModifier"/>
         <exclude name="LocalVariableCouldBeFinal"/>

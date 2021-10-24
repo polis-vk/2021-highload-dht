@@ -2,7 +2,7 @@ package ru.mail.polis.sharding;
 
 import javax.annotation.Nonnull;
 import java.util.Collection;
-import java.util.SortedMap;
+import java.util.NavigableMap;
 import java.util.TreeMap;
 
 /**
@@ -11,7 +11,7 @@ import java.util.TreeMap;
  * @author Eldar Timraleev
  */
 public class ConsistentHashRouter<T extends Node> implements HashRouter<T> {
-    private final SortedMap<Long, VirtualNode> ring = new TreeMap<>();
+    private final NavigableMap<Long, VirtualNode> ring = new TreeMap<>();
     private final HashFunction hashFunction;
 
     public ConsistentHashRouter(@Nonnull Collection<T> nodes, int copiesOfEach) {
@@ -37,8 +37,7 @@ public class ConsistentHashRouter<T extends Node> implements HashRouter<T> {
     @Override
     @SuppressWarnings("unchecked")
     public T route(@Nonnull String key) {
-        SortedMap<Long, VirtualNode> tailMap = ring.tailMap(hashFunction.hash(key));
-        long virtualNodeKey = !tailMap.isEmpty() ? tailMap.firstKey() : ring.firstKey();
+        long virtualNodeKey = ring.ceilingKey(hashFunction.hash(key));
         return (T) ring.get(virtualNodeKey).node;
     }
 

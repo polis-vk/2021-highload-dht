@@ -122,7 +122,7 @@ public class HttpServerImpl extends HttpServer implements Service {
             String code = httpCode == null ? Response.INTERNAL_ERROR : httpCode;
             session.sendError(code, description);
         } catch (IOException ex) {
-            LOG.error("Unable to send error: {}", description, ex);
+            LOG.error("Unable to send error: {} {}", description, e.getMessage(), ex);
         }
     }
 }
