@@ -115,7 +115,7 @@ public class HttpServerImpl extends HttpServer implements Service {
     }
 
     private void sendError(String description, String httpCode, HttpSession session, Exception e) {
-        LOG.debug("Error: {}", description, e);
+        LOG.debug("Error: {}", description, e); // Влияет на результаты профилирования
         try {
             String code = httpCode == null ? Response.INTERNAL_ERROR : httpCode;
             session.sendError(code, description);

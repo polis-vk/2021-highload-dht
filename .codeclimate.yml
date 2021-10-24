@@ -4,6 +4,9 @@ plugins:
     enabled: true
     config:
       file: "checkstyle.xml"
+    checks:
+      com.puppycrawl.tools.checkstyle.checks.imports.CustomImportOrderCheck:
+        enabled: false
   pmd:
     enabled: true
     config:

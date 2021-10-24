@@ -54,12 +54,14 @@ public abstract class RoutingRequestHandler implements RequestHandler {
         try {
             return target.httpClient.invoke(request);
         } catch (InterruptedException e) {
+            String errorText = "Proxy error: interrupted";
+            LOG.debug(errorText, e);
             Thread.currentThread().interrupt();
-            LOG.debug("Proxy error", e);
-            return new Response(Response.INTERNAL_ERROR, "Proxy error".getBytes(StandardCharsets.UTF_8));
+            return new Response(Response.INTERNAL_ERROR, errorText.getBytes(StandardCharsets.UTF_8));
         } catch (PoolException | IOException | HttpException e) {
-            LOG.debug("Proxy error", e);
-            return new Response(Response.INTERNAL_ERROR, "Proxy error".getBytes(StandardCharsets.UTF_8));
+            String errorText = "Proxy error";
+            LOG.debug(errorText, e);
+            return new Response(Response.INTERNAL_ERROR, errorText.getBytes(StandardCharsets.UTF_8));
         }
     }
 

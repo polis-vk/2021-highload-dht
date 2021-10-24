@@ -8,6 +8,7 @@ import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.Record;
 import ru.mail.polis.sharding.HashRouter;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -56,7 +57,7 @@ public class EntityRequestHandler extends RoutingRequestHandler {
         session.sendResponse(response);
     }
 
-    private Response get(String id) {
+    private Response get(@Nonnull String id) {
         ByteBuffer key = ByteBuffer.wrap(id.getBytes(StandardCharsets.UTF_8));
         final Iterator<Record> iterator = dao.range(key, DAO.nextKey(key));
         if (iterator.hasNext()) {
@@ -66,14 +67,14 @@ public class EntityRequestHandler extends RoutingRequestHandler {
         }
     }
 
-    private Response put(String id, byte[] body) {
+    private Response put(@Nonnull String id, @Nonnull byte[] body) {
         ByteBuffer key = ByteBuffer.wrap(id.getBytes(StandardCharsets.UTF_8));
         ByteBuffer value = ByteBuffer.wrap(body);
         dao.upsert(Record.of(key, value));
         return new Response(Response.CREATED, Response.EMPTY);
     }
 
-    private Response delete(String id) {
+    private Response delete(@Nonnull String id) {
         ByteBuffer key = ByteBuffer.wrap(id.getBytes(StandardCharsets.UTF_8));
         dao.upsert(Record.tombstone(key));
         return new Response(Response.ACCEPTED, Response.EMPTY);
