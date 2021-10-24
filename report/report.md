@@ -324,16 +324,46 @@ Allocs:
 
 Сравнение:
 
-До                                                             После
-Thread Stats   Avg      Stdev     Max   +/- Stdev              Thread Stats     Avg     Stdev    Max +/-    Stdev
-Latency     1.36ms    6.09ms 302.34ms   99.57%                 Latency          2.75ms 26.67ms 818.69ms     99.58%
-Req/Sec     3.52k   470.77    35.70k    89.83%                 Req/Sec           3.52k 772.74   59.78k      94.70%
-Latency Distribution (HdrHistogram - Recorded Latency)         Latency Distribution (HdrHistogram - Recorded Latency)
-50.000%    1.07ms                                              50.000%     1.15ms
-75.000%    1.48ms                                              75.000%     1.60ms
-90.000%    1.85ms                                               
-99.000%    4.44ms                                               
-99.900%   56.77ms                                               
-99.990%  271.61ms                                               
-99.999%  298.49ms                                               
-100.000%  302.59ms                                              
+До PUT                                                            После
+Thread Stats   Avg      Stdev     Max   +/- Stdev                  Thread Stats   Avg      Stdev     Max   +/- Stdev
+Latency     1.61ms    1.71ms  36.16ms   94.21%                     Latency     1.48ms    1.53ms  33.63ms   93.44%
+Req/Sec     8.81k     1.46k   30.70k    87.62%                     Req/Sec     7.04k     1.07k   23.67k    87.62%
+Latency Distribution (HdrHistogram - Recorded Latency)             Latency Distribution (HdrHistogram - Recorded Latency)
+50.000%    1.28ms                                                  50.000%    1.17ms
+75.000%    1.81ms                                                  75.000%    1.65ms
+90.000%    2.51ms                                                  90.000%    2.30ms
+99.000%    9.58ms                                                  99.000%    8.47ms
+99.900%   19.97ms                                                  99.900%   16.38ms
+99.990%   27.73ms                                                  99.990%   25.26ms
+99.999%   32.03ms                                                  99.999%   30.42ms
+100.000%   36.19ms                                                 100.000%   33.66ms
+
+ДО GET(rate = 20000)                                             После(rate = 20000)
+
+Thread Stats   Avg      Stdev     Max   +/- Stdev
+Latency     3.28ms    4.98ms  60.86ms   88.23%
+Req/Sec     8.61k     1.78k   23.56k    79.75%
+Latency Distribution (HdrHistogram - Recorded Latency)
+50.000%    1.44ms
+75.000%    2.39ms
+90.000%    9.77ms
+99.000%   23.92ms
+99.900%   33.63ms
+99.990%   41.63ms
+99.999%   47.97ms
+100.000%   60.90ms
+
+
+
+Thread Stats   Avg      Stdev     Max   +/- Stdev  
+Latency     2.33ms    3.23ms  46.75ms   90.43%  
+Req/Sec     7.08k     1.70k   26.00k    85.25%  
+Latency Distribution (HdrHistogram - Recorded Latency)  
+50.000%    1.35ms  
+75.000%    2.00ms  
+90.000%    5.32ms  
+99.000%   17.07ms  
+99.900%   26.08ms  
+99.990%   33.44ms  
+99.999%   40.32ms  
+100.000%   46.78ms
