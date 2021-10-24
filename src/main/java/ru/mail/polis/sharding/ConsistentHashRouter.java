@@ -15,7 +15,7 @@ public class ConsistentHashRouter<T extends Node> implements HashRouter<T> {
     private final HashFunction hashFunction;
 
     public ConsistentHashRouter(@Nonnull Collection<T> nodes, int copiesOfEach) {
-        this(nodes, copiesOfEach, new HashFunction.HashMD5());
+        this(nodes, copiesOfEach, new HashFunction.HashXXH3());
     }
 
     public ConsistentHashRouter(@Nonnull Collection<T> nodes, int copiesOfEach, @Nonnull HashFunction hashFunction) {

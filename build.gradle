@@ -30,6 +30,9 @@ dependencies {
     // Our beloved one-nio
     implementation 'ru.odnoklassniki:one-nio:1.4.0'
 
+    // Hash functions
+    implementation 'net.openhft:zero-allocation-hashing:0.15'
+
     // JUnit Jupiter test framework
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.7.0'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.7.0'

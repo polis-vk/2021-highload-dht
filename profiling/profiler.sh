@@ -10,10 +10,14 @@ else
 	OUTPUT="profiler_$1_$2"
 fi
 
-SERVER_PID=$(jps | grep "Server" | cut -d " " -f1)
+JPS=$(jps)
+SERVER_PID=$(printf "$JPS" | grep "Server")
+if [[ -z "$SERVER_PID" ]]; then
+	SERVER_PID=$(printf "$JPS" | grep "Cluster")
+fi
+SERVER_PID=$(printf "$SERVER_PID" | cut -d " " -f1)
 
 CMD="async-profiler -d 135 -e $1 -f "output/$OUTPUT.html" "$SERVER_PID""
 
 echo -e "$ $CMD\n"
 eval $CMD
-
