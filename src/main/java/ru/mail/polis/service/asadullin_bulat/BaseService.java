@@ -1,11 +1,11 @@
 package ru.mail.polis.service.asadullin_bulat;
 
 import one.nio.http.HttpServer;
-import one.nio.http.Path;
 import one.nio.http.Param;
-import one.nio.http.Response;
+import one.nio.http.Path;
 import one.nio.http.Request;
 import one.nio.http.HttpSession;
+import one.nio.http.Response;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.Record;
 import ru.mail.polis.service.Service;
@@ -14,8 +14,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
-
-import static one.nio.http.Request.*;
 
 public class BaseService extends HttpServer implements Service {
 
@@ -41,14 +39,17 @@ public class BaseService extends HttpServer implements Service {
         }
         int method = request.getMethod();
         switch (method) {
-            case METHOD_GET:
+            case Request.METHOD_GET:
                 return get(id);
-            case METHOD_PUT:
+            case Request.METHOD_PUT:
                 return put(id, request.getBody());
-            case METHOD_DELETE:
+            case Request.METHOD_DELETE:
                 return delete(id);
             default:
-                return new Response(Response.METHOD_NOT_ALLOWED, INVALID_METHOD_MESSAGE.getBytes(StandardCharsets.UTF_8));
+                return new Response(
+                        Response.METHOD_NOT_ALLOWED,
+                        INVALID_METHOD_MESSAGE.getBytes(StandardCharsets.UTF_8)
+                );
         }
     }
 
