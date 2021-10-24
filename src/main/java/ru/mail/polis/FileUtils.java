@@ -19,7 +19,6 @@ package ru.mail.polis;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
@@ -34,7 +33,6 @@ import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
-import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Utility methods for handling files.
@@ -92,56 +90,12 @@ public final class FileUtils {
                 });
     }
 
-    /**
-     * Recursively calculates directory size.
-     */
-    public static long directorySize(final Path path) throws IOException {
-        final AtomicLong result = new AtomicLong(0L);
-        Files.walkFileTree(
-                path,
-                new SimpleFileVisitor<>() {
-                    @Override
-                    public FileVisitResult visitFile(
-                            final Path file,
-                            final BasicFileAttributes attrs) {
-                        result.addAndGet(attrs.size());
-                        return FileVisitResult.CONTINUE;
-                    }
-                });
-        return result.get();
-    }
-
     public static FileChannel openFileChannel(Path path) throws IOException {
         return FileChannel.open(
                 path,
                 StandardOpenOption.CREATE_NEW,
                 StandardOpenOption.WRITE,
                 StandardOpenOption.TRUNCATE_EXISTING);
-    }
-
-    public static Integer getFileNumber(Path path, String endFile) {
-        String stringPath = path.toString();
-
-        int lastSlash = 0;
-
-        for (int i = 0; i < stringPath.length(); i++) {
-            if (stringPath.charAt(i) == File.separatorChar) {
-                lastSlash = i;
-            }
-        }
-
-        stringPath = stringPath.substring(lastSlash + 1);
-
-        int firstNumberIndex = 0;
-
-        for (int i = 0; i < stringPath.length(); i++) {
-            if (Character.isDigit(stringPath.charAt(i))) {
-                firstNumberIndex = i;
-                break;
-            }
-        }
-
-        return Integer.parseInt(stringPath.substring(firstNumberIndex, stringPath.length() - endFile.length()));
     }
 
     public static void clean(MappedByteBuffer mappedByteBuffer) throws IOException {

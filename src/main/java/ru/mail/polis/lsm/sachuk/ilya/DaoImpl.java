@@ -60,8 +60,9 @@ public class DaoImpl implements DAO {
 
     @Override
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
-        checkIsClosedAndThrowIllegalException();
         Storage storage = this.memoryStorage;
+
+        checkIsClosedAndThrowIllegalException();
 
         Iterator<Record> ssTableRanges = ssTableRanges(storage, fromKey, toKey);
         Iterator<Record> memoryRange = map(storage.currentStorage, fromKey, toKey).values().iterator();
@@ -101,16 +102,19 @@ public class DaoImpl implements DAO {
 
     private void checkIsClosedAndThrowIllegalException() {
         if (isClosed.get()) {
-            throw new IllegalStateException("dao closed");
+            throw new IllegalStateException("Dao is closed");
         }
     }
 
     private void checkForPrevTask() {
-        if (futureAtomicReference.get() != null) {
+        Future<?> future = futureAtomicReference.get();
+        if (future != null) {
             try {
-                futureAtomicReference.get().get();
-            } catch (InterruptedException | ExecutionException e) {
+                future.get();
+            } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
+                throw new IllegalStateException("Interrupted", e);
+            } catch (ExecutionException e) {
                 throw new IllegalStateException("Can't to get result", e);
             }
         }
@@ -147,7 +151,6 @@ public class DaoImpl implements DAO {
     public void close() throws IOException {
         synchronized (this) {
             isClosed.set(true);
-            checkForPrevTask();
 
             ThreadUtils.awaitForShutdown(flushExecutor);
             ThreadUtils.awaitForShutdown(executorService);
@@ -193,6 +196,7 @@ public class DaoImpl implements DAO {
                 futureAtomicReference.set(null);
             } catch (IOException e) {
                 memoryConsumption.addAndGet(prevConsumption);
+                memoryStorage = memoryStorage.afterFlushException();
                 throw new UncheckedIOException(e);
             }
         }));
@@ -282,6 +286,10 @@ public class DaoImpl implements DAO {
         public Storage afterCompaction(SSTable ssTable) {
             List<SSTable> tables = Collections.singletonList(ssTable);
             return new Storage(currentStorage, EMPTY_STORAGE, tables);
+        }
+
+        public Storage afterFlushException() {
+            return new Storage(storageToWrite, EMPTY_STORAGE, ssTables);
         }
     }
 }
