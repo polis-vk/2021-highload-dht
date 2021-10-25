@@ -322,36 +322,37 @@ Allocs:
 [alloc_get](hw33alloc_get.html)
 [lock_get](hw33lock_get.html)
 
-Сравнение:
+Сравнение:  
 
-До PUT(rate = 25k)                                                 После(rate = 25k)
-Thread Stats   Avg      Stdev     Max   +/- Stdev                  Thread Stats   Avg      Stdev     Max   +/- Stdev
-Latency     1.61ms    1.71ms  36.16ms   94.21%                     Latency     1.48ms    1.53ms  33.63ms   93.44%
-Req/Sec     8.81k     1.46k   30.70k    87.62%                     Req/Sec     7.04k     1.07k   23.67k    87.62%
-Latency Distribution (HdrHistogram - Recorded Latency)             Latency Distribution (HdrHistogram - Recorded Latency)
-50.000%    1.28ms                                                  50.000%    1.17ms
-75.000%    1.81ms                                                  75.000%    1.65ms
-90.000%    2.51ms                                                  90.000%    2.30ms
-99.000%    9.58ms                                                  99.000%    8.47ms
-99.900%   19.97ms                                                  99.900%   16.38ms
-99.990%   27.73ms                                                  99.990%   25.26ms
-99.999%   32.03ms                                                  99.999%   30.42ms
-100.000%   36.19ms                                                 100.000%   33.66ms  
+|До PUT(rate = 25k)                                                 |После(rate = 25k)|
+|:------------------------------------------------------------------|:----------|
+|Thread Stats   Avg      Stdev     Max   +/- Stdev                  |Thread Stats   Avg      Stdev     Max   +/- Stdev|
+|Latency     1.61ms    1.71ms  36.16ms   94.21%                     |Latency     1.48ms    1.53ms  33.63ms   93.44%|
+|Req/Sec     8.81k     1.46k   30.70k    87.62%                     |Req/Sec     7.04k     1.07k   23.67k    87.62%|
+|Latency Distribution (HdrHistogram - Recorded Latency)             |Latency Distribution (HdrHistogram - Recorded Latency)|
+|50.000%    1.28ms                                                  |50.000%    1.17ms|
+|75.000%    1.81ms                                                  |75.000%    1.65ms|
+|90.000%    2.51ms                                                  |90.000%    2.30ms|
+|99.000%    9.58ms                                                  |99.000%    8.47ms|
+|99.900%   19.97ms                                                  |99.900%   16.38ms|
+|99.990%   27.73ms                                                  |99.990%   25.26ms|
+|99.999%   32.03ms                                                  |99.999%   30.42ms|
+|100.000%   36.19ms                                                 |100.000%   33.66ms|
 
-ДО GET(rate = 20000)                                             После(rate = 20000)  
-
-Thread Stats   Avg      Stdev     Max   +/- Stdev                 Thread Stats   Avg      Stdev     Max   +/- Stdev
-Latency     1.69ms    1.72ms  35.36ms   92.95%                    Latency     2.33ms    3.23ms  46.75ms   90.43%
-Req/Sec     8.82k     1.55k   30.56k    86.64%                    Req/Sec     7.08k     1.70k   26.00k    85.25%
-Latency Distribution (HdrHistogram - Recorded Latency)            Latency Distribution (HdrHistogram - Recorded Latency)
-50.000%    1.31ms                                                 50.000%    1.35ms
-75.000%    1.86ms                                                 75.000%    2.00ms
-90.000%    2.75ms                                                 90.000%    5.32ms
-99.000%    9.79ms                                                 99.000%   17.07ms
-99.900%   17.71ms                                                 99.900%   26.08ms
-99.990%   25.63ms                                                 99.990%   33.44ms
-99.999%   32.05ms                                                 99.999%   40.32ms
-100.000%   35.39ms                                                100.000%   46.78ms  
+|ДО GET(rate = 20000)                                              |После(rate = 20000)  
+|:-----------------------------------------------------------------|:----------------------------------------------------|
+|Thread Stats   Avg      Stdev     Max   +/- Stdev                 |Thread Stats   Avg      Stdev     Max   +/- Stdev
+|Latency     1.69ms    1.72ms  35.36ms   92.95%                    |Latency     2.33ms    3.23ms  46.75ms   90.43%
+|Req/Sec     8.82k     1.55k   30.56k    86.64%                    |Req/Sec     7.08k     1.70k   26.00k    85.25%
+|Latency Distribution (HdrHistogram - Recorded Latency)            |Latency Distribution (HdrHistogram - Recorded Latency)
+|50.000%    1.31ms                                                 |50.000%    1.35ms
+|75.000%    1.86ms                                                 |75.000%    2.00ms
+|90.000%    2.75ms                                                 |90.000%    5.32ms
+|99.000%    9.79ms                                                 |99.000%   17.07ms
+|99.900%   17.71ms                                                 |99.900%   26.08ms
+|99.990%   25.63ms                                                 |99.990%   33.44ms
+|99.999%   32.05ms                                                 |99.999%   40.32ms
+|100.000%   35.39ms                                                |100.000%   46.78ms  
 
 Если сравнивать, то put не изменился, переход на порядок так же происходит 3х девятках.
 Если сравнивать get, то тут переход стал на 99 вместо 99.9. Это связано с тем, что get очень быстро заполняет очередь 
@@ -509,3 +510,66 @@ Value   Percentile   TotalCount 1/(1-Percentile)
 3597007 requests in 2.00m, 254.07MB read  
 Requests/sec:  29975.11  
 Transfer/sec:      2.12MB  
+
+
+PUT(queueSize = 1000):  
+Thread number:
+
+|Latency\ThreadNumber|      1      |      2       |     4       |     8       |   16  
+|:----------|:------------|:-------------|:------------|:------------|:----------|
+|50.000%    |    1.36ms   |    1.40ms    |    1.40ms   |    1.30ms   |   1.17ms  
+|75.000%    |    1.98ms   |    2.08ms    |    2.05ms   |    1.86ms   |   1.65ms  
+|90.000%    |    3.36ms   |    3.59ms    |    3.44ms   |    2.96ms   |   2.30ms    
+|99.000%    |    9.94ms   |    10.48ms   |    10.10ms  |    9.03ms   |   8.47ms  
+|99.900%    |    17.30ms  |    17.82ms   |    17.53ms  |    16.17ms  |   16.38ms   
+|99.990%    |    23.57ms  |    23.89ms   |    24.99ms  |    22.54ms  |   26.26ms    
+|99.999%    |    29.58ms  |    30.91ms   |    32.96ms  |    27.90ms  |   30.42ms  
+|100.000%   |    35.23ms  |    38.75ms   |    37.60ms  |    32.48ms  |   33.66ms  
+
+
+
+GET(queueSize = 1000)  
+Thread number:
+
+|Latency/ThreadNumber|     1       |        2      |      4      |      8      |     16     |
+|:-----------|:------------|:--------------|:------------|:------------|:-----------|
+|50.000%     |   1.52ms    |     1.81ms    |   1.93ms    |    1.36ms   |   1.35ms   |
+|75.000%     |   3.76ms    |     3.54ms    |   3.48ms    |    2.08ms   |   2.00ms   |
+|90.000%     |   10.80ms   |     7.87ms    |   6.73ms    |    5.03ms   |   5.32ms   | 
+|99.000%     |   20.17ms   |     17.77ms   |   14.22ms   |    14.09ms  |   17.07ms  |
+|99.900%     |   26.96ms   |     25.38ms   |   21.15ms   |    21.57ms  |   26.08ms  |
+|99.990%     |   34.08ms   |     32.30ms   |   27.84ms   |    27.68ms  |   33.44ms  |
+|99.999%     |   41.69ms   |     37.06ms   |   38.05ms   |    33.18ms  |   40.32ms  |
+|100.000%    |   43.49ms   |     48.67ms   |   42.17ms   |    38.81ms  |   46.78ms  |
+
+
+PUT(Threads = 8)
+
+|Latency\QueueSize |      10      |      100       |     1000       |     10000       |   100000  |
+|:----------|:------------|:-------------|:------------|:------------|:----------|
+|50.000%    |    -  |    1.24ms    |    1.30ms   |    1.60ms   |   1.52ms  |
+|75.000%    |    -  |    1.78ms    |    1.86ms   |    2.42ms   |   2.29ms  |
+|90.000%    |    -  |    2.64ms    |    2.96ms   |    4.07ms   |   3.91ms   | 
+|99.000%    |    -  |    7.99ms   |    9.03ms  |    10.98ms   |   10.65ms  |
+|99.900%    |    -  |    15.90ms   |    16.17ms  |    19.57ms  |   19.87ms  | 
+|99.990%    |    -  |    22.25ms   |    22.54ms  |    27.76ms  |   29.09ms   | 
+|99.999%    |    -  |    26.32ms   |    27.90ms  |    32.20ms  |   36.61ms  |
+|100.000%   |    -  |    29.28ms   |    32.48ms  |    42.40ms  |   43.87ms|
+
+size 10 : timeout 6400
+size 100:  timeout 1160
+
+GET(Threads = 8)
+
+|Latency\QueueSize|      10      |      100       |     1000       |     10000  |  100000|
+|:----------|:------------|:-------------|:------------|:------------|:----------|
+|50.000%    |    -  |    1.41ms    |    1.36ms   |    1.40ms   |   1.37ms  |
+|75.000%    |    -  |    2.33ms    |    2.08ms   |    2.16ms   |   2.09ms  |
+|90.000%    |    -  |    5.32ms    |    5.03ms   |    5.62ms   |   5.09ms  | 
+|99.000%    |    -  |    13.69ms   |    14.09ms  |    15.59ms   |   14.31ms  |
+|99.900%    |    -  |    23.30ms   |    21.57ms  |    23.23ms  |   21.79ms |  
+|99.990%    |    -  |    76.67ms   |    27.68ms  |    29.20ms  |   28.45ms |   
+|99.999%    |    -  |    98.30ms   |    33.18ms  |    35.84ms  |   32.80ms | 
+|100.000%   |    -  |    117.25ms   |    38.81ms  |    44.26ms  |   36.16ms |
+
+size 100: timeout 1158
