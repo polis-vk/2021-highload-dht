@@ -4,7 +4,6 @@ import ru.mail.polis.ThreadUtils;
 
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -13,7 +12,6 @@ public class RequestPoolExecutor {
 
     private final ExecutorConfig executorConfig;
     private final ExecutorService mainExecutor;
-    private final ExecutorService helpExecutor;
     private final BlockingQueue<Runnable> queue;
 
     public RequestPoolExecutor(ExecutorConfig executorConfig) {
@@ -27,8 +25,6 @@ public class RequestPoolExecutor {
                 TimeUnit.MILLISECONDS,
                 queue
         );
-
-        this.helpExecutor = Executors.newFixedThreadPool(10);
     }
 
     public void addTask(Runnable runnable) {
@@ -36,15 +32,10 @@ public class RequestPoolExecutor {
     }
 
     public boolean isQueueFull() {
-        return queue.size() == executorConfig.queueSize;
-    }
-
-    public void executeNow(Runnable runnable) {
-        helpExecutor.execute(runnable);
+        return queue.size() >= executorConfig.queueSize;
     }
 
     public void close() {
         ThreadUtils.awaitForShutdown(mainExecutor);
-        ThreadUtils.awaitForShutdown(helpExecutor);
     }
 }

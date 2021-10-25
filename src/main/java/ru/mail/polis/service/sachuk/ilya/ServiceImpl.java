@@ -69,15 +69,14 @@ public class ServiceImpl extends HttpServer implements Service {
     @Override
     public void handleRequest(Request request, HttpSession session) {
         if (requestPoolExecutor.isQueueFull()) {
-            requestPoolExecutor.executeNow(() -> {
-                try {
-                    session.sendResponse(new Response(Response.SERVICE_UNAVAILABLE));
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-            });
+            try {
+                session.sendResponse(new Response(Response.SERVICE_UNAVAILABLE));
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
             return;
         }
+
         requestPoolExecutor.addTask(() -> {
             String path = request.getPath();
             Response response;
