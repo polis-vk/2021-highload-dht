@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 (c) Odnoklassniki
+ * Copyright 2021 (c) Odnoklassniki
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -36,6 +36,7 @@ import ru.mail.polis.lsm.DAOFactory;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.Collections;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -49,7 +50,6 @@ import static org.junit.jupiter.api.Assertions.*;
 class StartStopTest extends TestBase {
     private static final long TIMEOUT_MS = TimeUnit.SECONDS.toMillis(1);
     private static final Duration TIMEOUT = Duration.ofMillis(TIMEOUT_MS * 2);
-    private static final int SIZE_QUEUE = 500;
 
     private int port;
     private Path data;
@@ -80,7 +80,7 @@ class StartStopTest extends TestBase {
         data = FileUtils.createTempDirectory();
         dao = DAOFactory.create(new DAOConfig(data));
         port = randomPort();
-        kvService = ServiceFactory.create(port, dao, SIZE_QUEUE);
+        kvService = ServiceFactory.create(port, dao, Collections.singleton(endpoint(port)));
         reset();
     }
 
