@@ -1,54 +1,33 @@
 package ru.mail.polis.service.shabinsky_dmitry;
 
-import one.nio.http.HttpServer;
-import one.nio.http.HttpServerConfig;
-import one.nio.http.HttpSession;
-import one.nio.http.Param;
-import one.nio.http.Request;
-import one.nio.http.Response;
+import one.nio.http.*;
 import one.nio.server.AcceptorConfig;
+import one.nio.util.Utf8;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.Record;
 import ru.mail.polis.service.Service;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
-import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
-import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
-import java.util.concurrent.TimeUnit;
+import java.util.concurrent.Executor;
 
 public final class BasicService extends HttpServer implements Service {
 
-    public static final String STATUS_PATH = "/v0/status";
-    public static final String ENTITY_PATH = "/v0/entity";
-
-    private final Response badResponse = new Response(Response.BAD_REQUEST, Response.EMPTY);
-    private final Response unavailableResponse = new Response(Response.SERVICE_UNAVAILABLE, Response.EMPTY);
-
+    private final Logger LOG = LoggerFactory.getLogger(BasicService.class);
     private final DAO dao;
-    private final BlockingQueue<Runnable> workQueue;
-    private final int lengthQueue;
-    private final ExecutorService executor;
+    private final Executor executor;
 
-    public BasicService(final int port, final DAO dao, final int lengthWorkQueue) throws IOException {
+    public BasicService(
+        final int port,
+        final DAO dao,
+        Executor executor
+    ) throws IOException {
         super(from(port));
         this.dao = dao;
-
-        int coreSize = Runtime.getRuntime().availableProcessors();
-        this.lengthQueue = lengthWorkQueue;
-        this.workQueue = new LinkedBlockingQueue<>(lengthQueue);
-        this.executor = new ThreadPoolExecutor(
-            coreSize,
-            coreSize,
-            0L,
-            TimeUnit.MILLISECONDS,
-            this.workQueue
-        );
+        this.executor = executor;
     }
 
     private static HttpServerConfig from(final int port) {
@@ -60,70 +39,33 @@ public final class BasicService extends HttpServer implements Service {
         return config;
     }
 
+    @Path("/v0/status")
     public Response status() {
         return Response.ok("I'm ok");
     }
 
-    public Response entity(
-        final Request request,
+    @Path("/v0/entity")
+    public void entity(
+        HttpSession session,
+        Request request,
         @Param(value = "id", required = true) final String id
     ) {
-        if (id.isBlank()) {
-            return new Response(Response.BAD_REQUEST, "Bad id".getBytes(StandardCharsets.UTF_8));
-        }
+        execute(request, session, () -> {
+            if (id.isBlank()) {
+                return new Response(Response.BAD_REQUEST, toBytes("Bad id"));
+            }
 
-        switch (request.getMethod()) {
-            case Request.METHOD_GET:
-                return get(id);
-            case Request.METHOD_PUT:
-                return put(id, request.getBody());
-            case Request.METHOD_DELETE:
-                return delete(id);
-            default:
-                return new Response(Response.METHOD_NOT_ALLOWED, "Wrong method".getBytes(StandardCharsets.UTF_8));
-        }
-    }
-
-    @Override
-    public void handleRequest(Request request, HttpSession session) {
-        switch (request.getPath()) {
-
-            //without exec block
-            case STATUS_PATH:
-                sendResponse(session, status());
-                break;
-
-            // with exec block
-            case ENTITY_PATH:
-                if (isQueueFull()) {
-                    sendResponse(session, unavailableResponse);
-                    break;
-                }
-
-                String id = request.getParameter("id=");
-                if (id == null) {
-                    sendResponse(session, badResponse);
-                    break;
-                }
-
-                executor.execute(() -> sendResponse(session, entity(request, id)));
-                break;
-
-            default:
-                sendResponse(session, badResponse);
-        }
-    }
-
-    private boolean isQueueFull() {
-        return workQueue.size() >= lengthQueue;
-    }
-
-    private void sendResponse(HttpSession session, Response response) {
-        try {
-            session.sendResponse(response);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+            switch (request.getMethod()) {
+                case Request.METHOD_GET:
+                    return get(id);
+                case Request.METHOD_PUT:
+                    return put(id, request.getBody());
+                case Request.METHOD_DELETE:
+                    return delete(id);
+                default:
+                    return new Response(Response.METHOD_NOT_ALLOWED, toBytes("Wrong method"));
+            }
+        });
     }
 
     @Override
@@ -135,13 +77,13 @@ public final class BasicService extends HttpServer implements Service {
     }
 
     private Response delete(String id) {
-        final ByteBuffer key = ByteBuffer.wrap(id.getBytes(StandardCharsets.UTF_8));
+        final ByteBuffer key = ByteBuffer.wrap(toBytes(id));
         dao.upsert(Record.tombstone(key));
         return new Response(Response.ACCEPTED, Response.EMPTY);
     }
 
     private Response put(String id, byte[] body) {
-        final ByteBuffer key = ByteBuffer.wrap(id.getBytes(StandardCharsets.UTF_8));
+        final ByteBuffer key = ByteBuffer.wrap(toBytes(id));
         final ByteBuffer value = ByteBuffer.wrap(body);
         dao.upsert(Record.of(key, value));
         return new Response(Response.CREATED, Response.EMPTY);
@@ -154,12 +96,44 @@ public final class BasicService extends HttpServer implements Service {
     }
 
     private Response get(String id) {
-        final ByteBuffer key = ByteBuffer.wrap(id.getBytes(StandardCharsets.UTF_8));
+        final ByteBuffer key = ByteBuffer.wrap(toBytes(id));
         final Iterator<Record> range = dao.range(key, DAO.nextKey(key));
         if (range.hasNext()) {
             final Record first = range.next();
             return new Response(Response.OK, extractBytes(first.getValue()));
         }
         return new Response(Response.NOT_FOUND, Response.EMPTY);
+    }
+
+    private byte[] toBytes(String text) {
+        return Utf8.toBytes(text);
+    }
+
+    private void execute(Request request, HttpSession session, Task task) {
+        executor.execute(() -> {
+            Response call;
+            try {
+                call = task.call();
+            } catch (Exception e) {
+                LOG.error("Unexpected exception during method call {}", request.getMethodName(), e);
+                sendResponse(session, new Response(Response.INTERNAL_ERROR, toBytes("Something wrong")));
+                return;
+            }
+
+            sendResponse(session, call);
+        });
+    }
+
+    private void sendResponse(HttpSession session, Response call) {
+        try {
+            session.sendResponse(call);
+        } catch (Exception e) {
+            LOG.error("Can't send response", e);
+        }
+    }
+
+    @FunctionalInterface
+    private static interface Task {
+        Response call();
     }
 }

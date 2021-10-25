@@ -17,10 +17,14 @@
 package ru.mail.polis.service;
 
 import ru.mail.polis.lsm.DAO;
+import ru.mail.polis.service.shabinsky_dmitry.BasicService;
 
 import java.io.IOException;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * Constructs {@link Service} instances.
@@ -43,9 +47,9 @@ public final class ServiceFactory {
      * @return a storage instance
      */
     public static Service create(
-            final int port,
-            final DAO dao,
-            final Set<String> topology) throws IOException {
+        final int port,
+        final DAO dao,
+        final Set<String> topology) throws IOException {
         if (Runtime.getRuntime().maxMemory() > MAX_HEAP) {
             throw new IllegalStateException("The heap is too big. Consider setting Xmx.");
         }
@@ -60,6 +64,6 @@ public final class ServiceFactory {
             throw new IllegalArgumentException("Empty cluster");
         }
 
-        throw new UnsupportedOperationException("Implement me!");
+        return new BasicService(port, dao, Executors.newFixedThreadPool(16));
     }
 }
