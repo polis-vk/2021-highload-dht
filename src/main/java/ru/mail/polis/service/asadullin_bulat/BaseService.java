@@ -23,7 +23,7 @@ public class BaseService extends HttpServer implements Service {
     private final DAO dao;
 
     public BaseService(int port, DAO dao) throws IOException {
-        super(ServiceController.from(port));
+        super(ServiceControllerHelper.from(port));
         this.dao = dao;
     }
 

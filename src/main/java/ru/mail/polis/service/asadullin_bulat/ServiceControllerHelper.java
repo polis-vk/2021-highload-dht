@@ -3,9 +3,9 @@ package ru.mail.polis.service.asadullin_bulat;
 import one.nio.http.HttpServerConfig;
 import one.nio.server.AcceptorConfig;
 
-public final class ServiceController {
+public final class ServiceControllerHelper {
 
-    private ServiceController() {
+    private ServiceControllerHelper() {
         throw new IllegalStateException("Utility class");
     }
 
