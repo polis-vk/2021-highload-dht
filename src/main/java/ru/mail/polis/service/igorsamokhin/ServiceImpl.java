@@ -1,37 +1,48 @@
 package ru.mail.polis.service.igorsamokhin;
 
+import one.nio.http.HttpClient;
 import one.nio.http.HttpServer;
 import one.nio.http.HttpServerConfig;
 import one.nio.http.HttpSession;
 import one.nio.http.Param;
+import one.nio.http.Path;
 import one.nio.http.Request;
 import one.nio.http.Response;
+import one.nio.net.ConnectionString;
+import one.nio.pool.PoolException;
 import one.nio.server.AcceptorConfig;
 import one.nio.util.Utf8;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.Record;
 import ru.mail.polis.service.Service;
 
+import javax.annotation.Nullable;
+
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
+import java.util.Set;
 import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 public class ServiceImpl extends HttpServer implements Service {
     private static final String ENDPOINT_V0_STATUS = "/v0/status";
     private static final String ENDPOINT_V0_ENTITY = "/v0/entity";
+    private final Logger logger = LoggerFactory.getLogger(ServiceImpl.class);
 
     public static final String BAD_ID_RESPONSE = "Bad id";
     public static final int CAPACITY = 128;
-    public static final int MAXIMUM_POOL_SIZE = 32;
+    public static final int MAXIMUM_POOL_SIZE = 4;
     public static final int CORE_POOL_SIZE = 4;
     public static final int KEEP_ALIVE_TIME_MINUTES = 10;
 
     private final DAO dao;
+    private String[] topology;
+    private HttpClient[] clients;
+    private int id;
     private boolean isWorking; //false by default
 
     private final ThreadPoolExecutor executor =
@@ -41,33 +52,71 @@ public class ServiceImpl extends HttpServer implements Service {
                     TimeUnit.SECONDS,
                     new ArrayBlockingQueue<>(CAPACITY));
 
-    public ServiceImpl(int port, DAO dao) throws IOException {
+    public ServiceImpl(int port, DAO dao, Set<String> topology) throws IOException {
         super(from(port));
         this.dao = dao;
+        this.topology = new String[topology.size()];
+        this.clients = new HttpClient[topology.size()];
+
+        Iterator<String> iterator = topology.iterator();
+        for (int i = 0; iterator.hasNext(); i++) {
+            String adr = iterator.next();
+            if (adr.endsWith(Integer.toString(port))) {
+                this.id = i;
+            }
+            this.topology[i] = adr;
+            ConnectionString conn = new ConnectionString(adr);
+            HttpClient client = new HttpClient(conn);
+            //client.setProxy(new HttpProxy(conn.getHost(), conn.getPort()));
+            this.clients[i] = client;
+        }
+    }
+
+    private static HttpServerConfig from(int port) {
+        HttpServerConfig config = new HttpServerConfig();
+        AcceptorConfig acceptor = new AcceptorConfig();
+        acceptor.port = port;
+        acceptor.reusePort = true;
+
+        config.acceptors = new AcceptorConfig[]{acceptor};
+
+        return config;
     }
 
     @Override
     public void handleRequest(Request request, HttpSession session) throws IOException {
+        logger.info("Handle Request: \n{}", request);
         if (!isWorking) {
+            sendResponse(session, UtilResponses.serviceUnavailableResponse());
             return;
         }
+        super.handleRequest(request, session);
+    }
 
+    private void sendResponse(HttpSession session, @Nullable Response response) {
         try {
-            executor.execute(() -> {
-                task(request, session);
-            });
-        } catch (RejectedExecutionException e) {
-            session.sendResponse(UtilResponses.serviceUnavailableRequest());
+            session.sendResponse(response);
+        } catch (IOException e) {
+            logger.info("Can't send response ", e);
         }
     }
 
-    private void task(Request request, HttpSession session) {
-        try {
-            Response response = invokeHandler(request);
-            session.sendResponse(response);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
+    private int getNodeId(String id) {
+        if (id.isBlank()) {
+            return -1;
         }
+
+        int max = Integer.MIN_VALUE;
+        int idMax = -1;
+        for (int i = 0; i < topology.length; i++) {
+            int hashCode = (topology[i] + id).hashCode();
+            if (hashCode > max) {
+                max = hashCode;
+                idMax = i;
+            }
+        }
+
+        return idMax;
     }
 
     @Override
@@ -79,21 +128,59 @@ public class ServiceImpl extends HttpServer implements Service {
     @Override
     public synchronized void stop() {
         isWorking = false;
+        executor.shutdown();
+        try {
+            if (!executor.awaitTermination(Integer.MAX_VALUE, TimeUnit.NANOSECONDS)) {
+                throw new IllegalStateException("Can't await termination on close");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+        }
+
+        if (clients != null) {
+            for (HttpClient client : clients) {
+                client.clear();
+            }
+        }
+        clients = null;
+        topology = null;
         super.stop();
     }
 
-    private static HttpServerConfig from(int port) {
-        HttpServerConfig config = new HttpServerConfig();
-        AcceptorConfig acceptor = new AcceptorConfig();
-        acceptor.port = port;
-        acceptor.reusePort = true;
-
-        config.acceptors = new AcceptorConfig[]{acceptor};
-        return config;
+    @Path(ENDPOINT_V0_STATUS)
+    public Response status() {
+        return Response.ok("I'm OK");
     }
 
-    private Response status() {
-        return Response.ok("I'm OK");
+    @Path(ENDPOINT_V0_ENTITY)
+    public void entity(HttpSession session,
+                       Request request,
+                       @Param(value = "id", required = true) String id) {
+        executor.execute(() -> {
+            Response response;
+            try {
+                int nodeId = getNodeId(id);
+                if (nodeId == -1) {
+                    response = UtilResponses.badRequest(BAD_ID_RESPONSE);
+                } else if (nodeId == this.id) {
+                    response = handleEntity(request, id);
+                } else {
+                    logger.info("Forward from: {}, to node: {}\nRequest: {}, topology: {}", this.id, nodeId, request,
+                            topology);
+                    response = clients[nodeId].invoke(request);
+                }
+            } catch (RuntimeException e) {
+                logger.info("Exception in entity handling. Service unavailable", e);
+                response = UtilResponses.serviceUnavailableResponse();
+            } catch (PoolException e) {
+                logger.error("Perhaps one of nodes in cluster is not responding\n Request:\n{} ", request, e);
+                response = UtilResponses.serviceUnavailableResponse();
+            } catch (Exception e) {
+                logger.error("Exception in entity handling. Request:\n{} ", request, e);
+                response = UtilResponses.serviceUnavailableResponse();
+            }
+            sendResponse(session, response);
+        });
     }
 
     @Override
@@ -104,10 +191,6 @@ public class ServiceImpl extends HttpServer implements Service {
     }
 
     private Response get(@Param(value = "id", required = true) String id) {
-        if (id.isBlank()) {
-            return UtilResponses.badRequest(BAD_ID_RESPONSE);
-        }
-
         ByteBuffer fromKey = wrapString(id);
         ByteBuffer toKey = DAO.nextKey(fromKey);
 
@@ -122,30 +205,15 @@ public class ServiceImpl extends HttpServer implements Service {
 
     private Response put(@Param(value = "id", required = true) String id,
                          Request request) {
-        if (id.isBlank()) {
-            return UtilResponses.badRequest(BAD_ID_RESPONSE);
-        }
-
         Record record = Record.of(wrapString(id), ByteBuffer.wrap(request.getBody()));
-        try {
-            dao.upsert(record);
-        } catch (RuntimeException e) {
-            return UtilResponses.serviceUnavailableRequest();
-        }
+        dao.upsert(record);
         return UtilResponses.createdResponse();
     }
 
     private Response delete(@Param(value = "id", required = true) String id) {
-        if (id.isBlank()) {
-            return UtilResponses.badRequest(BAD_ID_RESPONSE);
-        }
-
         ByteBuffer key = wrapString(id);
-        try {
-            dao.upsert(Record.tombstone(key));
-        } catch (RuntimeException e) {
-            return UtilResponses.serviceUnavailableRequest();
-        }
+        dao.upsert(Record.tombstone(key));
+
         return UtilResponses.acceptedResponse();
     }
 
@@ -159,35 +227,22 @@ public class ServiceImpl extends HttpServer implements Service {
         return result;
     }
 
-    private Response invokeHandler(Request request) {
+    private Response handleEntity(Request request, String id) {
         Response response;
-        try {
-            String path = request.getPath();
-            String id = request.getParameter("id=");
-            if (path.equals(ENDPOINT_V0_STATUS)) {
-                response = status();
-            } else if (path.equalsIgnoreCase(ENDPOINT_V0_ENTITY) && (id != null)) {
-                switch (request.getMethod()) {
-                    case Request.METHOD_GET:
-                        response = get(id);
-                        break;
-                    case Request.METHOD_PUT:
-                        response = put(id, request);
-                        break;
-                    case Request.METHOD_DELETE:
-                        response = delete(id);
-                        break;
-                    default:
-                        response = UtilResponses.badRequest();
-                        break;
-                }
-            } else {
+        switch (request.getMethod()) {
+            case Request.METHOD_GET:
+                response = get(id);
+                break;
+            case Request.METHOD_PUT:
+                response = put(id, request);
+                break;
+            case Request.METHOD_DELETE:
+                response = delete(id);
+                break;
+            default:
                 response = UtilResponses.badRequest();
-            }
-        } catch (Exception e) {
-            response = UtilResponses.serviceUnavailableRequest();
+                break;
         }
-
         return response;
     }
 }

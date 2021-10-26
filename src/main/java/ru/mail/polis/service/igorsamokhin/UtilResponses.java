@@ -23,7 +23,7 @@ public final class UtilResponses {
         return emptyResponse(Response.BAD_REQUEST);
     }
 
-    public static Response serviceUnavailableRequest() {
+    public static Response serviceUnavailableResponse() {
         return emptyResponse(Response.SERVICE_UNAVAILABLE);
     }
 
