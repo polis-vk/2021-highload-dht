@@ -17,6 +17,7 @@
 package ru.mail.polis.lsm;
 
 import javax.annotation.Nullable;
+
 import java.nio.ByteBuffer;
 
 @SuppressWarnings("JavaLangClash")
@@ -58,4 +59,15 @@ public class Record {
         return value == null ? 0 : value.remaining();
     }
 
+    public int compareKeyWith(Record r) {
+        return this.key.compareTo(r.key); //много памяти используется для того, чтобы достать ключи и сравнить их
+    }
+
+    public int compareValueWith(Record r) {
+        return this.value.compareTo(r.value); //много памяти используется для того, чтобы достать ключи и сравнить их
+    }
+
+    public int size() {
+        return getKeySize() + getValueSize();
+    }
 }

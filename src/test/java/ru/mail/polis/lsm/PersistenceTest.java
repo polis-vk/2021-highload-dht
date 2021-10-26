@@ -16,8 +16,19 @@
 
 package ru.mail.polis.lsm;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import static ru.mail.polis.lsm.Utils.assertDaoEquals;
+import static ru.mail.polis.lsm.Utils.key;
+import static ru.mail.polis.lsm.Utils.keyWithSuffix;
+import static ru.mail.polis.lsm.Utils.recursiveDelete;
+import static ru.mail.polis.lsm.Utils.sizeBasedRandomData;
+import static ru.mail.polis.lsm.Utils.value;
+import static ru.mail.polis.lsm.Utils.valueWithSuffix;
+import static ru.mail.polis.lsm.Utils.wrap;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -28,18 +39,6 @@ import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Iterator;
 import java.util.Map;
-
-import static org.junit.jupiter.api.Assertions.assertEquals;
-import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
-import static ru.mail.polis.lsm.Utils.assertDaoEquals;
-import static ru.mail.polis.lsm.Utils.key;
-import static ru.mail.polis.lsm.Utils.keyWithSuffix;
-import static ru.mail.polis.lsm.Utils.recursiveDelete;
-import static ru.mail.polis.lsm.Utils.sizeBasedRandomData;
-import static ru.mail.polis.lsm.Utils.value;
-import static ru.mail.polis.lsm.Utils.valueWithSuffix;
-import static ru.mail.polis.lsm.Utils.wrap;
 
 class PersistenceTest {
     @Test
@@ -68,7 +67,7 @@ class PersistenceTest {
     }
 
     @Test
-    void remove(@TempDir Path data) throws IOException {
+    void remove(@TempDir Path data) throws IOException, InterruptedException {
         // Reference value
         ByteBuffer key = wrap("SOME_KEY");
         ByteBuffer value = wrap("SOME_VALUE");
@@ -158,7 +157,7 @@ class PersistenceTest {
     }
 
     @Test
-    void hugeRecords(@TempDir Path data) throws IOException {
+    void hugeRecords(@TempDir Path data) throws IOException, InterruptedException {
         // Reference value
         int size = 1024 * 1024;
         byte[] suffix = sizeBasedRandomData(size);
@@ -179,7 +178,7 @@ class PersistenceTest {
     }
 
     @Test
-    void hugeRecordsSearch(@TempDir Path data) throws IOException {
+    void hugeRecordsSearch(@TempDir Path data) throws IOException, InterruptedException {
         // Reference value
         int size = 1024 * 1024;
         byte[] suffix = sizeBasedRandomData(size);
@@ -206,29 +205,30 @@ class PersistenceTest {
 
     @Test
     void burnAndCompact(@TempDir Path data) throws IOException {
-        Map<ByteBuffer, ByteBuffer> map = Utils.generateMap(0, 1);
+        DAOConfig config = new DAOConfig(data, DAOConfig.DEFAULT_MEMORY_LIMIT, Integer.MAX_VALUE);
 
+        Map<ByteBuffer, ByteBuffer> map = Utils.generateMap(0, 1);
         int overwrites = 100;
         for (int i = 0; i < overwrites; i++) {
-            try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
+            try (DAO dao = TestDaoWrapper.create(config)) {
                 map.forEach((k, v) -> dao.upsert(Record.of(k, v)));
             }
 
             // Check
-            try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
+            try (DAO dao = TestDaoWrapper.create(config)) {
                 assertDaoEquals(dao, map);
             }
         }
 
         int beforeCompactSize = getDirSize(data);
 
-        try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
-            dao.closeAndCompact();
+        try (DAO dao = TestDaoWrapper.create(config)) {
+            dao.compact();
             assertDaoEquals(dao, map);
         }
 
         // just for sure
-        try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
+        try (DAO dao = TestDaoWrapper.create(config)) {
             assertDaoEquals(dao, map);
         }
 
@@ -260,13 +260,21 @@ class PersistenceTest {
         assertEquals(value, next.getValue());
     }
 
-    private void prepareHugeDao(@TempDir Path data, int recordsCount, byte[] suffix) throws IOException {
+    private void prepareHugeDao(@TempDir Path data, int recordsCount, byte[] suffix) throws IOException, InterruptedException {
         try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
             for (int i = 0; i < recordsCount; i++) {
                 ByteBuffer key = keyWithSuffix(i, suffix);
                 ByteBuffer value = valueWithSuffix(i, suffix);
 
-                dao.upsert(Record.of(key, value));
+                boolean wasUpsert = true;
+                while (wasUpsert) {
+                    try {
+                        dao.upsert(Record.of(key, value));
+                        wasUpsert = false;
+                    } catch (RuntimeException e) {
+                        Thread.sleep(50);
+                    }
+                }
             }
         }
     }
