@@ -7,13 +7,12 @@ import one.nio.http.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.lsm.DAO;
-import ru.mail.polis.lsm.Record;
 import ru.mail.polis.service.Service;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.util.Iterator;
+import java.util.Arrays;
+import java.util.Set;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -32,7 +31,7 @@ public class HttpRestService extends HttpServer implements Service {
             new LinkedBlockingQueue<>(QUEUE_CAPACITY)
     );
 
-    private final DAO dao;
+    private final RequestHandler requestHandler;
 
     private static final class RequestPath {
         public static final String STATUS = "/v0/status";
@@ -50,10 +49,16 @@ public class HttpRestService extends HttpServer implements Service {
         }
     }
 
-    public HttpRestService(final int port,
-                           final DAO dao) throws IOException {
+    private static final int[] ALLOWED_REQUEST_METHODS = new int[] {
+            Request.METHOD_GET,
+            Request.METHOD_PUT,
+            Request.METHOD_DELETE
+    };
+
+    public HttpRestService(final int port, Set<String> topology, DAO dao) throws IOException {
         super(HttpServiceUtils.createConfigByPort(port));
-        this.dao = dao;
+        InternalDaoService internalDaoService = new InternalDaoService(dao);
+        this.requestHandler = new RequestHandler(topology, port, internalDaoService);
     }
 
     @Override
@@ -136,72 +141,25 @@ public class HttpRestService extends HttpServer implements Service {
      *         HTTP code 400
      *         HTTP code 404
      *         HTTP code 405
+     *         HTTP code 502
      */
     private Response entity(final Request request) {
         String id = request.getParameter(RequestParameters.ID);
         if (id == null || id.equals(RequestParameters.EMPTY_ID)) {
             return new Response(Response.BAD_REQUEST, "Bad id".getBytes(StandardCharsets.UTF_8));
         }
-        switch (request.getMethod()) {
-            case Request.METHOD_GET:
-                return get(id);
-            case Request.METHOD_PUT:
-                return put(id, request.getBody());
-            case Request.METHOD_DELETE:
-                return delete(id);
-            default:
-                return new Response(
-                        Response.METHOD_NOT_ALLOWED,
-                        "Wrong method. Try GET/PUT/DELETE".getBytes(StandardCharsets.UTF_8)
-                );
+
+        int requestMethod = request.getMethod();
+        if (Arrays.stream(ALLOWED_REQUEST_METHODS).anyMatch(value -> value == requestMethod)) {
+            return requestHandler.entity(id, requestMethod, request);
         }
+        return new Response(
+                Response.METHOD_NOT_ALLOWED,
+                "Wrong method. Try GET/PUT/DELETE".getBytes(StandardCharsets.UTF_8)
+        );
     }
 
     private Response handleDefaultRequest() {
         return new Response(Response.BAD_REQUEST, Response.EMPTY);
-    }
-
-    /**
-     * Implements HTTP GET /v0/entity?id=ID -- get data by given key.
-     *
-     * @param id data key
-     * @return HTTP code 200 with data
-     *         HTTP code 404
-     */
-    private Response get(String id) {
-        final ByteBuffer key = HttpServiceUtils.wrapIdToBuffer(id);
-        final Iterator<Record> range = dao.range(key, DAO.nextKey(key));
-        if (range.hasNext()) {
-            final Record first = range.next();
-            return new Response(Response.OK, HttpServiceUtils.extractBytes(first.getValue()));
-        } else {
-            return new Response(Response.NOT_FOUND, Response.EMPTY);
-        }
-    }
-
-    /**
-     * Implements HTTP PUT /v0/entity?id=ID -- upsert data by given key.
-     *
-     * @param id   data key
-     * @param body array of bytes with given data
-     * @return HTTP code 201
-     */
-    private Response put(String id, byte[] body) {
-        final ByteBuffer key = HttpServiceUtils.wrapIdToBuffer(id);
-        final ByteBuffer value = ByteBuffer.wrap(body);
-        dao.upsert(Record.of(key, value));
-        return new Response(Response.CREATED, Response.EMPTY);
-    }
-
-    /**
-     * Implements HTTP DELETE /v0/entity?id=ID -- delete data by given key.
-     *
-     * @param id data key
-     * @return HTTP code 202
-     */
-    private Response delete(String id) {
-        final ByteBuffer key = HttpServiceUtils.wrapIdToBuffer(id);
-        dao.upsert(Record.tombstone(key));
-        return new Response(Response.ACCEPTED, Response.EMPTY);
     }
 }

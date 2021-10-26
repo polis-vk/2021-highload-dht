@@ -17,6 +17,7 @@
 package ru.mail.polis.service;
 
 import ru.mail.polis.lsm.DAO;
+import ru.mail.polis.service.alexander_kuptsov.HttpRestService;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -60,6 +61,6 @@ public final class ServiceFactory {
             throw new IllegalArgumentException("Empty cluster");
         }
 
-        throw new UnsupportedOperationException("Implement me!");
+        return new HttpRestService(port, topology, dao);
     }
 }
