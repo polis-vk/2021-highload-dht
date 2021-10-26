@@ -16,11 +16,12 @@
 
 package ru.mail.polis.service;
 
+import ru.mail.polis.ClusterPartitioner;
+import ru.mail.polis.Partition;
 import ru.mail.polis.lsm.DAO;
 
 import java.io.IOException;
-import java.util.Objects;
-import java.util.Set;
+import java.util.*;
 
 /**
  * Constructs {@link Service} instances.
@@ -59,7 +60,9 @@ public final class ServiceFactory {
         if (topology.isEmpty()) {
             throw new IllegalArgumentException("Empty cluster");
         }
-
-        return new HttpServerImpl(port, dao);
+        return new HttpServerImpl(port, dao,  ClusterPartitioner.create(topology));
     }
+
+
+
 }
