@@ -17,7 +17,10 @@ import java.util.NavigableMap;
 import java.util.NoSuchElementException;
 import java.util.Iterator;
 import java.util.SortedMap;
-import java.util.concurrent.*;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class LsmDAO implements DAO {
@@ -26,9 +29,10 @@ public class LsmDAO implements DAO {
     private final DAOConfig config;
     private static final Logger logger = LoggerFactory.getLogger(LsmDAO.class);
     private final AtomicInteger memoryConsumption = new AtomicInteger();
-    private final ExecutorService executor = Executors.newSingleThreadExecutor();
-    private CompletableFuture <Void> future;
-    private Storage storage;
+    private final ExecutorService flushExecutor = Executors.newSingleThreadExecutor();
+    private final ExecutorService compactExecutor = Executors.newSingleThreadExecutor();
+    private CompletableFuture<Void> flushCompletable;
+    private volatile Storage storage;
 
     public LsmDAO(DAOConfig config) throws IOException {
         this.config = config;
@@ -37,81 +41,87 @@ public class LsmDAO implements DAO {
 
     @Override
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
-            Iterator<Record> sstableRanges = sstableRanges(storage,fromKey, toKey);
-            Iterator<Record> memoryRange = map(storage.currentStorage, fromKey, toKey).values().iterator();
-            Iterator<Record> tmpMemoryRange = map(storage.tmpStorage,fromKey,toKey).values().iterator();
-            Iterator<Record> memory = mergeTwo(new PeekingIterator(memoryRange), new PeekingIterator(tmpMemoryRange));
-            Iterator<Record> iterator = mergeTwo(new PeekingIterator(sstableRanges), new PeekingIterator(memory));
-            return filterTombstones(iterator);
-
+        Iterator<Record> sstableRanges = sstableRanges(storage,fromKey, toKey);
+        Iterator<Record> memoryRange = map(storage.currentStorage, fromKey, toKey).values().iterator();
+        Iterator<Record> tmpMemoryRange = map(storage.tmpStorage,fromKey,toKey).values().iterator();
+        Iterator<Record> memory = mergeTwo(new PeekingIterator(memoryRange), new PeekingIterator(tmpMemoryRange));
+        Iterator<Record> iterator = mergeTwo(new PeekingIterator(sstableRanges), new PeekingIterator(memory));
+        return filterTombstones(iterator);
     }
 
     @Override
     public void upsert(Record record) {
-       int actualMemoryConsumption = memoryConsumption.addAndGet(sizeOf(record));
-       if(actualMemoryConsumption > config.memoryLimit){
-           logger.debug("Going to flush...{}",actualMemoryConsumption);
-           synchronized (this){
-               if(memoryConsumption.get() > config.memoryLimit){
-                   awaitTaskComplete();
-                   int oldMemoryConsumption = memoryConsumption.getAndSet(sizeOf(record));
-                   storage = storage.prepareFlush();
-                   future = CompletableFuture.runAsync(() ->{
-                   try{
-                       logger.debug("Flush started..");
-                       SSTable ssTable = flush();
-                       storage = storage.afterFlush(ssTable);
-                       logger.debug("Flush finished...");
-                   } catch (IOException e) {
-                       logger.error("Flush failed...", e);
-                       memoryConsumption.addAndGet(oldMemoryConsumption);
-                       throw new UncheckedIOException(e);
-                    }
-                   },executor);
-               } else{
-                   logger.info("Concurrent flush...");
-               }
-           }
-       }
-       logger.debug("Insert!...");
-       storage.currentStorage.put(record.getKey(),record);
+        int actualMemoryConsumption = memoryConsumption.addAndGet(sizeOf(record));
+        if(actualMemoryConsumption > config.memoryLimit){
+            logger.info("Going to flush...{}",actualMemoryConsumption);
+            synchronized (this){
+                if(memoryConsumption.get() > config.memoryLimit){
+                    int oldMemoryConsumption = memoryConsumption.getAndSet(sizeOf(record));
+                    flushCompletable = CompletableFuture.runAsync(() ->{
+                        try{
+                            logger.info("Flush started..");
+                            storage = storage.prepareFlush();
+                            SSTable ssTable = flush();
+                            storage = storage.afterFlush(ssTable);
+                            if (needCompact()){
+                                performCompact();
+                            }
+                            logger.info("Flush finished...");
+                        } catch (IOException e) {
+                            logger.error("Flush failed...", e);
+                            memoryConsumption.addAndGet(oldMemoryConsumption);
+                            throw new UncheckedIOException(e);
+                        }
+                    }, flushExecutor);
+                    awaitTaskComplete();
+                } else{
+                    logger.info("Concurrent flush...");
+                }
+            }
+        }
+        storage.currentStorage.put(record.getKey(),record);
     }
+
     private boolean needCompact(){
         return storage.tables.size() > config.maxTables;
     }
 
     @Override
     public void compact() {
-            synchronized (LsmDAO.this) {
-                awaitTaskComplete();
-                try{
-                    if(!needCompact()){
-                        return;
-                    }
-                logger.info("Compact started");
-                final SSTable compactTable;
-                try {
-                    compactTable = SSTable.compact(config.dir, sstableRanges(storage,null, null));
-                } catch (IOException e) {
-                    throw new UncheckedIOException(e);
-                }
-                storage = storage.afterCompaction(compactTable);
-                logger.info("Compact finished");
-            }catch (Exception e){
-                logger.error("Can't compact",e);}
+        compactExecutor.execute(() -> {
+            synchronized (this) {
+                performCompact();
             }
-
+        });
     }
 
+    private void performCompact(){
+        try {
+            if (!needCompact()) {
+                return;
+            }
+            logger.info("Compact started...");
+            SSTable compactTable;
+            try {
+                compactTable = SSTable.compact(config.dir, range(null, null));
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+            storage = storage.afterCompaction(compactTable);
+            logger.info("Compact finished...");
+        } catch (Exception e) {
+            logger.error("Can't compact...", e);
+        }
+    }
     private void awaitTaskComplete(){
-        if (future == null){
+        if (flushCompletable == null){
             return;
         }
         try{
-            future.get();
+            flushCompletable.get();
         } catch (InterruptedException | ExecutionException e ){
             Thread.currentThread().interrupt();
-            logger.error("Can't wait future completes....",e);
+            logger.error("Can't wait future complete execution....",e);
         }
     }
 
@@ -122,20 +132,8 @@ public class LsmDAO implements DAO {
     @Override
     public void close() throws IOException {
         synchronized (this) {
-            awaitTaskComplete();
-            executor.shutdown();
-            try {
-                if (!executor.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS)) {
-                    throw new IllegalStateException("Termination can't await");
-                }
-            } catch (InterruptedException e) {
-                executor.shutdownNow();
-                Thread.currentThread().interrupt();
-                throw new IllegalStateException(e);
-            }
             storage = storage.prepareFlush();
             flush();
-            storage = null;
         }
     }
 
@@ -198,7 +196,6 @@ public class LsmDAO implements DAO {
                     if (!peek.isTombstone()) {
                         return true;
                     }
-
                     if (delegate.hasNext()) {
                         delegate.next();
                     }
@@ -214,7 +211,4 @@ public class LsmDAO implements DAO {
             }
         };
     }
-
-
-
 }

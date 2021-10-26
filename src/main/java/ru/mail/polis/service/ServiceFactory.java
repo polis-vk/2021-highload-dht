@@ -17,6 +17,7 @@
 package ru.mail.polis.service;
 
 import ru.mail.polis.lsm.DAO;
+import ru.mail.polis.service.lucas_mbele.HttpRestService;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -42,7 +43,7 @@ public final class ServiceFactory {
      * @param topology a list of all cluster endpoints {@code http://<host>:<port>} (including this one)
      * @return a storage instance
      */
-    public static Service create(
+    public static HttpRestService create(
             final int port,
             final DAO dao,
             final Set<String> topology) throws IOException {
@@ -60,6 +61,6 @@ public final class ServiceFactory {
             throw new IllegalArgumentException("Empty cluster");
         }
 
-        throw new UnsupportedOperationException("Implement me!");
+        return new HttpRestService(port,dao,topology);
     }
 }

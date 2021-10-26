@@ -48,7 +48,6 @@ public final class Cluster {
         for (final int port : PORTS) {
             topology.add("http://localhost:" + port);
         }
-
         // Start nodes
         for (int i = 0; i < PORTS.length; i++) {
             final int port = PORTS[i];
@@ -76,3 +75,5 @@ public final class Cluster {
         }
     }
 }
+
+
