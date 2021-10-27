@@ -46,6 +46,7 @@ public class HttpRestService extends HttpServer implements Service {
         private RequestPath() {
         }
     }
+
     private static final class RequestParameters {
         public static final String ID = "id";
         public static final String EMPTY_ID = "=";
