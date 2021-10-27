@@ -1,9 +1,6 @@
 package ru.mail.polis.service.danilaeremenko;
 
-import one.nio.http.HttpServer;
-import one.nio.http.HttpSession;
-import one.nio.http.Request;
-import one.nio.http.Response;
+import one.nio.http.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.lsm.DAO;
@@ -24,34 +21,29 @@ public class BasicService extends HttpServer implements Service {
         this.daoWrapper = new DaoWrapper(dao);
     }
 
+    @Path("/v0/status")
+    public Response status() {
+        return Response.ok("Okay bro");
+    }
+
     @Override
     public void handleDefault(Request request, HttpSession localSession) {
         serviceExecutor.execute(() -> {
             try {
                 String path = request.getPath();
-                switch (path) {
-                    case "/v0/status":
-                        processStatus(localSession);
-                        return;
-                    case "/v0/entity":
-                        processEntity(request, localSession);
-                        return;
-                    default:
-                        localSession.sendResponse(
-                                new Response(
-                                        Response.BAD_REQUEST,
-                                        "Not found".getBytes(StandardCharsets.UTF_8))
-                        );
-                        break;
+                if ("/v0/entity".equals(path)) {
+                    processEntity(request, localSession);
+                } else {
+                    localSession.sendResponse(
+                            new Response(
+                                    Response.BAD_REQUEST,
+                                    "Not found".getBytes(StandardCharsets.UTF_8))
+                    );
                 }
             } catch (IOException e) {
                 SERVICE_LOGGER.error("IOException caught handleDefault", e);
             }
         });
-    }
-
-    public void processStatus(HttpSession localSession) throws IOException {
-        localSession.sendResponse(Response.ok("Okay bro"));
     }
 
     public void processEntity(
