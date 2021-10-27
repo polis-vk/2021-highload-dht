@@ -31,7 +31,7 @@ public class ClusterAdapter extends HttpClient {
         return new ClusterAdapter(ip, port);
     }
 
-    public Response processRequest(Request request) {
+    public Response processRequest(Request request) throws InterruptedException {
         final Response response;
         try {
             switch (request.getMethod()) {
@@ -77,10 +77,7 @@ public class ClusterAdapter extends HttpClient {
         } catch (InterruptedException e) {
             String message = "Interrupted caught while awaiting response from server";
             CLUSTER_LOGGER.error(message, e);
-            return new Response(
-                    Response.BAD_REQUEST,
-                    message.getBytes(StandardCharsets.UTF_8)
-            );
+            throw e;
         } catch (NullPointerException e) {
             String message = "Null pointer caught while awaiting response from server";
             CLUSTER_LOGGER.error(message, e);

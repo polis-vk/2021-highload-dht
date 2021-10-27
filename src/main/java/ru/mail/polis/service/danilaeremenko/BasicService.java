@@ -36,7 +36,7 @@ public class BasicService extends HttpServer implements Service {
         Collections.sort(sortedTopology);
         for (String adapterDesc : sortedTopology) {
             ClusterAdapter currCluster = ClusterAdapter.fromStringDesc(adapterDesc);
-            clusterAdaptersMap.put("" + clusterId, currCluster);
+            clusterAdaptersMap.put(String.valueOf(clusterId), currCluster);
             //TODO we must check ip also, but with current tests it will work
             if (currCluster.port == port) {
                 this.myClusterId = String.valueOf(clusterId);
@@ -70,7 +70,7 @@ public class BasicService extends HttpServer implements Service {
                                     "Not found".getBytes(StandardCharsets.UTF_8))
                     );
                 }
-            } catch (IOException e) {
+            } catch (IOException | InterruptedException e) {
                 SERVICE_LOGGER.error("IOException caught handleDefault", e);
             }
         });
@@ -84,7 +84,7 @@ public class BasicService extends HttpServer implements Service {
             final HttpSession localSession,
             final String recordId,
             final String clusterId
-    ) throws IOException {
+    ) throws IOException, InterruptedException {
         SERVICE_LOGGER.info("processing by target, id = " + clusterId);
         ClusterAdapter targetAdapter = this.clusterAdaptersMap.get(clusterId);
         Response response = targetAdapter.processRequest(request);
@@ -121,7 +121,7 @@ public class BasicService extends HttpServer implements Service {
     public void processEntity(
             final Request request,
             final HttpSession localSession
-    ) throws IOException {
+    ) throws IOException, InterruptedException {
         final String recordId = request.getParameter("id");
         if (recordId == null || recordId.equals("=")) {
             localSession.sendResponse(
