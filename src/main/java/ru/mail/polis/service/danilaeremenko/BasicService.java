@@ -23,7 +23,7 @@ import java.util.concurrent.Executors;
 public class BasicService extends HttpServer implements Service {
     private final DaoWrapper daoWrapper;
     private final ConcurrentSkipListMap<String, ClusterAdapter> clusterAdaptersMap = new ConcurrentSkipListMap<>();
-    private String myClusterId = null;
+    private String myClusterId;
     private final Executor serviceExecutor = Executors.newFixedThreadPool(4);
     private static final Logger SERVICE_LOGGER = LoggerFactory.getLogger(BasicService.class);
     private final ConsistentHash consistentHash;
@@ -34,12 +34,14 @@ public class BasicService extends HttpServer implements Service {
         int clusterId = 0;
         List<String> sortedTopology = new ArrayList<>(topology);
         Collections.sort(sortedTopology);
+        boolean myClusterIdParsed = false;//sorry for this, it's codeclimate..
         for (String adapterDesc : sortedTopology) {
             ClusterAdapter currCluster = ClusterAdapter.fromStringDesc(adapterDesc);
             clusterAdaptersMap.put(String.valueOf(clusterId), currCluster);
             //TODO we must check ip also, but with current tests it will work
-            if (currCluster.port == port) {
+            if (currCluster.port == port && !myClusterIdParsed) {
                 this.myClusterId = String.valueOf(clusterId);
+                myClusterIdParsed = true;
             }
             clusterId++;
         }

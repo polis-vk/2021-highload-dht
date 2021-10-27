@@ -79,6 +79,7 @@ public class ClusterAdapter extends HttpClient {
             CLUSTER_LOGGER.error(message, e);
             throw e;
         } catch (NullPointerException e) {
+            //TODO one.nio.http.HttpClient methods throw NullPointerException when I pass request.getHeaders() to them
             String message = "Null pointer caught while awaiting response from server";
             CLUSTER_LOGGER.error(message, e);
             return new Response(
