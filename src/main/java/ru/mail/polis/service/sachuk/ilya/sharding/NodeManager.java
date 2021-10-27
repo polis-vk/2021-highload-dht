@@ -12,6 +12,7 @@ import java.util.TreeMap;
 public final class NodeManager {
     @SuppressWarnings("PMD")
     private static volatile NodeManager instance;
+    private static final Object LOCK_OBJECT = new Object();
     private final VNodeConfig vnodeConfig;
     private final NavigableMap<Integer, VNode> circle;
     private final NavigableMap<String, HttpClient> clients;
@@ -27,10 +28,10 @@ public final class NodeManager {
         }
     }
 
-    @SuppressWarnings("Disable singleton is not safety")
+    @SuppressWarnings("PMD")
     public static NodeManager getInstance(Set<String> topology, VNodeConfig vnodeConfig) {
         if (instance == null) {
-            synchronized (NodeManager.class) {
+            synchronized (LOCK_OBJECT) {
                 if (instance == null) {
                     instance = new NodeManager(topology, vnodeConfig);
                 }
@@ -65,7 +66,9 @@ public final class NodeManager {
         return clients.get(endpoint);
     }
 
-    public void close() {
-        instance = null;
+    public static void close() {
+        synchronized (LOCK_OBJECT) {
+            instance = null;
+        }
     }
 }
