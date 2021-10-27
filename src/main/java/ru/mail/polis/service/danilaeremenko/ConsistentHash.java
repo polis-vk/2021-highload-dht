@@ -7,7 +7,8 @@ public class ConsistentHash {
         this.hostNum = hostNum;
     }
 
-    public int getClusterId(String recordKey) {//TODO update implementation
+    //TODO update implementation (is a stub, I swear, I will implement another methods!)
+    public int getClusterId(String recordKey) {
         return recordKey.hashCode() % hostNum;
     }
 }

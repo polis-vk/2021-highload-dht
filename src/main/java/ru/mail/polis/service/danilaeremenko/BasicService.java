@@ -37,8 +37,9 @@ public class BasicService extends HttpServer implements Service {
         for (String adapterDesc : sortedTopology) {
             ClusterAdapter currCluster = ClusterAdapter.fromStringDesc(adapterDesc);
             clusterAdaptersMap.put("" + clusterId, currCluster);
-            if (currCluster.port == port) {//TODO we must check ip also, but with current tests it will work
-                this.myClusterId = "" + clusterId;
+            //TODO we must check ip also, but with current tests it will work
+            if (currCluster.port == port) {
+                this.myClusterId = String.valueOf(clusterId);
             }
             clusterId++;
         }
@@ -131,12 +132,12 @@ public class BasicService extends HttpServer implements Service {
             );
             return;
         }
-        String clusterId = "" + consistentHash.getClusterId(recordId);
+        String clusterId = String.valueOf(consistentHash.getClusterId(recordId));
 
-        if (!clusterId.equals(myClusterId)) {
-            processEntityByTarget(request, localSession, recordId, clusterId);
-        } else {
+        if (clusterId.equals(myClusterId)) {
             processEntityByMyself(request, localSession, recordId);
+        } else {
+            processEntityByTarget(request, localSession, recordId, clusterId);
         }
 
     }

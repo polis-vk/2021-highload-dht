@@ -17,7 +17,6 @@ public class ClusterAdapter extends HttpClient {
     final int port;
     private static final Logger CLUSTER_LOGGER = LoggerFactory.getLogger(BasicService.class);
 
-
     public ClusterAdapter(String ip, int port) {
         super(new ConnectionString(ip + ":" + port));
         this.ip = ip;
@@ -99,10 +98,10 @@ public class ClusterAdapter extends HttpClient {
 
     @Override
     public String toString() {
-        return "ClusterAdapter{" +
-                "ip='" + ip + '\'' +
-                ", port=" + port +
-                '}';
+        return "ClusterAdapter{"
+                + "ip='" + ip + '\''
+                + ", port=" + port
+                + '}';
     }
 
     Response processRequest() {
