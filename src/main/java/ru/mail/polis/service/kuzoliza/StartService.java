@@ -15,7 +15,7 @@ public class StartService implements Service {
     private final HttpServerConfig config;
     private final DAO dao;
     private HttpServer server;
-    private static final Logger LOG = LoggerFactory.getLogger(StartService.class.getName());
+    private static final Logger LOG = LoggerFactory.getLogger(StartService.class);
 
     /**
      * Service configuration.
