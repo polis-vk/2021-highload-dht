@@ -38,12 +38,12 @@ dependencies {
 }
 
 application {
-    mainClass = 'ru.mail.polis.Server'
-    applicationDefaultJvmArgs = ['-Xmx128m']
+    mainClass = 'ru.mail.polis.Cluster'
+    applicationDefaultJvmArgs = ['-Xmx512m']
 }
 
 test {
-    maxHeapSize = "128m"
+    maxHeapSize = "512m"
     useJUnitPlatform()
 }
 

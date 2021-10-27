@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 (c) Odnoklassniki
+ * Copyright 2021 (c) Odnoklassniki
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -30,6 +30,7 @@ import ru.mail.polis.lsm.DAOFactory;
 
 import java.io.IOException;
 import java.time.Duration;
+import java.util.Collections;
 import java.util.concurrent.TimeUnit;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -44,6 +45,7 @@ class SingleNodeTest extends TestBase {
     private static DAOConfig daoConfig;
     private static DAO dao;
     private static int port;
+    private static String endpoint;
     private static Service storage;
     private static HttpClient client;
 
@@ -52,7 +54,8 @@ class SingleNodeTest extends TestBase {
         port = randomPort();
         daoConfig = new DAOConfig(FileUtils.createTempDirectory());
         dao = DAOFactory.create(daoConfig);
-        storage = ServiceFactory.create(port, dao);
+        endpoint = endpoint(port);
+        storage = ServiceFactory.create(port, dao, Collections.singleton(endpoint));
         storage.start();
         Thread.sleep(TimeUnit.SECONDS.toMillis(1));
         reset();
@@ -240,7 +243,8 @@ class SingleNodeTest extends TestBase {
             java.nio.file.Files.createDirectory(daoConfig.dir);
             dao = DAOFactory.create(daoConfig);
             port = randomPort();
-            storage = ServiceFactory.create(port, dao);
+            endpoint = endpoint(port);
+            storage = ServiceFactory.create(port, dao, Collections.singleton(endpoint));
             storage.start();
             Thread.sleep(TimeUnit.SECONDS.toMillis(1));
             reset();

@@ -21,6 +21,7 @@ import ru.mail.polis.service.kuzoliza.StartService;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Constructs {@link Service} instances.
@@ -28,7 +29,7 @@ import java.util.Objects;
  * @author Vadim Tsesko
  */
 public final class ServiceFactory {
-    private static final long MAX_HEAP = 256 * 1024 * 1024;
+    private static final long MAX_HEAP = 512 * 1024 * 1024;
 
     private ServiceFactory() {
         // Not supposed to be instantiated
@@ -37,13 +38,15 @@ public final class ServiceFactory {
     /**
      * Construct a storage instance.
      *
-     * @param port port to bind HTTP server to
-     * @param dao  DAO to store the data
+     * @param port     port to bind HTTP server to
+     * @param dao      DAO to store the data
+     * @param topology a list of all cluster endpoints {@code http://<host>:<port>} (including this one)
      * @return a storage instance
      */
     public static Service create(
             final int port,
-            final DAO dao) throws IOException {
+            final DAO dao,
+            final Set<String> topology) throws IOException {
         if (Runtime.getRuntime().maxMemory() > MAX_HEAP) {
             throw new IllegalStateException("The heap is too big. Consider setting Xmx.");
         }
@@ -53,6 +56,10 @@ public final class ServiceFactory {
         }
 
         Objects.requireNonNull(dao);
+
+        if (topology.isEmpty()) {
+            throw new IllegalArgumentException("Empty cluster");
+        }
 
         return new StartService(port, dao, Runtime.getRuntime().availableProcessors(), 1024);
     }

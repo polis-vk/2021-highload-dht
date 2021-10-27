@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 (c) Odnoklassniki
+ * Copyright 2021 (c) Odnoklassniki
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -25,42 +25,44 @@ import ru.mail.polis.service.Service;
 import ru.mail.polis.service.ServiceFactory;
 
 import java.io.IOException;
-import java.nio.file.Path;
+import java.util.HashSet;
+import java.util.Set;
 
 /**
- * Starts storage and waits for shutdown.
+ * Starts 3-node storage cluster and waits for shutdown.
  *
  * @author Vadim Tsesko
  */
-public final class Server {
-    private static final int PORT = 8080;
+public final class Cluster {
+    private static final int[] PORTS = {8080, 8081, 8082};
 
-    private static final Logger LOG = LoggerFactory.getLogger(Server.class);
+    private static final Logger LOG = LoggerFactory.getLogger(Cluster.class);
 
-    private Server() {
+    private Cluster() {
         // Not instantiable
     }
 
-    /**
-     * Starts single node cluster at HTTP port 8080 and
-     * temporary data storage if storage path not supplied.
-     */
     public static void main(String[] args) throws IOException {
-        // Temporary storage in the file system
-        final Path data;
-        if (args.length > 0) {
-            data = Path.of(args[0]);
-        } else {
-            data = FileUtils.createTempDirectory();
+        // Fill the topology
+        final Set<String> topology = new HashSet<>(3);
+        for (final int port : PORTS) {
+            topology.add("http://localhost:" + port);
         }
-        LOG.info("Storing data at {}", data);
 
-        // Start the storage
-        try (DAO dao = DAOFactory.create(new DAOConfig(data))) {
+        // Start nodes
+        for (int i = 0; i < PORTS.length; i++) {
+            final int port = PORTS[i];
+            final DAOConfig config = new DAOConfig(FileUtils.createTempDirectory());
+            final DAO dao = DAOFactory.create(config);
+
+            LOG.info("Starting node {} on port {} and data at {}", i, port, config.dir);
+
+            // Start the storage
             final Service storage =
                     ServiceFactory.create(
-                            PORT,
-                            dao);
+                            port,
+                            dao,
+                            topology);
             storage.start();
             Runtime.getRuntime().addShutdownHook(
                     new Thread(() -> {
@@ -68,7 +70,7 @@ public final class Server {
                         try {
                             dao.close();
                         } catch (IOException e) {
-                            throw new RuntimeException("Can't close dao", e);
+                            LOG.error("Can't close dao", e);
                         }
                     }));
         }
