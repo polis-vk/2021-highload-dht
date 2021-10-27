@@ -1,5 +1,5 @@
 /*
- * Copyright 2020 (c) Odnoklassniki
+ * Copyright 2021 (c) Odnoklassniki
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -17,10 +17,10 @@
 package ru.mail.polis.service;
 
 import ru.mail.polis.lsm.DAO;
-import ru.mail.polis.service.danilaeremenko.BasicService;
 
 import java.io.IOException;
 import java.util.Objects;
+import java.util.Set;
 
 /**
  * Constructs {@link Service} instances.
@@ -28,7 +28,7 @@ import java.util.Objects;
  * @author Vadim Tsesko
  */
 public final class ServiceFactory {
-    private static final long MAX_HEAP = 256 * 1024 * 1024;
+    private static final long MAX_HEAP = 512 * 1024 * 1024;
 
     private ServiceFactory() {
         // Not supposed to be instantiated
@@ -37,13 +37,15 @@ public final class ServiceFactory {
     /**
      * Construct a storage instance.
      *
-     * @param port port to bind HTTP server to
-     * @param dao  DAO to store the data
+     * @param port     port to bind HTTP server to
+     * @param dao      DAO to store the data
+     * @param topology a list of all cluster endpoints {@code http://<host>:<port>} (including this one)
      * @return a storage instance
      */
     public static Service create(
             final int port,
-            final DAO dao) throws IOException {
+            final DAO dao,
+            final Set<String> topology) throws IOException {
         if (Runtime.getRuntime().maxMemory() > MAX_HEAP) {
             throw new IllegalStateException("The heap is too big. Consider setting Xmx.");
         }
@@ -54,6 +56,10 @@ public final class ServiceFactory {
 
         Objects.requireNonNull(dao);
 
-        return new BasicService(port, dao);
+        if (topology.isEmpty()) {
+            throw new IllegalArgumentException("Empty cluster");
+        }
+
+        throw new UnsupportedOperationException("Implement me!");
     }
 }
