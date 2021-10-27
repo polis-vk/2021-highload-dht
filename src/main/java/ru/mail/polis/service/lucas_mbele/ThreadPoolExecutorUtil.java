@@ -16,7 +16,7 @@ public class ThreadPoolExecutorUtil {
 
 
     public static ThreadPoolExecutorUtil init(){
-        return new ThreadPoolExecutorUtil(2,Long.MAX_VALUE,1000);
+        return new ThreadPoolExecutorUtil(2,Long.MAX_VALUE,100);
     }
 
     public ThreadPoolExecutorUtil(int corePoolSize,long keepAliveTime,int capacity) {
@@ -43,9 +43,6 @@ public class ThreadPoolExecutorUtil {
     }
 
     public void executeTask(Runnable task){
-
             threadPoolExecutor.execute(task);
-            //logger.info("Queue size....{}", threadPoolExecutor.getQueue().size());
-            //logger.info("Number of Active Threads ....{}", threadPoolExecutor.getActiveCount());
     }
 }

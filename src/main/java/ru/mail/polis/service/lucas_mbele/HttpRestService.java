@@ -1,6 +1,13 @@
 package ru.mail.polis.service.lucas_mbele;
 
-import one.nio.http.*;
+import one.nio.http.HttpServer;
+import one.nio.http.Param;
+import one.nio.http.HttpSession;
+import one.nio.http.HttpClient;
+import one.nio.http.HttpServerConfig;
+import one.nio.http.HttpException;
+import one.nio.http.Request;
+import one.nio.http.Response;
 import one.nio.net.ConnectionString;
 import one.nio.pool.PoolException;
 import one.nio.server.AcceptorConfig;
@@ -17,22 +24,24 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Hashtable;
 import java.util.Iterator;
-import java.util.Map;
 import java.util.Set;
+import java.util.Map;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
 
 
 public class HttpRestService extends HttpServer implements Service {
 
-    private Logger LOGGER = LoggerFactory.getLogger(HttpRestService.class);
+    private final Logger LOGGER = LoggerFactory.getLogger(HttpRestService.class);
     private final DAO dao;
-    private final ThreadPoolExecutorUtil threadPoolExecutorUtil;
-    private final NodesService nodesService;
+    private final ThreadPoolExecutor threadPoolExecutorUtil;
+    private final NodesClusterService nodesClusterService;
 
     public HttpRestService(final int port, final DAO dao, final Set<String> topology) throws IOException {
         super(serviceConfig(port));
         this.dao = dao;
-        this.threadPoolExecutorUtil = ThreadPoolExecutorUtil.init();
-        this.nodesService = new NodesService(topology, port);
+        this.threadPoolExecutorUtil = (ThreadPoolExecutor) Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+        this.nodesClusterService = new NodesClusterService(topology, port);
     }
 
     public static HttpServerConfig serviceConfig(int port) {
@@ -41,12 +50,10 @@ public class HttpRestService extends HttpServer implements Service {
         return config;
     }
 
-    //@Path("/v0/status")
     public Response status() {
         return Response.ok(Response.OK);
     }
 
-    // @Path("/v0/entity")
     public Response entity(Request request, @Param(value = "id", required = true) String id) {
         final int inquiredMethod = request.getMethod();
         Response response;
@@ -69,7 +76,7 @@ public class HttpRestService extends HttpServer implements Service {
 
     @Override
     public void handleRequest(Request request, HttpSession session) {
-        this.threadPoolExecutorUtil.executeTask(() -> {
+        this.threadPoolExecutorUtil.execute(() -> {
             String idRequest = "";
             final String path = request.getPath();
             final Iterator<String> idIterator = request.getParameters("id");
@@ -82,8 +89,8 @@ public class HttpRestService extends HttpServer implements Service {
                     case "/v0/status":
                         session.sendResponse(status());
                         break;
-                    case "v0/entity":
-                        sentResponse = nodesService.handleRequest(idRequest,request);
+                    case "/v0/entity":
+                        sentResponse = nodesClusterService.handleRequest(idRequest,request);
                         session.sendResponse(sentResponse);
                         break;
                     default:
@@ -108,7 +115,7 @@ public class HttpRestService extends HttpServer implements Service {
     private Response get(String id) {
         Response response;
         ByteBuffer key = ByteBuffer.wrap(id.getBytes(StandardCharsets.UTF_8));
-        Iterator<Record> keyIterator = dao.range(key, DAO.nextKey(key)); //A key range ids started from current id
+        Iterator<Record> keyIterator = dao.range(key, DAO.nextKey(key));
         if (keyIterator.hasNext()) {
             Record record = keyIterator.next();
             response = new Response(Response.OK, ServiceUtils.extractBytesBuffer(record.getValue()));
@@ -131,21 +138,18 @@ public class HttpRestService extends HttpServer implements Service {
         return new Response(Response.ACCEPTED, Response.EMPTY);
     }
 
-    class NodesService {
-        private final Logger logger = LoggerFactory.getLogger(NodesService.class);
-        public boolean heldByDAO = false;
+    class NodesClusterService {
+        private final Logger logger = LoggerFactory.getLogger(NodesClusterService.class);
         private final RendezvousHashingImpl rendezvousHashing;
         private final Map<String, HttpClient> nodesMap;
         private String currentNode;
-        private int port;
-        private final Set<String> topology;
+        private final int port;
 
-        public NodesService(final Set<String> topology, int port) {
-            this.topology = topology;
+        public NodesClusterService(final Set<String> topology, int port) {
             this.port = port;
-            this.rendezvousHashing = new RendezvousHashingImpl(this.topology);
+            this.rendezvousHashing = new RendezvousHashingImpl(topology);
             nodesMap = new Hashtable<>();
-            init(this.topology);
+            init(topology);
         }
 
         public void init(Set<String> topology) {
@@ -165,33 +169,27 @@ public class HttpRestService extends HttpServer implements Service {
 
         public Response handleRequest( String key, Request request) {
             String ResponsibleNode = rendezvousHashing.getResponsibleNode(key);
-            Response response = null;
-            if (currentNode.equals(ResponsibleNode)) {
-                response = HttpRestService.this.entity(request,key);
-
-            } else{
-
+            Response response;
+            if (!currentNode.equals(ResponsibleNode)) {
+                response = Response.ok(Response.EMPTY);
                 final String uri = "/v0/entity?id=";
                 int inquiredMethod = request.getMethod();
                 try {
-                    switch (inquiredMethod) {
-                        case Request.METHOD_PUT:
-                            response = nodesMap.get(ResponsibleNode).put(uri + key, request.getBody());
-                            break;
-                        case Request.METHOD_GET:
-                            response = nodesMap.get(ResponsibleNode).get(uri + key);
-                            break;
-                        case Request.METHOD_DELETE:
-                            response = nodesMap.get(ResponsibleNode).delete(uri + key);
-                            break;
-                        default:
-                            response = new Response(Response.METHOD_NOT_ALLOWED,
-                                    "Method not allowed".getBytes(StandardCharsets.UTF_8));
-                            break;
+                    if (inquiredMethod == Request.METHOD_PUT) {
+                        response = nodesMap.get(ResponsibleNode).put(uri + key, request.getBody());
+                    } else if(inquiredMethod == Request.METHOD_GET) {
+                        response = nodesMap.get(ResponsibleNode).get(uri + key);
+                    } else if(inquiredMethod == Request.METHOD_DELETE) {
+                        response = nodesMap.get(ResponsibleNode).delete(uri + key);
+                    } else {
+                        response = new Response(Response.METHOD_NOT_ALLOWED,
+                                "Method not allowed".getBytes(StandardCharsets.UTF_8));
                     }
                 } catch (InterruptedException | PoolException | IOException | HttpException e) {
                     logger.error(e.getLocalizedMessage());
                 }
+            } else{
+                response = HttpRestService.this.entity(request,key);
             }
             return response;
         }

@@ -188,13 +188,11 @@ class ShardingTest extends ClusterTestBase {
             for (int node = 0; node < getClusterSize(); node++) {
                 stop(node);
             }
-
             // Check each
             int copies = 0;
             for (int node = 0; node < getClusterSize(); node++) {
                 // Start node
                 createAndStart(node);
-
                 // Check
                 if (get(node, key, 1, 1).getStatus() == 200) {
                     copies++;

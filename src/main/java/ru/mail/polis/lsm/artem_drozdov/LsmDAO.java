@@ -53,20 +53,20 @@ public class LsmDAO implements DAO {
     public void upsert(Record record) {
         int actualMemoryConsumption = memoryConsumption.addAndGet(sizeOf(record));
         if(actualMemoryConsumption > config.memoryLimit){
-            logger.info("Going to flush...{}",actualMemoryConsumption);
+            //logger.info("Going to flush...{}",actualMemoryConsumption);
             synchronized (this){
                 if(memoryConsumption.get() > config.memoryLimit){
                     int oldMemoryConsumption = memoryConsumption.getAndSet(sizeOf(record));
                     flushCompletable = CompletableFuture.runAsync(() ->{
                         try{
-                            logger.info("Flush started..");
+                            //logger.info("Flush started..");
                             storage = storage.prepareFlush();
                             SSTable ssTable = flush();
                             storage = storage.afterFlush(ssTable);
                             if (needCompact()){
                                 performCompact();
                             }
-                            logger.info("Flush finished...");
+                            //logger.info("Flush finished...");
                         } catch (IOException e) {
                             logger.error("Flush failed...", e);
                             memoryConsumption.addAndGet(oldMemoryConsumption);
@@ -100,7 +100,7 @@ public class LsmDAO implements DAO {
             if (!needCompact()) {
                 return;
             }
-            logger.info("Compact started...");
+            //logger.info("Compact started...");
             SSTable compactTable;
             try {
                 compactTable = SSTable.compact(config.dir, range(null, null));
@@ -108,7 +108,7 @@ public class LsmDAO implements DAO {
                 throw new UncheckedIOException(e);
             }
             storage = storage.afterCompaction(compactTable);
-            logger.info("Compact finished...");
+            //logger.info("Compact finished...");
         } catch (Exception e) {
             logger.error("Can't compact...", e);
         }
