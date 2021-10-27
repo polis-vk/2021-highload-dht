@@ -22,8 +22,6 @@ import ru.mail.polis.service.shabinsky_dmitry.BasicService;
 import java.io.IOException;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.Executor;
-import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
@@ -64,6 +62,6 @@ public final class ServiceFactory {
             throw new IllegalArgumentException("Empty cluster");
         }
 
-        return new BasicService(port, dao, Executors.newFixedThreadPool(16));
+        return new BasicService(port, dao, Executors.newFixedThreadPool(16), topology);
     }
 }

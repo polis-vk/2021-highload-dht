@@ -1,6 +1,8 @@
 package ru.mail.polis.service.shabinsky_dmitry;
 
 import one.nio.http.*;
+import one.nio.net.ConnectionString;
+import one.nio.pool.PoolException;
 import one.nio.server.AcceptorConfig;
 import one.nio.util.Utf8;
 import org.slf4j.Logger;
@@ -10,24 +12,41 @@ import ru.mail.polis.lsm.Record;
 import ru.mail.polis.service.Service;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.nio.ByteBuffer;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.Iterator;
+import java.util.Set;
+import java.util.SortedMap;
+import java.util.TreeMap;
 import java.util.concurrent.Executor;
 
 public final class BasicService extends HttpServer implements Service {
 
-    private final Logger LOG = LoggerFactory.getLogger(BasicService.class);
+    private static final Logger LOG = LoggerFactory.getLogger(BasicService.class);
     private final DAO dao;
     private final Executor executor;
+
+    private final BigInteger currentNodeHash;
+    private final SortedMap<BigInteger, HttpClient> ring;
 
     public BasicService(
         final int port,
         final DAO dao,
-        Executor executor
+        Executor executor,
+        Set<String> topology
     ) throws IOException {
         super(from(port));
+
         this.dao = dao;
         this.executor = executor;
+
+        this.currentNodeHash = hashMD5(sToB("http://localhost:" + port));
+        this.ring = new TreeMap<>();
+
+        topology
+            .forEach(node -> ring.put(hashMD5(sToB(node)), new HttpClient(new ConnectionString(node))));
     }
 
     private static HttpServerConfig from(final int port) {
@@ -51,6 +70,13 @@ public final class BasicService extends HttpServer implements Service {
         @Param(value = "id", required = true) final String id
     ) {
         execute(request, session, () -> {
+
+            final ByteBuffer key = ByteBuffer.wrap(toBytes(id));
+            HttpClient client = getClient(key);
+            if (client != null) {
+                return redirectRequest(client, request);
+            }
+
             if (id.isBlank()) {
                 return new Response(Response.BAD_REQUEST, toBytes("Bad id"));
             }
@@ -89,12 +115,6 @@ public final class BasicService extends HttpServer implements Service {
         return new Response(Response.CREATED, Response.EMPTY);
     }
 
-    private static byte[] extractBytes(final ByteBuffer buffer) {
-        final byte[] result = new byte[buffer.remaining()];
-        buffer.get(result);
-        return result;
-    }
-
     private Response get(String id) {
         final ByteBuffer key = ByteBuffer.wrap(toBytes(id));
         final Iterator<Record> range = dao.range(key, DAO.nextKey(key));
@@ -103,6 +123,12 @@ public final class BasicService extends HttpServer implements Service {
             return new Response(Response.OK, extractBytes(first.getValue()));
         }
         return new Response(Response.NOT_FOUND, Response.EMPTY);
+    }
+
+    private static byte[] extractBytes(final ByteBuffer buffer) {
+        final byte[] result = new byte[buffer.remaining()];
+        buffer.get(result);
+        return result;
     }
 
     private byte[] toBytes(String text) {
@@ -124,6 +150,27 @@ public final class BasicService extends HttpServer implements Service {
         });
     }
 
+    private Response redirectRequest(HttpClient client, Request request) {
+        try {
+            return client.invoke(request);
+        } catch (InterruptedException | PoolException | IOException | HttpException e) {
+            return new Response(Response.BAD_REQUEST, toBytes("Redirect request wrong"));
+        }
+    }
+
+    private HttpClient getClient(ByteBuffer key) {
+        BigInteger hash = hashMD5(key);
+        SortedMap<BigInteger, HttpClient> subMap = ring.tailMap(hash);
+
+        if (subMap.isEmpty()) {
+            BigInteger i = ring.firstKey();
+            return i.equals(currentNodeHash) ? null : ring.get(i);
+        }
+
+        BigInteger i = subMap.firstKey();
+        return i.equals(currentNodeHash) ? null : subMap.get(i);
+    }
+
     private void sendResponse(HttpSession session, Response call) {
         try {
             session.sendResponse(call);
@@ -133,7 +180,23 @@ public final class BasicService extends HttpServer implements Service {
     }
 
     @FunctionalInterface
-    private static interface Task {
+    private interface Task {
         Response call();
+    }
+
+    private ByteBuffer sToB(String str) {
+        return ByteBuffer.wrap(toBytes(str));
+    }
+
+    private BigInteger hashMD5(ByteBuffer key) {
+        try {
+            MessageDigest m = MessageDigest.getInstance("MD5");
+            m.reset();
+            m.update(key);
+            byte[] digest = m.digest();
+            return new BigInteger(1, digest);
+        } catch (NoSuchAlgorithmException ignored) {
+        }
+        return null;
     }
 }
