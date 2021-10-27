@@ -51,10 +51,10 @@ public class LsmDAO implements DAO {
 
     @Override
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
-        Storage storage = this.storage.get();
+        Storage tmpStorage = this.storage.get();
 
-        Iterator<Record> sstableRanges = sstableRanges(storage, fromKey, toKey);
-        Iterator<Record> memoryRange = storage.iterator(fromKey, toKey);
+        Iterator<Record> sstableRanges = sstableRanges(tmpStorage, fromKey, toKey);
+        Iterator<Record> memoryRange = tmpStorage.iterator(fromKey, toKey);
 
         Iterator<Record> iterator =
                 new RecordMergingIterator(
@@ -65,43 +65,47 @@ public class LsmDAO implements DAO {
 
     @Override
     public void upsert(Record record) {
-        Storage storage = this.storage.get();
-        long consumption = storage.memoryStorage.put(record);
+        Storage tmpStorage = this.storage.get();
+        long consumption = tmpStorage.memoryStorage.put(record);
 
         if (consumption > config.memoryLimit) {
-            boolean success = this.storage.compareAndSet(storage, storage.swap());
+            boolean success = this.storage.compareAndSet(tmpStorage, tmpStorage.swap());
             if (!success) {
                 return; //another thread updated the storage
             }
             LOG.debug("Going to flush {}", consumption);
 
-            if (!storage.memTablesToFlush.isEmpty()) {
+            if (!tmpStorage.memTablesToFlush.isEmpty()) {
                 return;
             }
 
             executor.execute(() -> {
-                try {
-                    LOG.debug("Flushing");
-                    while (true) {
-                        Storage storageToFlush = LsmDAO.this.storage.get();
-                        List<MemTable> memTables = storageToFlush.memTablesToFlush;
-                        if (memTables.isEmpty()) {
-                            break;
-                        }
-                        SSTable newTable = flushAll(storageToFlush);
-
-                        LsmDAO.this.storage.updateAndGet(current -> current.restore(memTables, newTable));
-                    }
-                    if (storage.ssTables.size() > config.maxTables) {
-                        doCompact();
-                    }
-                    LOG.debug("Flushed");
-
-                } catch (IOException e) {
-                    LOG.error("Can't flush");
-                    throw new UncheckedIOException(e);
-                }
+                asyncFlushAndCompact(tmpStorage);
             });
+        }
+    }
+
+    private void asyncFlushAndCompact(Storage storage) {
+        try {
+            LOG.debug("Flushing");
+            while (true) {
+                Storage storageToFlush = this.storage.get();
+                List<MemTable> memTables = storageToFlush.memTablesToFlush;
+                if (memTables.isEmpty()) {
+                    break;
+                }
+                SSTable newTable = flushAll(storageToFlush);
+
+                this.storage.updateAndGet(current -> current.restore(memTables, newTable));
+            }
+            if (storage.ssTables.size() > config.maxTables) {
+                doCompact();
+            }
+            LOG.debug("Flushed");
+
+        } catch (IOException e) {
+            LOG.error("Can't flush");
+            throw new UncheckedIOException(e);
         }
     }
 

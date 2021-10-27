@@ -9,7 +9,7 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 
-public class Storage {
+public final class Storage {
     public MemTable memoryStorage;
     public List<MemTable> memTablesToFlush;
     public final List<SSTable> ssTables;

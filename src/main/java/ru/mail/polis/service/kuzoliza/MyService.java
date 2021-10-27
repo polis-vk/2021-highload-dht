@@ -68,22 +68,13 @@ public class MyService extends HttpServer {
     @Path("/v0/status")
     @RequestMethod(Request.METHOD_GET)
     public void status(final HttpSession session) {
-        try {
-            executor.execute(() -> {
-                try {
-                    session.sendResponse(Response.ok("OK"));
-                } catch (IOException e) {
-                    LOG.error("Can't send OK response", e);
-               }
-            });
-        } catch (Exception e) {
-            LOG.error("Execution error", e);
+        executor.execute(() -> {
             try {
-                session.sendResponse(new Response(Response.SERVICE_UNAVAILABLE));
-            } catch (IOException ex) {
-                LOG.error("Can't send 500 response", ex);
+                session.sendResponse(Response.ok("OK"));
+            } catch (IOException e) {
+                LOG.error("Can't send OK response", e);
             }
-        }
+        });
     }
 
     /**
