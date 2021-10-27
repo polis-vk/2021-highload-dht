@@ -16,6 +16,8 @@
 
 package ru.mail.polis.service;
 
+import one.nio.http.HttpClient;
+import one.nio.net.ConnectionString;
 import ru.mail.polis.Cluster;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.service.eldar_tim.HttpServerImpl;
@@ -43,6 +45,8 @@ public final class ServiceFactory {
     private static final int WORKERS_NUMBER = Runtime.getRuntime().availableProcessors();
     /** Лимит очереди запросов, после превышения которого последующие будут отвергнуты. */
     private static final int TASKS_LIMIT = WORKERS_NUMBER * 2;
+    /** Число активных соединений на каждый узел кластера для обработки прокси запросов. */
+    private static final int NODE_CONNECTIONS = Runtime.getRuntime().availableProcessors();
 
     private ServiceFactory() {
         // Not supposed to be instantiated
@@ -85,13 +89,21 @@ public final class ServiceFactory {
     private static Collection<Cluster.Node> buildClusterNodes(Set<String> topologyRaw) {
         List<Cluster.Node> topology = new ArrayList<>(topologyRaw.size());
         for (String endpoint : topologyRaw) {
-            String[] hostPort = endpoint.replaceFirst(".*://", "").split(":");
-            String ip = hostPort[0];
-            int port = Integer.parseInt(hostPort[1]);
-            Cluster.Node node = new Cluster.Node(ip, port);
+            String[] protoHostPort = endpoint.split("://|:");
+            String protocol = protoHostPort[0];
+            String ip = protoHostPort[1];
+            int port = Integer.parseInt(protoHostPort[2]);
+
+            Cluster.Node node = new Cluster.Node(ip, port, buildHttpClient(protocol, ip, port));
             topology.add(node);
         }
         return topology;
+    }
+
+    private static HttpClient buildHttpClient(String protocol, String ip, int port) {
+        String uri = protocol + "://" + ip + ":" + port + "?clientMaxPoolSize=" + NODE_CONNECTIONS;
+        ConnectionString connectionString = new ConnectionString(uri);
+        return new HttpClient(connectionString);
     }
 
     private static Cluster.Node findClusterNode(int port, Collection<Cluster.Node> topology) {
