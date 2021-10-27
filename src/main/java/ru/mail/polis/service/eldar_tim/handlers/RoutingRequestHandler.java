@@ -37,7 +37,7 @@ public abstract class RoutingRequestHandler implements RequestHandler {
      * @param request request to redirect
      * @return null if the request must be handled by the current node, otherwise node to redirect
      */
-    public final Cluster.Node getTarget(Request request) {
+    public final Cluster.Node getTargetNode(Request request) {
         String key = getRouteKey(request);
         if (key == null) {
             return null;
@@ -64,7 +64,7 @@ public abstract class RoutingRequestHandler implements RequestHandler {
             response = new Response(Response.INTERNAL_ERROR, errorText.getBytes(StandardCharsets.UTF_8));
             Thread.currentThread().interrupt();
         } catch (PoolException | IOException | HttpException e) {
-            String errorText = "Proxy error";
+            String errorText = "Proxy error: " + e.getMessage();
             LOG.debug(errorText, e);
             response = new Response(Response.INTERNAL_ERROR, errorText.getBytes(StandardCharsets.UTF_8));
         }

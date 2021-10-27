@@ -16,7 +16,6 @@
 
 package ru.mail.polis.service;
 
-import one.nio.http.HttpClient;
 import one.nio.net.ConnectionString;
 import ru.mail.polis.Cluster;
 import ru.mail.polis.lsm.DAO;
@@ -29,7 +28,9 @@ import ru.mail.polis.sharding.HashRouter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 
@@ -47,10 +48,13 @@ public final class ServiceFactory {
     /** Лимит очереди запросов, после превышения которого последующие будут отвергнуты. */
     private static final int TASKS_LIMIT = WORKERS_NUMBER * 2;
 
-    /** Число активных соединений на каждый узел кластера для обработки прокси-запросов. */
-    private static final int PROXY_CONNECTIONS = Runtime.getRuntime().availableProcessors();
-    /** Лимит очереди на выполнение прокси-запросов, после превышения которого последующие будут отвергнуты. */
-    private static final int PROXY_LIMIT = PROXY_CONNECTIONS * 2;
+    /** Число потоков, обрабатывающих прокси-запросы. */
+    private static final int PROXY_THREADS = Runtime.getRuntime().availableProcessors();
+    /** Лимит очереди на выполнение прокси-запросов, после превышения которого последующие будут отвергнуты.
+     * Данное значение будет умножено на количество узлов в кластере - 1. */
+    private static final int PROXY_LIMIT = PROXY_THREADS * 2;
+
+    public static final Map<Integer, Collection<Cluster.Node>> topologies = new HashMap<>();
 
     private ServiceFactory() {
         // Not supposed to be instantiated
@@ -82,12 +86,15 @@ public final class ServiceFactory {
             throw new IllegalArgumentException("Empty cluster");
         }
 
-        Collection<Cluster.Node> clusterNodes = buildClusterNodes(topology);
+        Collection<Cluster.Node> clusterNodes = topologies.computeIfAbsent(topology.hashCode(),
+                key -> buildClusterNodes(topology));
         Cluster.Node currentNode = findClusterNode(port, clusterNodes);
-
-        ServiceExecutor workers = new LimitedServiceExecutor("worker", WORKERS_NUMBER, TASKS_LIMIT);
-        ServiceExecutor proxies = new LimitedServiceExecutor("proxy", PROXY_CONNECTIONS, PROXY_LIMIT);
         HashRouter<Cluster.Node> hashRouter = new ConsistentHashRouter<>(clusterNodes, 30);
+
+        ServiceExecutor workers = new LimitedServiceExecutor("worker",
+                WORKERS_NUMBER, TASKS_LIMIT);
+        ServiceExecutor proxies = new LimitedServiceExecutor("proxy",
+                PROXY_THREADS, PROXY_LIMIT * (topology.size() - 1));
 
         return new HttpServerImpl(dao, currentNode, hashRouter, workers, proxies);
     }
@@ -95,21 +102,12 @@ public final class ServiceFactory {
     private static Collection<Cluster.Node> buildClusterNodes(Set<String> topologyRaw) {
         List<Cluster.Node> topology = new ArrayList<>(topologyRaw.size());
         for (String endpoint : topologyRaw) {
-            String[] protoHostPort = endpoint.split("://|:");
-            String protocol = protoHostPort[0];
-            String ip = protoHostPort[1];
-            int port = Integer.parseInt(protoHostPort[2]);
-
-            Cluster.Node node = new Cluster.Node(ip, port, buildHttpClient(protocol, ip, port));
+            String params = "?clientMaxPoolSize=" + PROXY_THREADS * (topologyRaw.size() - 1);
+            ConnectionString connectionString = new ConnectionString(endpoint + "/" + params);
+            Cluster.Node node = new Cluster.Node(connectionString);
             topology.add(node);
         }
         return topology;
-    }
-
-    private static HttpClient buildHttpClient(String protocol, String ip, int port) {
-        String uri = protocol + "://" + ip + ":" + port + "?clientMaxPoolSize=" + PROXY_CONNECTIONS;
-        ConnectionString connectionString = new ConnectionString(uri);
-        return new HttpClient(connectionString);
     }
 
     private static Cluster.Node findClusterNode(int port, Collection<Cluster.Node> topology) {

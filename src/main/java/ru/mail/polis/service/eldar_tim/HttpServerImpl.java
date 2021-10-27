@@ -88,7 +88,7 @@ public class HttpServerImpl extends HttpServer implements Service {
         if (requestHandler == statusHandler) {
             workers.run(session, this::exceptionHandler, () -> requestHandler.handleRequest(request, session));
         } else if (requestHandler != null) {
-            Cluster.Node target = requestHandler.getTarget(request);
+            Cluster.Node target = requestHandler.getTargetNode(request);
             if (target == null) {
                 workers.execute(session, this::exceptionHandler, () ->
                         requestHandler.handleRequest(request, session));
@@ -120,7 +120,7 @@ public class HttpServerImpl extends HttpServer implements Service {
     }
 
     private void sendError(String description, String httpCode, HttpSession session, Exception e) {
-        // LOG.debug("Error: {}", description, e); // Влияет на результаты профилирования
+        LOG.debug("Error: {}", description, e); // Влияет на результаты профилирования
         try {
             String code = httpCode == null ? Response.INTERNAL_ERROR : httpCode;
             session.sendError(code, description);
