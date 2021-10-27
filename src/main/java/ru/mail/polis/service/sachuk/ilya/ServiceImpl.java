@@ -125,6 +125,6 @@ public class ServiceImpl extends HttpServer implements Service {
     public synchronized void stop() {
         super.stop();
 
-        nodeManager.close();
+        nodeManager.removeNode();
     }
 }

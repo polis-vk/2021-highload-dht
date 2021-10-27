@@ -8,6 +8,7 @@ import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public final class NodeManager {
     @SuppressWarnings("PMD")
@@ -16,6 +17,7 @@ public final class NodeManager {
     private final VNodeConfig vnodeConfig;
     private final NavigableMap<Integer, VNode> circle;
     private final NavigableMap<String, HttpClient> clients;
+    private static final AtomicInteger nodeCount = new AtomicInteger();
 
     private NodeManager(Set<String> topology, VNodeConfig vnodeConfig) {
         this.vnodeConfig = vnodeConfig;
@@ -25,6 +27,7 @@ public final class NodeManager {
         for (String endpoint : topology) {
             HttpClient client = new HttpClient(new ConnectionString(endpoint));
             clients.put(endpoint, client);
+            nodeCount.incrementAndGet();
         }
     }
 
@@ -66,9 +69,13 @@ public final class NodeManager {
         return clients.get(endpoint);
     }
 
-    public static void close() {
-        synchronized (LOCK_OBJECT) {
-            instance = null;
+    public static void removeNode() {
+        nodeCount.decrementAndGet();
+
+        if (nodeCount.get() == 0) {
+            synchronized (LOCK_OBJECT) {
+                instance = null;
+            }
         }
     }
 }
