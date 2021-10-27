@@ -61,6 +61,6 @@ public final class ServiceFactory {
             throw new IllegalArgumentException("Empty cluster");
         }
 
-        return new AlexService(port, dao);
+        return new AlexService(port, dao, topology);
     }
 }

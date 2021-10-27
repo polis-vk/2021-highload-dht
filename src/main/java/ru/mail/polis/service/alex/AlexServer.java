@@ -1,5 +1,6 @@
 package ru.mail.polis.service.alex;
 
+import one.nio.http.HttpException;
 import one.nio.http.HttpServer;
 import one.nio.http.HttpServerConfig;
 import one.nio.http.HttpSession;
@@ -7,10 +8,14 @@ import one.nio.http.Param;
 import one.nio.http.Path;
 import one.nio.http.Request;
 import one.nio.http.Response;
+import one.nio.pool.PoolException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.Record;
+import ru.mail.polis.lsm.artem_drozdov.Node;
+import ru.mail.polis.lsm.artem_drozdov.Topology;
+
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
@@ -23,11 +28,13 @@ import java.util.concurrent.TimeUnit;
 public class AlexServer extends HttpServer {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(AlexServer.class);
+    private static final String PROXY_HEADER = "X-OK-Proxy: true";
 
     private final DAO dao;
     private final ExecutorService executorService;
+    private final Topology topology;
 
-    public AlexServer(final HttpServerConfig config, final DAO dao) throws IOException {
+    public AlexServer(final HttpServerConfig config, final DAO dao, final Topology topology) throws IOException {
         super(config);
         this.dao = dao;
         int cores = Runtime.getRuntime().availableProcessors();
@@ -38,6 +45,7 @@ public class AlexServer extends HttpServer {
                 TimeUnit.MILLISECONDS,
                 new LinkedBlockingQueue<>(cores + 1)
         );
+        this.topology = topology;
     }
 
     @Override
@@ -58,46 +66,71 @@ public class AlexServer extends HttpServer {
             @Param(value = "id", required = true) final String entityId) {
 
         if (entityId.isEmpty()) {
-            try {
-                httpSession.sendResponse(
-                        new Response(Response.BAD_REQUEST, "Empty ID!".getBytes(StandardCharsets.UTF_8))
-                );
-            } catch (IOException e) {
-                LOGGER.error("Can't response to user.", e);
-            }
+            send(httpSession, new Response(
+                    Response.BAD_REQUEST,
+                    "Empty ID!".getBytes(StandardCharsets.UTF_8)
+            ));
+        } else {
+            executorService.execute(() -> {
+                Node node = topology.getNode(entityId);
+                if (topology.isMe(node)) {
+                    switch (request.getMethod()) {
+                        case Request.METHOD_GET:
+                            send(httpSession, getEntity(entityId));
+                            break;
+                        case Request.METHOD_PUT:
+                            send(httpSession, putEntity(entityId, request.getBody()));
+                            break;
+                        case Request.METHOD_DELETE:
+                            send(httpSession, deleteEntity(entityId));
+                            break;
+                        default:
+                            send(httpSession, new Response(
+                                    Response.METHOD_NOT_ALLOWED,
+                                    "Wrong method!".getBytes(StandardCharsets.UTF_8)
+                            ));
+                            break;
+                    }
+                } else {
+                    proxy(httpSession, request, node);
+                }
+            });
+        }
+    }
+
+    @Override
+    public synchronized void stop() {
+        topology.stop();
+        super.stop();
+    }
+
+    private void proxy(HttpSession httpSession, Request request, Node node) {
+        if (request.getHeader(PROXY_HEADER) != null) {
+            LOGGER.error("Proxy from proxy");
+            send(
+                    httpSession,
+                    new Response(Response.INTERNAL_ERROR, Response.EMPTY)
+            );
+            return;
         }
 
-        executorService.execute(() -> {
-            try {
-                switch (request.getMethod()) {
-                    case Request.METHOD_GET:
-                        httpSession.sendResponse(
-                                getEntity(entityId)
-                        );
-                        break;
-                    case Request.METHOD_PUT:
-                        httpSession.sendResponse(
-                                putEntity(entityId, request.getBody())
-                        );
-                        break;
-                    case Request.METHOD_DELETE:
-                        httpSession.sendResponse(
-                                deleteEntity(entityId)
-                        );
-                        break;
-                    default:
-                        httpSession.sendResponse(
-                                new Response(
-                                        Response.METHOD_NOT_ALLOWED,
-                                        "Wrong method!".getBytes(StandardCharsets.UTF_8)
-                                )
-                        );
-                        break;
-                }
-            } catch (IOException e) {
-                LOGGER.error("Can't response to user.", e);
-            }
-        });
+        Response res;
+        try {
+            request.addHeader(PROXY_HEADER);
+            res = node.getHttpClient().invoke(request);
+        } catch (IOException | InterruptedException | PoolException | HttpException e) {
+            LOGGER.error("Can't proxy");
+            res = new Response(Response.INTERNAL_ERROR, Response.EMPTY);
+        }
+        send(httpSession, res);
+    }
+
+    private void send(HttpSession httpSession, Response response) {
+        try {
+            httpSession.sendResponse(response);
+        } catch (IOException e) {
+            LOGGER.error("Can't response to user.", e);
+        }
     }
 
     private Response getEntity(final String id) {

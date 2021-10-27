@@ -34,6 +34,7 @@ import java.util.Set;
  * @author Vadim Tsesko
  */
 public final class Cluster {
+    public static final String HOST = "http://localhost:";
     private static final int[] PORTS = {8080, 8081, 8082};
 
     private static final Logger LOG = LoggerFactory.getLogger(Cluster.class);
@@ -46,7 +47,7 @@ public final class Cluster {
         // Fill the topology
         final Set<String> topology = new HashSet<>(3);
         for (final int port : PORTS) {
-            topology.add("http://localhost:" + port);
+            topology.add(HOST + port);
         }
 
         // Start nodes
