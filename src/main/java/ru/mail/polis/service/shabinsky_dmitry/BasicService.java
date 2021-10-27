@@ -42,11 +42,11 @@ public final class BasicService extends HttpServer implements Service {
         this.dao = dao;
         this.executor = executor;
 
-        this.currentNodeHash = hashMD5(sToB("http://localhost:" + port));
+        this.currentNodeHash = hashMD5(ByteBuffer.wrap(toBytes("http://localhost:" + port)));
         this.ring = new TreeMap<>();
 
         topology
-            .forEach(node -> ring.put(hashMD5(sToB(node)), new HttpClient(new ConnectionString(node))));
+            .forEach(node -> ring.put(hashMD5(ByteBuffer.wrap(toBytes(node))), new HttpClient(new ConnectionString(node))));
     }
 
     private static HttpServerConfig from(final int port) {
@@ -184,10 +184,6 @@ public final class BasicService extends HttpServer implements Service {
         Response call();
     }
 
-    private ByteBuffer sToB(String str) {
-        return ByteBuffer.wrap(toBytes(str));
-    }
-
     private BigInteger hashMD5(ByteBuffer key) {
         try {
             MessageDigest m = MessageDigest.getInstance("MD5");
@@ -196,7 +192,7 @@ public final class BasicService extends HttpServer implements Service {
             byte[] digest = m.digest();
             return new BigInteger(1, digest);
         } catch (NoSuchAlgorithmException ignored) {
+            return null;
         }
-        return null;
     }
 }
