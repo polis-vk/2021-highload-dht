@@ -1,15 +1,26 @@
 package ru.mail.polis.service.sachuk.ilya.sharding;
 
 import one.nio.http.HttpClient;
+import one.nio.net.ConnectionString;
 
 public class NodeRouter {
 
-    public void route(String key) {
+    private final NodeManager nodeManager;
 
+    public NodeRouter(NodeManager nodeManager) {
+        this.nodeManager = nodeManager;
     }
 
-    private void routeToNode() {
+    public void route(String key) {
+        VNode vnode = nodeManager.getNearVNode(key);
 
-        HttpClient httpClient = new HttpClient();
+        routeToNode(vnode);
+    }
+
+    private void routeToNode(VNode vNode) {
+        String host = vNode.getPhysicalNode().host;
+        int port = vNode.getPhysicalNode().port;
+        HttpClient httpClient = new HttpClient(new ConnectionString(host + port)).;
+
     }
 }

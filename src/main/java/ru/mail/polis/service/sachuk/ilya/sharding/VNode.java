@@ -6,4 +6,8 @@ public class VNode {
     public VNode(Node physicalNode) {
         this.physicalNode = physicalNode;
     }
+
+    public Node getPhysicalNode() {
+        return physicalNode;
+    }
 }
