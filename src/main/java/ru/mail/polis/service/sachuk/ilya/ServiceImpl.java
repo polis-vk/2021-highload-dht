@@ -8,7 +8,9 @@ import one.nio.http.Response;
 import one.nio.server.AcceptorConfig;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.service.Service;
+import ru.mail.polis.service.sachuk.ilya.sharding.Node;
 import ru.mail.polis.service.sachuk.ilya.sharding.NodeManager;
+import ru.mail.polis.service.sachuk.ilya.sharding.NodeRouter;
 import ru.mail.polis.service.sachuk.ilya.sharding.VNodeConfig;
 
 import java.io.IOException;
@@ -24,7 +26,9 @@ public class ServiceImpl extends HttpServer implements Service {
             new ExecutorConfig(16, 1000)
     );
     private final NodeManager nodeManager;
+    private final NodeRouter nodeRouter;
     private final Set<String> topology;
+    private final Node node;
 
     public ServiceImpl(int port, DAO dao, Set<String> topology) throws IOException {
         super(configFrom(port));
@@ -32,7 +36,9 @@ public class ServiceImpl extends HttpServer implements Service {
         this.entityRequestHandler = new EntityRequestHandler(dao);
         this.topology = topology;
         this.nodeManager = NodeManager.getInstance(topology, new VNodeConfig());
-        //TODO add node to manager
+        this.nodeRouter = new NodeRouter(nodeManager);
+        this.node = new Node(port);
+        nodeManager.addNode(node);
     }
 
     private static HttpServerConfig configFrom(int port) {
@@ -51,6 +57,11 @@ public class ServiceImpl extends HttpServer implements Service {
 
         if (id == null || id.isBlank()) {
             return new Response(Response.BAD_REQUEST, Response.EMPTY);
+        }
+
+        Response response = nodeRouter.route(node, id, request);
+        if (response != null) {
+            return response;
         }
 
         switch (request.getMethod()) {
@@ -110,5 +121,12 @@ public class ServiceImpl extends HttpServer implements Service {
                 throw new UncheckedIOException(e);
             }
         });
+    }
+
+    @Override
+    public synchronized void stop() {
+        super.stop();
+
+        nodeManager.close();
     }
 }

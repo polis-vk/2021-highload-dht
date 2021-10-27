@@ -1,9 +1,18 @@
 package ru.mail.polis.service.sachuk.ilya.sharding;
 
 import one.nio.http.HttpClient;
-import one.nio.net.ConnectionString;
+import one.nio.http.HttpException;
+import one.nio.http.Request;
+import one.nio.http.Response;
+import one.nio.pool.PoolException;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import java.io.IOException;
+import java.io.UncheckedIOException;
 
 public class NodeRouter {
+    private Logger logger = LoggerFactory.getLogger(NodeRouter.class);
 
     private final NodeManager nodeManager;
 
@@ -11,16 +20,36 @@ public class NodeRouter {
         this.nodeManager = nodeManager;
     }
 
-    public void route(String key) {
+    public Response route(Node currentNode, String key, Request request) {
         VNode vnode = nodeManager.getNearVNode(key);
+        logger.info("in rout and port" + vnode.getPhysicalNode().port);
 
-        routeToNode(vnode);
+        logger.info("current port:" + currentNode.port + " and near port:" + vnode.getPhysicalNode().port);
+        if (currentNode.port == vnode.getPhysicalNode().port) {
+            logger.info("port is equal to this node" + currentNode.port + " " + vnode.getPhysicalNode().port);
+            return null;
+        }
+
+        logger.info("port is not equal and routed");
+        return routeToNode(vnode, request, key);
     }
 
-    private void routeToNode(VNode vNode) {
+    public Response routeToNode(VNode vNode, Request request, String key) {
         String host = vNode.getPhysicalNode().host;
         int port = vNode.getPhysicalNode().port;
-        HttpClient httpClient = new HttpClient(new ConnectionString(host + port)).;
 
+        HttpClient httpClient = nodeManager.getHttpClient(host + port);
+
+        try {
+            return httpClient.invoke(request);
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(e);
+        } catch (PoolException | HttpException e) {
+            throw new IllegalStateException(e);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
+
 }
