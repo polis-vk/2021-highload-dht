@@ -7,8 +7,9 @@ import one.nio.pool.PoolException;
 
 import java.io.IOException;
 
-
 public interface ClusterProxySystem {
 
-    Response invokeEntityRequest(String entityId, Request request) throws HttpException, IOException, PoolException, InterruptedException;
+    Response invokeEntityRequest(String entityId, Request request)
+            throws HttpException, IOException, PoolException, InterruptedException;
+
 }

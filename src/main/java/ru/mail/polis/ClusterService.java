@@ -1,7 +1,5 @@
 package ru.mail.polis;
 
-import ru.mail.polis.hash.HashFunction;
-
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
@@ -12,11 +10,7 @@ public class ClusterService {
 
     private final SortedMap<Integer, String> nodes;
 
-    private final HashFunction hashFunction;
-
-    public ClusterService(Set<String> topology, HashFunction hashFunction) {
-        this.hashFunction = hashFunction;
-
+    public ClusterService(Set<String> topology) {
         nodes = createPartitions(topology);
     }
 
@@ -27,7 +21,19 @@ public class ClusterService {
     }
 
     public int hashValue(String value) {
-        return (int) (hashFunction.hash(value) & 0xfffffff) % RANGE_SIZE + 1;
+
+        final int p = 167_776_19;
+        int hash = (int) 216_613_626_1L;
+        for (int i = 0; i < value.length(); i++) {
+            hash = (hash ^ value.charAt(i)) * p;
+        }
+        hash += hash << 13;
+        hash ^= hash >> 7;
+        hash += hash << 3;
+        hash ^= hash >> 17;
+        hash += hash << 5;
+
+        return hash < 0 ? hash & 0xfffffff : hash;
     }
 
     public String getNodeByValue(String value) {

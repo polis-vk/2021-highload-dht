@@ -16,8 +16,6 @@
 
 package ru.mail.polis.lsm;
 
-import ru.mail.polis.lsm.artem_drozdov.DAOState;
-
 import javax.annotation.Nullable;
 import java.io.Closeable;
 import java.nio.ByteBuffer;
@@ -52,6 +50,4 @@ public interface DAO extends Closeable {
 
         return result;
     }
-
-    DAOState getState();
 }

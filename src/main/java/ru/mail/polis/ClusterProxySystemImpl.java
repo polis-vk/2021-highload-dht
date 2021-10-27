@@ -9,7 +9,6 @@ import one.nio.pool.PoolException;
 
 import java.io.IOException;
 
-
 public class ClusterProxySystemImpl implements ClusterProxySystem {
 
     private final ClusterService clusterService;
@@ -19,7 +18,8 @@ public class ClusterProxySystemImpl implements ClusterProxySystem {
     }
 
     @Override
-    public Response invokeEntityRequest(String entityId, Request request) throws HttpException, IOException, PoolException, InterruptedException {
+    public Response invokeEntityRequest(String entityId, Request request)
+            throws HttpException, IOException, PoolException, InterruptedException {
         String nodeUrl = clusterService.getNodeByValue(entityId);
         try (HttpClient httpClient = new HttpClient(new ConnectionString(nodeUrl))) {
             request.addHeader("Proxied:true");

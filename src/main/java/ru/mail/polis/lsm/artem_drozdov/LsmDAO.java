@@ -31,8 +31,6 @@ public class LsmDAO implements DAO {
     private final ConcurrentLinkedDeque<NavigableMap<ByteBuffer, Record>> tablesForFlush =
             new ConcurrentLinkedDeque<>();
 
-    private DAOState state = DAOState.OK;
-
     private final ThreadPoolExecutor flushExecutor = new ThreadPoolExecutor(1, 1,
             0L, TimeUnit.MILLISECONDS,
             new LinkedBlockingQueue<>(FLUSH_TASKS_LIMIT));
@@ -75,7 +73,7 @@ public class LsmDAO implements DAO {
         int recordSize = sizeOf(record);
         if (memoryConsumption.addAndGet(recordSize) > config.memoryLimit) {
             synchronized (this) {
-                if (memoryConsumption.get() > config.memoryLimit && state == DAOState.OK) {
+                if (memoryConsumption.get() > config.memoryLimit) {
                     memoryConsumption.set(recordSize);
 
                     tablesForFlush.add(memoryStorage);
@@ -117,11 +115,6 @@ public class LsmDAO implements DAO {
             tables.add(table);
             memoryStorage = newStorage();
         }
-    }
-
-    @Override
-    public DAOState getState() {
-        return state;
     }
 
     private NavigableMap<ByteBuffer, Record> newStorage() {

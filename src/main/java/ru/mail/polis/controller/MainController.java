@@ -7,7 +7,6 @@ import org.slf4j.LoggerFactory;
 import ru.mail.polis.RecordUtil;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.Record;
-import ru.mail.polis.lsm.artem_drozdov.DAOState;
 import ru.mail.polis.lsm.artem_drozdov.LsmDAO;
 
 import java.nio.ByteBuffer;
@@ -76,9 +75,4 @@ public class MainController implements Controller {
         dao.upsert(Record.tombstone(key));
         return new Response(Response.ACCEPTED, Response.EMPTY);
     }
-
-    public DAOState getDaoState() {
-        return dao.getState();
-    }
-
 }

@@ -1,6 +1,10 @@
 package ru.mail.polis.request;
 
-import one.nio.http.*;
+import one.nio.http.HttpException;
+import one.nio.http.HttpSession;
+import one.nio.http.Request;
+import one.nio.http.RequestHandler;
+import one.nio.http.Response;
 import one.nio.pool.PoolException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -64,8 +68,8 @@ public class DefaultRequestHandler implements RequestHandler {
                     return new Response(Response.BAD_REQUEST, "Id can't be blank".getBytes(StandardCharsets.UTF_8));
                 }
                 try {
-                    String isRequestProxied = request.getHeader("Proxied:");
-                    if (isRequestProxied != null && isRequestProxied.equals("true")) {
+                    String proxiedHeader = request.getHeader("Proxied:");
+                    if (proxiedHeader != null && proxiedHeader.equals("true")) {
                         return controller.entity(value, request);
                     } else {
                         return clusterProxySystem.invokeEntityRequest(value, request);

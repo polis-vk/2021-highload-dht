@@ -55,11 +55,6 @@ public class TestDaoWrapper implements DAO {
     }
 
     @Override
-    public DAOState getState() {
-        return DAOState.OK;
-    }
-
-    @Override
     public void close() throws IOException {
         delegate.close();
     }

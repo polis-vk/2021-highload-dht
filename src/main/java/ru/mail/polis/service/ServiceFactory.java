@@ -17,12 +17,12 @@
 package ru.mail.polis.service;
 
 import ru.mail.polis.ClusterProxySystemImpl;
-import ru.mail.polis.hash.Sdbm;
 import ru.mail.polis.ClusterService;
 import ru.mail.polis.lsm.DAO;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.Objects;
+import java.util.Set;
 
 /**
  * Constructs {@link Service} instances.
@@ -61,10 +61,7 @@ public final class ServiceFactory {
         if (topology.isEmpty()) {
             throw new IllegalArgumentException("Empty cluster");
         }
-        ClusterService clusterService = new ClusterService(topology, new Sdbm());
-        return new HttpServerImpl(port, dao,  new ClusterProxySystemImpl(clusterService));
+        ClusterService clusterService = new ClusterService(topology);
+        return new HttpServerImpl(port, dao, new ClusterProxySystemImpl(clusterService));
     }
-
-
-
 }
