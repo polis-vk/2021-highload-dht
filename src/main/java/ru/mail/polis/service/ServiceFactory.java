@@ -28,11 +28,11 @@ import ru.mail.polis.sharding.HashRouter;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Constructs {@link Service} instances.
@@ -50,11 +50,10 @@ public final class ServiceFactory {
 
     /** Число потоков, обрабатывающих прокси-запросы. */
     private static final int PROXY_THREADS = Runtime.getRuntime().availableProcessors();
-    /** Лимит очереди на выполнение прокси-запросов, после превышения которого последующие будут отвергнуты.
-     * Данное значение будет умножено на количество узлов в кластере - 1. */
+    /** Лимит очереди на выполнение прокси-запросов, после превышения которого последующие будут отвергнуты. */
     private static final int PROXY_LIMIT = PROXY_THREADS * 2;
 
-    public static final Map<Integer, Collection<Cluster.Node>> topologies = new HashMap<>();
+    private static final Map<Integer, Collection<Cluster.Node>> TOPOLOGIES = new ConcurrentHashMap<>();
 
     private ServiceFactory() {
         // Not supposed to be instantiated
@@ -86,15 +85,13 @@ public final class ServiceFactory {
             throw new IllegalArgumentException("Empty cluster");
         }
 
-        Collection<Cluster.Node> clusterNodes = topologies.computeIfAbsent(topology.hashCode(),
+        Collection<Cluster.Node> clusterNodes = TOPOLOGIES.computeIfAbsent(topology.hashCode(),
                 key -> buildClusterNodes(topology));
         Cluster.Node currentNode = findClusterNode(port, clusterNodes);
         HashRouter<Cluster.Node> hashRouter = new ConsistentHashRouter<>(clusterNodes, 30);
 
-        ServiceExecutor workers = new LimitedServiceExecutor("worker",
-                WORKERS_NUMBER, TASKS_LIMIT);
-        ServiceExecutor proxies = new LimitedServiceExecutor("proxy",
-                PROXY_THREADS, PROXY_LIMIT * (topology.size() - 1));
+        ServiceExecutor workers = new LimitedServiceExecutor("worker", WORKERS_NUMBER, TASKS_LIMIT);
+        ServiceExecutor proxies = new LimitedServiceExecutor("proxy", PROXY_THREADS, PROXY_LIMIT);
 
         return new HttpServerImpl(dao, currentNode, hashRouter, workers, proxies);
     }
