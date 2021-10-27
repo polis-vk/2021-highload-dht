@@ -60,7 +60,7 @@ public final class ServiceFactory {
         if (topology.isEmpty()) {
             throw new IllegalArgumentException("Empty cluster");
         }
-
         return new HttpRestService(port,dao,topology);
+
     }
 }

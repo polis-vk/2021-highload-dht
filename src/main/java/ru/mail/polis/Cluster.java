@@ -75,5 +75,3 @@ public final class Cluster {
         }
     }
 }
-
-
