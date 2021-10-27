@@ -67,7 +67,6 @@ public class ServiceImpl extends HttpServer implements Service {
             this.topology[i] = adr;
             ConnectionString conn = new ConnectionString(adr + "?timeout=100");
             HttpClient client = new HttpClient(conn);
-            //client.setProxy(new HttpProxy(conn.getHost(), conn.getPort()));
             this.clients[i] = client;
         }
     }
