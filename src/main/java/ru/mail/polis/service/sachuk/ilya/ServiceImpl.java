@@ -27,14 +27,12 @@ public class ServiceImpl extends HttpServer implements Service {
     );
     private final NodeManager nodeManager;
     private final NodeRouter nodeRouter;
-    private final Set<String> topology;
     private final Node node;
 
     public ServiceImpl(int port, DAO dao, Set<String> topology) throws IOException {
         super(configFrom(port));
 
         this.entityRequestHandler = new EntityRequestHandler(dao);
-        this.topology = topology;
         this.nodeManager = NodeManager.getInstance(topology, new VNodeConfig());
         this.nodeRouter = new NodeRouter(nodeManager);
         this.node = new Node(port);

@@ -12,18 +12,17 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
-public class NodeManager {
-    private Logger logger = LoggerFactory.getLogger(NodeRouter.class);
+public final class NodeManager {
+    private final Logger logger = LoggerFactory.getLogger(NodeRouter.class);
 
+    @SuppressWarnings("PMD")
     private static volatile NodeManager instance;
-    private final Set<String> topology;
-    private VNodeConfig vNodeConfig;
+    private final VNodeConfig vNodeConfig;
     private final NavigableMap<Integer, VNode> circle;
     private final SortedMap<String, HttpClient> clients;
 
 
     private NodeManager(Set<String> topology, VNodeConfig vNodeConfig) {
-        this.topology = topology;
         this.vNodeConfig = vNodeConfig;
         circle = new TreeMap<>();
 
@@ -51,7 +50,7 @@ public class NodeManager {
     public void addNode(Node node) {
         logger.info("server with port in add node:" + node.port);
         for (int i = 0; i < vNodeConfig.nodeWeight; i++) {
-            int hashCode = Hash.murmur3(node.host + node.port + i);
+            int hashCode = Hash.murmur3(Node.HOST + node.port + i);
 
             circle.put(hashCode, new VNode(node));
         }

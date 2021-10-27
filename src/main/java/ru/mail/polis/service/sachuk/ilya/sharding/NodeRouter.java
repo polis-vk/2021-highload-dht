@@ -12,7 +12,7 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 
 public class NodeRouter {
-    private Logger logger = LoggerFactory.getLogger(NodeRouter.class);
+    private final Logger logger = LoggerFactory.getLogger(NodeRouter.class);
 
     private final NodeManager nodeManager;
 
@@ -35,7 +35,7 @@ public class NodeRouter {
     }
 
     public Response routeToNode(VNode vNode, Request request, String key) {
-        String host = vNode.getPhysicalNode().host;
+        String host = Node.HOST;
         int port = vNode.getPhysicalNode().port;
 
         HttpClient httpClient = nodeManager.getHttpClient(host + port);
