@@ -154,7 +154,7 @@ class PersistenceTest {
         // Reference value
         int size = 1024 * 1024;
         byte[] suffix = sizeBasedRandomData(size);
-        int recordsCount = (int) (TestDaoWrapper.MAX_HEAP * 15 / size);
+        int recordsCount = (int) (TestDaoWrapper.MAX_HEAP * 5 / size);
 
         prepareHugeDao(data, recordsCount, suffix);
 
@@ -175,7 +175,7 @@ class PersistenceTest {
         // Reference value
         int size = 1024 * 1024;
         byte[] suffix = sizeBasedRandomData(size);
-        int recordsCount = (int) (TestDaoWrapper.MAX_HEAP * 15 / size);
+        int recordsCount = (int) (TestDaoWrapper.MAX_HEAP * 5 / size);
 
         prepareHugeDao(data, recordsCount, suffix);
 
@@ -261,8 +261,6 @@ class PersistenceTest {
             for (int i = 0; i < recordsCount; i++) {
                 ByteBuffer key = keyWithSuffix(i, suffix);
                 ByteBuffer value = valueWithSuffix(i, suffix);
-
-//                System.out.println(i);
 
                 dao.upsert(Record.of(key, value));
             }
