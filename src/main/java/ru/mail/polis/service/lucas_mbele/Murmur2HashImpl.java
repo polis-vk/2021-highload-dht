@@ -1,12 +1,12 @@
 package ru.mail.polis.service.lucas_mbele;
 
-public class Murmur2HashImpl implements Murmur2Hash {
+public class Murmur2HashImpl implements Murmur2Hash 
+{
 
     public static final int UNSIGNED_MASK = 0xff;
     public Murmur2HashImpl(){
 
     }
-
     @Override
     public int hash32(final byte[] data, int length) {
         final int m = 0x5bd1e995;
@@ -24,7 +24,7 @@ public class Murmur2HashImpl implements Murmur2Hash {
             int k = (data[i4] & UNSIGNED_MASK);
             k |= (data[i4 + 1] & UNSIGNED_MASK) << 8;
             k |= (data[i4 + 2] & UNSIGNED_MASK) << 16;
-            k |=  (data[i4 + 3] & UNSIGNED_MASK) << 24;
+            k |= (data[i4 + 3] & UNSIGNED_MASK) << 24;
 
             k = k * m;
             k ^= k >>> r;
