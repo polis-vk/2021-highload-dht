@@ -5,6 +5,7 @@ public final class FNV1_32_HASH implements IHashAlgorithm {
     private static final int FNV1_32_INIT = 0x811c9dc5;
     private static final int FNV1_PRIME_32 = 16777619;
 
+    @Override
     public int getHash(String str) {
         int hash = FNV1_32_INIT;
         for (int i = 0; i < str.length(); i++)

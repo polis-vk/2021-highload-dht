@@ -24,9 +24,7 @@ public class ConsistentHashing {
     public static ConsistentHashing createByTopology(
             Set<String> topology,
             IHashAlgorithm hashAlgorithm) {
-        ConsistentHashing consistentHashing = new ConsistentHashing(topology, hashAlgorithm, DEFAULT_VIRTUAL_NODES);
-        consistentHashing.init();
-        return consistentHashing;
+        return createByTopology(topology, hashAlgorithm, DEFAULT_VIRTUAL_NODES);
     }
 
     public static ConsistentHashing createByTopology(
@@ -71,7 +69,7 @@ public class ConsistentHashing {
         private final String server;
         private final String virtualName;
 
-        private static final String VIRTUAL_TOKEN = "&&VN";
+        private static final String VIRTUAL_TOKEN = "_VN_";
 
         public Node(String server, int virtualIndex) {
             this.server = server;
