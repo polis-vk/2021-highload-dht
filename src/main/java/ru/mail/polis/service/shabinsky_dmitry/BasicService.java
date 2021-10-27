@@ -45,8 +45,8 @@ public final class BasicService extends HttpServer implements Service {
         this.currentNodeHash = hashMD5(ByteBuffer.wrap(toBytes("http://localhost:" + port)));
         this.ring = new TreeMap<>();
 
-        topology
-            .forEach(node -> ring.put(hashMD5(ByteBuffer.wrap(toBytes(node))), new HttpClient(new ConnectionString(node))));
+        topology.forEach(node ->
+            ring.put(hashMD5(ByteBuffer.wrap(toBytes(node))), new HttpClient(new ConnectionString(node))));
     }
 
     private static HttpServerConfig from(final int port) {
