@@ -16,8 +16,9 @@
 
 package ru.mail.polis.service;
 
-import ru.mail.polis.ClusterPartitioner;
-import ru.mail.polis.Partition;
+import ru.mail.polis.ClusterProxySystemImpl;
+import ru.mail.polis.hash.Sdbm;
+import ru.mail.polis.ClusterService;
 import ru.mail.polis.lsm.DAO;
 
 import java.io.IOException;
@@ -60,7 +61,8 @@ public final class ServiceFactory {
         if (topology.isEmpty()) {
             throw new IllegalArgumentException("Empty cluster");
         }
-        return new HttpServerImpl(port, dao,  ClusterPartitioner.create(topology));
+        ClusterService clusterService = new ClusterService(topology, new Sdbm());
+        return new HttpServerImpl(port, dao,  new ClusterProxySystemImpl(clusterService));
     }
 
 

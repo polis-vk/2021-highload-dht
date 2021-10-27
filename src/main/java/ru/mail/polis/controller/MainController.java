@@ -10,7 +10,6 @@ import ru.mail.polis.lsm.Record;
 import ru.mail.polis.lsm.artem_drozdov.DAOState;
 import ru.mail.polis.lsm.artem_drozdov.LsmDAO;
 
-import javax.annotation.Nullable;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
@@ -32,11 +31,8 @@ public class MainController implements Controller {
     }
 
     @SuppressWarnings("unused")
-    public Response entity(@Nullable String id,
+    public Response entity(String id,
                            Request request) {
-        if (id == null || id.isBlank()) {
-            return new Response(Response.BAD_REQUEST, "Id can't be blank".getBytes(StandardCharsets.UTF_8));
-        }
         switch (request.getMethod()) {
             case Request.METHOD_GET:
                 return get(id);

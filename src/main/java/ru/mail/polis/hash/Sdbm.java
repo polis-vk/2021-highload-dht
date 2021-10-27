@@ -1,4 +1,4 @@
-package hash;
+package ru.mail.polis.hash;
 
 public final class Sdbm implements HashFunction {
 

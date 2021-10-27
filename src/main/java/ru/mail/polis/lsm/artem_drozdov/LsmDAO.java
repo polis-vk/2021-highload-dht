@@ -124,10 +124,6 @@ public class LsmDAO implements DAO {
         return state;
     }
 
-    public void setState(DAOState newState) {
-        state = newState;
-    }
-
     private NavigableMap<ByteBuffer, Record> newStorage() {
         return new ConcurrentSkipListMap<>();
     }
