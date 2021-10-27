@@ -17,10 +17,10 @@
 </style>
 </head>
 <body style='font: 12px Verdana, sans-serif'>
-<h1>Flame Graph</h1>
+<h1>Lock profile</h1>
 <header style='text-align: left'><button id='reverse' title='Reverse'>&#x1f53b;</button>&nbsp;&nbsp;<button id='search' title='Search'>&#x1f50d;</button></header>
 <header style='text-align: right'>Produced by <a href='https://github.com/jvm-profiling-tools/async-profiler'>async-profiler</a></header>
-<canvas id='canvas' style='width: 100%; height: 688px'></canvas>
+<canvas id='canvas' style='width: 100%; height: 128px'></canvas>
 <div id='hl'><span></span></div>
 <p id='match'>Matched: <span id='matchval'></span> <span id='reset' title='Clear'>&#x274c;</span></p>
 <p id='status'>&nbsp;</p>
@@ -30,7 +30,7 @@
 	'use strict';
 	var root, rootLevel, px, pattern;
 	var reverse = false;
-	const levels = Array(43);
+	const levels = Array(8);
 	for (let h = 0; h < levels.length; h++) {
 		levels[h] = [];
 	}
@@ -128,12 +128,12 @@
 		function totalMarked() {
 			let total = 0;
 			let left = 0;
-			for (let x in marked) {
+			Object.keys(marked).sort(function(a, b) { return a - b; }).forEach(function(x) {
 				if (+x >= left) {
 					total += marked[x];
 					left = +x + marked[x];
 				}
-			}
+			});
 			return total;
 		}
 
@@ -221,102 +221,16 @@
 			search(false);
 		}
 	}
-f(0,0,137,4,'all')
-f(1,0,137,0,'one/nio/server/SelectorThread.run')
-f(2,0,11,0,'one/nio/net/NativeSelector.select')
-f(3,0,11,0,'one/nio/net/NativeSelector.epollWait')
-f(4,0,11,4,'epoll_wait')
-f(5,2,9,2,'entry_SYSCALL_64_after_hwframe')
-f(6,2,9,2,'do_syscall_64')
-f(7,2,9,2,'__x64_sys_epoll_wait')
-f(8,2,9,2,'do_epoll_wait')
-f(9,10,1,2,'schedule_hrtimeout_range_clock')
-f(10,10,1,2,'schedule')
-f(11,10,1,2,'__schedule')
-f(12,10,1,2,'finish_task_switch')
-f(2,11,126,0,'one/nio/net/Session.process')
-f(3,11,126,0,'one/nio/http/HttpSession.processRead')
-f(4,11,119,0,'one/nio/http/HttpSession.processHttpBuffer')
-f(5,11,119,0,'one/nio/http/HttpSession.handleParsedRequest')
-f(6,12,118,0,'one/nio/http/HttpServer.handleRequest')
-f(7,12,117,0,'RequestHandler1_entity.handleRequest')
-f(8,12,115,0,'one/nio/http/HttpSession.sendResponse')
-f(9,12,115,0,'one/nio/http/HttpSession.writeResponse')
-f(10,12,115,0,'one/nio/net/Session.write')
-f(11,12,115,0,'one/nio/net/Session.write')
-f(12,12,115,0,'one/nio/net/Session$ArrayQueueItem.write')
-f(13,12,115,0,'one/nio/net/NativeSocket.write')
-f(14,12,1,4,'/usr/lib/x86_64-linux-gnu/libc-2.31.so')
-f(14,13,114,4,'__send')
-f(15,14,113,2,'entry_SYSCALL_64_after_hwframe')
-f(16,14,113,2,'do_syscall_64')
-f(17,14,113,2,'__x64_sys_sendto')
-f(18,14,113,2,'__sys_sendto')
-f(19,14,112,2,'sock_sendmsg')
-f(20,14,1,2,'security_socket_sendmsg')
-f(21,14,1,2,'aa_sk_perm')
-f(22,14,1,2,'_cond_resched')
-f(23,14,1,2,'rcu_all_qs')
-f(20,15,111,2,'tcp_sendmsg')
-f(21,15,111,2,'tcp_sendmsg_locked')
-f(22,15,110,2,'__tcp_push_pending_frames')
-f(23,15,110,2,'tcp_write_xmit')
-f(24,15,110,2,'__tcp_transmit_skb')
-f(25,15,110,2,'__ip_queue_xmit')
-f(26,15,110,2,'ip_finish_output2')
-f(27,15,1,2,'__dev_queue_xmit')
-f(27,16,109,2,'__local_bh_enable_ip')
-f(28,16,109,2,'do_softirq')
-f(29,16,109,2,'do_softirq_own_stack')
-f(30,16,109,2,'asm_call_sysvec_on_stack')
-f(31,16,109,2,'__softirqentry_text_start')
-f(32,16,109,2,'net_rx_action')
-f(33,16,109,2,'process_backlog')
-f(34,16,109,2,'__netif_receive_skb_one_core')
-f(35,16,109,2,'ip_local_deliver_finish')
-f(36,16,109,2,'ip_protocol_deliver_rcu')
-f(37,16,109,2,'tcp_v4_rcv')
-f(38,16,109,2,'tcp_v4_do_rcv')
-f(39,16,109,2,'tcp_rcv_established')
-f(40,16,108,2,'sock_def_readable')
-f(41,16,108,2,'__wake_up_common_lock')
-f(42,16,108,2,'_raw_spin_unlock_irqrestore')
-f(40,124,1,2,'tcp_ack')
-f(41,124,1,2,'tcp_rack_advance')
-f(22,125,1,2,'sk_stream_alloc_skb')
-f(19,126,1,2,'sockfd_lookup_light')
-f(20,126,1,2,'__fget_light')
-f(21,126,1,2,'__fget_files')
-f(8,127,2,0,'ru/mail/polis/service/lucas_mbele/HttpRestService.entity')
-f(9,127,2,0,'ru/mail/polis/service/lucas_mbele/HttpRestService.put')
-f(10,127,2,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO.upsert')
-f(11,127,2,0,'java/util/concurrent/ConcurrentSkipListMap.put')
-f(12,127,2,0,'java/util/concurrent/ConcurrentSkipListMap.doPut')
-f(13,127,1,2,'asm_sysvec_call_function_single')
-f(14,127,1,2,'irqentry_exit_to_user_mode')
-f(15,127,1,2,'exit_to_user_mode_prepare')
-f(16,127,1,2,'schedule')
-f(17,127,1,2,'__schedule')
-f(18,127,1,2,'finish_task_switch')
-f(13,128,1,0,'java/util/concurrent/ConcurrentSkipListMap.cpr')
-f(14,128,1,0,'java/nio/ByteBuffer.compareTo')
-f(15,128,1,0,'java/nio/ByteBuffer.compareTo')
-f(16,128,1,0,'java/nio/BufferMismatch.mismatch')
-f(7,129,1,0,'one/nio/http/PathMapper.find')
-f(8,129,1,0,'java/util/HashMap.get')
-f(9,129,1,0,'java/util/HashMap.getNode')
-f(10,129,1,0,'java/lang/String.equals')
-f(4,130,7,0,'one/nio/net/Session.read')
-f(5,130,7,0,'one/nio/net/NativeSocket.read')
-f(6,133,1,4,'Java_one_nio_net_NativeSocket_read')
-f(7,133,1,3,'AccessInternal::PostRuntimeDispatch<G1BarrierSet::AccessBarrier<1097844ul, G1BarrierSet>, (AccessInternal::BarrierType)2, 1097844ul>::oop_access_barrier(void*)')
-f(6,134,1,4,'jni_SetByteArrayRegion')
-f(6,135,2,4,'recv')
-f(7,136,1,2,'entry_SYSCALL_64_after_hwframe')
-f(8,136,1,2,'do_syscall_64')
-f(9,136,1,2,'__x64_sys_recvfrom')
-f(10,136,1,2,'__sys_recvfrom')
-f(11,136,1,2,'inet6_recvmsg')
-f(12,136,1,2,'tcp_recvmsg')
+f(0,0,15470,4,'all')
+f(1,0,48,0,'java/lang/Thread.run')
+f(2,0,48,0,'java/util/concurrent/ThreadPoolExecutor$Worker.run')
+f(3,0,48,0,'java/util/concurrent/ThreadPoolExecutor.runWorker')
+f(4,0,48,0,'ru/mail/polis/service/lucas_mbele/HttpRestService$$Lambda$65/123093323.run')
+f(5,0,48,0,'ru/mail/polis/service/lucas_mbele/HttpRestService.lambda$handleRequest$0')
+f(6,0,48,0,'one/nio/http/HttpSession.sendResponse')
+f(7,0,48,1,'one.nio.http.HttpSession')
+f(1,48,15422,0,'one/nio/server/SelectorThread.run')
+f(2,48,15422,0,'one/nio/net/Session.process')
+f(3,48,15422,1,'one.nio.http.HttpSession')
 render();
 </script></body></html>

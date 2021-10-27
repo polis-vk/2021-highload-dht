@@ -17,10 +17,10 @@
 </style>
 </head>
 <body style='font: 12px Verdana, sans-serif'>
-<h1>Flame Graph</h1>
+<h1>Lock profile</h1>
 <header style='text-align: left'><button id='reverse' title='Reverse'>&#x1f53b;</button>&nbsp;&nbsp;<button id='search' title='Search'>&#x1f50d;</button></header>
 <header style='text-align: right'>Produced by <a href='https://github.com/jvm-profiling-tools/async-profiler'>async-profiler</a></header>
-<canvas id='canvas' style='width: 100%; height: 240px'></canvas>
+<canvas id='canvas' style='width: 100%; height: 16px'></canvas>
 <div id='hl'><span></span></div>
 <p id='match'>Matched: <span id='matchval'></span> <span id='reset' title='Clear'>&#x274c;</span></p>
 <p id='status'>&nbsp;</p>
@@ -30,7 +30,7 @@
 	'use strict';
 	var root, rootLevel, px, pattern;
 	var reverse = false;
-	const levels = Array(15);
+	const levels = Array(1);
 	for (let h = 0; h < levels.length; h++) {
 		levels[h] = [];
 	}
@@ -128,12 +128,12 @@
 		function totalMarked() {
 			let total = 0;
 			let left = 0;
-			for (let x in marked) {
+			Object.keys(marked).sort(function(a, b) { return a - b; }).forEach(function(x) {
 				if (+x >= left) {
 					total += marked[x];
 					left = +x + marked[x];
 				}
-			}
+			});
 			return total;
 		}
 
@@ -221,75 +221,6 @@
 			search(false);
 		}
 	}
-f(0,0,84,4,'all')
-f(1,0,84,0,'one/nio/server/SelectorThread.run')
-f(2,0,84,0,'one/nio/net/Session.process')
-f(3,0,84,0,'one/nio/http/HttpSession.processRead')
-f(4,0,84,0,'one/nio/http/HttpSession.processHttpBuffer')
-f(5,0,40,0,'one/nio/http/HttpSession.handleParsedRequest')
-f(6,0,40,0,'one/nio/http/HttpServer.handleRequest')
-f(7,0,40,0,'RequestHandler1_entity.handleRequest')
-f(8,0,7,0,'one/nio/http/HttpSession.sendResponse')
-f(9,0,7,0,'one/nio/http/HttpSession.writeResponse')
-f(10,0,5,0,'one/nio/http/Response.toBytes')
-f(11,0,5,0,'one/nio/util/ByteArrayBuilder.<init>')
-f(12,0,5,1,'byte[]')
-f(10,5,2,0,'one/nio/net/Session.write')
-f(11,5,2,1,'one.nio.net.Session$ArrayQueueItem')
-f(8,7,4,0,'one/nio/http/Request.getRequiredParameter')
-f(9,7,4,0,'one/nio/http/Request.getParameter')
-f(10,7,4,0,'java/lang/String.substring')
-f(11,7,4,0,'java/lang/StringLatin1.newString')
-f(12,7,4,1,'java.lang.String')
-f(8,11,29,0,'ru/mail/polis/service/lucas_mbele/HttpRestService.entity')
-f(9,11,29,0,'ru/mail/polis/service/lucas_mbele/HttpRestService.put')
-f(10,11,5,0,'java/lang/String.getBytes')
-f(11,11,5,0,'java/lang/StringCoding.encode')
-f(12,11,5,0,'java/lang/StringCoding.encodeUTF8')
-f(13,11,5,0,'java/util/Arrays.copyOf')
-f(14,11,5,1,'byte[]')
-f(10,16,5,1,'one.nio.http.Response')
-f(10,21,4,0,'one/nio/http/Response.<init>')
-f(11,21,1,1,'java.lang.String[]')
-f(11,22,3,1,'java.lang.String')
-f(10,25,13,0,'ru/mail/polis/lsm/Record.of')
-f(11,25,2,1,'ru.mail.polis.lsm.Record')
-f(11,27,11,0,'ru/mail/polis/lsm/Record.<init>')
-f(12,27,11,0,'java/nio/HeapByteBufferR.asReadOnlyBuffer')
-f(13,27,11,0,'java/nio/HeapByteBufferR.duplicate')
-f(14,27,11,1,'java.nio.HeapByteBufferR')
-f(10,38,2,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO.upsert')
-f(11,38,2,0,'ru/mail/polis/lsm/Record.getKey')
-f(12,38,2,0,'java/nio/HeapByteBufferR.asReadOnlyBuffer')
-f(13,38,2,0,'java/nio/HeapByteBufferR.duplicate')
-f(14,38,2,1,'java.nio.HeapByteBufferR')
-f(5,40,21,0,'one/nio/http/HttpSession.parseRequest')
-f(6,40,4,1,'one.nio.http.Request')
-f(6,44,9,0,'one/nio/http/Request.<init>')
-f(7,44,9,1,'java.lang.String[]')
-f(6,53,8,0,'one/nio/util/Utf8.read')
-f(7,53,8,0,'one/nio/util/Utf8.read')
-f(8,53,3,1,'char[]')
-f(8,56,3,1,'java.lang.String')
-f(8,59,2,0,'java/lang/String.<init>')
-f(9,59,2,0,'java/lang/String.<init>')
-f(10,59,2,0,'java/lang/StringUTF16.compress')
-f(11,59,2,1,'byte[]')
-f(5,61,4,0,'one/nio/http/HttpSession.startParsingRequestBody')
-f(6,61,4,1,'byte[]')
-f(5,65,3,0,'one/nio/http/Request.getHeader')
-f(6,65,3,0,'one/nio/http/Request.trim')
-f(7,65,3,0,'java/lang/String.substring')
-f(8,65,3,0,'java/lang/StringLatin1.newString')
-f(9,65,2,1,'java.lang.String')
-f(9,67,1,0,'java/util/Arrays.copyOfRange')
-f(10,67,1,1,'byte[]')
-f(5,68,16,0,'one/nio/util/Utf8.read')
-f(6,68,16,0,'one/nio/util/Utf8.read')
-f(7,68,10,1,'char[]')
-f(7,78,6,0,'java/lang/String.<init>')
-f(8,78,6,0,'java/lang/String.<init>')
-f(9,78,6,0,'java/lang/StringUTF16.compress')
-f(10,78,6,1,'byte[]')
+f(0,0,0,4,'all')
 render();
 </script></body></html>
