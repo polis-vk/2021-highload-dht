@@ -8,9 +8,12 @@ import one.nio.http.Response;
 import one.nio.server.AcceptorConfig;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.service.Service;
+import ru.mail.polis.service.sachuk.ilya.sharding.NodeManager;
+import ru.mail.polis.service.sachuk.ilya.sharding.VNodeConfig;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Set;
 
 public class ServiceImpl extends HttpServer implements Service {
     private static final String ENTITY_PATH = "/v0/entity";
@@ -20,11 +23,16 @@ public class ServiceImpl extends HttpServer implements Service {
     private final RequestPoolExecutor requestPoolExecutor = new RequestPoolExecutor(
             new ExecutorConfig(16, 1000)
     );
+    private final NodeManager nodeManager;
+    private final Set<String> topology;
 
-    public ServiceImpl(int port, DAO dao) throws IOException {
+    public ServiceImpl(int port, DAO dao, Set<String> topology) throws IOException {
         super(configFrom(port));
 
         this.entityRequestHandler = new EntityRequestHandler(dao);
+        this.topology = topology;
+        this.nodeManager = NodeManager.getInstance(topology, new VNodeConfig());
+        //TODO add node to manager
     }
 
     private static HttpServerConfig configFrom(int port) {
