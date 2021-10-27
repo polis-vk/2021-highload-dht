@@ -24,10 +24,6 @@ import java.util.stream.Stream;
 
 public class SSTable implements Closeable {
 
-    public static final String SSTABLE_FILE_PREFIX = "file_";
-    public static final String COMPACTION_FILE_NAME = "compaction";
-    public static final int MAX_BUFFER_SIZE = 4096;
-
     private static final Method CLEAN;
 
     static {
@@ -51,13 +47,13 @@ public class SSTable implements Closeable {
     }
 
     public static List<SSTable> loadFromDir(Path dir) throws IOException {
-        Path compaction = dir.resolve(COMPACTION_FILE_NAME);
+        Path compaction = dir.resolve(SSTableHelper.COMPACTION_FILE_NAME);
         if (Files.exists(compaction)) {
             finishCompaction(dir);
         }
         List<SSTable> result = new ArrayList<>();
         for (int i = 0; ; i++) {
-            Path file = dir.resolve(SSTABLE_FILE_PREFIX + i);
+            Path file = dir.resolve(SSTableHelper.SSTABLE_FILE_PREFIX + i);
             if (!Files.exists(file)) {
                 return result;
             }
@@ -80,7 +76,7 @@ public class SSTable implements Closeable {
                 FileChannel fileChannel = openForWrite(tmpFileName);
                 FileChannel indexChannel = openForWrite(tmpIndexName)
         ) {
-            ByteBuffer size = ByteBuffer.allocate(Integer.BYTES + MAX_BUFFER_SIZE);
+            ByteBuffer size = ByteBuffer.allocate(Integer.BYTES + SSTableHelper.MAX_BUFFER_SIZE);
             while (records.hasNext()) {
                 long position = fileChannel.position();
                 if (position > Integer.MAX_VALUE) {
@@ -110,14 +106,14 @@ public class SSTable implements Closeable {
         writeImpl(records, compaction);
 
         for (int i = 0; ; i++) {
-            Path file = dir.resolve(SSTABLE_FILE_PREFIX + i);
+            Path file = dir.resolve(SSTableHelper.SSTABLE_FILE_PREFIX + i);
             if (!Files.deleteIfExists(file)) {
                 break;
             }
             Files.deleteIfExists(getIndexFile(file));
         }
 
-        Path file0 = dir.resolve(SSTABLE_FILE_PREFIX + 0);
+        Path file0 = dir.resolve(SSTableHelper.SSTABLE_FILE_PREFIX + 0);
         if (Files.exists(getIndexFile(compaction))) {
             Files.move(getIndexFile(compaction), getIndexFile(file0), StandardCopyOption.ATOMIC_MOVE);
         }
@@ -127,7 +123,7 @@ public class SSTable implements Closeable {
 
     private static void finishCompaction(Path dir) throws IOException {
         try (Stream<Path> files = Files.list(dir)) {
-            files.filter(file -> file.getFileName().startsWith(SSTABLE_FILE_PREFIX))
+            files.filter(file -> file.getFileName().startsWith(SSTableHelper.SSTABLE_FILE_PREFIX))
                     .forEach(path -> {
                         try {
                             Files.delete(path);
@@ -137,20 +133,14 @@ public class SSTable implements Closeable {
                     });
         }
 
-        Path compaction = dir.resolve(COMPACTION_FILE_NAME);
+        Path compaction = dir.resolve(SSTableHelper.COMPACTION_FILE_NAME);
 
-        Path file0 = dir.resolve(SSTABLE_FILE_PREFIX + 0);
+        Path file0 = dir.resolve(SSTableHelper.SSTABLE_FILE_PREFIX + 0);
         if (Files.exists(getIndexFile(compaction))) {
             Files.move(getIndexFile(compaction), getIndexFile(file0), StandardCopyOption.ATOMIC_MOVE);
         }
 
         Files.move(compaction, file0, StandardCopyOption.ATOMIC_MOVE);
-    }
-
-    public static int sizeOf(Record record) {
-        int keySize = Integer.BYTES + record.getKeySize();
-        int valueSize = Integer.BYTES + record.getValueSize();
-        return keySize + valueSize;
     }
 
     private static Path resolveWithExt(Path file, String ext) {

@@ -144,7 +144,7 @@ public class LsmDAO implements DAO {
 
     private SSTable flushAll(Storage storage) throws IOException {
         Path dir = config.dir;
-        Path file = dir.resolve(SSTable.SSTABLE_FILE_PREFIX + storage.ssTables.size());
+        Path file = dir.resolve(SSTableHelper.SSTABLE_FILE_PREFIX + storage.ssTables.size());
 
         return SSTable.write(storage.flushIterator(), file);
     }

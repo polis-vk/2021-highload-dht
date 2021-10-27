@@ -20,7 +20,7 @@ public class MemTable {
     }
 
     private int size(@Nullable Record record) {
-        return record == null ? 0 : SSTable.sizeOf(record);
+        return record == null ? 0 : SSTableHelper.sizeOf(record);
     }
 
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
