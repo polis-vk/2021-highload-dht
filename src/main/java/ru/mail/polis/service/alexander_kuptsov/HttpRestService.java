@@ -43,7 +43,6 @@ public class HttpRestService extends HttpServer implements Service {
         public static final String STATUS = "/v0/status";
         public static final String ENTITY = "/v0/entity";
 
-
         private RequestPath() {
         }
     }
@@ -53,7 +52,6 @@ public class HttpRestService extends HttpServer implements Service {
 
         private RequestParameters() {
         }
-
     }
 
     public HttpRestService(final int port, Set<String> topology, DAO dao) throws IOException {
