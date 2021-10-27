@@ -16,6 +16,8 @@ public class StartService implements Service {
     private final DAO dao;
     private HttpServer server;
     private static final Logger LOG = LoggerFactory.getLogger(StartService.class);
+    private final int availableProcessors;
+    private final int queueSize;
 
     /**
      * Service configuration.
@@ -23,7 +25,7 @@ public class StartService implements Service {
      * @param port - which port should be listened
      * @param dao - database
      */
-    public StartService(final int port, final DAO dao) {
+    public StartService(final int port, final DAO dao, final int availableProcessors, final int queueSize) {
         final AcceptorConfig acceptorConfig = new AcceptorConfig();
         acceptorConfig.port = port;
         acceptorConfig.reusePort = true;
@@ -31,12 +33,14 @@ public class StartService implements Service {
         this.dao = dao;
         this.config = new HttpServerConfig();
         this.config.acceptors = new AcceptorConfig[]{acceptorConfig};
+        this.availableProcessors = availableProcessors;
+        this.queueSize = queueSize;
     }
 
     @Override
     public void start() {
         try {
-            this.server = new MyService(config, dao);
+            this.server = new MyService(config, dao, availableProcessors, queueSize);
             this.server.start();
         } catch (IOException e) {
             LOG.error("Can't start server");

@@ -1,5 +1,6 @@
 package ru.mail.polis.service.kuzoliza;
 
+import com.google.common.util.concurrent.ThreadFactoryBuilder;
 import one.nio.http.HttpServer;
 import one.nio.http.HttpServerConfig;
 import one.nio.http.HttpSession;
@@ -17,22 +18,52 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
-import java.util.NoSuchElementException;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.RejectedExecutionException;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 
 public class MyService extends HttpServer {
 
     private final DAO dao;
     private static final Logger LOG = LoggerFactory.getLogger(MyService.class);
+    private final ExecutorService executor;
 
-    MyService(final HttpServerConfig config, final DAO dao) throws IOException {
+    MyService(final HttpServerConfig config, final DAO dao, final int workers, final int queue) throws IOException {
         super(config);
         this.dao = dao;
+        assert workers > 0;
+        assert queue > 0;
+        executor = new ThreadPoolExecutor(workers, queue, 0L, TimeUnit.MILLISECONDS,
+                new ArrayBlockingQueue<>(queue),
+                new ThreadFactoryBuilder()
+                        .setNameFormat("worker_%d")
+                        .setUncaughtExceptionHandler((t, e) -> LOG.error("Error processing request {}", t, e))
+                        .build(),
+                new ThreadPoolExecutor.AbortPolicy()
+        );
     }
 
     @Path("/v0/status")
     @RequestMethod(Request.METHOD_GET)
-    public Response status() {
-        return Response.ok("OK");
+    public void status(final HttpSession session) {
+        try {
+            executor.execute(() -> {
+                try {
+                    session.sendResponse(Response.ok("OK"));
+                } catch (IOException e) {
+                    LOG.error("Can't send OK response", e);
+               }
+            });
+        } catch (Exception e) {
+            LOG.error("Execution error", e);
+            try {
+                session.sendResponse(new Response(Response.SERVICE_UNAVAILABLE));
+            } catch (IOException ex) {
+                LOG.error("Can't send 500 response", ex);
+            }
+        }
     }
 
     /**
@@ -41,7 +72,7 @@ public class MyService extends HttpServer {
      * @param id - key
      * @param request - body of request
      *
-     * @return - code 200 - "success" - successfully got data
+     *           code 200 - "success" - successfully got data
      *           code 201 - "created" - successful respond to put request
      *           code 202 - "accepted" - successfully deleted data
      *           code 400 - "bad request" - syntax error (id is empty)
@@ -50,42 +81,82 @@ public class MyService extends HttpServer {
      *           code 500 - "internal error" - server is not responding
      */
     @Path("/v0/entity")
-    public Response entity(final @Param(value = "id", required = true) String id, final Request request) {
-        if (id.isEmpty()) {
-            return new Response(Response.BAD_REQUEST, Response.EMPTY);
-        }
+    public void entity(final @Param(value = "id", required = true) String id, final Request request,
+                       final HttpSession session) throws RejectedExecutionException {
+        executor.execute(() -> {
+            if (id.isEmpty()) {
+                try {
+                    session.sendResponse(new Response(Response.BAD_REQUEST, Response.EMPTY));
+                } catch (IOException e) {
+                    LOG.error("Can't send bad response", e);
+                }
+            }
+            final ByteBuffer key = ByteBuffer.wrap(id.getBytes(StandardCharsets.UTF_8));
+            response(key, request, session);
+        });
+    }
 
-        final ByteBuffer key = ByteBuffer.wrap(id.getBytes(StandardCharsets.UTF_8));
-        try {
-            return response(key, request);
-        } catch (IOException e) {
-            LOG.error("Can't process response {}", id, e);
-            return new Response(Response.INTERNAL_ERROR, Response.EMPTY);
+    private void response(final ByteBuffer key, final Request request, final HttpSession session) {
+        switch (request.getMethod()) {
+            case Request.METHOD_GET:
+                getResponse(key, session);
+                break;
+
+            case Request.METHOD_PUT:
+                putResponse(key, request, session);
+                break;
+
+            case Request.METHOD_DELETE:
+                deleteResponse(key, session);
+                break;
+
+            default:
+                try {
+                    session.sendResponse(new Response(Response.METHOD_NOT_ALLOWED, Response.EMPTY));
+                } catch (IOException e) {
+                    LOG.error("Can't send 405 response", e);
+                }
+                break;
         }
     }
 
-    private Response response(final ByteBuffer key, final Request request) throws IOException {
-        switch (request.getMethod()) {
-            case Request.METHOD_GET:
-                try {
-                    final Iterator<Record> range = dao.range(key, DAO.nextKey(key));
-                    final ByteBuffer value = range.next().getValue();
-                    return Response.ok(toByteArray(value));
-                } catch (NoSuchElementException e) {
-                    LOG.debug("Can't find resource {}", key, e);
-                    return new Response(Response.NOT_FOUND, Response.EMPTY);
-                }
+    private void getResponse(final ByteBuffer key, final HttpSession session) {
+        final Iterator<Record> range = dao.range(key, DAO.nextKey(key));
+        if (range.hasNext()) {
+            final ByteBuffer value = range.next().getValue();
+            sendOKResponse(value, session);
+        } else {
+            try {
+                session.sendResponse(new Response(Response.NOT_FOUND, Response.EMPTY));
+            } catch (IOException e) {
+                LOG.error("Can't send 404 response", e);
+            }
+        }
+    }
 
-            case Request.METHOD_PUT:
-                dao.upsert(Record.of(key, ByteBuffer.wrap(request.getBody())));
-                return new Response(Response.CREATED, Response.EMPTY);
+    private void sendOKResponse(final ByteBuffer value, final HttpSession session) {
+        try {
+            session.sendResponse(Response.ok(toByteArray(value)));
+        } catch (IOException e) {
+            LOG.error("Can't send OK response", e);
+        }
+    }
 
-            case Request.METHOD_DELETE:
-                dao.upsert(Record.tombstone(key));
-                return new Response(Response.ACCEPTED, Response.EMPTY);
+    private void putResponse(final ByteBuffer key, final Request request, final HttpSession session) {
+        dao.upsert(Record.of(key, ByteBuffer.wrap(request.getBody())));
+        try {
+            session.sendResponse(new Response(Response.CREATED, Response.EMPTY));
+        } catch (IOException e) {
+            LOG.error("Can't send 201 response", e);
+        }
+    }
 
-            default:
-                return new Response(Response.METHOD_NOT_ALLOWED, Response.EMPTY);
+    private void deleteResponse(final ByteBuffer key, final HttpSession session) {
+        dao.upsert(Record.tombstone(key));
+        try {
+            session.sendResponse(new Response(Response.ACCEPTED, Response.EMPTY));
+        } catch (IOException e) {
+            LOG.error("Can't send 202 response", e);
         }
     }
 
@@ -101,7 +172,26 @@ public class MyService extends HttpServer {
 
     @Override
     public void handleDefault(final Request request, final HttpSession session) throws IOException {
-        session.sendResponse(new Response(Response.BAD_REQUEST, Response.EMPTY));
+        try {
+            session.sendResponse(new Response(Response.BAD_REQUEST, Response.EMPTY));
+        } catch (IOException e) {
+            LOG.error("Can't send bad response", e);
+        }
+    }
+
+    @Override
+    public synchronized void stop() {
+        super.stop();
+        executor.shutdown();
+        try {
+            if (!executor.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS)) {
+                throw new IllegalStateException("Can't await for termination");
+            }
+        } catch (InterruptedException e) {
+            LOG.error("Can't shutdown executor", e);
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(e);
+        }
     }
 
 }

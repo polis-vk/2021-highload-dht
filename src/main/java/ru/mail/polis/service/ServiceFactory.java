@@ -54,6 +54,6 @@ public final class ServiceFactory {
 
         Objects.requireNonNull(dao);
 
-        return new StartService(port, dao);
+        return new StartService(port, dao, Runtime.getRuntime().availableProcessors(), 1024);
     }
 }

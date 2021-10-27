@@ -30,6 +30,8 @@ dependencies {
     // Our beloved one-nio
     implementation 'ru.odnoklassniki:one-nio:1.4.0'
 
+    implementation 'com.google.guava:guava:31.0.1-jre'
+
     // JUnit Jupiter test framework
     testImplementation 'org.junit.jupiter:junit-jupiter-api:5.7.0'
     testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.7.0'
