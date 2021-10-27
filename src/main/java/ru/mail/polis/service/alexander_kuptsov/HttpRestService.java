@@ -31,29 +31,30 @@ public class HttpRestService extends HttpServer implements Service {
             new LinkedBlockingQueue<>(QUEUE_CAPACITY)
     );
 
+    private static final int[] ALLOWED_REQUEST_METHODS = new int[] {
+            Request.METHOD_GET,
+            Request.METHOD_PUT,
+            Request.METHOD_DELETE
+    };
+
     private final RequestHandler requestHandler;
 
     private static final class RequestPath {
         public static final String STATUS = "/v0/status";
         public static final String ENTITY = "/v0/entity";
 
+
         private RequestPath() {
         }
     }
-
     private static final class RequestParameters {
         public static final String ID = "id";
         public static final String EMPTY_ID = "=";
 
         private RequestParameters() {
         }
-    }
 
-    private static final int[] ALLOWED_REQUEST_METHODS = new int[] {
-            Request.METHOD_GET,
-            Request.METHOD_PUT,
-            Request.METHOD_DELETE
-    };
+    }
 
     public HttpRestService(final int port, Set<String> topology, DAO dao) throws IOException {
         super(HttpServiceUtils.createConfigByPort(port));

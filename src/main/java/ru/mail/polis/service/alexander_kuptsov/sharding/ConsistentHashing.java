@@ -40,7 +40,7 @@ public class ConsistentHashing {
         for (String server : topology) {
             for (int i = 0; i < virtualNodesCount; i++) {
                 Node node = new Node(server, i);
-                int hash = hashAlgorithm.getHash(node.GetVirtualName());
+                int hash = hashAlgorithm.getHash(node.getVirtualName());
                 virtualNodes.put(hash, node);
             }
         }
@@ -60,7 +60,7 @@ public class ConsistentHashing {
         }
 
         if (virtualNode != null) {
-            return virtualNode.GetServerName();
+            return virtualNode.getServerName();
         }
         return null;
     }
@@ -76,11 +76,11 @@ public class ConsistentHashing {
             this.virtualName = server + VIRTUAL_TOKEN + virtualIndex;
         }
 
-        public String GetVirtualName() {
+        public String getVirtualName() {
             return virtualName;
         }
 
-        public String GetServerName() {
+        public String getServerName() {
             return server;
         }
     }

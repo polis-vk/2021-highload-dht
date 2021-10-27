@@ -2,7 +2,7 @@ package ru.mail.polis.service.alexander_kuptsov.sharding;
 
 import one.nio.http.HttpClient;
 import one.nio.net.ConnectionString;
-import ru.mail.polis.service.alexander_kuptsov.sharding.hash.FNV1_32_HASH;
+import ru.mail.polis.service.alexander_kuptsov.sharding.hash.Fnv1Hash32;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -14,7 +14,7 @@ public class ClusterNodeHandler {
     private String selfNode;
 
     public ClusterNodeHandler(Set<String> topology, final int selfPort) {
-        this.consistentHashing = ConsistentHashing.createByTopology(topology, new FNV1_32_HASH());
+        this.consistentHashing = ConsistentHashing.createByTopology(topology, new Fnv1Hash32());
         this.servers = new HashMap<>(topology.size());
         createByTopology(topology, selfPort);
     }
