@@ -34,18 +34,21 @@ public class HttpServerImpl extends HttpServer implements Service {
     private final Cluster.Node node;
     private final HashRouter<Cluster.Node> router;
     private final ServiceExecutor workers;
+    private final ServiceExecutor proxies;
 
     private final PathMapper pathMapper;
     private final RequestHandler statusHandler;
 
     public HttpServerImpl(
-            DAO dao, Cluster.Node node, HashRouter<Cluster.Node> router, ServiceExecutor workers
+            DAO dao, Cluster.Node node,
+            HashRouter<Cluster.Node> router, ServiceExecutor workers, ServiceExecutor proxies
     ) throws IOException {
         super(buildHttpServerConfig(node.port));
         this.dao = dao;
         this.node = node;
         this.router = router;
         this.workers = workers;
+        this.proxies = proxies;
 
         pathMapper = new PathMapper();
         statusHandler = new StatusRequestHandler(node, router);
@@ -85,11 +88,13 @@ public class HttpServerImpl extends HttpServer implements Service {
         if (requestHandler == statusHandler) {
             workers.run(session, this::exceptionHandler, () -> requestHandler.handleRequest(request, session));
         } else if (requestHandler != null) {
-            Response redirected = requestHandler.checkAndRedirect(request);
-            if (redirected != null) {
-                sendResponse(redirected, session);
+            Cluster.Node target = requestHandler.getTarget(request);
+            if (target == null) {
+                workers.execute(session, this::exceptionHandler, () ->
+                        requestHandler.handleRequest(request, session));
             } else {
-                workers.execute(session, this::exceptionHandler, () -> requestHandler.handleRequest(request, session));
+                proxies.execute(session, this::exceptionHandler, () ->
+                        requestHandler.redirect(target, request, session));
             }
         } else {
             handleDefault(request, session);
@@ -115,7 +120,7 @@ public class HttpServerImpl extends HttpServer implements Service {
     }
 
     private void sendError(String description, String httpCode, HttpSession session, Exception e) {
-        LOG.debug("Error: {}", description, e); // Влияет на результаты профилирования
+        // LOG.debug("Error: {}", description, e); // Влияет на результаты профилирования
         try {
             String code = httpCode == null ? Response.INTERNAL_ERROR : httpCode;
             session.sendError(code, description);

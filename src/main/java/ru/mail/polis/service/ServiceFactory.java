@@ -41,12 +41,16 @@ import java.util.Set;
 public final class ServiceFactory {
     /** Максимальный размер кучи. */
     private static final long MAX_HEAP = 512 * 1024 * 1024;
+
     /** Число рабочих потоков. */
     private static final int WORKERS_NUMBER = Runtime.getRuntime().availableProcessors();
     /** Лимит очереди запросов, после превышения которого последующие будут отвергнуты. */
     private static final int TASKS_LIMIT = WORKERS_NUMBER * 2;
-    /** Число активных соединений на каждый узел кластера для обработки прокси запросов. */
-    private static final int NODE_CONNECTIONS = Runtime.getRuntime().availableProcessors();
+
+    /** Число активных соединений на каждый узел кластера для обработки прокси-запросов. */
+    private static final int PROXY_CONNECTIONS = Runtime.getRuntime().availableProcessors();
+    /** Лимит очереди на выполнение прокси-запросов, после превышения которого последующие будут отвергнуты. */
+    private static final int PROXY_LIMIT = PROXY_CONNECTIONS * 2;
 
     private ServiceFactory() {
         // Not supposed to be instantiated
@@ -81,9 +85,11 @@ public final class ServiceFactory {
         Collection<Cluster.Node> clusterNodes = buildClusterNodes(topology);
         Cluster.Node currentNode = findClusterNode(port, clusterNodes);
 
+        ServiceExecutor workers = new LimitedServiceExecutor("worker", WORKERS_NUMBER, TASKS_LIMIT);
+        ServiceExecutor proxies = new LimitedServiceExecutor("proxy", PROXY_CONNECTIONS, PROXY_LIMIT);
         HashRouter<Cluster.Node> hashRouter = new ConsistentHashRouter<>(clusterNodes, 30);
-        ServiceExecutor executor = new LimitedServiceExecutor("worker", WORKERS_NUMBER, TASKS_LIMIT);
-        return new HttpServerImpl(dao, currentNode, hashRouter, executor);
+
+        return new HttpServerImpl(dao, currentNode, hashRouter, workers, proxies);
     }
 
     private static Collection<Cluster.Node> buildClusterNodes(Set<String> topologyRaw) {
@@ -101,7 +107,7 @@ public final class ServiceFactory {
     }
 
     private static HttpClient buildHttpClient(String protocol, String ip, int port) {
-        String uri = protocol + "://" + ip + ":" + port + "?clientMaxPoolSize=" + NODE_CONNECTIONS;
+        String uri = protocol + "://" + ip + ":" + port + "?clientMaxPoolSize=" + PROXY_CONNECTIONS;
         ConnectionString connectionString = new ConnectionString(uri);
         return new HttpClient(connectionString);
     }
