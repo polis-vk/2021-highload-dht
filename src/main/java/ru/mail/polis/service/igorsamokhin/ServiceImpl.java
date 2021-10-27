@@ -34,8 +34,8 @@ public class ServiceImpl extends HttpServer implements Service {
     private final Logger logger = LoggerFactory.getLogger(ServiceImpl.class);
 
     public static final String BAD_ID_RESPONSE = "Bad id";
-    public static final int CAPACITY = 128;
-    public static final int MAXIMUM_POOL_SIZE = 4;
+    public static final int CAPACITY = 4;
+    public static final int MAXIMUM_POOL_SIZE = 8;
     public static final int CORE_POOL_SIZE = 4;
     public static final int KEEP_ALIVE_TIME_MINUTES = 10;
 
@@ -65,7 +65,7 @@ public class ServiceImpl extends HttpServer implements Service {
                 this.id = i;
             }
             this.topology[i] = adr;
-            ConnectionString conn = new ConnectionString(adr);
+            ConnectionString conn = new ConnectionString(adr + "?timeout=100");
             HttpClient client = new HttpClient(conn);
             //client.setProxy(new HttpProxy(conn.getHost(), conn.getPort()));
             this.clients[i] = client;
@@ -85,7 +85,7 @@ public class ServiceImpl extends HttpServer implements Service {
 
     @Override
     public void handleRequest(Request request, HttpSession session) throws IOException {
-        logger.info("Handle Request: \n{}", request);
+        //logger.info("Handle Request: \n{}", request);
         if (!isWorking) {
             sendResponse(session, UtilResponses.serviceUnavailableResponse());
             return;
@@ -165,12 +165,12 @@ public class ServiceImpl extends HttpServer implements Service {
                 } else if (nodeId == this.id) {
                     response = handleEntity(request, id);
                 } else {
-                    logger.info("Forward from: {}, to node: {}\nRequest: {}, topology: {}", this.id, nodeId, request,
-                            topology);
+                    //logger.info("Forward from: {}, to node: {}\nRequest: {}, topology: {}", this.id, nodeId, request,
+                    // topology);
                     response = clients[nodeId].invoke(request);
                 }
             } catch (RuntimeException e) {
-                logger.info("Exception in entity handling. Service unavailable", e);
+                //logger.info("Exception in entity handling. Service unavailable", e);
                 response = UtilResponses.serviceUnavailableResponse();
             } catch (PoolException e) {
                 logger.error("Perhaps one of nodes in cluster is not responding\n Request:\n{} ", request, e);

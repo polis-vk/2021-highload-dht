@@ -61,6 +61,6 @@ public final class ServiceFactory {
             throw new IllegalArgumentException("Empty cluster");
         }
 
-        return new ServiceImpl(port,dao, topology);
+        return new ServiceImpl(port, dao, topology);
     }
 }
