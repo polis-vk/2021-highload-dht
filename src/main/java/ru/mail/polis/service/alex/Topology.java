@@ -1,4 +1,4 @@
-package ru.mail.polis.lsm.artem_drozdov;
+package ru.mail.polis.service.alex;
 
 import com.google.common.hash.HashFunction;
 import com.google.common.hash.Hashing;
