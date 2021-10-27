@@ -1,6 +1,7 @@
 package ru.mail.polis.service.kuzoliza;
 
 import com.google.common.util.concurrent.ThreadFactoryBuilder;
+import one.nio.http.HttpClient;
 import one.nio.http.HttpServer;
 import one.nio.http.HttpServerConfig;
 import one.nio.http.HttpSession;
@@ -9,6 +10,7 @@ import one.nio.http.Path;
 import one.nio.http.Request;
 import one.nio.http.RequestMethod;
 import one.nio.http.Response;
+import one.nio.net.ConnectionString;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.lsm.DAO;
@@ -17,7 +19,9 @@ import ru.mail.polis.lsm.Record;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.RejectedExecutionException;
@@ -29,10 +33,26 @@ public class MyService extends HttpServer {
     private final DAO dao;
     private static final Logger LOG = LoggerFactory.getLogger(MyService.class);
     private final ExecutorService executor;
+    private final Topology topology;
+    private final Map<String, HttpClient> nodeToClient;
 
-    MyService(final HttpServerConfig config, final DAO dao, final int workers, final int queue) throws IOException {
+    MyService(final HttpServerConfig config, final DAO dao, final int workers, final int queue,
+              final Topology topology) throws IOException {
         super(config);
         this.dao = dao;
+        this.topology = topology;
+        this.nodeToClient = new HashMap<>();
+
+        for (final String node : topology.all()) {
+            if (topology.isCurrentNode(node)) {
+                continue;
+            }
+            final HttpClient client = new HttpClient(new ConnectionString(node + "?timeout=1000"));
+            if (nodeToClient.put(node, client) != null) {
+                throw new IllegalStateException("Duplicate node");
+            }
+        }
+
         assert workers > 0;
         assert queue > 0;
         executor = new ThreadPoolExecutor(workers, queue, 0L, TimeUnit.MILLISECONDS,
@@ -90,9 +110,21 @@ public class MyService extends HttpServer {
                 } catch (IOException e) {
                     LOG.error("Can't send bad response", e);
                 }
+
+            } else {
+                final ByteBuffer key = ByteBuffer.wrap(id.getBytes(StandardCharsets.UTF_8));
+                final String node = topology.getNode(key);
+                if (topology.isCurrentNode(node)) {
+                    response(key, request, session);
+
+                } else {
+                    try {
+                        session.sendResponse(proxy(node, request));
+                    } catch (IOException e) {
+                        LOG.error("Can't proxy request", e);
+                    }
+                }
             }
-            final ByteBuffer key = ByteBuffer.wrap(id.getBytes(StandardCharsets.UTF_8));
-            response(key, request, session);
         });
     }
 
@@ -176,6 +208,15 @@ public class MyService extends HttpServer {
             session.sendResponse(new Response(Response.BAD_REQUEST, Response.EMPTY));
         } catch (IOException e) {
             LOG.error("Can't send bad response", e);
+        }
+    }
+
+    private Response proxy(final String node, final Request request) throws IOException {
+        try {
+            request.addHeader("Proxy-for: " + node);
+            return nodeToClient.get(node).invoke(request);
+        } catch (Exception e) {
+            return new Response(Response.INTERNAL_ERROR, Response.EMPTY);
         }
     }
 

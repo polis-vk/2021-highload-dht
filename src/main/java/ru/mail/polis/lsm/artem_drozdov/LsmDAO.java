@@ -124,10 +124,6 @@ public class LsmDAO implements DAO {
         this.storage.updateAndGet(current -> current.endCompact(storage.get().memTablesToFlush, result));
     }
 
-    private int sizeOf(Record record) {
-        return SSTable.sizeOf(record);
-    }
-
     @Override
     public void close() throws IOException {
         executor.shutdown();

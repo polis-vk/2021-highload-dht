@@ -18,6 +18,7 @@ public class StartService implements Service {
     private static final Logger LOG = LoggerFactory.getLogger(StartService.class);
     private final int availableProcessors;
     private final int queueSize;
+    private final Topology topology;
 
     /**
      * Service configuration.
@@ -25,7 +26,8 @@ public class StartService implements Service {
      * @param port - which port should be listened
      * @param dao - database
      */
-    public StartService(final int port, final DAO dao, final int availableProcessors, final int queueSize) {
+    public StartService(final int port, final DAO dao, final int availableProcessors, final int queueSize,
+                        final Topology topology) {
         final AcceptorConfig acceptorConfig = new AcceptorConfig();
         acceptorConfig.port = port;
         acceptorConfig.reusePort = true;
@@ -35,12 +37,13 @@ public class StartService implements Service {
         this.config.acceptors = new AcceptorConfig[]{acceptorConfig};
         this.availableProcessors = availableProcessors;
         this.queueSize = queueSize;
+        this.topology = topology;
     }
 
     @Override
     public void start() {
         try {
-            this.server = new MyService(config, dao, availableProcessors, queueSize);
+            this.server = new MyService(config, dao, availableProcessors, queueSize, topology);
             this.server.start();
         } catch (IOException e) {
             LOG.error("Can't start server");

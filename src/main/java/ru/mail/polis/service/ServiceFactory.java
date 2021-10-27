@@ -18,6 +18,7 @@ package ru.mail.polis.service;
 
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.service.kuzoliza.StartService;
+import ru.mail.polis.service.kuzoliza.Topology;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -61,6 +62,7 @@ public final class ServiceFactory {
             throw new IllegalArgumentException("Empty cluster");
         }
 
-        return new StartService(port, dao, Runtime.getRuntime().availableProcessors(), 1024);
+        final Topology newTopology = new Topology(topology, "http://localhost:" + port);
+        return new StartService(port, dao, Runtime.getRuntime().availableProcessors(), 1024, newTopology);
     }
 }
