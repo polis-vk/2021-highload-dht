@@ -85,7 +85,6 @@ public class ServiceImpl extends HttpServer implements Service {
 
     @Override
     public void handleRequest(Request request, HttpSession session) throws IOException {
-        //logger.info("Handle Request: \n{}", request);
         if (!isWorking) {
             sendResponse(session, UtilResponses.serviceUnavailableResponse());
             return;
@@ -165,12 +164,9 @@ public class ServiceImpl extends HttpServer implements Service {
                 } else if (nodeId == this.id) {
                     response = handleEntity(request, id);
                 } else {
-                    //logger.info("Forward from: {}, to node: {}\nRequest: {}, topology: {}", this.id, nodeId, request,
-                    // topology);
                     response = clients[nodeId].invoke(request);
                 }
             } catch (RuntimeException e) {
-                //logger.info("Exception in entity handling. Service unavailable", e);
                 response = UtilResponses.serviceUnavailableResponse();
             } catch (PoolException e) {
                 logger.error("Perhaps one of nodes in cluster is not responding\n Request:\n{} ", request, e);
