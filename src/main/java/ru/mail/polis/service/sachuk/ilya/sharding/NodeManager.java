@@ -17,13 +17,12 @@ public final class NodeManager {
 
     @SuppressWarnings("PMD")
     private static volatile NodeManager instance;
-    private final VNodeConfig vNodeConfig;
+    private final VNodeConfig vnodeConfig;
     private final NavigableMap<Integer, VNode> circle;
     private final SortedMap<String, HttpClient> clients;
 
-
     private NodeManager(Set<String> topology, VNodeConfig vNodeConfig) {
-        this.vNodeConfig = vNodeConfig;
+        this.vnodeConfig = vNodeConfig;
         circle = new TreeMap<>();
 
         clients = new TreeMap<>();
@@ -33,13 +32,11 @@ public final class NodeManager {
         }
     }
 
-    public static NodeManager getInstance(Set<String> topology, VNodeConfig vNodeConfig) {
+    public static NodeManager getInstance(Set<String> topology, VNodeConfig vnodeConfig) {
         if (instance == null) {
             synchronized (NodeManager.class) {
                 if (instance == null) {
-
-                    instance = new NodeManager(topology, vNodeConfig);
-                    return instance;
+                    instance = new NodeManager(topology, vnodeConfig);
                 }
             }
         }
@@ -49,7 +46,7 @@ public final class NodeManager {
 
     public void addNode(Node node) {
         logger.info("server with port in add node:" + node.port);
-        for (int i = 0; i < vNodeConfig.nodeWeight; i++) {
+        for (int i = 0; i < vnodeConfig.nodeWeight; i++) {
             int hashCode = Hash.murmur3(Node.HOST + node.port + i);
 
             circle.put(hashCode, new VNode(node));

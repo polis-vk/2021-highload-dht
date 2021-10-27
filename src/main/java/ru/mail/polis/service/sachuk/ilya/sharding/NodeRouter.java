@@ -31,12 +31,12 @@ public class NodeRouter {
         }
 
         logger.info("port is not equal and routed");
-        return routeToNode(vnode, request, key);
+        return routeToNode(vnode, request);
     }
 
-    public Response routeToNode(VNode vNode, Request request, String key) {
+    public Response routeToNode(VNode vnode, Request request) {
         String host = Node.HOST;
-        int port = vNode.getPhysicalNode().port;
+        int port = vnode.getPhysicalNode().port;
 
         HttpClient httpClient = nodeManager.getHttpClient(host + port);
 
