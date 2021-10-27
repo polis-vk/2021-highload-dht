@@ -1,6 +1,7 @@
 package ru.mail.polis.service.eldar_tim.handlers;
 
 import one.nio.http.HttpException;
+import one.nio.http.HttpSession;
 import one.nio.http.Request;
 import one.nio.http.RequestHandler;
 import one.nio.http.Response;
@@ -31,38 +32,43 @@ public abstract class RoutingRequestHandler implements RequestHandler {
     protected abstract String getRouteKey(Request request);
 
     /**
-     * Redirects the request to the host specified by the router.
+     * Detects the node to redirect request.
      *
      * @param request request to redirect
-     * @return null if you need to handle the request by yourself, otherwise redirected response
+     * @return null if the request must be handled by the current node, otherwise node to redirect
      */
-    public final Response checkAndRedirect(Request request) {
+    public final Cluster.Node getTargetNode(Request request) {
         String key = getRouteKey(request);
         if (key == null) {
             return null;
         }
 
         Cluster.Node target = router.route(key);
-        if (target == self) {
-            return null;
-        }
-
-        return redirect(target, request);
+        return target == self ? null : target;
     }
 
-    private Response redirect(Cluster.Node target, Request request) {
+    /**
+     * Redirects the request to the specified host.
+     *
+     * @param target target node to redirect request
+     * @param request request to redirect
+     * @param session session for the current connection
+     */
+    public final void redirect(Cluster.Node target, Request request, HttpSession session) throws IOException {
+        Response response;
         try {
-            return target.httpClient.invoke(request);
+            response = target.httpClient.invoke(request);
         } catch (InterruptedException e) {
             String errorText = "Proxy error: interrupted";
             LOG.debug(errorText, e);
+            response = new Response(Response.INTERNAL_ERROR, errorText.getBytes(StandardCharsets.UTF_8));
             Thread.currentThread().interrupt();
-            return new Response(Response.INTERNAL_ERROR, errorText.getBytes(StandardCharsets.UTF_8));
         } catch (PoolException | IOException | HttpException e) {
-            String errorText = "Proxy error";
+            String errorText = "Proxy error: " + e.getMessage();
             LOG.debug(errorText, e);
-            return new Response(Response.INTERNAL_ERROR, errorText.getBytes(StandardCharsets.UTF_8));
+            response = new Response(Response.INTERNAL_ERROR, errorText.getBytes(StandardCharsets.UTF_8));
         }
+        session.sendResponse(response);
     }
 
     protected final byte[] extractBytes(ByteBuffer buffer) {

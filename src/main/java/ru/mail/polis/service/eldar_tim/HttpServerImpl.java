@@ -14,8 +14,8 @@ import org.slf4j.LoggerFactory;
 import ru.mail.polis.Cluster;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.service.Service;
-import ru.mail.polis.service.eldar_tim.handlers.RoutingRequestHandler;
 import ru.mail.polis.service.eldar_tim.handlers.EntityRequestHandler;
+import ru.mail.polis.service.eldar_tim.handlers.RoutingRequestHandler;
 import ru.mail.polis.service.eldar_tim.handlers.StatusRequestHandler;
 import ru.mail.polis.service.exceptions.ServerRuntimeException;
 import ru.mail.polis.sharding.HashRouter;
@@ -34,18 +34,21 @@ public class HttpServerImpl extends HttpServer implements Service {
     private final Cluster.Node node;
     private final HashRouter<Cluster.Node> router;
     private final ServiceExecutor workers;
+    private final ServiceExecutor proxies;
 
     private final PathMapper pathMapper;
     private final RequestHandler statusHandler;
 
     public HttpServerImpl(
-            DAO dao, Cluster.Node node, HashRouter<Cluster.Node> router, ServiceExecutor workers
+            DAO dao, Cluster.Node node,
+            HashRouter<Cluster.Node> router, ServiceExecutor workers, ServiceExecutor proxies
     ) throws IOException {
         super(buildHttpServerConfig(node.port));
         this.dao = dao;
         this.node = node;
         this.router = router;
         this.workers = workers;
+        this.proxies = proxies;
 
         pathMapper = new PathMapper();
         statusHandler = new StatusRequestHandler(node, router);
@@ -85,11 +88,13 @@ public class HttpServerImpl extends HttpServer implements Service {
         if (requestHandler == statusHandler) {
             workers.run(session, this::exceptionHandler, () -> requestHandler.handleRequest(request, session));
         } else if (requestHandler != null) {
-            Response redirected = requestHandler.checkAndRedirect(request);
-            if (redirected != null) {
-                sendResponse(redirected, session);
+            Cluster.Node target = requestHandler.getTargetNode(request);
+            if (target == null) {
+                workers.execute(session, this::exceptionHandler, () ->
+                        requestHandler.handleRequest(request, session));
             } else {
-                workers.execute(session, this::exceptionHandler, () -> requestHandler.handleRequest(request, session));
+                proxies.execute(session, this::exceptionHandler, () ->
+                        requestHandler.redirect(target, request, session));
             }
         } else {
             handleDefault(request, session);

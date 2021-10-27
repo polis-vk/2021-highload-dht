@@ -37,8 +37,9 @@ public class ConsistentHashRouter<T extends Node> implements HashRouter<T> {
     @Override
     @SuppressWarnings("unchecked")
     public T route(@Nonnull String key) {
-        long virtualNodeKey = ring.ceilingKey(hashFunction.hash(key));
-        return (T) ring.get(virtualNodeKey).node;
+        Long virtualNodeKey = ring.ceilingKey(hashFunction.hash(key));
+        long resultKey = virtualNodeKey != null ? virtualNodeKey : ring.firstKey();
+        return (T) ring.get(resultKey).node;
     }
 
     private int countVirtualNodes(Node node) {
