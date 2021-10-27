@@ -27,6 +27,7 @@ public final class NodeManager {
         }
     }
 
+    @SuppressWarnings("Disable singleton is not safety")
     public static NodeManager getInstance(Set<String> topology, VNodeConfig vnodeConfig) {
         if (instance == null) {
             synchronized (NodeManager.class) {
@@ -50,14 +51,14 @@ public final class NodeManager {
     public VNode getNearVNode(String key) {
         Map.Entry<Integer, VNode> integerVNodeEntry = circle.ceilingEntry(Hash.murmur3(key));
 
-        VNode vNode;
+        VNode vnode;
         if (integerVNodeEntry == null) {
-            vNode = circle.firstEntry().getValue();
+            vnode = circle.firstEntry().getValue();
         } else {
-            vNode = integerVNodeEntry.getValue();
+            vnode = integerVNodeEntry.getValue();
         }
 
-        return vNode;
+        return vnode;
     }
 
     public HttpClient getHttpClient(String endpoint) {
