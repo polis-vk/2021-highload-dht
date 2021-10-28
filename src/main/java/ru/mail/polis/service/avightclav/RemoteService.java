@@ -22,7 +22,7 @@ public class RemoteService extends HttpClient {
 
     public Response getEntity(final Request request) {
         try {
-            return this.get(this.remote, Arrays.stream(request.getHeaders()).filter(Objects::nonNull).toArray(String[]::new));
+            return this.get(request.getURI());
         } catch (InterruptedException | HttpException | IOException | PoolException e) {
             return new Response(Response.INTERNAL_ERROR, "Can't connect to remote".getBytes());
         }
@@ -30,7 +30,7 @@ public class RemoteService extends HttpClient {
 
     public Response put(final Request request) {
         try {
-            return this.put(this.remote, request.getBody(), Arrays.stream(request.getHeaders()).filter(Objects::nonNull).toArray(String[]::new));
+            return this.put(request.getURI(), request.getBody());
         } catch (InterruptedException | HttpException | IOException | PoolException e) {
             return new Response(Response.INTERNAL_ERROR, "Can't connect to remote".getBytes());
         }
@@ -38,7 +38,7 @@ public class RemoteService extends HttpClient {
 
     public Response delete(final Request request) {
         try {
-            return this.delete(this.remote, Arrays.stream(request.getHeaders()).filter(Objects::nonNull).toArray(String[]::new));
+            return this.delete(request.getURI());
         } catch (InterruptedException | HttpException | IOException | PoolException e) {
             return new Response(Response.INTERNAL_ERROR, "Can't connect to remote".getBytes());
         }

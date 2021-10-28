@@ -41,6 +41,7 @@ public class BasicService extends HttpServer implements Service {
         super(from(port));
         this.dao = dao;
         this.hasher = new ConsistentHashing(topology.size());
+        System.out.println("Starting server with port" + port);
 
         final String myAddress = BasicService.PROTOCOL_ADDRESS_PREFIX + port;
         final int myAddressHash = myAddress.hashCode();
@@ -54,7 +55,7 @@ public class BasicService extends HttpServer implements Service {
             if (node.getKey() == myAddressHash) {
                 this.number = index;
             } else {
-                this.remoteServices.put(index, new RemoteService(myAddress, myAddress, node.getValue()));
+                this.remoteServices.put(index, new RemoteService(node.getValue(), myAddress, node.getValue()));
             }
             index++;
         }
