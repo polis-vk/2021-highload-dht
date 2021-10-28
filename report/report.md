@@ -4,27 +4,27 @@
 
 wrk -c 64 -t 3 -d 1m -R 10000 -L -s get.lua http://localhost:8080
 
-root@DESKTOP-E01FUOQ:~/wrk2# wrk -c 120 -t 3 -d 2m -R 20000 -L -s put.lua http://localhost:8080
-Running 2m test @ http://localhost:8080
-3 threads and 120 connections
-Thread calibration: mean lat.: 2.648ms, rate sampling interval: 10ms
-Thread calibration: mean lat.: 3.948ms, rate sampling interval: 12ms
-Thread calibration: mean lat.: 3.901ms, rate sampling interval: 12ms
-Thread Stats   Avg      Stdev     Max   +/- Stdev
-Latency     2.24ms    2.71ms  32.83ms   89.94%
-Req/Sec     7.02k     1.55k   20.44k    83.35%
-Latency Distribution (HdrHistogram - Recorded Latency)
-50.000%    1.42ms
-75.000%    2.12ms
-90.000%    4.99ms
-99.000%   14.14ms
-99.900%   19.71ms
-99.990%   24.25ms
-99.999%   29.23ms
-100.000%   32.86ms
+root@DESKTOP-E01FUOQ:~/wrk2# wrk -c 120 -t 3 -d 2m -R 20000 -L -s put.lua http://localhost:8080  
+Running 2m test @ http://localhost:8080  
+3 threads and 120 connections  
+Thread calibration: mean lat.: 2.648ms, rate sampling interval: 10ms  
+Thread calibration: mean lat.: 3.948ms, rate sampling interval: 12ms  
+Thread calibration: mean lat.: 3.901ms, rate sampling interval: 12ms  
+Thread Stats   Avg      Stdev     Max   +/- Stdev  
+Latency     2.24ms    2.71ms  32.83ms   89.94%  
+Req/Sec     7.02k     1.55k   20.44k    83.35%  
+Latency Distribution (HdrHistogram - Recorded Latency)  
+50.000%    1.42ms  
+75.000%    2.12ms  
+90.000%    4.99ms  
+99.000%   14.14ms  
+99.900%   19.71ms  
+99.990%   24.25ms  
+99.999%   29.23ms  
+100.000%   32.86ms  
 
-Detailed Percentile spectrum:
-Value   Percentile   TotalCount 1/(1-Percentile)
+Detailed Percentile spectrum:  
+Value   Percentile   TotalCount 1/(1-Percentile)  
 
        0.061     0.000000            1         1.00
        0.572     0.100000       220395         1.11
@@ -134,46 +134,46 @@ Value   Percentile   TotalCount 1/(1-Percentile)
       31.903     1.000000      2196019   2097152.00
       32.863     1.000000      2196020   2330168.89
       32.863     1.000000      2196020          inf
-[Mean    =        2.240, StdDeviation   =        2.709]  
-[Max     =       32.832, Total count    =      2196020]  
-[Buckets =           27, SubBuckets     =         2048]  
+[Mean    =        2.240, StdDeviation   =        2.709]   
+[Max     =       32.832, Total count    =      2196020]   
+[Buckets =           27, SubBuckets     =         2048]   
 ----------------------------------------------------------
-2398086 requests in 2.00m, 200.40MB read
-Requests/sec:  19983.88
-Transfer/sec:      1.67MB
+2398086 requests in 2.00m, 200.40MB read  
+Requests/sec:  19983.88  
+Transfer/sec:      1.67MB  
 
 ----
 
 
 ./profiler.sh -d 90 -e lock -f hw4lock_get.html 712  
-./profiler.sh -d 90 -e alloc -f hw4alloc_get.html 712  
-./profiler.sh -d 90 -f hw4cpu_get.html 712
+./profiler.sh -d 90 -e alloc -f hw4alloc_get.html 712    
+./profiler.sh -d 90 -f hw4cpu_get.html 712  
 
 # GET
 
 По наполненной базе
 
-root@DESKTOP-E01FUOQ:~/wrk2# wrk -c 120 -t 3 -d 2m -R 20000 -L -s get.lua http://localhost:8080
-Running 2m test @ http://localhost:8080
-3 threads and 120 connections
-Thread calibration: mean lat.: 2.645ms, rate sampling interval: 10ms
-Thread calibration: mean lat.: 2.546ms, rate sampling interval: 10ms
-Thread calibration: mean lat.: 2.546ms, rate sampling interval: 10ms
-Thread Stats   Avg      Stdev     Max   +/- Stdev
-Latency     2.18ms    3.93ms 108.42ms   94.16%
-Req/Sec     7.06k     1.36k   20.11k    85.42%
-Latency Distribution (HdrHistogram - Recorded Latency)
-50.000%    1.40ms
-75.000%    2.06ms
-90.000%    3.66ms
-99.000%   13.97ms
-99.900%   62.01ms
-99.990%   91.39ms
-99.999%  102.85ms
-100.000%  108.48ms
+root@DESKTOP-E01FUOQ:~/wrk2# wrk -c 120 -t 3 -d 2m -R 20000 -L -s get.lua http://localhost:8080  
+Running 2m test @ http://localhost:8080  
+3 threads and 120 connections  
+Thread calibration: mean lat.: 2.645ms, rate sampling interval: 10ms  
+Thread calibration: mean lat.: 2.546ms, rate sampling interval: 10ms  
+Thread calibration: mean lat.: 2.546ms, rate sampling interval: 10ms   
+Thread Stats   Avg      Stdev     Max   +/- Stdev  
+Latency     2.18ms    3.93ms 108.42ms   94.16%  
+Req/Sec     7.06k     1.36k   20.11k    85.42%  
+Latency Distribution (HdrHistogram - Recorded Latency)  
+50.000%    1.40ms  
+75.000%    2.06ms  
+90.000%    3.66ms  
+99.000%   13.97ms  
+99.900%   62.01ms  
+99.990%   91.39ms  
+99.999%  102.85ms  
+100.000%  108.48ms  
 
-Detailed Percentile spectrum:
-Value   Percentile   TotalCount 1/(1-Percentile)
+Detailed Percentile spectrum:  
+Value   Percentile   TotalCount 1/(1-Percentile)  
 
        0.066     0.000000            1         1.00
        0.585     0.100000       220191         1.11
@@ -282,47 +282,52 @@ Value   Percentile   TotalCount 1/(1-Percentile)
 [Max     =      108.416, Total count    =      2195973]  
 [Buckets =           27, SubBuckets     =         2048]  
 ----------------------------------------------------------
-2398058 requests in 2.00m, 216.05MB read
-Requests/sec:  19983.89
-Transfer/sec:      1.80MB
+2398058 requests in 2.00m, 216.05MB read  
+Requests/sec:  19983.89  
+Transfer/sec:      1.80MB  
 
 
 # ВЫВОДЫ:
 
-При использовании hash функции murmur3: Была выбрана сначала эта функция, т.к прочитав про не криптографические хэш функции
-она является одной из самых быстрых и дает равномерное распределение хэшей.
+Выдержали нагрузку put'ов и get'ов, хотя get чуть-чуть да просел.  
 
-Node(0) - root@DESKTOP-E01FUOQ:~/async-profiler# ls /tmp/highload-dht3917017732371295881
-SSTABLE_0  SSTABLE_0.index  SSTABLE_1  SSTABLE_1.index  SSTABLE_2  SSTABLE_2.index  SSTABLE_3  SSTABLE_3.index  SSTABLE_4  SSTABLE_4.index  SSTABLE_5  SSTABLE_5.index
-Node(1) - root@DESKTOP-E01FUOQ:~/async-profiler# ls /tmp/highload-dht7146053678391197994
-SSTABLE_0        SSTABLE_10.index  SSTABLE_13        SSTABLE_15.index  SSTABLE_18        SSTABLE_2.index   SSTABLE_4        SSTABLE_6.index  SSTABLE_9
-SSTABLE_0.index  SSTABLE_11        SSTABLE_13.index  SSTABLE_16        SSTABLE_18.index  SSTABLE_20        SSTABLE_4.index  SSTABLE_7        SSTABLE_9.index
-SSTABLE_1        SSTABLE_11.index  SSTABLE_14        SSTABLE_16.index  SSTABLE_19        SSTABLE_20.index  SSTABLE_5        SSTABLE_7.index
-SSTABLE_1.index  SSTABLE_12        SSTABLE_14.index  SSTABLE_17        SSTABLE_19.index  SSTABLE_3         SSTABLE_5.index  SSTABLE_8
-SSTABLE_10       SSTABLE_12.index  SSTABLE_15        SSTABLE_17.index  SSTABLE_2         SSTABLE_3.index   SSTABLE_6        SSTABLE_8.index
-Node(2) - root@DESKTOP-E01FUOQ:~/async-profiler# ls /tmp/highload-dht18153132625664245271
-SSTABLE_0        SSTABLE_10        SSTABLE_12        SSTABLE_14        SSTABLE_16        SSTABLE_3        SSTABLE_5        SSTABLE_7        SSTABLE_9
-SSTABLE_0.index  SSTABLE_10.index  SSTABLE_12.index  SSTABLE_14.index  SSTABLE_16.index  SSTABLE_3.index  SSTABLE_5.index  SSTABLE_7.index  SSTABLE_9.index
-SSTABLE_1        SSTABLE_11        SSTABLE_13        SSTABLE_15        SSTABLE_2         SSTABLE_4        SSTABLE_6        SSTABLE_8
+При использовании hash функции murmur3: Была выбрана сначала эта функция, т.к прочитав про не криптографические хэш функции
+она является одной из самых быстрых и дает равномерное распределение хэшей.  
+
+Node(0) - root@DESKTOP-E01FUOQ:~/async-profiler# ls /tmp/highload-dht3917017732371295881  
+SSTABLE_0  SSTABLE_0.index  SSTABLE_1  SSTABLE_1.index  SSTABLE_2  SSTABLE_2.index  SSTABLE_3  SSTABLE_3.index  SSTABLE_4  SSTABLE_4.index  SSTABLE_5  SSTABLE_5.index  
+Node(1) - root@DESKTOP-E01FUOQ:~/async-profiler# ls /tmp/highload-dht7146053678391197994  
+SSTABLE_0        SSTABLE_10.index  SSTABLE_13        SSTABLE_15.index  SSTABLE_18        SSTABLE_2.index   SSTABLE_4        SSTABLE_6.index  SSTABLE_9  
+SSTABLE_0.index  SSTABLE_11        SSTABLE_13.index  SSTABLE_16        SSTABLE_18.index  SSTABLE_20        SSTABLE_4.index  SSTABLE_7        SSTABLE_9.index  
+SSTABLE_1        SSTABLE_11.index  SSTABLE_14        SSTABLE_16.index  SSTABLE_19        SSTABLE_20.index  SSTABLE_5        SSTABLE_7.index  
+SSTABLE_1.index  SSTABLE_12        SSTABLE_14.index  SSTABLE_17        SSTABLE_19.index  SSTABLE_3         SSTABLE_5.index  SSTABLE_8  
+SSTABLE_10       SSTABLE_12.index  SSTABLE_15        SSTABLE_17.index  SSTABLE_2         SSTABLE_3.index   SSTABLE_6        SSTABLE_8.index  
+Node(2) - root@DESKTOP-E01FUOQ:~/async-profiler# ls /tmp/highload-dht18153132625664245271  
+SSTABLE_0        SSTABLE_10        SSTABLE_12        SSTABLE_14        SSTABLE_16        SSTABLE_3        SSTABLE_5        SSTABLE_7        SSTABLE_9  
+SSTABLE_0.index  SSTABLE_10.index  SSTABLE_12.index  SSTABLE_14.index  SSTABLE_16.index  SSTABLE_3.index  SSTABLE_5.index  SSTABLE_7.index  SSTABLE_9.index  
+SSTABLE_1        SSTABLE_11        SSTABLE_13        SSTABLE_15        SSTABLE_2         SSTABLE_4        SSTABLE_6        SSTABLE_8  
 SSTABLE_1.index  SSTABLE_11.index  SSTABLE_13.index  SSTABLE_15.index  SSTABLE_2.index   SSTABLE_4.index  SSTABLE_6.index  SSTABLE_8.index
 
-
-После вынесения обработки запросов, уменьшилась максимальная задержка как при put'e, так и при get'e. Теперь есть общая
-очередь для запросов, которую обрабатывает executor, если очередь заполнилась, то выдается ответ, что сервис Unavailable.
-
-Locks: И при put'e и при get'e можно заметить, что есть lock у очереди BlockingQueue. Появляются они в основном, когда очередь заполняется,
-т.к поступает очень много запросов.
+Locks: 
+Локи, как и предыдущем этапе, возникают из-за очереди, которая использутеся в threadPoolExecutor'е.
 
 Cpu's:
-В put'e видно, что вся обработка вынесена в потоки.
-В get'e видно, что 90% работы выполняется в других потоках.
+Put - Половина всего времени выполнения происходит в методе handleRequest, который обрабатывается в другом потоке
+Первая половина от этой половины занимает отправление Response, который все так, как и в прошлых stage'ах занимает не мало
+времени(решением может быть смена протокола)
+вторая половина - отправление запроса на другую ноду
+Get - Практически такое же, что и put'e(отправка response и отправление запрос на другую ноду). Так же тут присутствует, как и во всех
+других этапах хождение по диску. Но по сравнению с прошлыми этапами, тут видно, что меньше всяких итераторов, т.к у нас
+теперь ключи хранятся на определенных нодах, зависит от хеша, теперь надо меньше этих итераторов, т.к сами данные распределены на других нодах.
+
 
 Allocs:
-По аллокациям ситуация похожа, все по 20% всей памяти аллоцируется в других потока, при парсинге запроса. Ну и в основном
-память выделяется в потоках, которые уже обрабатывают запрос и отдают ответ
+Put - По сравнению с прошлым этапов, появилось много алокаций массивов байт в методе invoke. То же самое и для get'a.
+Get -
 
-Была идея, где есть общая очередь и потоки крутятся в while(true) и берут задачи из общей очереди. Разницы
-особо нет. Показывает практически одинаковые значения, но из-за самого этого цикла возникили сомнения.
+Смотря на файлы, можно заметить, что на первую надо попадает гораздо меньше данных, дело может быть в 
+хэш функции, котрая была выбрана, хотя говорится, что она равномерное распределяет хэши. 
+Возможно стоит попробовать другую хэш функцию(попробую успеть до лекции).
 
 ## Put:
 [cpu_put](hw4cpu_put.html)
