@@ -110,7 +110,8 @@ public class BasicService extends HttpServer implements Service {
         }
 
         ClusterAdapter targetAdapter = consistentHash.getClusterAdapter(recordId);
-        if (targetAdapter.getPort() == this.port) {//TODO we need to know and compare our ip also
+        //TODO we need to know and compare our ip also
+        if (targetAdapter.getPort() == this.port) {
             processEntityByMyself(request, localSession, recordId, targetAdapter);
         } else {
             processEntityByTarget(request, localSession, targetAdapter);
