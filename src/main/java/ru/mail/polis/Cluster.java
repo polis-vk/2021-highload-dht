@@ -21,7 +21,7 @@ import org.slf4j.LoggerFactory;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.DAOConfig;
 import ru.mail.polis.lsm.DAOFactory;
-import ru.mail.polis.service.Service;
+import ru.mail.polis.service.ServiceServer;
 import ru.mail.polis.service.ServiceFactory;
 
 import java.io.IOException;
@@ -58,7 +58,7 @@ public final class Cluster {
             LOG.info("Starting node {} on port {} and data at {}", i, port, config.dir);
 
             // Start the storage
-            final Service storage =
+            final ServiceServer storage =
                     ServiceFactory.create(
                             port,
                             dao,

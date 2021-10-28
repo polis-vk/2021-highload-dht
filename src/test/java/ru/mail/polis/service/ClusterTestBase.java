@@ -27,7 +27,6 @@ import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.DAOConfig;
 import ru.mail.polis.lsm.DAOFactory;
 
-import java.io.File;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.HashMap;
@@ -53,7 +52,7 @@ abstract class ClusterTestBase extends TestBase {
     private int[] ports;
     private DAOConfig[] daoConfigs;
     private DAO[] daos;
-    private Service[] services;
+    private ServiceServer[] services;
     private Set<String> endpoints;
 
     private static String path(final String id) {
@@ -76,7 +75,7 @@ abstract class ClusterTestBase extends TestBase {
         ports = new int[size];
         daoConfigs = new DAOConfig[size];
         daos = new DAO[size];
-        services = new Service[size];
+        services = new ServiceServer[size];
         endpoints = new HashSet<>(size);
 
         // Choose ports and build topology
@@ -137,7 +136,7 @@ abstract class ClusterTestBase extends TestBase {
     }
 
 
-    Service service(final int node) {
+    ServiceServer service(final int node) {
         return services[node];
     }
 

@@ -36,7 +36,7 @@ import java.util.concurrent.TimeUnit;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Unit tests for single node {@link Service} API.
+ * Unit tests for single node {@link ServiceServer} API.
  *
  * @author Vadim Tsesko
  */
@@ -46,7 +46,7 @@ class SingleNodeTest extends TestBase {
     private static DAO dao;
     private static int port;
     private static String endpoint;
-    private static Service storage;
+    private static ServiceServer storage;
     private static HttpClient client;
 
     @BeforeAll

@@ -23,7 +23,7 @@ import java.time.Duration;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Unit tests for a sharded two node {@link Service} cluster.
+ * Unit tests for a sharded two node {@link ServiceServer} cluster.
  *
  * @author Vadim Tsesko
  */
