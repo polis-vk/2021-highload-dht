@@ -1,5 +1,6 @@
 package ru.mail.polis.service.danilaeremenko;
 
+import com.google.common.primitives.UnsignedLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -7,16 +8,41 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
+import static com.google.common.primitives.UnsignedLong.valueOf;
+import static com.google.common.primitives.UnsignedLong.fromLongBits;
+import static com.google.common.primitives.UnsignedLong.ONE;
+
 public class ConsistentHash {
     private final SortedMap<Integer, ClusterAdapter> partitionMap = new TreeMap<>();
     private static final Logger C_HASH_LOGGING = LoggerFactory.getLogger(ConsistentHash.class);
 
-    //TODO update implementation (is a stub, I swear, I will implement another methods!)
+    /*
+    John Lamping, Eric Veach "A Fast, Minimal Memory, Consistent Hash Algorithm"
+    https://arxiv.org/pdf/1406.2294.pdf
+    */
+    private static final UnsignedLong constant1 = valueOf(2862933555777941757L);
+    private static final long constant2 = 1L << 31;
+    private final int bucketSize;
+
     private int hashFunc(String str) {
-        return str.hashCode();
+        long keyHash = str.hashCode();
+        UnsignedLong key = fromLongBits(keyHash);
+
+        long b = -1, j = 0;
+        while (j < bucketSize) {
+            b = j;
+
+            key = key.times(constant1).plus(ONE);
+            UnsignedLong keyShift = fromLongBits(key.longValue() >>> 33).plus(ONE);
+
+            j = (long) ((b + 1) * (constant2 / keyShift.doubleValue()));
+        }
+
+        return (int) b;
     }
 
     public ConsistentHash(final Set<String> topology) {
+        bucketSize = topology.size();
         for (String topologyDesc : topology) {
             ClusterAdapter currCluster = ClusterAdapter.fromStringDesc(topologyDesc);
             int topologyHash = hashFunc(topologyDesc);
