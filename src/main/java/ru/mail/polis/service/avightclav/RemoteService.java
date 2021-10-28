@@ -12,7 +12,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
 public class RemoteService implements Service {
-    final HttpClient client;
+    private final HttpClient client;
     private static final String REMOTE_CONNECTION_ERROR_MESSAGE = "Can't connect to remote";
 
     public RemoteService(String conn) {

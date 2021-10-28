@@ -7,6 +7,4 @@ public final class ServiceUrls {
     private ServiceUrls() {
         // Not supposed to be instantiated
     }
-
-
 }
