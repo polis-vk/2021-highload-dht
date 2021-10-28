@@ -24,7 +24,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.Set;
-import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
@@ -34,9 +34,7 @@ public class ServiceImpl extends HttpServer implements Service {
     private final Logger logger = LoggerFactory.getLogger(ServiceImpl.class);
 
     public static final String BAD_ID_RESPONSE = "Bad id";
-    public static final int CAPACITY = 4;
-    public static final int MAXIMUM_POOL_SIZE = 8;
-    public static final int CORE_POOL_SIZE = 4;
+    public static final int MAXIMUM_POOL_SIZE = 16;
     public static final int KEEP_ALIVE_TIME_MINUTES = 10;
 
     private final DAO dao;
@@ -46,11 +44,11 @@ public class ServiceImpl extends HttpServer implements Service {
     private boolean isWorking; //false by default
 
     private final ThreadPoolExecutor executor =
-            new ThreadPoolExecutor(CORE_POOL_SIZE,
+            new ThreadPoolExecutor(MAXIMUM_POOL_SIZE,
                     MAXIMUM_POOL_SIZE,
                     KEEP_ALIVE_TIME_MINUTES,
-                    TimeUnit.SECONDS,
-                    new ArrayBlockingQueue<>(CAPACITY));
+                    TimeUnit.MINUTES,
+                    new LinkedBlockingQueue<>());
 
     public ServiceImpl(int port, DAO dao, Set<String> topology) throws IOException {
         super(from(port));
@@ -61,11 +59,11 @@ public class ServiceImpl extends HttpServer implements Service {
         Iterator<String> iterator = topology.iterator();
         for (int i = 0; iterator.hasNext(); i++) {
             String adr = iterator.next();
-            if (adr.endsWith(Integer.toString(port))) {
+            ConnectionString conn = new ConnectionString(adr + "?timeout=100");
+            if (conn.getPort() == port) {
                 this.id = i;
             }
             this.topology[i] = adr;
-            ConnectionString conn = new ConnectionString(adr + "?timeout=100");
             HttpClient client = new HttpClient(conn);
             this.clients[i] = client;
         }
