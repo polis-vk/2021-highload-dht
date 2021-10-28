@@ -8,9 +8,9 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
-import static com.google.common.primitives.UnsignedLong.valueOf;
 import static com.google.common.primitives.UnsignedLong.fromLongBits;
 import static com.google.common.primitives.UnsignedLong.ONE;
+import static com.google.common.primitives.UnsignedLong.valueOf;
 
 public class ConsistentHash {
     private final SortedMap<Integer, ClusterAdapter> partitionMap = new TreeMap<>();
@@ -20,22 +20,23 @@ public class ConsistentHash {
     John Lamping, Eric Veach "A Fast, Minimal Memory, Consistent Hash Algorithm"
     https://arxiv.org/pdf/1406.2294.pdf
     */
-    private static final UnsignedLong constant1 = valueOf(2862933555777941757L);
-    private static final long constant2 = 1L << 31;
+    private static final UnsignedLong C_1 = valueOf(2_862_933_555_777_941_757L);
+    private static final long C_2 = 1L << 31;
     private final int bucketSize;
 
     private int hashFunc(String str) {
         long keyHash = str.hashCode();
         UnsignedLong key = fromLongBits(keyHash);
 
-        long b = -1, j = 0;
+        long b = -1;
+        long j = 0;
         while (j < bucketSize) {
             b = j;
 
-            key = key.times(constant1).plus(ONE);
+            key = key.times(C_1).plus(ONE);
             UnsignedLong keyShift = fromLongBits(key.longValue() >>> 33).plus(ONE);
 
-            j = (long) ((b + 1) * (constant2 / keyShift.doubleValue()));
+            j = (long) ((b + 1) * (C_2 / keyShift.doubleValue()));
         }
 
         return (int) b;
