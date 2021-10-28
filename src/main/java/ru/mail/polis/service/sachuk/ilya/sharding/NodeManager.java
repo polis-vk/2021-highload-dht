@@ -17,7 +17,7 @@ public final class NodeManager {
     private final VNodeConfig vnodeConfig;
     private final NavigableMap<Integer, VNode> circle;
     private final NavigableMap<String, HttpClient> clients;
-    private static final AtomicInteger nodeCount = new AtomicInteger();
+    private final AtomicInteger nodeCount = new AtomicInteger();
 
     private NodeManager(Set<String> topology, VNodeConfig vnodeConfig) {
         this.vnodeConfig = vnodeConfig;
@@ -69,7 +69,7 @@ public final class NodeManager {
         return clients.get(endpoint);
     }
 
-    public static void removeNode() {
+    public void removeNode() {
         nodeCount.decrementAndGet();
 
         if (nodeCount.get() == 0) {
