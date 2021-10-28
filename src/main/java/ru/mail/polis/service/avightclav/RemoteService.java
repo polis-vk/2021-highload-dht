@@ -9,6 +9,7 @@ import ru.mail.polis.service.Service;
 
 import javax.annotation.Nonnull;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 
 public class RemoteService implements Service {
     final HttpClient client;
@@ -21,36 +22,47 @@ public class RemoteService implements Service {
     @Override
     public Response get(@Nonnull String id) {
         try {
-            return client.get(Service.ENTITY_URI_PREFIX + "?id" + id);
+            return client.get(ServiceUrls.ENTITY_URI_PREFIX + "?id" + id);
         } catch (InterruptedException | HttpException | IOException | PoolException e) {
-            return new Response(Response.INTERNAL_ERROR, REMOTE_CONNECTION_ERROR_MESSAGE.getBytes());
+            return new Response(
+                    Response.INTERNAL_ERROR,
+                    REMOTE_CONNECTION_ERROR_MESSAGE.getBytes(StandardCharsets.UTF_8)
+            );
         }
     }
 
     @Override
     public Response put(@Nonnull String id, @Nonnull byte[] body) {
         try {
-            return client.put(ENTITY_URI_PREFIX + "?id" + id, body);
+            return client.put(ServiceUrls.ENTITY_URI_PREFIX + "?id" + id, body);
         } catch (InterruptedException | HttpException | IOException | PoolException e) {
-            return new Response(Response.INTERNAL_ERROR, REMOTE_CONNECTION_ERROR_MESSAGE.getBytes());
+            return new Response(
+                    Response.INTERNAL_ERROR, REMOTE_CONNECTION_ERROR_MESSAGE.getBytes(StandardCharsets.UTF_8)
+            );
         }
     }
 
     @Override
     public Response delete(@Nonnull String id) {
         try {
-            return client.delete(Service.ENTITY_URI_PREFIX + "?id" + id);
+            return client.delete(ServiceUrls.ENTITY_URI_PREFIX + "?id" + id);
         } catch (InterruptedException | HttpException | IOException | PoolException e) {
-            return new Response(Response.INTERNAL_ERROR, REMOTE_CONNECTION_ERROR_MESSAGE.getBytes());
+            return new Response(
+                    Response.INTERNAL_ERROR,
+                    REMOTE_CONNECTION_ERROR_MESSAGE.getBytes(StandardCharsets.UTF_8)
+            );
         }
     }
 
     @Override
     public Response status() {
         try {
-            return client.get(Service.STATUS_URI_PREFIX);
+            return client.get(ServiceUrls.STATUS_URI_PREFIX);
         } catch (InterruptedException | PoolException | IOException | HttpException e) {
-            return new Response(Response.INTERNAL_ERROR, REMOTE_CONNECTION_ERROR_MESSAGE.getBytes());
+            return new Response(
+                    Response.INTERNAL_ERROR,
+                    REMOTE_CONNECTION_ERROR_MESSAGE.getBytes(StandardCharsets.UTF_8)
+            );
         }
     }
 }
