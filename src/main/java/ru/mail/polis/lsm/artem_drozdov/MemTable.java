@@ -11,8 +11,13 @@ import java.util.concurrent.ConcurrentSkipListMap;
 import java.util.concurrent.atomic.AtomicLong;
 
 public class MemTable {
-    private final NavigableMap<ByteBuffer, Record> memStorage = new ConcurrentSkipListMap<>();
-    private final AtomicLong size = new AtomicLong();
+    private final NavigableMap<ByteBuffer, Record> memStorage;
+    private final AtomicLong size;
+
+    public MemTable() {
+        this.memStorage = new ConcurrentSkipListMap<>();
+        this.size = new AtomicLong();
+    }
 
     public long put(Record record) {
         Record prev = memStorage.put(record.getKey(), record);

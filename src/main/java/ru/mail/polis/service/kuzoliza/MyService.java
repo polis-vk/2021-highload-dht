@@ -24,7 +24,6 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
@@ -93,7 +92,7 @@ public class MyService extends HttpServer {
      */
     @Path("/v0/entity")
     public void entity(final @Param(value = "id", required = true) String id, final Request request,
-                       final HttpSession session) throws RejectedExecutionException {
+                       final HttpSession session) {
         executor.execute(() -> {
             if (id.isEmpty()) {
                 try {
@@ -122,7 +121,7 @@ public class MyService extends HttpServer {
     private void response(final ByteBuffer key, final Request request, final HttpSession session) {
         switch (request.getMethod()) {
             case Request.METHOD_GET:
-                getResponse(key, session);
+                responseGet(key, session);
                 break;
 
             case Request.METHOD_PUT:
@@ -143,7 +142,7 @@ public class MyService extends HttpServer {
         }
     }
 
-    private void getResponse(final ByteBuffer key, final HttpSession session) {
+    private void responseGet(final ByteBuffer key, final HttpSession session) {
         final Iterator<Record> range = dao.range(key, DAO.nextKey(key));
         if (range.hasNext()) {
             final ByteBuffer value = range.next().getValue();
