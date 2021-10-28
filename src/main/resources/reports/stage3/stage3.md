@@ -7,7 +7,8 @@
 ## Описание оптимизаций
 
 * [wrk_1_sync_select.txt](put_results/wrk/wrk_1_sync_select.txt) - исходная реализация без асинхронных селекторов
-* [wrk_2_async_select_fixed_poll.txt](put_results/wrk/wrk_2_async_select_fixed_poll.txt) - реализация с асинхронными селекторами
+* [wrk_2_async_select_fixed_poll.txt](put_results/wrk/wrk_2_async_select_fixed_poll.txt) - реализация с асинхронными
+  селекторами
 
 ## Сравнение профилей версий
 
