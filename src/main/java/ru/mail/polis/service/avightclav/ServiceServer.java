@@ -23,8 +23,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 public class ServiceServer extends HttpServer implements ru.mail.polis.service.ServiceServer {
-//    private final static Pattern PROTOCOL_PATTERN = Pattern.compile("^(\\w+)://([^:/]*)(?::(\\d+))?.*");
-    private final static String PROTOCOL_ADDRESS_PREFIX = "http://localhost:";
+    private static final String PROTOCOL_ADDRESS_PREFIX = "http://localhost:";
 
     private final ExecutorService executor = Executors.newWorkStealingPool();
     private final ConsistentHashing hasher;

@@ -21,8 +21,8 @@ import org.slf4j.LoggerFactory;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.DAOConfig;
 import ru.mail.polis.lsm.DAOFactory;
-import ru.mail.polis.service.ServiceServer;
 import ru.mail.polis.service.ServiceFactory;
+import ru.mail.polis.service.ServiceServer;
 
 import java.io.IOException;
 import java.util.HashSet;

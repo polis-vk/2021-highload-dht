@@ -8,7 +8,6 @@ public interface Service {
     String STATUS_URI_PREFIX = "/v0/status";
     String ENTITY_URI_PREFIX = "/v0/entity";
 
-
     Response status();
 
     Response get(@Nonnull final String id);
