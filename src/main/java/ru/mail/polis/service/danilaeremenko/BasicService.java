@@ -61,7 +61,7 @@ public class BasicService extends HttpServer implements Service {
             final HttpSession localSession,
             final ClusterAdapter targetAdapter
     ) throws IOException, InterruptedException {
-        SERVICE_LOGGER.debug("processing by target host {}", targetAdapter);
+        SERVICE_LOGGER.debug("processing by target host {}", targetAdapter.toURL());
         Response response = targetAdapter.processRequest(request);
         localSession.sendResponse(response);
     }
@@ -72,7 +72,7 @@ public class BasicService extends HttpServer implements Service {
             final String recordId,
             final ClusterAdapter targetAdapter
     ) throws IOException {
-        SERVICE_LOGGER.debug("processing by myself {}", targetAdapter);
+        SERVICE_LOGGER.debug("processing by myself {}", targetAdapter.toURL());
         switch (request.getMethod()) {
             case Request.METHOD_GET:
                 localSession.sendResponse(this.daoWrapper.getEntity(recordId));
