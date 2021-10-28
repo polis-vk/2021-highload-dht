@@ -34,24 +34,7 @@ public class ClusterAdapter extends HttpClient {
     public Response processRequest(Request request) throws InterruptedException {
         final Response response;
         try {
-            switch (request.getMethod()) {
-                case Request.METHOD_GET:
-                    response = this.get(this.toURL(), request.getHeaders());
-                    break;
-                case Request.METHOD_PUT:
-                    response = this.put(this.toURL(), request.getBody(), request.getHeaders());
-                    break;
-                case Request.METHOD_DELETE:
-                    response = this.delete(this.toURL(), request.getHeaders());
-                    break;
-                default:
-                    response = new Response(
-                            Response.BAD_REQUEST,
-                            "Undefined method".getBytes(StandardCharsets.UTF_8)
-                    );
-                    break;
-
-            }
+            response = this.invoke(request);
             return response;
         } catch (IOException e) {
             String message = "IOException caught while awaiting response from server";
@@ -78,14 +61,6 @@ public class ClusterAdapter extends HttpClient {
             String message = "Interrupted caught while awaiting response from server";
             CLUSTER_LOGGER.error(message, e);
             throw e;
-        } catch (NullPointerException e) {
-            //TODO one.nio.http.HttpClient methods throw NullPointerException when I pass request.getHeaders() to them
-            String message = "Null pointer caught while awaiting response from server";
-            CLUSTER_LOGGER.error(message, e);
-            return new Response(
-                    Response.BAD_REQUEST,
-                    message.getBytes(StandardCharsets.UTF_8)
-            );
         }
 
     }
