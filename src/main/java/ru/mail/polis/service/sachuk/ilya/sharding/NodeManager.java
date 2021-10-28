@@ -27,7 +27,6 @@ public final class NodeManager {
         for (String endpoint : topology) {
             HttpClient client = new HttpClient(new ConnectionString(endpoint));
             clients.put(endpoint, client);
-            nodeCount.incrementAndGet();
         }
     }
 
@@ -45,6 +44,7 @@ public final class NodeManager {
     }
 
     public void addNode(Node node) {
+        nodeCount.incrementAndGet();
         for (int i = 0; i < vnodeConfig.nodeWeight; i++) {
             int hashCode = Hash.murmur3(Node.HOST + node.port + i);
 

@@ -32,6 +32,10 @@ public class NodeRouter {
 
         HttpClient httpClient = nodeManager.getHttpClient(host + port);
 
+        if (httpClient == null) {
+            throw new IllegalStateException("Node is not in topology");
+        }
+
         try {
             return httpClient.invoke(request);
         } catch (InterruptedException e) {
