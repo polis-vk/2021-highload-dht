@@ -8,8 +8,8 @@ import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
 
-import static com.google.common.primitives.UnsignedLong.fromLongBits;
 import static com.google.common.primitives.UnsignedLong.ONE;
+import static com.google.common.primitives.UnsignedLong.fromLongBits;
 import static com.google.common.primitives.UnsignedLong.valueOf;
 
 public class ConsistentHash {
