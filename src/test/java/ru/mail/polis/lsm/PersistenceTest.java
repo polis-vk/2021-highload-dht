@@ -19,6 +19,7 @@ package ru.mail.polis.lsm;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import static ru.mail.polis.lsm.Utils.assertDaoEquals;
@@ -157,6 +158,7 @@ class PersistenceTest {
     }
 
     @Test
+    @Disabled(value = "This test may generate a lot of data because of very bad compaction strategy")
     void hugeRecords(@TempDir Path data) throws IOException, InterruptedException {
         // Reference value
         int size = 1024 * 1024;
@@ -178,6 +180,7 @@ class PersistenceTest {
     }
 
     @Test
+    @Disabled(value = "This test may generate a lot of data because of very bad compaction strategy")
     void hugeRecordsSearch(@TempDir Path data) throws IOException, InterruptedException {
         // Reference value
         int size = 1024 * 1024;
