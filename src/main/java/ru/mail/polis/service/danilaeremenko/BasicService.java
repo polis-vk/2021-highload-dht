@@ -39,7 +39,7 @@ public class BasicService extends HttpServer implements Service {
             ClusterAdapter currCluster = ClusterAdapter.fromStringDesc(adapterDesc);
             clusterAdaptersMap.put(String.valueOf(clusterId), currCluster);
             //TODO we must check ip also, but with current tests it will work
-            if (currCluster.port == port && !myClusterIdParsed) {
+            if (currCluster.getPort() == port && !myClusterIdParsed) {
                 this.myClusterId = String.valueOf(clusterId);
                 myClusterIdParsed = true;
             }
@@ -87,7 +87,7 @@ public class BasicService extends HttpServer implements Service {
             final String recordId,
             final String clusterId
     ) throws IOException, InterruptedException {
-        SERVICE_LOGGER.info("processing by target, id = " + clusterId);
+        SERVICE_LOGGER.debug("processing by target, id = " + clusterId);
         ClusterAdapter targetAdapter = this.clusterAdaptersMap.get(clusterId);
         Response response = targetAdapter.processRequest(request);
         localSession.sendResponse(response);
@@ -98,7 +98,7 @@ public class BasicService extends HttpServer implements Service {
             final HttpSession localSession,
             final String recordId
     ) throws IOException {
-        SERVICE_LOGGER.info("processing by myself, id = " + myClusterId);
+        SERVICE_LOGGER.debug("processing by myself, id = " + myClusterId);
         switch (request.getMethod()) {
             case Request.METHOD_GET:
                 localSession.sendResponse(this.daoWrapper.getEntity(recordId));

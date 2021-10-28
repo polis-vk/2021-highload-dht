@@ -13,8 +13,10 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
 public class ClusterAdapter extends HttpClient {
-    final String ip;
-    final int port;
+
+    private final String ip;
+    private final int port;
+
     private static final Logger CLUSTER_LOGGER = LoggerFactory.getLogger(BasicService.class);
 
     public ClusterAdapter(String ip, int port) {
@@ -69,6 +71,10 @@ public class ClusterAdapter extends HttpClient {
         return this.ip + ":" + this.port;
     }
 
+    public int getPort() {
+        return port;
+    }
+
     @Override
     public String toString() {
         return "ClusterAdapter{"
@@ -76,9 +82,4 @@ public class ClusterAdapter extends HttpClient {
                 + ", port=" + port
                 + '}';
     }
-
-    Response processRequest() {
-        return Response.ok("So, I'm dummy stub");
-    }
-
 }
