@@ -77,7 +77,7 @@ public final class Server {
                         closeDao(dao);
                     }));
         } catch (IOException e) {
-            LOG.error("", e);
+            LOG.error("Can't start the server", e);
         }
     }
 }
