@@ -29,7 +29,7 @@ import java.util.Objects;
  */
 public final class ServiceFactory {
     private static final long MAX_HEAP = 256 * 1024 * 1024;
-    private static final int THREADS = 4;
+    private static final int THREADS = Runtime.getRuntime().availableProcessors() * 3;
 
     private ServiceFactory() {
         // Not supposed to be instantiated
