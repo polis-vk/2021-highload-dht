@@ -19,6 +19,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
@@ -84,16 +85,11 @@ public class ServiceImpl extends HttpServer implements Service {
 
     @Override
     public void handleRequest(Request request, HttpSession session) throws IOException {
-        if (executor.getQueue().remainingCapacity() > 0) {
-            synchronized (this) {
-                if (executor.getQueue().remainingCapacity() > 0) {
-                    executor.execute(() -> handleRequestTask(request, session));
-                    return;
-                }
-            }
+        try {
+            executor.execute(() -> handleRequestTask(request, session));
+        } catch (RejectedExecutionException e) {
+            session.sendResponse(new Response(Response.SERVICE_UNAVAILABLE, Response.EMPTY));
         }
-
-        session.sendResponse(new Response(Response.INTERNAL_ERROR, Response.EMPTY));
     }
 
     /**
