@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
+import java.util.NoSuchElementException;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -106,15 +107,20 @@ public class ServiceImpl extends HttpServer implements Service {
         if (id == null || id.isBlank() || id.equals("=")) {
             return new Response(Response.BAD_REQUEST, "Bad id".getBytes(StandardCharsets.UTF_8));
         }
-        switch (request.getMethod()) {
-            case Request.METHOD_GET:
-                return get(id);
-            case Request.METHOD_PUT:
-                return put(id, request.getBody());
-            case Request.METHOD_DELETE:
-                return delete(id);
-            default:
-                return new Response(Response.METHOD_NOT_ALLOWED, "Wrong method".getBytes(StandardCharsets.UTF_8));
+        try {
+            switch (request.getMethod()) {
+                case Request.METHOD_GET:
+                    return get(id);
+                case Request.METHOD_PUT:
+                    return put(id, request.getBody());
+                case Request.METHOD_DELETE:
+                    return delete(id);
+                default:
+                    return new Response(Response.METHOD_NOT_ALLOWED, "Wrong method".getBytes(StandardCharsets.UTF_8));
+            }
+        } catch (NoSuchElementException e) {
+            logger.error("Method: {}, Id: {}", request.getMethod(), id, e);
+            return new Response(Response.BAD_REQUEST);
         }
     }
 
