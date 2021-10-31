@@ -103,7 +103,7 @@ public class ServiceImpl extends HttpServer implements Service {
      * @param id entity id
      * @return http response (2xx if ok, 4xx if error)
      */
-    public Response entity(final Request request, final String id) {
+    private Response entity(final Request request, final String id) {
         if (id == null || id.isBlank() || id.equals("=")) {
             return new Response(Response.BAD_REQUEST, "Bad id".getBytes(StandardCharsets.UTF_8));
         }
