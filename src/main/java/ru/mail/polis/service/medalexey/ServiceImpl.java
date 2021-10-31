@@ -10,7 +10,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.Record;
-import ru.mail.polis.lsm.artemdrozdov.LsmDAO;
 import ru.mail.polis.service.Service;
 
 import java.io.IOException;
@@ -30,14 +29,13 @@ public class ServiceImpl extends HttpServer implements Service {
     private static final String ID_PARAMETER_KEY = "id";
     private static final int QUEUE_CAPACITY = 100;
     private final ThreadPoolExecutor executor;
-    private final Logger logger;
+    private static final Logger LOGGER = LoggerFactory.getLogger(ServiceImpl.class);
 
     private final DAO dao;
 
     public ServiceImpl(final int port, final DAO dao, int threads) throws IOException {
         super(from(port));
         this.dao = dao;
-        logger = LoggerFactory.getLogger(LsmDAO.class);
         this.executor = new ThreadPoolExecutor(threads, threads, 0L,
                 TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(QUEUE_CAPACITY));
     }
@@ -79,7 +77,7 @@ public class ServiceImpl extends HttpServer implements Service {
         try {
             session.sendResponse(response);
         } catch (IOException e) {
-            logger.warn("Error sending response", e);
+            LOGGER.warn("Error sending response", e);
         }
     }
 
@@ -115,7 +113,7 @@ public class ServiceImpl extends HttpServer implements Service {
                     return new Response(Response.METHOD_NOT_ALLOWED, "Wrong method".getBytes(StandardCharsets.UTF_8));
             }
         } catch (NoSuchElementException e) {
-            logger.error("Method: {}, Id: {}", request.getMethod(), id, e);
+            LOGGER.error("Method: {}, Id: {}", request.getMethod(), id, e);
             return new Response(Response.BAD_REQUEST);
         }
     }
