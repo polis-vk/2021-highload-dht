@@ -83,6 +83,10 @@ class SSTable {
         return new SSTable(file);
     }
 
+    private static int sizeOf(Record record) {
+        return record.size() + Integer.BYTES * 2;
+    }
+
     public static void write(Iterator<Record> records, Path file) throws IOException {
         Path indexFile = FileUtils.getIndexFile(file);
         Path tmpFileName = FileUtils.getTmpFile(file);
@@ -91,41 +95,38 @@ class SSTable {
         try (FileChannel fileChannel = FileUtils.openForWrite(tmpFileName);
              FileChannel indexChannel = FileUtils.openForWrite(tmpIndexName)
         ) {
-            ByteBuffer tmp = ByteBuffer.allocateDirect(MAX_BUFFER_SIZE);
-            tmp.limit(tmp.capacity());
+            ByteBuffer recordsTmp = ByteBuffer.allocateDirect(MAX_BUFFER_SIZE);
+            recordsTmp.limit(recordsTmp.capacity());
+
+            ByteBuffer indexesTmp = ByteBuffer.allocateDirect(MAX_BUFFER_SIZE);
+            indexesTmp.limit(indexesTmp.capacity());
 
             List<Integer> sizes = new ArrayList<>();
-            //можно попробовать писать за 1 раз не один record, а столько, сколько влезет в буфер.
             long offset = 0;
             while (records.hasNext()) {
                 Record record = records.next();
-                int size = record.size();
+                int size = sizeOf(record);
                 long position = fileChannel.position();
-                if (position - offset + size + Integer.BYTES * 2 > Integer.MAX_VALUE) {
+                if (position - offset + size > Integer.MAX_VALUE) {
                     long delta = position - offset;
                     sizes.add((int) delta);
                     offset += delta;
                 }
 
-                ByteBufferUtils.writeLong(position, indexChannel, tmp);
+                ByteBufferUtils.putLongInBufferOrWrite(position, indexChannel, indexesTmp);
+                putRecordInBufferOrWrite(fileChannel, recordsTmp, record);
+            }
 
-                writeRecord(fileChannel, tmp, record);
+            if (recordsTmp.position() != 0) {
+                ByteBufferUtils.writeByteBuffer(fileChannel, recordsTmp);
+            }
+            if (indexesTmp.position() != 0) {
+                ByteBufferUtils.writeByteBuffer(indexChannel, indexesTmp);
             }
 
             sizes.add((int) (fileChannel.position() - offset));
 
-            int n = sizes.size();
-            if ((n + 1) * Integer.BYTES > tmp.capacity()) {
-                tmp = ByteBuffer.allocate((n + 1) * Integer.BYTES);
-            }
-            tmp.position(0);
-            tmp.limit(Integer.BYTES * (n + 1));
-            for (int i = n - 1; i >= 0; --i) {
-                tmp.putInt(sizes.get(i));
-            }
-            tmp.putInt(n);
-            tmp.position(0);
-            indexChannel.write(tmp);
+            writeBlockSizes(indexChannel, indexesTmp, sizes);
 
             fileChannel.force(false);
         }
@@ -134,11 +135,32 @@ class SSTable {
         FileUtils.rename(file, tmpFileName);
     }
 
-    private static void writeRecord(FileChannel fileChannel, ByteBuffer tmp, Record record) throws IOException {
+    private static void writeBlockSizes(FileChannel indexChannel, ByteBuffer tmp, List<Integer> sizes)
+            throws IOException {
+        int n = sizes.size();
+        ByteBuffer buffer = tmp;
+        if ((n + 1) * Integer.BYTES > buffer.capacity()) {
+            buffer = ByteBuffer.allocate((n + 1) * Integer.BYTES);
+        }
+        buffer.position(0);
+        buffer.limit(Integer.BYTES * (n + 1));
+        for (int i = n - 1; i >= 0; --i) {
+            buffer.putInt(sizes.get(i));
+        }
+        buffer.putInt(n);
+        buffer.position(0);
+        indexChannel.write(buffer);
+    }
+
+    private static void putRecordInBufferOrWrite(FileChannel fileChannel,
+                                                 ByteBuffer tmp,
+                                                 Record record) throws IOException {
+        long timeStamp = record.getTimeStamp();
         ByteBuffer key = record.getKey();
         ByteBuffer value = record.getValue();
 
-        ByteBufferUtils.writeBuffersWithSize(fileChannel, tmp, key, value);
+        ByteBufferUtils.putLongInBufferOrWrite(timeStamp, fileChannel, tmp);
+        ByteBufferUtils.putInBufferOrWriteWithSize(fileChannel, tmp, key, value);
     }
 
     /**
@@ -172,7 +194,7 @@ class SSTable {
             int mid = (int) (left + ((right - left) >>> 1));
 
             long offset = idx.getLong(mid * Long.BYTES);
-            buffer.position(offset);
+            buffer.position(offset + Long.BYTES); // '+Long.BYTES' is needed to skip timeStamp
             int existingKeySize = buffer.getInt();
 
             int mismatchPos = buffer.mismatch(keyToFind);

@@ -101,6 +101,45 @@ class PersistenceTest {
     }
 
     @Test
+    void newestTimeStampVisibility(@TempDir Path data) throws IOException {
+        ByteBuffer key = wrap("KEY");
+        ByteBuffer value = wrap("VALUE_1");
+        ByteBuffer value2 = wrap("VALUE_2");
+
+        // Initial insert, test both records in memory
+        try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
+            dao.upsert(Record.of(key, value, 1));
+            dao.upsert(Record.of(key, value2, 0));
+
+            Iterator<Record> range = dao.range(null, null);
+            assertTrue(range.hasNext());
+            assertEquals(value, range.next().getValue());
+        }
+
+        // Reopen, test newest timestamp on disk, oldest in memory
+        try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
+            Iterator<Record> range = dao.range(null, null);
+            assertTrue(range.hasNext());
+            assertEquals(value, range.next().getValue());
+
+            // Add record with older timestamp
+            dao.upsert(Record.of(key, value2, 0));
+
+            Iterator<Record> range2 = dao.range(null, null);
+            assertTrue(range2.hasNext());
+            assertEquals(value, range2.next().getValue());
+        }
+
+        // Reopen, test both on disk
+        try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
+            // First value (with the newest timestamp) should win
+            Iterator<Record> range2 = dao.range(null, null);
+            assertTrue(range2.hasNext());
+            assertEquals(value, range2.next().getValue());
+        }
+    }
+
+    @Test
     void replaceWithClose(@TempDir Path data) throws Exception {
         ByteBuffer key = wrap("KEY");
         ByteBuffer value = wrap("VALUE_1");

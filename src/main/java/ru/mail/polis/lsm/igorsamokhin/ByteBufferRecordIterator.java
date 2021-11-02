@@ -29,6 +29,7 @@ final class ByteBufferRecordIterator implements Iterator<Record> {
         if (!hasNext()) {
             throw new NoSuchElementException("Limit is reached");
         }
+        long timeStamp = buffer.getLong();
 
         int keySize = buffer.getInt();
         ByteBuffer key = read(keySize);
@@ -40,7 +41,7 @@ final class ByteBufferRecordIterator implements Iterator<Record> {
 
         ByteBuffer value = read(valueSize);
 
-        return Record.of(key, value);
+        return Record.of(key, value, timeStamp);
     }
 
     private ByteBuffer read(int size) {

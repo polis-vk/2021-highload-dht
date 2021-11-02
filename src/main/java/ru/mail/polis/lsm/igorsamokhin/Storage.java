@@ -50,7 +50,7 @@ public final class Storage {
         return new Storage(currentMemTable, new ArrayList<>(newMemTablesToFlush), Collections.singletonList(table));
     }
 
-    public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
+    public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey, boolean includeTombstones) {
         List<Iterator<Record>> iterators = new ArrayList<>(ssTables.size());
         for (SSTable sstable : ssTables) {
             iterators.add(sstable.range(fromKey, toKey));
@@ -61,7 +61,7 @@ public final class Storage {
         }
 
         iterators.add(currentMemTable.range(fromKey, toKey));
-        return merge(iterators);
+        return merge(iterators, includeTombstones);
     }
 
     public Iterator<Record> flushIterator() {
@@ -70,7 +70,7 @@ public final class Storage {
         for (MemTable memTable : memTablesToFlush) {
             iterators.add(memTable.range(null, null));
         }
-        return merge(iterators);
+        return merge(iterators, true);
     }
 
     public Iterator<Record> compactIterator() {
@@ -78,13 +78,13 @@ public final class Storage {
         for (SSTable sstable : ssTables) {
             iterators.add(sstable.range(null, null));
         }
-        return merge(iterators);
+        return merge(iterators, true);
     }
 
     /**
      * Merge iterators into one iterator.
      */
-    public static Iterator<Record> merge(List<Iterator<Record>> iterators) {
-        return new MergingIterator(iterators);
+    public static Iterator<Record> merge(List<Iterator<Record>> iterators, boolean includeTombstones) {
+        return new MergingIterator(iterators, includeTombstones);
     }
 }

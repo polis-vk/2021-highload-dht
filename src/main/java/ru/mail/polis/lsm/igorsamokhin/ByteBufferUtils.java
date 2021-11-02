@@ -27,14 +27,13 @@ final class ByteBufferUtils {
         return value;
     }
 
-    public static void writeBuffersWithSize(FileChannel channel,
-                                            ByteBuffer tmp,
-                                            @Nullable ByteBuffer... buffers) throws IOException {
+    public static void putInBufferOrWriteWithSize(FileChannel channel,
+                                                  ByteBuffer tmp,
+                                                  @Nullable ByteBuffer... buffers) throws IOException {
         if (buffers == null) {
             return;
         }
 
-        tmp.position(0);
         for (ByteBuffer buffer : buffers) {
             int sizeToWrite = (buffer == null) ? Integer.BYTES : (Integer.BYTES + buffer.remaining());
             if (tmp.remaining() < sizeToWrite) {
@@ -60,7 +59,7 @@ final class ByteBufferUtils {
         }
     }
 
-    private static void writeByteBuffer(WritableByteChannel channel, ByteBuffer tmp) throws IOException {
+    public static void writeByteBuffer(WritableByteChannel channel, ByteBuffer tmp) throws IOException {
         int limit = tmp.limit();
         tmp.flip();
         channel.write(tmp);
@@ -74,9 +73,11 @@ final class ByteBufferUtils {
         writeByteBuffer(channel, tmp);
     }
 
-    public static void writeLong(long value, FileChannel channel, ByteBuffer tmp) throws IOException {
-        tmp.position(0);
+    public static void putLongInBufferOrWrite(long value, FileChannel channel, ByteBuffer tmp) throws IOException {
+        if (tmp.remaining() < Long.BYTES) {
+            writeByteBuffer(channel, tmp);
+        }
+
         tmp.putLong(value);
-        writeByteBuffer(channel, tmp);
     }
 }

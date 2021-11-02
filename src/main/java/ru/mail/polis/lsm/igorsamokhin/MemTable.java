@@ -23,7 +23,13 @@ public class MemTable {
     }
 
     public int putAndGetSize(Record record) {
-        Record prev = internalStorage.put(record.getKey(), record);
+        ByteBuffer key = record.getKey();
+        Record prevRecord = internalStorage.get(key);
+        if ((prevRecord != null) && (prevRecord.getTimeStamp() > record.getTimeStamp())) {
+            return 0;
+        }
+
+        Record prev = internalStorage.put(key, record);
         int prevSize = (prev == null) ? 0 : prev.size();
         return size.addAndGet(record.size() - prevSize);
     }

@@ -118,6 +118,24 @@ public class LongMappedByteBuffer {
         return anInt;
     }
 
+    public long getLong() {
+        long pos = position();
+        Pair indexAndOffset = getIndexAndOffset(pos);
+        long offset = indexAndOffset.offset;
+        int index = indexAndOffset.index;
+        ByteBuffer buffer = getBuffer(index);
+        if ((pos - offset + Long.BYTES > buffer.capacity())) {
+            // assume that all data is completely in one buffer
+            throw new IndexOutOfBoundsException(String.format("pos: %s, off: %s, cap: %s, i: %s, buffer[i].cap: %s",
+                    pos, offset, capacity, index, buffer.capacity()));
+        } else {
+            buffer.position((int) (pos - offset));
+        }
+        long result = buffer.getLong();
+        position(pos + Long.BYTES);
+        return result;
+    }
+
     public long remaining() {
         return limit - position;
     }

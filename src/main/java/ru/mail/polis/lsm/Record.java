@@ -23,20 +23,30 @@ import java.nio.ByteBuffer;
 @SuppressWarnings("JavaLangClash")
 public class Record {
 
+    private final long timeStamp;
     private final ByteBuffer key;
     private final ByteBuffer value;
 
-    Record(ByteBuffer key, @Nullable ByteBuffer value) {
+    Record(ByteBuffer key, @Nullable ByteBuffer value, long timeStamp) {
         this.key = key.asReadOnlyBuffer();
         this.value = value == null ? null : value.asReadOnlyBuffer();
+        this.timeStamp = timeStamp;
     }
 
     public static Record of(ByteBuffer key, ByteBuffer value) {
-        return new Record(key.asReadOnlyBuffer(), value.asReadOnlyBuffer());
+        return new Record(key.asReadOnlyBuffer(), value.asReadOnlyBuffer(), -1);
+    }
+
+    public static Record of(ByteBuffer key, ByteBuffer value, long timeStamp) {
+        return new Record(key.asReadOnlyBuffer(), value.asReadOnlyBuffer(), timeStamp);
     }
 
     public static Record tombstone(ByteBuffer key) {
-        return new Record(key, null);
+        return new Record(key, null, -1);
+    }
+
+    public static Record tombstone(ByteBuffer key, long timeStamp) {
+        return new Record(key, null, timeStamp);
     }
 
     public ByteBuffer getKey() {
@@ -68,6 +78,10 @@ public class Record {
     }
 
     public int size() {
-        return getKeySize() + getValueSize();
+        return getKeySize() + getValueSize() + Long.BYTES;
+    }
+
+    public long getTimeStamp() {
+        return timeStamp;
     }
 }
