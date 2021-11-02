@@ -2,7 +2,6 @@ package ru.mail.polis.service.shabinsky_dmitry;
 
 import one.nio.http.*;
 import one.nio.net.ConnectionString;
-import one.nio.pool.PoolException;
 import one.nio.server.AcceptorConfig;
 import one.nio.util.Hash;
 import one.nio.util.Utf8;
@@ -53,7 +52,7 @@ public final class BasicService extends HttpServer implements Service {
 
             List<InetAddress> nodeAddresses = Arrays.asList(
                 InetAddress.getAllByName(connection.getHost())
-            ); //TODO optimize
+            );
             nodeAddresses.retainAll(allMe);
 
             if (!nodeAddresses.isEmpty()) {
@@ -186,14 +185,6 @@ public final class BasicService extends HttpServer implements Service {
 
             sendResponse(session, call);
         });
-    }
-
-    private Response redirectRequest(HttpClient client, Request request) {
-        try {
-            return client.invoke(request);
-        } catch (InterruptedException | PoolException | IOException | HttpException e) {
-            return new Response(Response.BAD_REQUEST, toBytes("Redirect request wrong"));
-        }
     }
 
     private void sendResponse(HttpSession session, Response call) {
