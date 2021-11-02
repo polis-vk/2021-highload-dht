@@ -62,6 +62,6 @@ public final class ServiceFactory {
             throw new IllegalArgumentException("Empty cluster");
         }
 
-        return new BasicService(port, dao, Executors.newFixedThreadPool(16), topology);
+        return new BasicService(port, dao, topology);
     }
 }

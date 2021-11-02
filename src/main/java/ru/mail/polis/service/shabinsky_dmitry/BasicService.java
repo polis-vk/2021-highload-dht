@@ -13,52 +13,50 @@ import ru.mail.polis.service.Service;
 
 import java.io.IOException;
 import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.*;
 import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 
 public final class BasicService extends HttpServer implements Service {
 
     private static final Logger LOG = LoggerFactory.getLogger(BasicService.class);
-    private static final int TIMEOUT = 100;
+    private static final int TIMEOUT = 100; // TODO config
     private final DAO dao;
     private final Executor executor;
-
     private final List<String> topology;
-    private final Set<String> me = new HashSet<>();
 
     public BasicService(
         final int port,
         final DAO dao,
-        Executor executor,
         Set<String> topology
     ) throws IOException {
         super(from(port));
-
         this.dao = dao;
-        this.executor = executor;
-
+        this.executor = Executors.newFixedThreadPool(128, r -> new MyThread(r, port, topology));
         this.topology = new ArrayList<>(topology);
         Collections.sort(this.topology);
+    }
 
-
+    private static Map<String, HttpClient> extractSelfFromInterface(int port, Set<String> topology) throws UnknownHostException {
+        Map<String, HttpClient> clients = new HashMap<>();
         List<InetAddress> allMe = Arrays.asList(InetAddress.getAllByName(null));
 
         for (String node : topology) {
-            ConnectionString connection = new ConnectionString(node);
-            if (connection.getPort() != port) {
-                continue;
-            }
+            ConnectionString connection = new ConnectionString(node +
+                "?clientMinPoolSize=1&clientMaxPoolSize=1");
 
             List<InetAddress> nodeAddresses = Arrays.asList(
                 InetAddress.getAllByName(connection.getHost())
             );
             nodeAddresses.retainAll(allMe);
 
-            if (!nodeAddresses.isEmpty()) {
-                me.add(node);
+            if (nodeAddresses.isEmpty() || connection.getPort() != port) {
+                clients.put(node, new HttpClient(connection));
             }
         }
+        return clients;
     }
 
     private static HttpServerConfig from(final int port) {
@@ -108,6 +106,14 @@ public final class BasicService extends HttpServer implements Service {
         session.sendResponse(new Response(Response.BAD_REQUEST, Response.EMPTY));
     }
 
+    @Override
+    public synchronized void stop() {
+        super.stop();
+    /*FIXME    for (HttpClient client : clients.values()) {
+            client.close();
+        }*/
+    }
+
     private Response delete(String id) {
         final ByteBuffer key = ByteBuffer.wrap(toBytes(id));
         dao.upsert(Record.tombstone(key));
@@ -138,7 +144,6 @@ public final class BasicService extends HttpServer implements Service {
     }
 
     private HttpClient forKey(String id) {
-
         String bestMatch = null;
         int maxHash = Integer.MIN_VALUE;
 
@@ -155,11 +160,8 @@ public final class BasicService extends HttpServer implements Service {
             throw new IllegalStateException("No nodes?");
         }
 
-        if (me.contains(bestMatch)) {
-            return null;
-        }
-
-        return new HttpClient(new ConnectionString(bestMatch));
+        // local node for no client
+        return ((MyThread) Thread.currentThread()).clients.get(bestMatch);
     }
 
     private byte[] toBytes(String text) {
@@ -192,6 +194,19 @@ public final class BasicService extends HttpServer implements Service {
             session.sendResponse(call);
         } catch (Exception e) {
             LOG.error("Can't send response", e);
+        }
+    }
+
+    private static class MyThread extends Thread {
+        final Map<String, HttpClient> clients;
+
+        public MyThread(Runnable target, int port, Set<String> topology) {
+            super(target);
+            try {
+                clients = extractSelfFromInterface(port, topology);
+            } catch (UnknownHostException e) {
+                throw new RuntimeException(e);
+            }
         }
     }
 
