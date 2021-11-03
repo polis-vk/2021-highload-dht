@@ -11,16 +11,19 @@ import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.ConcurrentSkipListMap;
 
 public final class NodeManager implements Closeable {
     private final Logger logger = LoggerFactory.getLogger(NodeRouter.class);
 
     private final VNodeConfig vnodeConfig;
-    private static final NavigableMap<Integer, VNode> circle = new TreeMap<>();
+    private static final NavigableMap<Integer, VNode> CIRCLE = new ConcurrentSkipListMap<>();
     private final NavigableMap<String, HttpClient> clients;
+    private final Node node;
 
     public NodeManager(Set<String> topology, VNodeConfig vnodeConfig, Node node) {
         this.vnodeConfig = vnodeConfig;
+        this.node = node;
 
         clients = new TreeMap<>();
 
@@ -40,7 +43,7 @@ public final class NodeManager implements Closeable {
         for (int i = 0; i < vnodeConfig.nodeWeight; i++) {
             int hashCode = Hash.murmur3(Node.HOST + node.port + i);
 
-            circle.put(hashCode, new VNode(node));
+            CIRCLE.put(hashCode, new VNode(node));
         }
         logger.info("server with port in end add node:" + node.port);
     }
@@ -48,11 +51,11 @@ public final class NodeManager implements Closeable {
     public VNode getNearVNode(String key) {
         logger.info("in getNearNode");
 
-        Map.Entry<Integer, VNode> integerVNodeEntry = circle.ceilingEntry(Hash.murmur3(key));
+        Map.Entry<Integer, VNode> integerVNodeEntry = CIRCLE.ceilingEntry(Hash.murmur3(key));
 
         VNode vnode;
         if (integerVNodeEntry == null) {
-            vnode = circle.firstEntry().getValue();
+            vnode = CIRCLE.firstEntry().getValue();
         } else {
             vnode = integerVNodeEntry.getValue();
         }
@@ -79,7 +82,12 @@ public final class NodeManager implements Closeable {
     public void close() {
         for (HttpClient httpClient : clients.values()) {
             httpClient.close();
-            circle.clear();
+        }
+
+        for (Map.Entry<Integer, VNode> integerVNodeEntry : CIRCLE.entrySet()) {
+            if (integerVNodeEntry.getValue().getPhysicalNode().port == node.port) {
+                CIRCLE.remove(integerVNodeEntry.getKey());
+            }
         }
     }
 }
