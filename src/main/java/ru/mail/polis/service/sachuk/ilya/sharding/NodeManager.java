@@ -65,15 +65,15 @@ public final class NodeManager implements Closeable {
             httpClient.close();
         }
 
-        List<Integer> vNodesToRemove = new ArrayList<>();
-        for (Map.Entry<Integer, VNode> integerVNodeEntry : CIRCLE.entrySet()) {
-            VNode vNode = integerVNodeEntry.getValue();
-            if (vNode.getPhysicalNode().port == node.port) {
-                vNodesToRemove.add(integerVNodeEntry.getKey());
+        List<Integer> vnodesToRemove = new ArrayList<>();
+        for (Map.Entry<Integer, VNode> entry : CIRCLE.entrySet()) {
+            VNode vnode = entry.getValue();
+            if (vnode.getPhysicalNode().port == node.port) {
+                vnodesToRemove.add(entry.getKey());
             }
         }
 
-        for (Integer hash : vNodesToRemove) {
+        for (Integer hash : vnodesToRemove) {
             CIRCLE.remove(hash);
         }
     }
