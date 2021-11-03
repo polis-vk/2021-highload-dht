@@ -3,56 +3,51 @@ package ru.mail.polis.service.sachuk.ilya.sharding;
 import one.nio.http.HttpClient;
 import one.nio.net.ConnectionString;
 import one.nio.util.Hash;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
+import java.io.Closeable;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Set;
 import java.util.TreeMap;
-import java.util.concurrent.atomic.AtomicInteger;
 
-public final class NodeManager {
-    @SuppressWarnings("PMD")
-    private static volatile NodeManager instance;
-    private static final Object LOCK_OBJECT = new Object();
+public final class NodeManager implements Closeable {
+    private final Logger logger = LoggerFactory.getLogger(NodeRouter.class);
+
     private final VNodeConfig vnodeConfig;
-    private final NavigableMap<Integer, VNode> circle;
+    private static final NavigableMap<Integer, VNode> circle = new TreeMap<>();
     private final NavigableMap<String, HttpClient> clients;
-    private final AtomicInteger nodeCount = new AtomicInteger();
 
-    private NodeManager(Set<String> topology, VNodeConfig vnodeConfig) {
+    public NodeManager(Set<String> topology, VNodeConfig vnodeConfig, Node node) {
         this.vnodeConfig = vnodeConfig;
-        circle = new TreeMap<>();
 
         clients = new TreeMap<>();
+
         for (String endpoint : topology) {
+            ConnectionString connectionString = new ConnectionString(endpoint);
+            if (node.port == connectionString.getPort()) {
+                continue;
+            }
             HttpClient client = new HttpClient(new ConnectionString(endpoint));
             clients.put(endpoint, client);
         }
+
+        addNode(node);
     }
 
-    @SuppressWarnings("PMD")
-    public static NodeManager getInstance(Set<String> topology, VNodeConfig vnodeConfig) {
-        if (instance == null) {
-            synchronized (LOCK_OBJECT) {
-                if (instance == null) {
-                    instance = new NodeManager(topology, vnodeConfig);
-                }
-            }
-        }
-
-        return instance;
-    }
-
-    public void addNode(Node node) {
-        nodeCount.incrementAndGet();
+    private void addNode(Node node) {
         for (int i = 0; i < vnodeConfig.nodeWeight; i++) {
             int hashCode = Hash.murmur3(Node.HOST + node.port + i);
 
             circle.put(hashCode, new VNode(node));
         }
+        logger.info("server with port in end add node:" + node.port);
     }
 
     public VNode getNearVNode(String key) {
+        logger.info("in getNearNode");
+
         Map.Entry<Integer, VNode> integerVNodeEntry = circle.ceilingEntry(Hash.murmur3(key));
 
         VNode vnode;
@@ -62,20 +57,29 @@ public final class NodeManager {
             vnode = integerVNodeEntry.getValue();
         }
 
+        logger.info("in end getNearNode, key is: " + key);
+        logger.info("in end getNearNode, found vNode and port: " + vnode.getPhysicalNode().port);
+
+
         return vnode;
     }
 
     public HttpClient getHttpClient(String endpoint) {
+        Set<String> strings = clients.keySet();
+
+        for (String string : strings) {
+            logger.info("port from sortedMap: " + string);
+            logger.info(String.valueOf(endpoint.equals(string)));
+        }
+
         return clients.get(endpoint);
     }
 
-    public void removeNode() {
-        nodeCount.decrementAndGet();
-
-        if (nodeCount.get() == 0) {
-            synchronized (LOCK_OBJECT) {
-                instance = null;
-            }
+    @Override
+    public void close() {
+        for (HttpClient httpClient : clients.values()) {
+            httpClient.close();
+            circle.clear();
         }
     }
 }

@@ -33,10 +33,9 @@ public class ServiceImpl extends HttpServer implements Service {
         super(configFrom(port));
 
         this.entityRequestHandler = new EntityRequestHandler(dao);
-        this.nodeManager = NodeManager.getInstance(topology, new VNodeConfig());
-        this.nodeRouter = new NodeRouter(nodeManager);
         this.node = new Node(port);
-        nodeManager.addNode(node);
+        this.nodeManager = new NodeManager(topology, new VNodeConfig(), node);
+        this.nodeRouter = new NodeRouter(nodeManager);
     }
 
     private static HttpServerConfig configFrom(int port) {
@@ -125,6 +124,6 @@ public class ServiceImpl extends HttpServer implements Service {
     public synchronized void stop() {
         super.stop();
 
-        nodeManager.removeNode();
+        nodeManager.close();
     }
 }
