@@ -11,9 +11,11 @@ import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class NodeManager implements Closeable {
     private static final NavigableMap<Integer, VNode> CIRCLE = new TreeMap<>();
+    private final AtomicBoolean isClosed = new AtomicBoolean(false);
     private final NavigableMap<String, HttpClient> clients;
     private final VNodeConfig vnodeConfig;
     private final Node node;
@@ -40,6 +42,8 @@ public final class NodeManager implements Closeable {
     public VNode getNearVNode(String key) {
         Map.Entry<Integer, VNode> integerVNodeEntry = CIRCLE.ceilingEntry(Hash.murmur3(key));
 
+        checkIsClosed();
+
         VNode vnode;
         if (integerVNodeEntry == null) {
             vnode = CIRCLE.firstEntry().getValue();
@@ -56,6 +60,7 @@ public final class NodeManager implements Closeable {
 
     @Override
     public void close() {
+        isClosed.set(true);
         for (HttpClient httpClient : clients.values()) {
             httpClient.close();
         }
@@ -74,10 +79,18 @@ public final class NodeManager implements Closeable {
     }
 
     private void addNode(Node node) {
+        checkIsClosed();
+
         for (int i = 0; i < vnodeConfig.nodeWeight; i++) {
             int hashCode = Hash.murmur3(Node.HOST + node.port + i);
 
             CIRCLE.put(hashCode, new VNode(node));
+        }
+    }
+
+    private void checkIsClosed() {
+        if (isClosed.get()) {
+            throw new IllegalStateException("NodeManager is already closed");
         }
     }
 }
