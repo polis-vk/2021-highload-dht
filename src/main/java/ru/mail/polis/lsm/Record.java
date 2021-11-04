@@ -24,18 +24,20 @@ public class Record {
 
     private final ByteBuffer key;
     private final ByteBuffer value;
+    private final ByteBuffer timestamp;
 
-    Record(ByteBuffer key, @Nullable ByteBuffer value) {
+    Record(ByteBuffer key, @Nullable ByteBuffer value, ByteBuffer timestamp) {
         this.key = key.asReadOnlyBuffer();
         this.value = value == null ? null : value.asReadOnlyBuffer();
+        this.timestamp = timestamp.asReadOnlyBuffer();
     }
 
-    public static Record of(ByteBuffer key, ByteBuffer value) {
-        return new Record(key.asReadOnlyBuffer(), value.asReadOnlyBuffer());
+    public static Record of(ByteBuffer key, ByteBuffer value, ByteBuffer timestamp) {
+        return new Record(key.asReadOnlyBuffer(), value.asReadOnlyBuffer(), timestamp.asReadOnlyBuffer());
     }
 
-    public static Record tombstone(ByteBuffer key) {
-        return new Record(key, null);
+    public static Record tombstone(ByteBuffer key, ByteBuffer timestamp) {
+        return new Record(key, null, timestamp);
     }
 
     public ByteBuffer getKey() {
