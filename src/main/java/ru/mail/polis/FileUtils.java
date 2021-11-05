@@ -125,9 +125,30 @@ public final class FileUtils {
         channel.write(value);
     }
 
+    public static void writeSizeAndValueForTimestamp(
+            ByteBuffer value,
+            WritableByteChannel channel,
+            ByteBuffer tmp
+    ) throws IOException {
+        tmp.position(0);
+        tmp.putLong(value.remaining());
+        tmp.position(0);
+
+        channel.write(tmp);
+        channel.write(value);
+    }
+
     public static void writeInt(WritableByteChannel fileChannel, ByteBuffer tmp, int value) throws IOException {
         tmp.position(0);
         tmp.putInt(value);
+        tmp.position(0);
+
+        fileChannel.write(tmp);
+    }
+
+    public static void writeLong(WritableByteChannel fileChannel, ByteBuffer tmp, long value) throws IOException {
+        tmp.position(0);
+        tmp.putLong(value);
         tmp.position(0);
 
         fileChannel.write(tmp);

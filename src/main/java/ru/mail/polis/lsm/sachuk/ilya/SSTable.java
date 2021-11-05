@@ -89,6 +89,7 @@ public class SSTable {
             try (FileChannel indexFileChanel = FileUtils.openFileChannel(tmpIndexPath)) {
 
                 ByteBuffer buffer = ByteBuffer.allocate(Integer.BYTES);
+                ByteBuffer bufferForTimestamp = ByteBuffer.allocate(Long.BYTES);
 
                 int counter = 0;
                 FileUtils.writeInt(indexFileChanel, buffer, counter);
@@ -116,6 +117,10 @@ public class SSTable {
                     } else {
                         FileUtils.writeSizeAndValue(value, saveFileChannel, buffer);
                     }
+
+//                    FileUtils.writeSizeAndValueForTimestamp(record.getTimestamp().flip(), saveFileChannel, bufferForTimestamp);
+//                    FileUtils.writeSizeAndValue(record.getTimestamp().flip(), saveFileChannel, bufferForTimestamp);
+                    FileUtils.writeLong(saveFileChannel, bufferForTimestamp, record.getTimestamp().getLong());
                 }
 
                 int curPos = (int) indexFileChanel.position();

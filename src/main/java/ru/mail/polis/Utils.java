@@ -1,6 +1,7 @@
 package ru.mail.polis;
 
 import java.nio.ByteBuffer;
+import java.nio.charset.CharacterCodingException;
 import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 
@@ -30,7 +31,15 @@ public final class Utils {
 
     public static ByteBuffer timeStampToByteBuffer(Long dateInSec) {
 //        long dateInSec = timestamp.getTime();
+        ByteBuffer buffer = ByteBuffer.allocate(8).putLong(dateInSec);
+        return buffer.position(0).duplicate();
+    }
 
-        return ByteBuffer.allocate(8).putLong(dateInSec);
+    public static String toString(ByteBuffer buffer) {
+        try {
+            return StandardCharsets.UTF_8.newDecoder().decode(buffer).toString();
+        } catch (CharacterCodingException e) {
+            throw new RuntimeException(e);
+        }
     }
 }

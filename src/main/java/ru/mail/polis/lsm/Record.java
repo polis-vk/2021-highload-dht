@@ -48,6 +48,10 @@ public class Record {
         return value == null ? null : value.asReadOnlyBuffer();
     }
 
+    public ByteBuffer getTimestamp() {
+        return timestamp.asReadOnlyBuffer();
+    }
+
     public boolean isTombstone() {
         return value == null;
     }

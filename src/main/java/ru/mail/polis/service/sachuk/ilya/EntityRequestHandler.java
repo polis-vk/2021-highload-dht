@@ -35,7 +35,7 @@ public class EntityRequestHandler {
 
     public Response delete(String id) {
 
-        dao.upsert(Record.tombstone(Utils.stringToBytebuffer(id)));
+        dao.upsert(Record.tombstone(Utils.stringToBytebuffer(id), Utils.timeStampToByteBuffer(System.currentTimeMillis())));
 
         return new Response(Response.ACCEPTED, Response.EMPTY);
     }
@@ -45,8 +45,8 @@ public class EntityRequestHandler {
         byte[] body = request.getBody();
         ByteBuffer key = ByteBuffer.wrap(id.getBytes(StandardCharsets.UTF_8));
         ByteBuffer value = ByteBuffer.wrap(body);
-
-        dao.upsert(Record.of(key, value));
+//TODO передавать timestamp
+        dao.upsert(Record.of(key, value, Utils.timeStampToByteBuffer(System.currentTimeMillis())));
 
         return new Response(Response.CREATED, Response.EMPTY);
     }
