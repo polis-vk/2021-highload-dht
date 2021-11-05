@@ -11,7 +11,9 @@ import ru.mail.polis.service.Service;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -22,6 +24,12 @@ public class ServiceImpl extends HttpServer implements Service {
     private final ThreadPoolExecutor executor;
     private final ClusterService clusterService;
 
+    public static final int STATUS_OK = 200;
+    public static final int STATUS_NOT_FOUND = 404;
+    public static final int STATUS_BAD_GATEWAY = 502;
+    public static final int STATUS_CREATED = 201;
+    public static final int STATUS_DELETED = 202;
+
     /**
      * some doc.
      */
@@ -31,6 +39,12 @@ public class ServiceImpl extends HttpServer implements Service {
         this.clusterService = new ClusterService(dao, topology, servConf);
     }
 
+    @Override
+    public void stop() {
+        clusterService.stop();
+        super.stop();
+    }
+
     public Response status() {
         return Response.ok("OK");
     }
@@ -38,20 +52,24 @@ public class ServiceImpl extends HttpServer implements Service {
     @Override
     public void handleRequest(Request request, HttpSession session) {
         this.executor.execute(() -> {
-            final HttpSession localSession = session;
             final String path = request.getPath();
-            final int method = request.getMethod();
+            Response resp;
             try {
                 switch (path) {
                     case "/v0/status":
-                        localSession.sendResponse(status());
+                        session.sendResponse(status());
                         break;
                     case "/v0/entity":
-                        Response resp = handleEntity(method, request);
-                        localSession.sendResponse(resp);
+                        resp = handleEntity(request);
+                        session.sendResponse(resp);
+                        break;
+                    case "/internal/cluster/entity":
+                        resp = internalRequest(request);
+                        session.sendResponse(resp);
                         break;
                     default:
-                        localSession.sendResponse(new Response(Response.BAD_REQUEST, Response.EMPTY));
+                        resp = new Response(Response.BAD_REQUEST, Response.EMPTY);
+                        session.sendResponse(resp);
                         break;
                 }
             } catch (IOException e) {
@@ -60,25 +78,64 @@ public class ServiceImpl extends HttpServer implements Service {
         });
     }
 
+    private Map<String, String> parseParameters(final Request request) {
+        Map<String, String> parameters = new HashMap<>();
+        String id = getParamRequest(request, "id");
+        if (id.isEmpty()) {
+            return null;
+        }
+        int numNodes = 0;
+        int maxNodes = 0;
+        Iterator<String> params = request.getParameters("replicas");
+        if (params.hasNext()) {
+            String replicas = params.next().substring(1);
+            String[] ackfrom = replicas.split("/");
+            numNodes = Integer.parseInt(ackfrom[0]);
+            maxNodes = Integer.parseInt(ackfrom[1]);
+        } else {
+            numNodes = clusterService.quorumCompute();
+            maxNodes = clusterService.getClusterSize();
+        }
+
+        if (numNodes > maxNodes) {
+            return null;
+        }
+        parameters.put("id", id);
+        parameters.put("ack", String.valueOf(numNodes));
+        parameters.put("from", String.valueOf(maxNodes));
+        return parameters;
+    }
+
     /**
      * some doc.
      */
-    public Response handleEntity(final int method, final Request request) throws IOException {
-        String id = "";
-        final Iterator<String> params = request.getParameters("id");
-        if (params.hasNext()) {
-            id = params.next().substring(1);
-        }
-
+    public Response handleEntity(final Request request) throws IOException {
         try {
-            if (id.isEmpty()) {
-                return new Response(Response.BAD_REQUEST, Response.EMPTY);
-            } else {
-                return clusterService.handleRequest(method, id, request);
-            }
+            Map<String, String> params = parseParameters(request);
+            return clusterService.handleRequest(request, params);
         } catch (IOException e) {
             throw new UncheckedIOException("Bad request", e);
         }
     }
 
+    /**
+     * some doc.
+     */
+    public Response internalRequest(final Request request) throws IOException {
+        try {
+            String id = getParamRequest(request, "id");
+            return clusterService.internalRequest(request, id);
+        } catch (IOException e) {
+            throw new UncheckedIOException("Bad request", e);
+        }
+    }
+
+    private String getParamRequest(final Request request, final String nameParam) {
+        String param = "";
+        Iterator<String> params = request.getParameters(nameParam);
+        if (params.hasNext()) {
+            param = params.next().substring(1);
+        }
+        return param;
+    }
 }

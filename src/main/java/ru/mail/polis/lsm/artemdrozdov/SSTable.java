@@ -104,7 +104,7 @@ public class SSTable implements Closeable {
                     writeInt(-1, fileChannel, size);
                 } else {
                     // value is null for tombstones only
-                    ByteBuffer value = Objects.requireNonNull(record.getValue());
+                    ByteBuffer value = Objects.requireNonNull(record.getRawValue());
                     writeValueWithSize(value, fileChannel, size);
                 }
             }
@@ -256,7 +256,7 @@ public class SSTable implements Closeable {
     private static void writeValueWithSize(ByteBuffer value, WritableByteChannel channel, ByteBuffer tmp)
             throws IOException {
 
-        writeInt(value.remaining(), channel, tmp);
+        writeInt(value.limit(), channel, tmp);
         channel.write(tmp);
         channel.write(value);
     }

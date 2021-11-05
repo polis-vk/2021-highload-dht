@@ -1,0 +1,862 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8'>
+<style>
+	body {margin: 0; padding: 10px; background-color: #ffffff}
+	h1 {margin: 5px 0 0 0; font-size: 18px; font-weight: normal; text-align: center}
+	header {margin: -24px 0 5px 0; line-height: 24px}
+	button {font: 12px sans-serif; cursor: pointer}
+	p {margin: 5px 0 5px 0}
+	a {color: #0366d6}
+	#hl {position: absolute; display: none; overflow: hidden; white-space: nowrap; pointer-events: none; background-color: #ffffe0; outline: 1px solid #ffc000; height: 15px}
+	#hl span {padding: 0 3px 0 3px}
+	#status {overflow: hidden; white-space: nowrap}
+	#match {overflow: hidden; white-space: nowrap; display: none; float: right; text-align: right}
+	#reset {cursor: pointer}
+</style>
+</head>
+<body style='font: 12px Verdana, sans-serif'>
+<h1>Flame Graph</h1>
+<header style='text-align: left'><button id='reverse' title='Reverse'>&#x1f53b;</button>&nbsp;&nbsp;<button id='search' title='Search'>&#x1f50d;</button></header>
+<header style='text-align: right'>Produced by <a href='https://github.com/jvm-profiling-tools/async-profiler'>async-profiler</a></header>
+<canvas id='canvas' style='width: 100%; height: 640px'></canvas>
+<div id='hl'><span></span></div>
+<p id='match'>Matched: <span id='matchval'></span> <span id='reset' title='Clear'>&#x274c;</span></p>
+<p id='status'>&nbsp;</p>
+<script>
+	// Copyright 2020 Andrei Pangin
+	// Licensed under the Apache License, Version 2.0.
+	'use strict';
+	var root, rootLevel, px, pattern;
+	var reverse = false;
+	const levels = Array(40);
+	for (let h = 0; h < levels.length; h++) {
+		levels[h] = [];
+	}
+
+	const canvas = document.getElementById('canvas');
+	const c = canvas.getContext('2d');
+	const hl = document.getElementById('hl');
+	const status = document.getElementById('status');
+
+	const canvasWidth = canvas.offsetWidth;
+	const canvasHeight = canvas.offsetHeight;
+	canvas.style.width = canvasWidth + 'px';
+	canvas.width = canvasWidth * (devicePixelRatio || 1);
+	canvas.height = canvasHeight * (devicePixelRatio || 1);
+	if (devicePixelRatio) c.scale(devicePixelRatio, devicePixelRatio);
+	c.font = document.body.style.font;
+
+	const palette = [
+		[0x50e150, 30, 30, 30],
+		[0x50bebe, 30, 30, 30],
+		[0xe17d00, 30, 30,  0],
+		[0xc8c83c, 30, 30, 10],
+		[0xe15a5a, 30, 40, 40],
+	];
+
+	function getColor(p) {
+		const v = Math.random();
+		return '#' + (p[0] + ((p[1] * v) << 16 | (p[2] * v) << 8 | (p[3] * v))).toString(16);
+	}
+
+	function f(level, left, width, type, title) {
+		levels[level].push({left: left, width: width, color: getColor(palette[type]), title: title});
+	}
+
+	function samples(n) {
+		return n === 1 ? '1 sample' : n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',') + ' samples';
+	}
+
+	function pct(a, b) {
+		return a >= b ? '100' : (100 * a / b).toFixed(2);
+	}
+
+	function findFrame(frames, x) {
+		let left = 0;
+		let right = frames.length - 1;
+
+		while (left <= right) {
+			const mid = (left + right) >>> 1;
+			const f = frames[mid];
+
+			if (f.left > x) {
+				right = mid - 1;
+			} else if (f.left + f.width <= x) {
+				left = mid + 1;
+			} else {
+				return f;
+			}
+		}
+
+		if (frames[left] && (frames[left].left - x) * px < 0.5) return frames[left];
+		if (frames[right] && (x - (frames[right].left + frames[right].width)) * px < 0.5) return frames[right];
+
+		return null;
+	}
+
+	function search(r) {
+		if (r && (r = prompt('Enter regexp to search:', '')) === null) {
+			return;
+		}
+
+		pattern = r ? RegExp(r) : undefined;
+		const matched = render(root, rootLevel);
+		document.getElementById('matchval').textContent = pct(matched, root.width) + '%';
+		document.getElementById('match').style.display = r ? 'inherit' : 'none';
+	}
+
+	function render(newRoot, newLevel) {
+		if (root) {
+			c.fillStyle = '#ffffff';
+			c.fillRect(0, 0, canvasWidth, canvasHeight);
+		}
+
+		root = newRoot || levels[0][0];
+		rootLevel = newLevel || 0;
+		px = canvasWidth / root.width;
+
+		const x0 = root.left;
+		const x1 = x0 + root.width;
+		const marked = [];
+
+		function mark(f) {
+			return marked[f.left] >= f.width || (marked[f.left] = f.width);
+		}
+
+		function totalMarked() {
+			let total = 0;
+			let left = 0;
+			for (let x in marked) {
+				if (+x >= left) {
+					total += marked[x];
+					left = +x + marked[x];
+				}
+			}
+			return total;
+		}
+
+		function drawFrame(f, y, alpha) {
+			if (f.left < x1 && f.left + f.width > x0) {
+				c.fillStyle = pattern && f.title.match(pattern) && mark(f) ? '#ee00ee' : f.color;
+				c.fillRect((f.left - x0) * px, y, f.width * px, 15);
+
+				if (f.width * px >= 21) {
+					const chars = Math.floor(f.width * px / 7);
+					const title = f.title.length <= chars ? f.title : f.title.substring(0, chars - 2) + '..';
+					c.fillStyle = '#000000';
+					c.fillText(title, Math.max(f.left - x0, 0) * px + 3, y + 12, f.width * px - 6);
+				}
+
+				if (alpha) {
+					c.fillStyle = 'rgba(255, 255, 255, 0.5)';
+					c.fillRect((f.left - x0) * px, y, f.width * px, 15);
+				}
+			}
+		}
+
+		for (let h = 0; h < levels.length; h++) {
+			const y = reverse ? h * 16 : canvasHeight - (h + 1) * 16;
+			const frames = levels[h];
+			for (let i = 0; i < frames.length; i++) {
+				drawFrame(frames[i], y, h < rootLevel);
+			}
+		}
+
+		return totalMarked();
+	}
+
+	canvas.onmousemove = function() {
+		const h = Math.floor((reverse ? event.offsetY : (canvasHeight - event.offsetY)) / 16);
+		if (h >= 0 && h < levels.length) {
+			const f = findFrame(levels[h], event.offsetX / px + root.left);
+			if (f) {
+				hl.style.left = (Math.max(f.left - root.left, 0) * px + canvas.offsetLeft) + 'px';
+				hl.style.width = (Math.min(f.width, root.width) * px) + 'px';
+				hl.style.top = ((reverse ? h * 16 : canvasHeight - (h + 1) * 16) + canvas.offsetTop) + 'px';
+				hl.firstChild.textContent = f.title;
+				hl.style.display = 'block';
+				canvas.title = f.title + '\n(' + samples(f.width) + ', ' + pct(f.width, levels[0][0].width) + '%)';
+				canvas.style.cursor = 'pointer';
+				canvas.onclick = function() {
+					if (f != root) {
+						render(f, h);
+						canvas.onmousemove();
+					}
+				};
+				status.textContent = 'Function: ' + canvas.title;
+				return;
+			}
+		}
+		canvas.onmouseout();
+	}
+
+	canvas.onmouseout = function() {
+		hl.style.display = 'none';
+		status.textContent = '\xa0';
+		canvas.title = '';
+		canvas.style.cursor = '';
+		canvas.onclick = '';
+	}
+
+	document.getElementById('reverse').onclick = function() {
+		reverse = !reverse;
+		render();
+	}
+
+	document.getElementById('search').onclick = function() {
+		search(true);
+	}
+
+	document.getElementById('reset').onclick = function() {
+		search(false);
+	}
+
+	window.onkeydown = function() {
+		if (event.ctrlKey && event.keyCode === 70) {
+			event.preventDefault();
+			search(true);
+		} else if (event.keyCode === 27) {
+			search(false);
+		}
+	}
+f(0,0,352508,4,'all')
+f(1,0,200428,0,'java/lang/Thread.run')
+f(2,0,200428,0,'java/util/concurrent/ThreadPoolExecutor$Worker.run')
+f(3,0,200428,0,'java/util/concurrent/ThreadPoolExecutor.runWorker')
+f(4,0,1366,0,'java/util/concurrent/ThreadPoolExecutor.getTask')
+f(5,0,1366,0,'java/util/concurrent/LinkedBlockingQueue.take')
+f(6,0,1342,0,'java/util/concurrent/locks/AbstractQueuedSynchronizer$ConditionObject.await')
+f(7,0,1342,0,'java/util/concurrent/locks/AbstractQueuedSynchronizer$ConditionObject.addConditionWaiter')
+f(8,0,1342,1,'java.util.concurrent.locks.AbstractQueuedSynchronizer$Node')
+f(6,1342,24,0,'java/util/concurrent/locks/ReentrantLock.lockInterruptibly')
+f(7,1342,24,0,'java/util/concurrent/locks/AbstractQueuedSynchronizer.acquireInterruptibly')
+f(8,1342,24,0,'java/util/concurrent/locks/AbstractQueuedSynchronizer.doAcquireInterruptibly')
+f(9,1342,24,0,'java/util/concurrent/locks/AbstractQueuedSynchronizer.addWaiter')
+f(10,1342,24,1,'java.util.concurrent.locks.AbstractQueuedSynchronizer$Node')
+f(4,1366,199062,0,'ru/mail/polis/service/gasparyansokrat/ServiceImpl$$Lambda$57/1188824070.run')
+f(5,1366,199062,0,'ru/mail/polis/service/gasparyansokrat/ServiceImpl.lambda$handleRequest$0')
+f(6,1366,7036,0,'one/nio/http/HttpSession.sendResponse')
+f(7,1366,5398,0,'one/nio/http/HttpSession.writeResponse')
+f(8,1366,3843,0,'one/nio/http/Response.toBytes')
+f(9,1366,3843,0,'one/nio/util/ByteArrayBuilder.<init>')
+f(10,1366,3843,1,'byte[]')
+f(8,5209,1555,0,'one/nio/net/Session.write')
+f(9,5209,1555,1,'one.nio.net.Session$ArrayQueueItem')
+f(7,6764,1638,0,'one/nio/http/Request.getHeader')
+f(8,6764,1638,0,'one/nio/http/Request.trim')
+f(9,6764,1638,0,'java/lang/String.substring')
+f(10,6764,1638,0,'java/lang/StringLatin1.newString')
+f(11,6764,730,1,'java.lang.String')
+f(11,7494,908,0,'java/util/Arrays.copyOfRange')
+f(12,7494,908,1,'byte[]')
+f(6,8402,4150,0,'one/nio/http/Request.getPath')
+f(7,8402,4150,0,'java/lang/String.substring')
+f(8,8402,4150,0,'java/lang/StringLatin1.newString')
+f(9,8402,2660,1,'java.lang.String')
+f(9,11062,1490,0,'java/util/Arrays.copyOfRange')
+f(10,11062,1490,1,'byte[]')
+f(6,12552,75276,0,'ru/mail/polis/service/gasparyansokrat/ServiceImpl.handleEntity')
+f(7,12552,73111,0,'ru/mail/polis/service/gasparyansokrat/ClusterService.handleRequest')
+f(8,12552,2436,0,'ru/mail/polis/service/gasparyansokrat/ConsistentHashImpl.getNodes')
+f(9,12552,64,1,'java.util.ArrayList')
+f(9,12616,41,1,'java.util.HashSet')
+f(9,12657,108,0,'java/lang/Integer.valueOf')
+f(10,12657,108,1,'java.lang.Integer')
+f(9,12765,66,0,'java/lang/String.getBytes')
+f(10,12765,66,0,'java/lang/StringCoding.encode')
+f(11,12765,66,0,'java/lang/StringCoding.encodeUTF8')
+f(12,12765,66,0,'java/util/Arrays.copyOf')
+f(13,12765,66,1,'byte[]')
+f(9,12831,239,0,'java/util/ArrayList.<init>')
+f(10,12831,239,0,'java/util/AbstractCollection.toArray')
+f(11,12831,79,1,'java.lang.Object[]')
+f(11,12910,160,0,'java/util/HashSet.iterator')
+f(12,12910,122,0,'java/util/HashMap$KeySet.iterator')
+f(13,12910,122,1,'java.util.HashMap$KeyIterator')
+f(12,13032,38,0,'java/util/HashMap.keySet')
+f(13,13032,38,1,'java.util.HashMap$KeySet')
+f(9,13070,153,0,'java/util/HashSet.<init>')
+f(10,13070,153,1,'java.util.HashMap')
+f(9,13223,526,0,'java/util/HashSet.add')
+f(10,13223,526,0,'java/util/HashMap.put')
+f(11,13223,526,0,'java/util/HashMap.putVal')
+f(12,13223,292,0,'java/util/HashMap.newNode')
+f(13,13223,292,1,'java.util.HashMap$Node')
+f(12,13515,234,0,'java/util/HashMap.resize')
+f(13,13515,234,1,'java.util.HashMap$Node[]')
+f(9,13749,223,0,'java/util/TreeMap$KeySet.iterator')
+f(10,13749,223,0,'java/util/TreeMap$AscendingSubMap.keyIterator')
+f(11,13749,223,1,'java.util.TreeMap$NavigableSubMap$SubMapKeyIterator')
+f(9,13972,183,0,'java/util/TreeMap$NavigableSubMap.isEmpty')
+f(10,13972,183,0,'java/util/TreeMap$AscendingSubMap.entrySet')
+f(11,13972,183,1,'java.util.TreeMap$AscendingSubMap$AscendingEntrySetView')
+f(9,14155,78,0,'java/util/TreeMap$NavigableSubMap.keySet')
+f(10,14155,78,0,'java/util/TreeMap$NavigableSubMap.navigableKeySet')
+f(11,14155,78,1,'java.util.TreeMap$KeySet')
+f(9,14233,306,0,'java/util/TreeMap.tailMap')
+f(10,14233,306,0,'java/util/TreeMap.tailMap')
+f(11,14233,306,1,'java.util.TreeMap$AscendingSubMap')
+f(9,14539,449,0,'ru/mail/polis/service/gasparyansokrat/ConsistentHashImpl.getNode')
+f(10,14539,124,0,'java/lang/Integer.valueOf')
+f(11,14539,124,1,'java.lang.Integer')
+f(10,14663,77,0,'java/lang/String.getBytes')
+f(11,14663,77,0,'java/lang/StringCoding.encode')
+f(12,14663,77,0,'java/lang/StringCoding.encodeUTF8')
+f(13,14663,77,0,'java/util/Arrays.copyOf')
+f(14,14663,77,1,'byte[]')
+f(10,14740,93,0,'java/util/TreeMap$NavigableSubMap.isEmpty')
+f(11,14740,93,0,'java/util/TreeMap$AscendingSubMap.entrySet')
+f(12,14740,93,1,'java.util.TreeMap$AscendingSubMap$AscendingEntrySetView')
+f(10,14833,155,0,'java/util/TreeMap.tailMap')
+f(11,14833,155,0,'java/util/TreeMap.tailMap')
+f(12,14833,155,1,'java.util.TreeMap$AscendingSubMap')
+f(8,14988,70675,0,'ru/mail/polis/service/gasparyansokrat/ReplicationService.handleRequest')
+f(9,14988,123,1,'java.util.ArrayList')
+f(9,15111,376,0,'java/util/ArrayList.add')
+f(10,15111,376,0,'java/util/ArrayList.add')
+f(11,15111,376,0,'java/util/ArrayList.grow')
+f(12,15111,376,0,'java/util/ArrayList.grow')
+f(13,15111,376,0,'java/util/Arrays.copyOf')
+f(14,15111,376,1,'java.lang.Object[]')
+f(9,15487,37373,0,'ru/mail/polis/service/gasparyansokrat/ReplicationService.externalRequest')
+f(10,15487,37373,0,'ru/mail/polis/service/gasparyansokrat/ReplicationService.get')
+f(11,15487,123,1,'java.lang.Object[]')
+f(11,15610,3793,0,'java/lang/String.format')
+f(12,15610,199,1,'java.util.Formatter')
+f(12,15809,697,0,'java/util/Formatter.<init>')
+f(13,15809,146,1,'java.lang.StringBuilder')
+f(13,15955,151,0,'java/lang/StringBuilder.<init>')
+f(14,15955,151,0,'java/lang/AbstractStringBuilder.<init>')
+f(15,15955,151,1,'byte[]')
+f(13,16106,400,0,'java/util/Formatter.<init>')
+f(14,16106,400,0,'java/util/Formatter.getZero')
+f(15,16106,400,0,'java/text/DecimalFormatSymbols.getInstance')
+f(16,16106,400,0,'sun/util/locale/provider/DecimalFormatSymbolsProviderImpl.getInstance')
+f(17,16106,400,1,'java.text.DecimalFormatSymbols')
+f(12,16506,2598,0,'java/util/Formatter.format')
+f(13,16506,2598,0,'java/util/Formatter.format')
+f(14,16506,247,0,'java/util/Formatter$FixedString.print')
+f(15,16506,247,0,'java/lang/StringBuilder.append')
+f(16,16506,247,0,'java/lang/StringBuilder.append')
+f(17,16506,247,0,'java/lang/AbstractStringBuilder.append')
+f(18,16506,247,0,'java/lang/AbstractStringBuilder.ensureCapacityInternal')
+f(19,16506,247,0,'java/util/Arrays.copyOf')
+f(20,16506,247,1,'byte[]')
+f(14,16753,380,0,'java/util/Formatter$FormatSpecifier.print')
+f(15,16753,380,0,'java/util/Formatter$FormatSpecifier.printString')
+f(16,16753,380,0,'java/util/Formatter$FormatSpecifier.print')
+f(17,16753,380,0,'java/util/Formatter$FormatSpecifier.appendJustified')
+f(18,16753,380,0,'java/lang/StringBuilder.append')
+f(19,16753,380,0,'java/lang/StringBuilder.append')
+f(20,16753,380,0,'java/lang/AbstractStringBuilder.append')
+f(21,16753,380,0,'java/lang/StringBuilder.append')
+f(22,16753,380,0,'java/lang/StringBuilder.append')
+f(23,16753,380,0,'java/lang/AbstractStringBuilder.append')
+f(24,16753,380,0,'java/lang/AbstractStringBuilder.ensureCapacityInternal')
+f(25,16753,380,0,'java/util/Arrays.copyOf')
+f(26,16753,380,1,'byte[]')
+f(14,17133,1971,0,'java/util/Formatter.parse')
+f(15,17133,162,1,'java.util.Formatter$FixedString')
+f(15,17295,199,1,'java.util.Formatter$FormatSpecifier')
+f(15,17494,243,0,'java/util/ArrayList.add')
+f(16,17494,243,0,'java/util/ArrayList.add')
+f(17,17494,243,0,'java/util/ArrayList.grow')
+f(18,17494,243,0,'java/util/ArrayList.grow')
+f(19,17494,243,0,'java/util/Arrays.copyOf')
+f(20,17494,243,1,'java.lang.Object[]')
+f(15,17737,252,0,'java/util/Formatter$FormatSpecifier.<init>')
+f(16,17737,181,0,'java/util/Formatter$FormatSpecifier.checkGeneral')
+f(17,17737,181,1,'java.util.Formatter$Flags[]')
+f(16,17918,71,0,'java/util/Formatter$FormatSpecifier.flags')
+f(17,17918,71,0,'java/util/Formatter$Flags.parse')
+f(18,17918,71,1,'java.util.Formatter$Flags')
+f(15,17989,1115,0,'java/util/regex/Pattern.matcher')
+f(16,17989,379,1,'java.util.regex.Matcher')
+f(16,18368,736,0,'java/util/regex/Matcher.<init>')
+f(17,18368,661,1,'int[]')
+f(17,19029,75,1,'java.util.regex.IntHashSet[]')
+f(12,19104,299,0,'java/util/Formatter.toString')
+f(13,19104,299,0,'java/lang/StringBuilder.toString')
+f(14,19104,299,0,'java/lang/StringLatin1.newString')
+f(15,19104,101,1,'java.lang.String')
+f(15,19205,198,0,'java/util/Arrays.copyOfRange')
+f(16,19205,198,1,'byte[]')
+f(11,19403,33457,0,'one/nio/http/HttpClient.get')
+f(12,19403,518,0,'one/nio/http/HttpClient.createRequest')
+f(13,19403,184,1,'one.nio.http.Request')
+f(13,19587,334,0,'one/nio/http/Request.<init>')
+f(14,19587,334,1,'java.lang.String[]')
+f(12,19921,32939,0,'one/nio/http/HttpClient.invoke')
+f(13,19921,32939,0,'one/nio/http/HttpClient.invoke')
+f(14,19921,374,1,'one.nio.http.HttpClient$ResponseReader')
+f(14,20295,23720,0,'one/nio/http/HttpClient$ResponseReader.<init>')
+f(15,20295,5143,1,'byte[]')
+f(15,25438,18577,2,'byte[]')
+f(14,44015,7339,0,'one/nio/http/HttpClient$ResponseReader.readResponse')
+f(15,44015,537,1,'byte[]')
+f(15,44552,494,0,'java/lang/String.substring')
+f(16,44552,494,0,'java/lang/StringLatin1.newString')
+f(17,44552,257,1,'java.lang.String')
+f(17,44809,237,0,'java/util/Arrays.copyOfRange')
+f(18,44809,237,1,'byte[]')
+f(15,45046,270,1,'one.nio.http.Response')
+f(15,45316,5067,0,'one/nio/http/HttpClient$ResponseReader.readLine')
+f(16,45316,5067,0,'one/nio/util/Utf8.read')
+f(17,45316,5067,0,'one/nio/util/Utf8.read')
+f(18,45316,2697,1,'char[]')
+f(18,48013,1097,1,'java.lang.String')
+f(18,49110,1273,0,'java/lang/String.<init>')
+f(19,49110,1273,0,'java/lang/String.<init>')
+f(20,49110,1273,0,'java/lang/StringUTF16.compress')
+f(21,49110,1273,1,'byte[]')
+f(15,50383,380,0,'one/nio/http/Response.<init>')
+f(16,50383,380,1,'java.lang.String[]')
+f(15,50763,591,0,'one/nio/http/Response.getHeader')
+f(16,50763,591,0,'one/nio/http/Request.trim')
+f(17,50763,591,0,'java/lang/String.substring')
+f(18,50763,591,0,'java/lang/StringLatin1.newString')
+f(19,50763,293,1,'java.lang.String')
+f(19,51056,298,0,'java/util/Arrays.copyOfRange')
+f(20,51056,298,1,'byte[]')
+f(14,51354,460,0,'one/nio/http/Request.toBytes')
+f(15,51354,460,0,'one/nio/util/ByteArrayBuilder.<init>')
+f(16,51354,460,1,'byte[]')
+f(14,51814,719,0,'one/nio/http/Response.getHeader')
+f(15,51814,719,0,'one/nio/http/Request.trim')
+f(16,51814,719,0,'java/lang/String.substring')
+f(17,51814,719,0,'java/lang/StringLatin1.newString')
+f(18,51814,323,1,'java.lang.String')
+f(18,52137,396,0,'java/util/Arrays.copyOfRange')
+f(19,52137,396,1,'byte[]')
+f(14,52533,327,0,'one/nio/pool/Pool.returnObject')
+f(15,52533,327,0,'java/util/LinkedList.addFirst')
+f(16,52533,327,0,'java/util/LinkedList.linkFirst')
+f(17,52533,327,1,'java.util.LinkedList$Node')
+f(9,52860,13127,0,'ru/mail/polis/service/gasparyansokrat/ReplicationService.validResponse')
+f(10,52860,13127,0,'ru/mail/polis/service/gasparyansokrat/ReplicationService.filterGetResponse')
+f(11,52860,309,1,'java.util.HashMap')
+f(11,53169,346,1,'java.util.TreeMap')
+f(11,53515,553,0,'java/lang/Integer.valueOf')
+f(12,53515,553,1,'java.lang.Integer')
+f(11,54068,1563,0,'java/nio/ByteBuffer.allocate')
+f(12,54068,1059,1,'java.nio.HeapByteBuffer')
+f(12,55127,504,0,'java/nio/HeapByteBuffer.<init>')
+f(13,55127,504,1,'byte[]')
+f(11,55631,980,0,'java/nio/ByteBuffer.wrap')
+f(12,55631,980,0,'java/nio/ByteBuffer.wrap')
+f(13,55631,980,1,'java.nio.HeapByteBuffer')
+f(11,56611,913,0,'java/util/HashMap.put')
+f(12,56611,913,0,'java/util/HashMap.putVal')
+f(13,56611,405,0,'java/util/HashMap.newNode')
+f(14,56611,405,1,'java.util.HashMap$Node')
+f(13,57016,508,0,'java/util/HashMap.resize')
+f(14,57016,508,1,'java.util.HashMap$Node[]')
+f(11,57524,237,0,'java/util/TreeMap.put')
+f(12,57524,237,1,'java.util.TreeMap$Entry')
+f(11,57761,185,1,'one.nio.http.Response')
+f(11,57946,675,0,'one/nio/http/Response.<init>')
+f(12,57946,271,1,'byte[]')
+f(12,58217,225,1,'java.lang.String[]')
+f(12,58442,179,1,'java.lang.String')
+f(11,58621,4787,0,'ru/mail/polis/lsm/Record.direct')
+f(12,58621,2138,0,'java/nio/HeapByteBuffer.asReadOnlyBuffer')
+f(13,58621,2138,1,'java.nio.HeapByteBufferR')
+f(12,60759,521,1,'ru.mail.polis.lsm.Record')
+f(12,61280,2128,0,'ru/mail/polis/lsm/Record.<init>')
+f(13,61280,2128,0,'java/nio/HeapByteBufferR.asReadOnlyBuffer')
+f(14,61280,2128,0,'java/nio/HeapByteBufferR.duplicate')
+f(15,61280,2128,1,'java.nio.HeapByteBufferR')
+f(11,63408,1857,0,'ru/mail/polis/lsm/Record.getBytesValue')
+f(12,63408,753,1,'byte[]')
+f(12,64161,1104,0,'ru/mail/polis/lsm/Record.getValueBuffer')
+f(13,64161,1104,0,'ru/mail/polis/lsm/Record.getTypeBuffer')
+f(14,64161,1104,0,'java/nio/HeapByteBufferR.slice')
+f(15,64161,1104,1,'java.nio.HeapByteBufferR')
+f(11,65265,722,0,'ru/mail/polis/lsm/Record.getTimestamp')
+f(12,65265,722,1,'java.sql.Timestamp')
+f(9,65987,19676,0,'ru/mail/polis/service/gasparyansokrat/ServiceDAO.handleRequest')
+f(10,65987,19676,0,'ru/mail/polis/service/gasparyansokrat/ServiceDAO.get')
+f(11,65987,200,0,'java/lang/String.getBytes')
+f(12,65987,200,0,'java/lang/StringCoding.encode')
+f(13,65987,200,0,'java/lang/StringCoding.encodeUTF8')
+f(14,65987,200,0,'java/util/Arrays.copyOf')
+f(15,65987,200,1,'byte[]')
+f(11,66187,301,0,'java/nio/ByteBuffer.wrap')
+f(12,66187,301,0,'java/nio/ByteBuffer.wrap')
+f(13,66187,301,1,'java.nio.HeapByteBuffer')
+f(11,66488,62,1,'one.nio.http.Response')
+f(11,66550,266,0,'one/nio/http/Response.<init>')
+f(12,66550,102,1,'byte[]')
+f(12,66652,106,1,'java.lang.String[]')
+f(12,66758,58,1,'java.lang.String')
+f(11,66816,513,0,'ru/mail/polis/lsm/DAO.nextKey')
+f(12,66816,513,0,'java/nio/ByteBuffer.allocate')
+f(13,66816,285,1,'java.nio.HeapByteBuffer')
+f(13,67101,228,0,'java/nio/HeapByteBuffer.<init>')
+f(14,67101,228,1,'byte[]')
+f(11,67329,193,0,'ru/mail/polis/lsm/Record.getRawValue')
+f(12,67329,193,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(13,67329,193,0,'java/nio/DirectByteBufferR.duplicate')
+f(14,67329,193,1,'java.nio.DirectByteBufferR')
+f(11,67522,1200,0,'ru/mail/polis/lsm/artemdrozdov/LsmDAO$1.hasNext')
+f(12,67522,1200,0,'ru/mail/polis/lsm/artemdrozdov/PeekingIterator.peek')
+f(13,67522,1200,0,'ru/mail/polis/lsm/artemdrozdov/MergeIterator.next')
+f(14,67522,1200,0,'ru/mail/polis/lsm/artemdrozdov/MergeIterator.next')
+f(15,67522,1200,0,'ru/mail/polis/lsm/artemdrozdov/PeekingIterator.next')
+f(16,67522,1200,0,'ru/mail/polis/lsm/artemdrozdov/PeekingIterator.peek')
+f(17,67522,1200,0,'ru/mail/polis/lsm/artemdrozdov/MergeIterator.next')
+f(18,67522,1200,0,'ru/mail/polis/lsm/artemdrozdov/MergeIterator.next')
+f(19,67522,1200,0,'ru/mail/polis/lsm/artemdrozdov/PeekingIterator.next')
+f(20,67522,1200,0,'ru/mail/polis/lsm/artemdrozdov/PeekingIterator.peek')
+f(21,67522,1200,0,'ru/mail/polis/lsm/artemdrozdov/MergeIterator.next')
+f(22,67522,1200,0,'ru/mail/polis/lsm/artemdrozdov/MergeIterator.next')
+f(23,67522,1200,0,'ru/mail/polis/lsm/artemdrozdov/PeekingIterator.next')
+f(24,67522,1200,0,'ru/mail/polis/lsm/artemdrozdov/PeekingIterator.peek')
+f(25,67522,1200,0,'ru/mail/polis/lsm/artemdrozdov/MergeIterator.next')
+f(26,67522,1200,0,'ru/mail/polis/lsm/artemdrozdov/MergeIterator.next')
+f(27,67522,1200,0,'ru/mail/polis/lsm/artemdrozdov/PeekingIterator.next')
+f(28,67522,1200,0,'ru/mail/polis/lsm/artemdrozdov/PeekingIterator.peek')
+f(29,67522,1078,0,'ru/mail/polis/lsm/artemdrozdov/MergeIterator.next')
+f(30,67522,1078,0,'ru/mail/polis/lsm/artemdrozdov/MergeIterator.next')
+f(31,67522,1078,0,'ru/mail/polis/lsm/artemdrozdov/PeekingIterator.next')
+f(32,67522,1078,0,'ru/mail/polis/lsm/artemdrozdov/PeekingIterator.peek')
+f(33,67522,1078,0,'ru/mail/polis/lsm/artemdrozdov/RangeIterator.next')
+f(34,67522,1078,0,'ru/mail/polis/lsm/artemdrozdov/RangeIterator.next')
+f(35,67522,721,0,'ru/mail/polis/lsm/Record.direct')
+f(36,67522,331,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(37,67522,331,0,'java/nio/DirectByteBufferR.duplicate')
+f(38,67522,331,1,'java.nio.DirectByteBufferR')
+f(36,67853,80,1,'ru.mail.polis.lsm.Record')
+f(36,67933,310,0,'ru/mail/polis/lsm/Record.<init>')
+f(37,67933,310,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(38,67933,310,0,'java/nio/DirectByteBufferR.duplicate')
+f(39,67933,310,1,'java.nio.DirectByteBufferR')
+f(35,68243,357,0,'ru/mail/polis/lsm/artemdrozdov/RangeIterator.read')
+f(36,68243,357,0,'java/nio/DirectByteBufferR.slice')
+f(37,68243,357,1,'java.nio.DirectByteBufferR')
+f(29,68600,122,0,'ru/mail/polis/lsm/artemdrozdov/RangeIterator.next')
+f(30,68600,122,0,'ru/mail/polis/lsm/artemdrozdov/RangeIterator.next')
+f(31,68600,75,0,'ru/mail/polis/lsm/Record.direct')
+f(32,68600,38,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(33,68600,38,0,'java/nio/DirectByteBufferR.duplicate')
+f(34,68600,38,1,'java.nio.DirectByteBufferR')
+f(32,68638,5,1,'ru.mail.polis.lsm.Record')
+f(32,68643,32,0,'ru/mail/polis/lsm/Record.<init>')
+f(33,68643,32,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(34,68643,32,0,'java/nio/DirectByteBufferR.duplicate')
+f(35,68643,32,1,'java.nio.DirectByteBufferR')
+f(31,68675,47,0,'ru/mail/polis/lsm/artemdrozdov/RangeIterator.read')
+f(32,68675,47,0,'java/nio/DirectByteBufferR.slice')
+f(33,68675,47,1,'java.nio.DirectByteBufferR')
+f(11,68722,16828,0,'ru/mail/polis/lsm/artemdrozdov/LsmDAO.range')
+f(12,68722,50,0,'java/util/concurrent/ConcurrentSkipListMap$SubMap.values')
+f(13,68722,50,1,'java.util.concurrent.ConcurrentSkipListMap$Values')
+f(12,68772,96,0,'java/util/concurrent/ConcurrentSkipListMap$Values.iterator')
+f(13,68772,96,1,'java.util.concurrent.ConcurrentSkipListMap$SubMap$SubMapValueIterator')
+f(12,68868,123,0,'ru/mail/polis/lsm/artemdrozdov/LsmDAO.filterTombstones')
+f(13,68868,47,1,'ru.mail.polis.lsm.artemdrozdov.LsmDAO$1')
+f(13,68915,76,1,'ru.mail.polis.lsm.artemdrozdov.PeekingIterator')
+f(12,68991,135,0,'ru/mail/polis/lsm/artemdrozdov/LsmDAO.map')
+f(13,68991,135,0,'java/util/concurrent/ConcurrentSkipListMap.subMap')
+f(14,68991,135,0,'java/util/concurrent/ConcurrentSkipListMap.subMap')
+f(15,68991,135,0,'java/util/concurrent/ConcurrentSkipListMap.subMap')
+f(16,68991,135,1,'java.util.concurrent.ConcurrentSkipListMap$SubMap')
+f(12,69126,240,0,'ru/mail/polis/lsm/artemdrozdov/LsmDAO.mergeTwo')
+f(13,69126,79,1,'ru.mail.polis.lsm.artemdrozdov.MergeIterator')
+f(13,69205,161,1,'ru.mail.polis.lsm.artemdrozdov.PeekingIterator')
+f(12,69366,16184,0,'ru/mail/polis/lsm/artemdrozdov/LsmDAO.sstableRanges')
+f(13,69366,168,1,'java.util.ArrayList')
+f(13,69534,461,0,'java/util/ArrayList.<init>')
+f(14,69534,461,1,'java.lang.Object[]')
+f(13,69995,8025,0,'ru/mail/polis/lsm/artemdrozdov/LsmDAO.merge')
+f(14,69995,526,0,'java/util/ArrayList.subList')
+f(15,69995,526,1,'java.util.ArrayList$SubList')
+f(14,70521,136,1,'ru.mail.polis.lsm.artemdrozdov.PeekingIterator')
+f(14,70657,7302,0,'ru/mail/polis/lsm/artemdrozdov/LsmDAO.merge')
+f(15,70657,981,0,'java/util/ArrayList$SubList.subList')
+f(16,70657,981,1,'java.util.ArrayList$SubList')
+f(15,71638,531,1,'ru.mail.polis.lsm.artemdrozdov.PeekingIterator')
+f(15,72169,5517,0,'ru/mail/polis/lsm/artemdrozdov/LsmDAO.merge')
+f(16,72169,1698,0,'java/util/ArrayList$SubList.subList')
+f(17,72169,1698,1,'java.util.ArrayList$SubList')
+f(16,73867,1253,1,'ru.mail.polis.lsm.artemdrozdov.PeekingIterator')
+f(16,75120,1919,0,'ru/mail/polis/lsm/artemdrozdov/LsmDAO.merge')
+f(17,75120,1250,1,'ru.mail.polis.lsm.artemdrozdov.PeekingIterator')
+f(17,76370,669,0,'ru/mail/polis/lsm/artemdrozdov/LsmDAO.mergeTwo')
+f(18,76370,669,1,'ru.mail.polis.lsm.artemdrozdov.MergeIterator')
+f(16,77039,647,0,'ru/mail/polis/lsm/artemdrozdov/LsmDAO.mergeTwo')
+f(17,77039,647,1,'ru.mail.polis.lsm.artemdrozdov.MergeIterator')
+f(15,77686,273,0,'ru/mail/polis/lsm/artemdrozdov/LsmDAO.mergeTwo')
+f(16,77686,273,1,'ru.mail.polis.lsm.artemdrozdov.MergeIterator')
+f(14,77959,61,0,'ru/mail/polis/lsm/artemdrozdov/LsmDAO.mergeTwo')
+f(15,77959,61,1,'ru.mail.polis.lsm.artemdrozdov.MergeIterator')
+f(13,78020,7530,0,'ru/mail/polis/lsm/artemdrozdov/SSTable.range')
+f(14,78020,5378,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(15,78020,5378,0,'java/nio/DirectByteBufferR.duplicate')
+f(16,78020,5378,1,'java.nio.DirectByteBufferR')
+f(14,83398,2152,1,'ru.mail.polis.lsm.artemdrozdov.RangeIterator')
+f(11,85550,113,0,'ru/mail/polis/service/gasparyansokrat/ServiceDAO.cvtByteArray2Bytes')
+f(12,85550,113,1,'byte[]')
+f(7,85663,2165,0,'ru/mail/polis/service/gasparyansokrat/ServiceImpl.parseParameters')
+f(8,85663,343,1,'java.util.HashMap')
+f(8,86006,331,0,'java/lang/String.valueOf')
+f(9,86006,331,0,'java/lang/Integer.toString')
+f(10,86006,178,1,'byte[]')
+f(10,86184,153,1,'java.lang.String')
+f(8,86337,567,0,'java/util/HashMap.put')
+f(9,86337,567,0,'java/util/HashMap.putVal')
+f(10,86337,297,0,'java/util/HashMap.newNode')
+f(11,86337,297,1,'java.util.HashMap$Node')
+f(10,86634,270,0,'java/util/HashMap.resize')
+f(11,86634,270,1,'java.util.HashMap$Node[]')
+f(8,86904,101,0,'one/nio/http/Request.getParameters')
+f(9,86904,101,1,'one.nio.http.Request$1')
+f(8,87005,823,0,'ru/mail/polis/service/gasparyansokrat/ServiceImpl.getParamRequest')
+f(9,87005,409,0,'java/lang/String.substring')
+f(10,87005,409,0,'java/lang/StringLatin1.newString')
+f(11,87005,215,1,'java.lang.String')
+f(11,87220,194,0,'java/util/Arrays.copyOfRange')
+f(12,87220,194,1,'byte[]')
+f(9,87414,414,0,'one/nio/http/Request$1.next')
+f(10,87414,414,0,'one/nio/http/Request$1.next')
+f(11,87414,414,0,'java/lang/String.substring')
+f(12,87414,414,0,'java/lang/StringLatin1.newString')
+f(13,87414,158,1,'java.lang.String')
+f(13,87572,256,0,'java/util/Arrays.copyOfRange')
+f(14,87572,256,1,'byte[]')
+f(6,87828,112600,0,'ru/mail/polis/service/gasparyansokrat/ServiceImpl.internalRequest')
+f(7,87828,109272,0,'ru/mail/polis/service/gasparyansokrat/ClusterService.internalRequest')
+f(8,87828,1415,1,'java.util.HashMap')
+f(8,89243,3134,0,'java/util/HashMap.put')
+f(9,89243,3134,0,'java/util/HashMap.putVal')
+f(10,89243,937,0,'java/util/HashMap.newNode')
+f(11,89243,937,1,'java.util.HashMap$Node')
+f(10,90180,2197,0,'java/util/HashMap.resize')
+f(11,90180,2197,1,'java.util.HashMap$Node[]')
+f(8,92377,1155,0,'java/util/HashSet.iterator')
+f(9,92377,1155,0,'java/util/HashMap$KeySet.iterator')
+f(10,92377,1155,1,'java.util.HashMap$KeyIterator')
+f(8,93532,1652,0,'one/nio/http/Request.getHost')
+f(9,93532,1652,0,'one/nio/http/Request.getHeader')
+f(10,93532,1652,0,'one/nio/http/Request.trim')
+f(11,93532,1652,0,'java/lang/String.substring')
+f(12,93532,1652,0,'java/lang/StringLatin1.newString')
+f(13,93532,734,1,'java.lang.String')
+f(13,94266,918,0,'java/util/Arrays.copyOfRange')
+f(14,94266,918,1,'byte[]')
+f(8,95184,101916,0,'ru/mail/polis/service/gasparyansokrat/ReplicationService.directRequest')
+f(9,95184,101916,0,'ru/mail/polis/service/gasparyansokrat/ServiceDAO.handleRequest')
+f(10,95184,101916,0,'ru/mail/polis/service/gasparyansokrat/ServiceDAO.get')
+f(11,95184,959,0,'java/lang/String.getBytes')
+f(12,95184,959,0,'java/lang/StringCoding.encode')
+f(13,95184,959,0,'java/lang/StringCoding.encodeUTF8')
+f(14,95184,959,0,'java/util/Arrays.copyOf')
+f(15,95184,959,1,'byte[]')
+f(11,96143,1341,0,'java/nio/ByteBuffer.wrap')
+f(12,96143,1341,0,'java/nio/ByteBuffer.wrap')
+f(13,96143,1341,1,'java.nio.HeapByteBuffer')
+f(11,97484,718,1,'one.nio.http.Response')
+f(11,98202,2811,0,'one/nio/http/Response.<init>')
+f(12,98202,1173,1,'byte[]')
+f(12,99375,948,1,'java.lang.String[]')
+f(12,100323,690,1,'java.lang.String')
+f(11,101013,2274,0,'ru/mail/polis/lsm/DAO.nextKey')
+f(12,101013,2274,0,'java/nio/ByteBuffer.allocate')
+f(13,101013,1371,1,'java.nio.HeapByteBuffer')
+f(13,102384,903,0,'java/nio/HeapByteBuffer.<init>')
+f(14,102384,903,1,'byte[]')
+f(11,103287,1883,0,'ru/mail/polis/lsm/Record.getRawValue')
+f(12,103287,1883,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(13,103287,1883,0,'java/nio/DirectByteBufferR.duplicate')
+f(14,103287,1883,1,'java.nio.DirectByteBufferR')
+f(11,105170,12352,0,'ru/mail/polis/lsm/artemdrozdov/LsmDAO$1.hasNext')
+f(12,105170,12352,0,'ru/mail/polis/lsm/artemdrozdov/PeekingIterator.peek')
+f(13,105170,12352,0,'ru/mail/polis/lsm/artemdrozdov/MergeIterator.next')
+f(14,105170,12352,0,'ru/mail/polis/lsm/artemdrozdov/MergeIterator.next')
+f(15,105170,12352,0,'ru/mail/polis/lsm/artemdrozdov/PeekingIterator.next')
+f(16,105170,12352,0,'ru/mail/polis/lsm/artemdrozdov/PeekingIterator.peek')
+f(17,105170,12352,0,'ru/mail/polis/lsm/artemdrozdov/MergeIterator.next')
+f(18,105170,12352,0,'ru/mail/polis/lsm/artemdrozdov/MergeIterator.next')
+f(19,105170,12352,0,'ru/mail/polis/lsm/artemdrozdov/PeekingIterator.next')
+f(20,105170,12352,0,'ru/mail/polis/lsm/artemdrozdov/PeekingIterator.peek')
+f(21,105170,12352,0,'ru/mail/polis/lsm/artemdrozdov/MergeIterator.next')
+f(22,105170,12352,0,'ru/mail/polis/lsm/artemdrozdov/MergeIterator.next')
+f(23,105170,12352,0,'ru/mail/polis/lsm/artemdrozdov/PeekingIterator.next')
+f(24,105170,12352,0,'ru/mail/polis/lsm/artemdrozdov/PeekingIterator.peek')
+f(25,105170,12352,0,'ru/mail/polis/lsm/artemdrozdov/MergeIterator.next')
+f(26,105170,12352,0,'ru/mail/polis/lsm/artemdrozdov/MergeIterator.next')
+f(27,105170,12349,0,'ru/mail/polis/lsm/artemdrozdov/PeekingIterator.next')
+f(28,105170,12349,0,'ru/mail/polis/lsm/artemdrozdov/PeekingIterator.peek')
+f(29,105170,11309,0,'ru/mail/polis/lsm/artemdrozdov/MergeIterator.next')
+f(30,105170,11309,0,'ru/mail/polis/lsm/artemdrozdov/MergeIterator.next')
+f(31,105170,2,0,'ru/mail/polis/lsm/Record.getKey')
+f(32,105170,2,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(33,105170,2,0,'java/nio/DirectByteBufferR.duplicate')
+f(34,105170,2,1,'java.nio.DirectByteBufferR')
+f(31,105172,11306,0,'ru/mail/polis/lsm/artemdrozdov/PeekingIterator.next')
+f(32,105172,11306,0,'ru/mail/polis/lsm/artemdrozdov/PeekingIterator.peek')
+f(33,105172,11306,0,'ru/mail/polis/lsm/artemdrozdov/RangeIterator.next')
+f(34,105172,11306,0,'ru/mail/polis/lsm/artemdrozdov/RangeIterator.next')
+f(35,105172,7667,0,'ru/mail/polis/lsm/Record.direct')
+f(36,105172,3538,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(37,105172,3538,0,'java/nio/DirectByteBufferR.duplicate')
+f(38,105172,3538,1,'java.nio.DirectByteBufferR')
+f(36,108710,611,1,'ru.mail.polis.lsm.Record')
+f(36,109321,3518,0,'ru/mail/polis/lsm/Record.<init>')
+f(37,109321,3518,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(38,109321,3518,0,'java/nio/DirectByteBufferR.duplicate')
+f(39,109321,3518,1,'java.nio.DirectByteBufferR')
+f(35,112839,3639,0,'ru/mail/polis/lsm/artemdrozdov/RangeIterator.read')
+f(36,112839,3639,0,'java/nio/DirectByteBufferR.slice')
+f(37,112839,3639,1,'java.nio.DirectByteBufferR')
+f(31,116478,1,0,'ru/mail/polis/lsm/artemdrozdov/PeekingIterator.peek')
+f(32,116478,1,0,'ru/mail/polis/lsm/artemdrozdov/RangeIterator.next')
+f(33,116478,1,0,'ru/mail/polis/lsm/artemdrozdov/RangeIterator.next')
+f(34,116478,1,0,'ru/mail/polis/lsm/Record.direct')
+f(35,116478,1,0,'ru/mail/polis/lsm/Record.<init>')
+f(36,116478,1,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(37,116478,1,0,'java/nio/DirectByteBufferR.duplicate')
+f(38,116478,1,1,'java.nio.DirectByteBufferR')
+f(29,116479,1040,0,'ru/mail/polis/lsm/artemdrozdov/RangeIterator.next')
+f(30,116479,1040,0,'ru/mail/polis/lsm/artemdrozdov/RangeIterator.next')
+f(31,116479,725,0,'ru/mail/polis/lsm/Record.direct')
+f(32,116479,333,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(33,116479,333,0,'java/nio/DirectByteBufferR.duplicate')
+f(34,116479,333,1,'java.nio.DirectByteBufferR')
+f(32,116812,58,1,'ru.mail.polis.lsm.Record')
+f(32,116870,334,0,'ru/mail/polis/lsm/Record.<init>')
+f(33,116870,334,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(34,116870,334,0,'java/nio/DirectByteBufferR.duplicate')
+f(35,116870,334,1,'java.nio.DirectByteBufferR')
+f(31,117204,315,0,'ru/mail/polis/lsm/artemdrozdov/RangeIterator.read')
+f(32,117204,315,0,'java/nio/DirectByteBufferR.slice')
+f(33,117204,315,1,'java.nio.DirectByteBufferR')
+f(27,117519,3,0,'ru/mail/polis/lsm/artemdrozdov/PeekingIterator.peek')
+f(28,117519,3,0,'ru/mail/polis/lsm/artemdrozdov/MergeIterator.next')
+f(29,117519,3,0,'ru/mail/polis/lsm/artemdrozdov/MergeIterator.next')
+f(30,117519,3,0,'ru/mail/polis/lsm/artemdrozdov/PeekingIterator.next')
+f(31,117519,3,0,'ru/mail/polis/lsm/artemdrozdov/PeekingIterator.peek')
+f(32,117519,3,0,'ru/mail/polis/lsm/artemdrozdov/RangeIterator.next')
+f(33,117519,3,0,'ru/mail/polis/lsm/artemdrozdov/RangeIterator.next')
+f(34,117519,1,0,'ru/mail/polis/lsm/Record.direct')
+f(35,117519,1,0,'ru/mail/polis/lsm/Record.<init>')
+f(36,117519,1,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(37,117519,1,0,'java/nio/DirectByteBufferR.duplicate')
+f(38,117519,1,1,'java.nio.DirectByteBufferR')
+f(34,117520,2,0,'ru/mail/polis/lsm/artemdrozdov/RangeIterator.read')
+f(35,117520,2,0,'java/nio/DirectByteBufferR.slice')
+f(36,117520,2,1,'java.nio.DirectByteBufferR')
+f(11,117522,78370,0,'ru/mail/polis/lsm/artemdrozdov/LsmDAO.range')
+f(12,117522,516,0,'java/util/concurrent/ConcurrentSkipListMap$SubMap.values')
+f(13,117522,516,1,'java.util.concurrent.ConcurrentSkipListMap$Values')
+f(12,118038,953,0,'java/util/concurrent/ConcurrentSkipListMap$Values.iterator')
+f(13,118038,953,1,'java.util.concurrent.ConcurrentSkipListMap$SubMap$SubMapValueIterator')
+f(12,118991,1169,0,'ru/mail/polis/lsm/artemdrozdov/LsmDAO.filterTombstones')
+f(13,118991,472,1,'ru.mail.polis.lsm.artemdrozdov.LsmDAO$1')
+f(13,119463,697,1,'ru.mail.polis.lsm.artemdrozdov.PeekingIterator')
+f(12,120160,1458,0,'ru/mail/polis/lsm/artemdrozdov/LsmDAO.map')
+f(13,120160,1458,0,'java/util/concurrent/ConcurrentSkipListMap.subMap')
+f(14,120160,1458,0,'java/util/concurrent/ConcurrentSkipListMap.subMap')
+f(15,120160,1458,0,'java/util/concurrent/ConcurrentSkipListMap.subMap')
+f(16,120160,1458,1,'java.util.concurrent.ConcurrentSkipListMap$SubMap')
+f(12,121618,2271,0,'ru/mail/polis/lsm/artemdrozdov/LsmDAO.mergeTwo')
+f(13,121618,696,1,'ru.mail.polis.lsm.artemdrozdov.MergeIterator')
+f(13,122314,1575,1,'ru.mail.polis.lsm.artemdrozdov.PeekingIterator')
+f(12,123889,72003,0,'ru/mail/polis/lsm/artemdrozdov/LsmDAO.sstableRanges')
+f(13,123889,771,1,'java.util.ArrayList')
+f(13,124660,1839,0,'java/util/ArrayList.<init>')
+f(14,124660,1839,1,'java.lang.Object[]')
+f(13,126499,36929,0,'ru/mail/polis/lsm/artemdrozdov/LsmDAO.merge')
+f(14,126499,1956,0,'java/util/ArrayList.subList')
+f(15,126499,1956,1,'java.util.ArrayList$SubList')
+f(14,128455,1461,1,'ru.mail.polis.lsm.artemdrozdov.PeekingIterator')
+f(14,129916,32803,0,'ru/mail/polis/lsm/artemdrozdov/LsmDAO.merge')
+f(15,129916,3830,0,'java/util/ArrayList$SubList.subList')
+f(16,129916,3830,1,'java.util.ArrayList$SubList')
+f(15,133746,2807,1,'ru.mail.polis.lsm.artemdrozdov.PeekingIterator')
+f(15,136553,24744,0,'ru/mail/polis/lsm/artemdrozdov/LsmDAO.merge')
+f(16,136553,7736,0,'java/util/ArrayList$SubList.subList')
+f(17,136553,7736,1,'java.util.ArrayList$SubList')
+f(16,144289,5570,1,'ru.mail.polis.lsm.artemdrozdov.PeekingIterator')
+f(16,149859,8539,0,'ru/mail/polis/lsm/artemdrozdov/LsmDAO.merge')
+f(17,149859,5628,1,'ru.mail.polis.lsm.artemdrozdov.PeekingIterator')
+f(17,155487,2911,0,'ru/mail/polis/lsm/artemdrozdov/LsmDAO.mergeTwo')
+f(18,155487,2911,1,'ru.mail.polis.lsm.artemdrozdov.MergeIterator')
+f(16,158398,2899,0,'ru/mail/polis/lsm/artemdrozdov/LsmDAO.mergeTwo')
+f(17,158398,2899,1,'ru.mail.polis.lsm.artemdrozdov.MergeIterator')
+f(15,161297,1422,0,'ru/mail/polis/lsm/artemdrozdov/LsmDAO.mergeTwo')
+f(16,161297,1422,1,'ru.mail.polis.lsm.artemdrozdov.MergeIterator')
+f(14,162719,709,0,'ru/mail/polis/lsm/artemdrozdov/LsmDAO.mergeTwo')
+f(15,162719,709,1,'ru.mail.polis.lsm.artemdrozdov.MergeIterator')
+f(13,163428,32464,0,'ru/mail/polis/lsm/artemdrozdov/SSTable.range')
+f(14,163428,23569,0,'java/nio/DirectByteBufferR.asReadOnlyBuffer')
+f(15,163428,23569,0,'java/nio/DirectByteBufferR.duplicate')
+f(16,163428,23569,1,'java.nio.DirectByteBufferR')
+f(14,186997,8895,1,'ru.mail.polis.lsm.artemdrozdov.RangeIterator')
+f(11,195892,1208,0,'ru/mail/polis/service/gasparyansokrat/ServiceDAO.cvtByteArray2Bytes')
+f(12,195892,1208,1,'byte[]')
+f(7,197100,3328,0,'ru/mail/polis/service/gasparyansokrat/ServiceImpl.getParamRequest')
+f(8,197100,1634,0,'java/lang/String.substring')
+f(9,197100,1634,0,'java/lang/StringLatin1.newString')
+f(10,197100,689,1,'java.lang.String')
+f(10,197789,945,0,'java/util/Arrays.copyOfRange')
+f(11,197789,945,1,'byte[]')
+f(8,198734,1694,0,'one/nio/http/Request$1.next')
+f(9,198734,1694,0,'one/nio/http/Request$1.next')
+f(10,198734,1694,0,'java/lang/String.substring')
+f(11,198734,1694,0,'java/lang/StringLatin1.newString')
+f(12,198734,717,1,'java.lang.String')
+f(12,199451,977,0,'java/util/Arrays.copyOfRange')
+f(13,199451,977,1,'byte[]')
+f(1,200428,152080,0,'one/nio/server/SelectorThread.run')
+f(2,200428,11553,0,'one/nio/net/NativeSelector.select')
+f(3,200428,11553,1,'one.nio.net.NativeSelector$2')
+f(2,211981,140527,0,'one/nio/net/Session.process')
+f(3,211981,140527,0,'one/nio/http/HttpSession.processRead')
+f(4,211981,140527,0,'one/nio/http/HttpSession.processHttpBuffer')
+f(5,211981,11191,0,'one/nio/http/HttpSession.handleParsedRequest')
+f(6,211981,11191,0,'ru/mail/polis/service/gasparyansokrat/ServiceImpl.handleRequest')
+f(7,211981,5557,0,'java/lang/invoke/Invokers$Holder.linkToTargetMethod')
+f(8,211981,5557,0,'java/lang/invoke/DirectMethodHandle$Holder.invokeStatic')
+f(9,211981,5557,0,'ru/mail/polis/service/gasparyansokrat/ServiceImpl$$Lambda$57/1188824070.get$Lambda')
+f(10,211981,5557,1,'ru.mail.polis.service.gasparyansokrat.ServiceImpl$$Lambda$57')
+f(7,217538,5634,0,'java/util/concurrent/ThreadPoolExecutor.execute')
+f(8,217538,5634,0,'java/util/concurrent/LinkedBlockingQueue.offer')
+f(9,217538,5530,1,'java.util.concurrent.LinkedBlockingQueue$Node')
+f(9,223068,20,0,'java/util/concurrent/LinkedBlockingQueue.signalNotEmpty')
+f(10,223068,20,0,'java/util/concurrent/locks/ReentrantLock.lock')
+f(11,223068,20,0,'java/util/concurrent/locks/AbstractQueuedSynchronizer.acquire')
+f(12,223068,20,0,'java/util/concurrent/locks/AbstractQueuedSynchronizer.addWaiter')
+f(13,223068,20,1,'java.util.concurrent.locks.AbstractQueuedSynchronizer$Node')
+f(9,223088,84,0,'java/util/concurrent/locks/ReentrantLock.lock')
+f(10,223088,84,0,'java/util/concurrent/locks/AbstractQueuedSynchronizer.acquire')
+f(11,223088,84,0,'java/util/concurrent/locks/AbstractQueuedSynchronizer.addWaiter')
+f(12,223088,84,1,'java.util.concurrent.locks.AbstractQueuedSynchronizer$Node')
+f(5,223172,79934,0,'one/nio/http/HttpSession.parseRequest')
+f(6,223172,19581,1,'one.nio.http.Request')
+f(6,242753,11344,0,'one/nio/http/Request.<init>')
+f(7,242753,8285,1,'java.lang.String[]')
+f(7,251038,3059,2,'java.lang.String[]')
+f(6,254097,49009,0,'one/nio/util/Utf8.read')
+f(7,254097,49009,0,'one/nio/util/Utf8.read')
+f(8,254097,15951,1,'char[]')
+f(8,270048,12547,2,'char[]')
+f(8,282595,4014,1,'java.lang.String')
+f(8,286609,16497,0,'java/lang/String.<init>')
+f(9,286609,16497,0,'java/lang/String.<init>')
+f(10,286609,16497,0,'java/lang/StringUTF16.compress')
+f(11,286609,16254,1,'byte[]')
+f(11,302863,243,2,'byte[]')
+f(5,303106,49402,0,'one/nio/util/Utf8.read')
+f(6,303106,49402,0,'one/nio/util/Utf8.read')
+f(7,303106,23143,1,'char[]')
+f(7,326249,189,2,'char[]')
+f(7,326438,7038,1,'java.lang.String')
+f(7,333476,19032,0,'java/lang/String.<init>')
+f(8,333476,19032,0,'java/lang/String.<init>')
+f(9,333476,19032,0,'java/lang/StringUTF16.compress')
+f(10,333476,19032,1,'byte[]')
+render();
+</script></body></html>

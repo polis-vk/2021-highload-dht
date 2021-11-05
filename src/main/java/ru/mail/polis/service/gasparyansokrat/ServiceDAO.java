@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
+import java.util.Map;
 
 public class ServiceDAO {
 
@@ -18,7 +19,7 @@ public class ServiceDAO {
         this.refDao = dao;
     }
 
-    private byte[] cvtByteArray2Bytes(final ByteBuffer bf) {
+    public static byte[] cvtByteArray2Bytes(final ByteBuffer bf) {
         byte[] tmpBuff = new byte[bf.remaining()];
         bf.get(tmpBuff);
         return tmpBuff;
@@ -26,7 +27,6 @@ public class ServiceDAO {
 
     protected Response get(final String id) throws IOException {
         ByteBuffer start = ByteBuffer.wrap(id.getBytes(StandardCharsets.UTF_8));
-        Response resp = null;
         Record res = null;
 
         boolean accept = false;
@@ -38,8 +38,9 @@ public class ServiceDAO {
             accept = true;
         }
 
+        Response resp;
         if (accept) {
-            resp = new Response(Response.OK, cvtByteArray2Bytes(res.getValue()));
+            resp = new Response(Response.OK, cvtByteArray2Bytes(res.getRawValue()));
         } else {
             resp = new Response(Response.NOT_FOUND, Response.EMPTY);
         }
@@ -50,7 +51,7 @@ public class ServiceDAO {
     protected Response put(final String id, final byte[] data) {
         ByteBuffer key = ByteBuffer.wrap(id.getBytes(StandardCharsets.UTF_8));
         ByteBuffer payload = ByteBuffer.wrap(data);
-        Record temp = Record.of(key, payload);
+        Record temp = Record.direct(key, payload);
         refDao.upsert(temp);
         return new Response(Response.CREATED, Response.EMPTY);
     }
@@ -65,28 +66,22 @@ public class ServiceDAO {
     /**
      * some doc.
      */
-    public Response handleRequest(final int method, final String id, final Request request) throws IOException {
-
-        Response resp = null;
+    public Response handleRequest(final Map<String, String> params,
+                                  final Request request) throws IOException {
         try {
-            final int typeHttpMethod = method;
-            switch (typeHttpMethod) {
+            final String id = params.get("id");
+            switch (request.getMethod()) {
                 case Request.METHOD_GET:
-                    resp = this.get(id);
-                    break;
+                    return this.get(id);
                 case Request.METHOD_PUT:
-                    resp = this.put(id, request.getBody());
-                    break;
+                    return this.put(id, request.getBody());
                 case Request.METHOD_DELETE:
-                    resp = this.delete(id);
-                    break;
+                    return this.delete(id);
                 default:
-                    resp = new Response(Response.METHOD_NOT_ALLOWED, "Bad request".getBytes(StandardCharsets.UTF_8));
-                    break;
+                    return new Response(Response.METHOD_NOT_ALLOWED, "Bad request".getBytes(StandardCharsets.UTF_8));
             }
         } catch (IOException e) {
             throw new IOException("Error access DAO", e);
         }
-        return resp;
     }
 }

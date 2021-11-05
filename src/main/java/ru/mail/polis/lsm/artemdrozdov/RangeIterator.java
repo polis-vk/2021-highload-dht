@@ -36,7 +36,7 @@ public final class RangeIterator implements Iterator<Record> {
         }
         ByteBuffer value = read(valueSize);
 
-        return Record.of(key, value);
+        return Record.direct(key, value);
     }
 
     private ByteBuffer read(int size) {

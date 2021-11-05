@@ -159,12 +159,11 @@ class PersistenceTest {
 
     @Test
     void hugeRecords(@TempDir Path data) throws IOException {
-        // так как увеличили MAX_HEAP до 512 Мб, то файл становится больше 2 Гб гораздо быстрее
-        final long max_heap = TestDaoWrapper.MAX_HEAP / 4; // для теста изменяю до 128 Мб
+        final long max_heap = TestDaoWrapper.MAX_HEAP >> 2;
         // Reference value
         int size = 1024 * 1024;
         byte[] suffix = sizeBasedRandomData(size);
-        int recordsCount = (int) (max_heap * 6 / size);
+        int recordsCount = (int) (max_heap * 5 / size);
 
         prepareHugeDao(data, recordsCount, suffix);
 
@@ -182,12 +181,11 @@ class PersistenceTest {
 
     @Test
     void hugeRecordsSearch(@TempDir Path data) throws IOException {
-        // так как увеличили MAX_HEAP до 512 Мб, то файл становится больше 2 Гб гораздо быстрее
-        final long max_heap = TestDaoWrapper.MAX_HEAP / 4; // для теста изменяю до 128 Мб
+        final long max_heap = TestDaoWrapper.MAX_HEAP >> 2;
         // Reference value
         int size = 1024 * 1024;
         byte[] suffix = sizeBasedRandomData(size);
-        int recordsCount = (int) (max_heap * 6 / size);
+        int recordsCount = (int) (max_heap * 5 / size);
 
         prepareHugeDao(data, recordsCount, suffix);
 

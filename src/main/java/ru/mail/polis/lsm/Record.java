@@ -18,12 +18,19 @@ package ru.mail.polis.lsm;
 
 import javax.annotation.Nullable;
 import java.nio.ByteBuffer;
+import java.sql.Timestamp;
+
 
 @SuppressWarnings("JavaLangClash")
 public class Record {
 
+    private static final short EMPTY = 0;
+    private static final short USETIME = 1;
+
     private final ByteBuffer key;
     private final ByteBuffer value;
+
+    public static final ByteBuffer DummyBuffer = ByteBuffer.allocate(1);
 
     Record(ByteBuffer key, @Nullable ByteBuffer value) {
         this.key = key.asReadOnlyBuffer();
@@ -31,7 +38,35 @@ public class Record {
     }
 
     public static Record of(ByteBuffer key, ByteBuffer value) {
+        return new Record(key.asReadOnlyBuffer(), buildValue(value, EMPTY, null).asReadOnlyBuffer());
+    }
+
+    public static Record of(ByteBuffer key, ByteBuffer value, final Timestamp time) {
+        return new Record(key.asReadOnlyBuffer(), buildValue(value, USETIME, time).asReadOnlyBuffer());
+    }
+
+    public static Record direct(ByteBuffer key, ByteBuffer value) {
         return new Record(key.asReadOnlyBuffer(), value.asReadOnlyBuffer());
+    }
+
+    private static ByteBuffer buildValue(final ByteBuffer value, final short type, final Timestamp time) {
+        final ByteBuffer curValue;
+        switch (type) {
+            case EMPTY:
+                curValue = ByteBuffer.allocate(value.limit() + Short.BYTES);
+                curValue.put(value.asReadOnlyBuffer());
+                break;
+            case USETIME:
+                curValue = ByteBuffer.allocate(value.limit() + Long.BYTES + Short.BYTES);
+                curValue.put(value.asReadOnlyBuffer());
+                curValue.putLong(time.getTime());
+                break;
+            default:
+                curValue = value;
+                break;
+        }
+        curValue.putShort(type);
+        return curValue;
     }
 
     public static Record tombstone(ByteBuffer key) {
@@ -43,7 +78,10 @@ public class Record {
     }
 
     public ByteBuffer getValue() {
-        return value == null ? null : value.asReadOnlyBuffer();
+        if (value == null) {
+            return null;
+        }
+        return getValueBuffer().asReadOnlyBuffer();
     }
 
     public boolean isTombstone() {
@@ -58,4 +96,57 @@ public class Record {
         return value == null ? 0 : value.remaining();
     }
 
+    private ByteBuffer getValueBuffer() {
+        final ByteBuffer entireValue = value.duplicate();
+        final short field = getTypeBuffer(entireValue);
+        switch (field) {
+            case EMPTY:
+                entireValue.limit(value.limit() - Short.BYTES);
+                entireValue.position(0);
+                break;
+            case USETIME:
+                entireValue.limit(value.limit() - Short.BYTES - Long.BYTES);
+                entireValue.position(0);
+                break;
+            default:
+                return null;
+        }
+        return entireValue;
+    }
+
+    public byte[] getRawBytes() {
+        byte[] buff = new byte[value.limit()];
+        ByteBuffer rawbuff = value.duplicate();
+        rawbuff.position(0).get(buff);
+        return buff;
+    }
+
+    public byte[] getBytesValue() {
+        ByteBuffer tmp = getValueBuffer();
+        byte[] buff = new byte[tmp.limit()];
+        tmp.get(buff);
+        return buff;
+    }
+
+    public Timestamp getTimestamp() {
+        if (value == null) {
+            return null;
+        }
+        final ByteBuffer entireValue = value.duplicate();
+        final short field = getTypeBuffer(entireValue);
+        if (field != USETIME) {
+            return null;
+        }
+
+        final long time = entireValue.position(value.limit() - Long.BYTES - Short.BYTES).slice().getLong();
+        return new Timestamp(time);
+    }
+
+    public ByteBuffer getRawValue() {
+        return (value == null) ? null : value.position(0).asReadOnlyBuffer();
+    }
+
+    private short getTypeBuffer(final ByteBuffer buffer) {
+        return buffer.position(buffer.limit() - Short.BYTES).slice().getShort();
+    }
 }

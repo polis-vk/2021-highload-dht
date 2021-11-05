@@ -76,7 +76,6 @@ public class LsmDAO implements DAO {
 
     @Override
     public void upsert(Record record) {
-
         if (greaterThanCAS(config.memoryLimit, sizeOf(record))) {
 
             try {
@@ -94,13 +93,10 @@ public class LsmDAO implements DAO {
                         flushStorage.putAll(memoryStorage);
                         SSTable flushTable = flush(flushStorage);
                         this.tableStorage = tableStorage.afterFlush(flushTable);
-                        flushStorage.forEach((key, value) -> {
-                            memoryStorage.remove(key, value);
-                        });
+                        flushStorage.forEach(memoryStorage::remove);
                 } catch (IOException e) {
                     memoryConsumption.addAndGet(-rollbackSize);
                     memoryStorage.putAll(flushStorage); // restore data + new data
-                    return;
                 } finally {
                     semaphore.release();
                 }
@@ -156,7 +152,6 @@ public class LsmDAO implements DAO {
             if (!flushExecutor.awaitTermination(Long.MAX_VALUE, TimeUnit.MILLISECONDS)) {
                 throw new IllegalStateException("Error! FlushExecutor Await termination in close...");
             }
-
             if (!compactExecutor.awaitTermination(Long.MAX_VALUE, TimeUnit.MILLISECONDS)) {
                 throw new IllegalStateException("Error! CompactExecutor Await termination in close...");
             }
@@ -164,7 +159,6 @@ public class LsmDAO implements DAO {
             Thread.currentThread().interrupt();
             return;
         }
-
         synchronized (this) {
             flush(memoryStorage);
             if (tableStorage.isCompact(config.tableLimit)) {
