@@ -6,8 +6,11 @@ import one.nio.http.HttpSession;
 import one.nio.http.Request;
 import one.nio.http.Response;
 import one.nio.server.AcceptorConfig;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.service.Service;
+import ru.mail.polis.service.sachuk.ilya.replication.ReplicationInfo;
 import ru.mail.polis.service.sachuk.ilya.sharding.Node;
 import ru.mail.polis.service.sachuk.ilya.sharding.NodeManager;
 import ru.mail.polis.service.sachuk.ilya.sharding.NodeRouter;
@@ -18,6 +21,8 @@ import java.io.UncheckedIOException;
 import java.util.Set;
 
 public class ServiceImpl extends HttpServer implements Service {
+    private final Logger logger = LoggerFactory.getLogger(ServiceImpl.class);
+
     private static final String ENTITY_PATH = "/v0/entity";
     private static final String STATUS_PATH = "/v0/status";
 
@@ -28,10 +33,12 @@ public class ServiceImpl extends HttpServer implements Service {
     private final NodeManager nodeManager;
     private final NodeRouter nodeRouter;
     private final Node node;
+    private final Set<String> topology;
 
     public ServiceImpl(int port, DAO dao, Set<String> topology) throws IOException {
         super(configFrom(port));
 
+        this.topology = topology;
         this.entityRequestHandler = new EntityRequestHandler(dao);
         this.node = new Node(port);
         this.nodeManager = new NodeManager(topology, new VNodeConfig(), node);
@@ -55,6 +62,7 @@ public class ServiceImpl extends HttpServer implements Service {
         if (id == null || id.isBlank()) {
             return new Response(Response.BAD_REQUEST, Response.EMPTY);
         }
+//        request.addHeader();
 
         Response response = nodeRouter.route(node, id, request);
         if (response != null) {
@@ -99,6 +107,20 @@ public class ServiceImpl extends HttpServer implements Service {
             switch (path) {
                 case ENTITY_PATH:
                     String id = request.getParameter("id=");
+                    String replicas = request.getParameter("replicas=");
+
+                    ReplicationInfo replicationInfo = replicas == null
+                            ? ReplicationInfo.from(topology.size())
+                            : ReplicationInfo.from(replicas);
+
+                    logger.info(replicas);
+                    logger.info("ask=" + replicationInfo.ask + " and from=" + replicationInfo.from);
+
+                    if (replicationInfo.ask > replicationInfo.from || replicationInfo.ask == 0) {
+                        response = new Response(Response.BAD_REQUEST, Response.EMPTY);
+                        break;
+                    }
+
                     response = entityRequest(request, id);
                     break;
                 case STATUS_PATH:
