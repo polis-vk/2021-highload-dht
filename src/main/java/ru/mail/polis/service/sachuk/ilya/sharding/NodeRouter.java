@@ -18,7 +18,7 @@ public class NodeRouter {
 
     public Response route(Node currentNode, String key, Request request) {
         VNode vnode = nodeManager.getNearVNode(key);
-
+        //Если уже на той ноде, которая отвечает за ключ, то возращаем налл, и не делаем роут
         if (currentNode.port == vnode.getPhysicalNode().port) {
             return null;
         }
@@ -33,7 +33,8 @@ public class NodeRouter {
         HttpClient httpClient = nodeManager.getHttpClient(host + port);
 
         if (httpClient == null) {
-            throw new IllegalStateException("Node is not in topology");
+            return new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY);
+//            throw new IllegalStateException("Node is not in topology");
         }
 
         try {

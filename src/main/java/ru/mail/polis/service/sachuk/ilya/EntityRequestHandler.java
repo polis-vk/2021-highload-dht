@@ -18,7 +18,20 @@ public class EntityRequestHandler {
         this.dao = dao;
     }
 
-    public Response get(String id) {
+    public Response handle(Request request, String id) {
+        switch (request.getMethod()) {
+            case Request.METHOD_GET:
+                return get(id);
+            case Request.METHOD_PUT:
+                return put(id, request);
+            case Request.METHOD_DELETE:
+                return delete(id);
+            default:
+                return new Response(Response.METHOD_NOT_ALLOWED, Response.EMPTY);
+        }
+    }
+
+    private Response get(String id) {
 
         ByteBuffer fromKey = Utils.stringToBytebuffer(id);
 
@@ -33,14 +46,14 @@ public class EntityRequestHandler {
         }
     }
 
-    public Response delete(String id) {
+    private Response delete(String id) {
 
         dao.upsert(Record.tombstone(Utils.stringToBytebuffer(id), Utils.timeStampToByteBuffer(System.currentTimeMillis())));
 
         return new Response(Response.ACCEPTED, Response.EMPTY);
     }
 
-    public Response put(String id, Request request) {
+    private Response put(String id, Request request) {
 
         byte[] body = request.getBody();
         ByteBuffer key = ByteBuffer.wrap(id.getBytes(StandardCharsets.UTF_8));
