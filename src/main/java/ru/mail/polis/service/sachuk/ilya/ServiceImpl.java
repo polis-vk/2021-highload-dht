@@ -14,10 +14,12 @@ import ru.mail.polis.service.sachuk.ilya.replication.ReplicationInfo;
 import ru.mail.polis.service.sachuk.ilya.sharding.Node;
 import ru.mail.polis.service.sachuk.ilya.sharding.NodeManager;
 import ru.mail.polis.service.sachuk.ilya.sharding.NodeRouter;
+import ru.mail.polis.service.sachuk.ilya.sharding.VNode;
 import ru.mail.polis.service.sachuk.ilya.sharding.VNodeConfig;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.sql.Timestamp;
 import java.util.Set;
 
 public class ServiceImpl extends HttpServer implements Service {
@@ -57,28 +59,39 @@ public class ServiceImpl extends HttpServer implements Service {
         return httpServerConfig;
     }
 
-    private Response entityRequest(Request request, String id) {
+    private Response entityRequest(Request request, String id, ReplicationInfo replicationInfo) {
 
         if (id == null || id.isBlank()) {
             return new Response(Response.BAD_REQUEST, Response.EMPTY);
         }
-//        request.addHeader();
+
+        String timestamp = request.getHeader("Timestamp");
+        if (timestamp == null) {
+            request.addHeader("Timestamp" + System.currentTimeMillis());
+        } else {
+            long secs = Long.parseLong(timestamp);
+            logger.info(String.valueOf(new Timestamp(secs)));
+        }
+
+        String fromCoordinator = request.getHeader("FromCoordinator");
+        boolean needToRotate = true;
+        if (fromCoordinator == null) {
+            request.addHeader("FromCoordinator" + "Yes");
+        } else {
+            needToRotate = false;
+            logger.info(fromCoordinator);
+        }
+
+//        VNode vnode = nodeManager.getNearVNode(key);
 
         Response response = nodeRouter.route(node, id, request);
+        //Если налл то уже на той ноде, которая отвечает за ключ
         if (response != null) {
             return response;
         }
 
-        switch (request.getMethod()) {
-            case Request.METHOD_GET:
-                return entityRequestHandler.get(id);
-            case Request.METHOD_PUT:
-                return entityRequestHandler.put(id, request);
-            case Request.METHOD_DELETE:
-                return entityRequestHandler.delete(id);
-            default:
-                return new Response(Response.METHOD_NOT_ALLOWED, Response.EMPTY);
-        }
+
+        return entityRequestHandler.handle(request, id);
     }
 
     private Response status() {
@@ -121,7 +134,7 @@ public class ServiceImpl extends HttpServer implements Service {
                         break;
                     }
 
-                    response = entityRequest(request, id);
+                    response = entityRequest(request, id, replicationInfo);
                     break;
                 case STATUS_PATH:
                     response = status();
