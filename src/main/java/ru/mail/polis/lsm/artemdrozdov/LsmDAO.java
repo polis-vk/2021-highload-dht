@@ -57,13 +57,21 @@ public class LsmDAO implements DAO {
         this.sizeBeforeCompact = new AtomicInteger(0);
     }
 
-    @Override
-    public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
+    private Iterator<Record> find(ByteBuffer fromKey, ByteBuffer toKey) {
         final TableStorage tstorage = this.tableStorage;
         Iterator<Record> sstableRanges = sstableRanges(tstorage, fromKey, toKey);
         Iterator<Record> memoryRange = map(fromKey, toKey).values().iterator();
-        Iterator<Record> iterator = mergeTwo(sstableRanges, memoryRange);
-        return filterTombstones(iterator);
+        return mergeTwo(sstableRanges, memoryRange);
+    }
+
+    @Override
+    public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
+        return filterTombstones(find(fromKey, toKey), false);
+    }
+
+    @Override
+    public Iterator<Record> rangeWithTombstone(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
+        return filterTombstones(find(fromKey, toKey), true);
     }
 
     /**
@@ -221,7 +229,7 @@ public class LsmDAO implements DAO {
         return new MergeIterator(left, right);
     }
 
-    private static Iterator<Record> filterTombstones(Iterator<Record> iterator) {
+    private static Iterator<Record> filterTombstones(Iterator<Record> iterator, final boolean useTombstone) {
         PeekingIterator delegate = new PeekingIterator(iterator);
         return new Iterator<>() {
             @Override
@@ -231,7 +239,11 @@ public class LsmDAO implements DAO {
                     if (peek == null) {
                         return false;
                     }
-                    if (!peek.isTombstone()) {
+                    if (!useTombstone) {
+                        if (!peek.isTombstone()) {
+                            return true;
+                        }
+                    } else {
                         return true;
                     }
 

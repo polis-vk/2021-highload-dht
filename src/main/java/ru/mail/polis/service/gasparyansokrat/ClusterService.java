@@ -10,7 +10,6 @@ import ru.mail.polis.lsm.Record;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.sql.Timestamp;
-import java.util.HashMap;
 import java.util.Hashtable;
 import java.util.List;
 import java.util.Map;
@@ -95,9 +94,7 @@ public class ClusterService {
         if (!validHost) {
             return badGateway();
         }
-        Map<String, String> params = new HashMap<>();
-        params.put("id", id);
-        return replicationService.directRequest(params, request);
+        return replicationService.directRequest(id, request);
     }
 
     private Response badRequest() {

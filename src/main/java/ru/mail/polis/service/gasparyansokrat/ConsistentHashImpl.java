@@ -11,7 +11,6 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.Iterator;
 
-
 public class ConsistentHashImpl implements ConsistentHash {
 
     private final int intervalSize;
@@ -86,7 +85,6 @@ public class ConsistentHashImpl implements ConsistentHash {
         }
         return domainNodes.get(hashValue);
     }
-
 
     @Override
     public List<String> getNodes(final String key, final int numNodes) throws IOException {

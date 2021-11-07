@@ -20,12 +20,12 @@ import javax.annotation.Nullable;
 import java.nio.ByteBuffer;
 import java.sql.Timestamp;
 
-
 @SuppressWarnings("JavaLangClash")
 public class Record {
 
     private static final short EMPTY = 0;
     private static final short USETIME = 1;
+    private static final short TOMBSTONE = 2;
 
     private final ByteBuffer key;
     private final ByteBuffer value;
@@ -57,6 +57,7 @@ public class Record {
                 curValue.put(value.asReadOnlyBuffer());
                 break;
             case USETIME:
+            case TOMBSTONE:
                 curValue = ByteBuffer.allocate(value.limit() + Long.BYTES + Short.BYTES);
                 curValue.put(value.asReadOnlyBuffer());
                 curValue.putLong(time.getTime());
@@ -70,7 +71,7 @@ public class Record {
     }
 
     public static Record tombstone(ByteBuffer key) {
-        return new Record(key, null);
+        return new Record(key, buildValue(DummyBuffer, TOMBSTONE, new Timestamp(System.currentTimeMillis())));
     }
 
     public ByteBuffer getKey() {
@@ -78,14 +79,14 @@ public class Record {
     }
 
     public ByteBuffer getValue() {
-        if (value == null) {
+        if (isEmpty() || isTombstone()) {
             return null;
         }
         return getValueBuffer().asReadOnlyBuffer();
     }
 
     public boolean isTombstone() {
-        return value == null;
+        return (isEmpty() || getTypeBuffer(value) == TOMBSTONE);
     }
 
     public int getKeySize() {
@@ -93,7 +94,7 @@ public class Record {
     }
 
     public int getValueSize() {
-        return value == null ? 0 : value.remaining();
+        return (isEmpty()) ? 0 : value.remaining();
     }
 
     private ByteBuffer getValueBuffer() {
@@ -129,12 +130,12 @@ public class Record {
     }
 
     public Timestamp getTimestamp() {
-        if (value == null) {
+        if (isEmpty()) {
             return null;
         }
         final ByteBuffer entireValue = value.duplicate();
         final short field = getTypeBuffer(entireValue);
-        if (field != USETIME) {
+        if (field != USETIME && field != TOMBSTONE) {
             return null;
         }
 
@@ -143,10 +144,14 @@ public class Record {
     }
 
     public ByteBuffer getRawValue() {
-        return (value == null) ? null : value.position(0).asReadOnlyBuffer();
+        return (isEmpty()) ? null : value.position(0).asReadOnlyBuffer();
     }
 
     private short getTypeBuffer(final ByteBuffer buffer) {
         return buffer.position(buffer.limit() - Short.BYTES).slice().getShort();
+    }
+
+    public boolean isEmpty() {
+        return (value == null || value.limit() < Short.BYTES);
     }
 }

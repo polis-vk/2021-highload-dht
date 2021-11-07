@@ -9,7 +9,6 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
-import java.util.Map;
 
 public class ServiceDAO {
 
@@ -19,33 +18,15 @@ public class ServiceDAO {
         this.refDao = dao;
     }
 
-    public static byte[] cvtByteArray2Bytes(final ByteBuffer bf) {
-        byte[] tmpBuff = new byte[bf.remaining()];
-        bf.get(tmpBuff);
-        return tmpBuff;
-    }
-
     protected Response get(final String id) throws IOException {
         ByteBuffer start = ByteBuffer.wrap(id.getBytes(StandardCharsets.UTF_8));
-        Record res = null;
-
-        boolean accept = false;
-
-        Iterator<Record> it = refDao.range(start, DAO.nextKey(start));
+        Iterator<Record> it = refDao.rangeWithTombstone(start, DAO.nextKey(start));
 
         if (it.hasNext()) {
-            res = it.next();
-            accept = true;
-        }
-
-        Response resp;
-        if (accept) {
-            resp = new Response(Response.OK, cvtByteArray2Bytes(res.getRawValue()));
+            return new Response(Response.OK, it.next().getRawBytes());
         } else {
-            resp = new Response(Response.NOT_FOUND, Response.EMPTY);
+            return new Response(Response.NOT_FOUND, Response.EMPTY);
         }
-
-        return resp;
     }
 
     protected Response put(final String id, final byte[] data) {
@@ -66,10 +47,8 @@ public class ServiceDAO {
     /**
      * some doc.
      */
-    public Response handleRequest(final Map<String, String> params,
-                                  final Request request) throws IOException {
+    public Response handleRequest(final String id, final Request request) throws IOException {
         try {
-            final String id = params.get("id");
             switch (request.getMethod()) {
                 case Request.METHOD_GET:
                     return this.get(id);

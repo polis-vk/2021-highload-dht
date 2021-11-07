@@ -16,7 +16,6 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -91,9 +90,8 @@ public class ReplicationService {
         }
     }
 
-    private Response get(final String node, final String id) {
+    private Response get(final String node, final String uri) {
         try {
-            final String uri = String.format(DAO_URI_PARAMETER, id);
             return clusterServers.get(node).get(uri);
         } catch (InterruptedException | PoolException | IOException | HttpException e) {
             LOG.error(e.getMessage());
@@ -101,9 +99,8 @@ public class ReplicationService {
         }
     }
 
-    private Response put(final String node, final String id, final byte[] data) {
+    private Response put(final String node, final String uri, final byte[] data) {
         try {
-            final String uri = String.format(DAO_URI_PARAMETER, id);
             return clusterServers.get(node).put(uri, data);
         } catch (InterruptedException | PoolException | IOException | HttpException e) {
             LOG.error(e.getMessage());
@@ -111,9 +108,8 @@ public class ReplicationService {
         }
     }
 
-    private Response delete(final String node, final String id) {
+    private Response delete(final String node, final String uri) {
         try {
-            final String uri = String.format(DAO_URI_PARAMETER, id);
             return clusterServers.get(node).delete(uri);
         } catch (InterruptedException | PoolException | IOException | HttpException e) {
             LOG.error(e.getMessage());
@@ -122,13 +118,14 @@ public class ReplicationService {
     }
 
     private Response externalRequest(final String id, final Request request, final String node) {
+        final String uri = String.format(DAO_URI_PARAMETER, id);
         switch (request.getMethod()) {
             case Request.METHOD_GET:
-                return get(node, id);
+                return get(node, uri);
             case Request.METHOD_PUT:
-                return put(node, id, request.getBody());
+                return put(node, uri, request.getBody());
             case Request.METHOD_DELETE:
-                return delete(node, id);
+                return delete(node, uri);
             default:
                 return new Response(Response.METHOD_NOT_ALLOWED, "Bad request".getBytes(StandardCharsets.UTF_8));
         }
@@ -142,7 +139,7 @@ public class ReplicationService {
         List<String> resendNodes = new ArrayList<>();
         for (String node : nodes) {
             if (node.equals(selfNode)) {
-                responses.add(serviceDAO.handleRequest(params, request));
+                responses.add(serviceDAO.handleRequest(id, request));
             } else {
                 Response resp = externalRequest(id, request, node);
                 if (resp.getStatus() == ServiceImpl.STATUS_BAD_GATEWAY) {
@@ -152,7 +149,9 @@ public class ReplicationService {
             }
         }
         Response response = validResponse(request, responses, requireAck);
-        resendMissedData(request, resendNodes, id);
+        if (!resendNodes.isEmpty()) {
+            resendMissedData(request, resendNodes, id);
+        }
         return response;
     }
 
@@ -170,37 +169,34 @@ public class ReplicationService {
         }
     }
 
-    public Response directRequest(final Map<String, String> params,
-                                  final Request request) throws IOException {
-        return serviceDAO.handleRequest(params, request);
+    public Response directRequest(final String id, final Request request) throws IOException {
+        return serviceDAO.handleRequest(id, request);
     }
 
     private Response filterGetResponse(final List<Response> responses, final int requireAck) {
-        Map<Integer, Integer> respmap = new HashMap<>();
-        respmap.put(ServiceImpl.STATUS_OK, 0);
-        respmap.put(ServiceImpl.STATUS_NOT_FOUND, 0);
-        NavigableMap<Timestamp, byte[]> filterResponse = new TreeMap<>();
+        NavigableMap<Timestamp, Record> filterResponse = new TreeMap<>();
         int ack = 0;
         for (Response response : responses) {
             final int status = response.getStatus();
             if (status == ServiceImpl.STATUS_OK || status == ServiceImpl.STATUS_NOT_FOUND) {
                 ack += 1;
-                respmap.put(status, respmap.get(status) + 1);
-                if (status == ServiceImpl.STATUS_OK) {
-                    Record record = Record.direct(Record.DummyBuffer, ByteBuffer.wrap(response.getBody()));
-                    filterResponse.put(record.getTimestamp(), record.getBytesValue());
+                Record record = Record.direct(Record.DummyBuffer, ByteBuffer.wrap(response.getBody()));
+                if (record.isEmpty()) {
+                    continue;
                 }
+                filterResponse.put(record.getTimestamp(), record);
             }
         }
         if (ack < requireAck) {
             return new Response(BAD_REPLICAS, Response.EMPTY);
         }
-
-        if (respmap.get(ServiceImpl.STATUS_OK) == ack) {
-            return new Response(Response.OK, filterResponse.lastEntry().getValue());
-        } else {
-            return new Response(Response.NOT_FOUND, Response.EMPTY);
+        if (!filterResponse.isEmpty()) {
+            Record sendBuffer = filterResponse.lastEntry().getValue();
+            if (!sendBuffer.isTombstone()) {
+                return new Response(Response.OK, sendBuffer.getBytesValue());
+            }
         }
+        return new Response(Response.NOT_FOUND, Response.EMPTY);
     }
 
     private Response filterPutAndDeleteResponse(final List<Response> responses, final int status,
@@ -221,7 +217,8 @@ public class ReplicationService {
 
     private void resendMissedData(final Request request, final List<String> resendNodes,
                                   final String id) {
-        if (request.getMethod() == Request.METHOD_GET) {
+        if (request.getMethod() != Request.METHOD_PUT &&
+            request.getMethod() != Request.METHOD_DELETE) {
             return;
         }
         for (final String node : resendNodes) {
