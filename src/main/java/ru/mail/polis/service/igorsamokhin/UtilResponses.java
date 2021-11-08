@@ -1,7 +1,6 @@
 package ru.mail.polis.service.igorsamokhin;
 
 import one.nio.http.Response;
-import one.nio.util.Utf8;
 
 public final class UtilResponses {
     private UtilResponses() {
@@ -11,8 +10,8 @@ public final class UtilResponses {
         return new Response(resultCode, Response.EMPTY);
     }
 
-    private static Response responseWithMessage(String resultCode, String message) {
-        return new Response(resultCode, Utf8.toBytes(message));
+    public static Response responseWithMessage(String resultCode, String message) {
+        return new Response(resultCode + " " + message, Response.EMPTY);
     }
 
     public static Response badRequest(String message) {

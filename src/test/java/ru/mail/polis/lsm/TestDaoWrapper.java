@@ -17,6 +17,7 @@
 package ru.mail.polis.lsm;
 
 import javax.annotation.Nullable;
+
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
@@ -40,6 +41,11 @@ public class TestDaoWrapper implements DAO {
     @Override
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
         return delegate.range(toReadOnly(fromKey), toReadOnly(toKey));
+    }
+
+    @Override
+    public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey, boolean includeTombstones) {
+        return delegate.range(toReadOnly(fromKey), toReadOnly(toKey), includeTombstones);
     }
 
     @Override

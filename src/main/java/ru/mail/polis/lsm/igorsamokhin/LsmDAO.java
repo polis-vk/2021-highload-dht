@@ -50,8 +50,9 @@ public class LsmDAO implements DAO {
         return this.storage.get().range(fromKey, toKey, false);
     }
 
-    public Iterator<Record> fullRange(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
-        return this.storage.get().range(fromKey,toKey, true);
+    @Override
+    public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey, boolean includeTombstones) {
+        return this.storage.get().range(fromKey, toKey, includeTombstones);
     }
 
     /**
