@@ -15,6 +15,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
@@ -59,14 +60,14 @@ public class HttpRestService extends HttpServer implements Service {
     @Override
     public void handleRequest(Request request, HttpSession session) throws IOException {
         synchronized (this) {
-            if (canExecuteRequest()) {
+            try {
                 executor.execute(() -> doHandleRequest(request, session));
-                return;
+            } catch (RejectedExecutionException e) {
+                logger.error("Can't handle request", e);
+                var unavailableResponse = new Response(Response.SERVICE_UNAVAILABLE, Response.EMPTY);
+                session.sendResponse(unavailableResponse);
             }
         }
-        logger.info("Can't handle request");
-        var unavailableResponse = new Response(Response.SERVICE_UNAVAILABLE, Response.EMPTY);
-        session.sendResponse(unavailableResponse);
     }
 
     @Override
@@ -109,10 +110,6 @@ public class HttpRestService extends HttpServer implements Service {
         }
     }
 
-    private boolean canExecuteRequest() {
-        return executor.getQueue().remainingCapacity() > 0;
-    }
-
     /**
      * This method is part of HTTP REST API protocol. Implements status check.
      *
@@ -132,11 +129,11 @@ public class HttpRestService extends HttpServer implements Service {
      *
      * @param request {@link Request}
      * @return HTTP code 200 with data
-     *         HTTP code 201
-     *         HTTP code 202
-     *         HTTP code 400
-     *         HTTP code 404
-     *         HTTP code 405
+     * HTTP code 201
+     * HTTP code 202
+     * HTTP code 400
+     * HTTP code 404
+     * HTTP code 405
      */
     private Response entity(final Request request) {
         String id = request.getParameter(RequestParameters.ID);
@@ -167,7 +164,7 @@ public class HttpRestService extends HttpServer implements Service {
      *
      * @param id data key
      * @return HTTP code 200 with data
-     *         HTTP code 404
+     * HTTP code 404
      */
     private Response get(String id) {
         final ByteBuffer key = HttpServiceUtils.wrapIdToBuffer(id);
