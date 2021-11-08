@@ -187,24 +187,34 @@ public class ServiceImpl extends HttpServer implements Service {
                        @Param(value = "replicas", required = false) String replicas) {
         executor.execute(() -> {
             if (replicas == null) {
-                task(session, request, id, 1, 1);
+                task(session, request, id, quorum(topology.length), topology.length);
                 return;
             }
 
-            StringTokenizer tokenizer = new StringTokenizer(replicas, "/");
-            assert tokenizer.countTokens() == 2;
             int ack;
             int from;
             try {
+                StringTokenizer tokenizer = new StringTokenizer(replicas, "/");
+                if (tokenizer.countTokens() != 2) {
+                    throw new Exception("Wrong params");
+                }
+
                 ack = Integer.parseInt(tokenizer.nextToken());
                 from = Integer.parseInt(tokenizer.nextToken());
+
+                if ((ack > from) || (ack <= 0)) {
+                    throw new Exception("Wrong params");
+                }
             } catch (Exception e) {
                 sendResponse(session, UtilResponses.badRequest());
-                logger.error("Not valid replicas param: {}\n request: {}", replicas, request);
                 return;
             }
             task(session, request, id, ack, from);
         });
+    }
+
+    private int quorum(int n) {
+        return n / 2 + 1;
     }
 
     private void task(HttpSession session, Request request, String id, int ack, int from) {
