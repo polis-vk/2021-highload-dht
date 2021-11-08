@@ -18,6 +18,7 @@
         <exclude name="ShortClassName"/>
         <exclude name="ShortMethodName"/>
         <exclude name="ShortVariable"/>
+        <exclude name="ConfusingTernary"/>
         <exclude name="UselessParentheses"/>
     </rule>
     <rule ref="category/java/codestyle.xml/ClassNamingConventions">
