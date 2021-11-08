@@ -73,7 +73,8 @@ public class HttpRestService extends HttpServer implements Service {
     public synchronized void stop() {
         executor.shutdown();
         try {
-            if (!executor.awaitTermination(Long.MAX_VALUE, TimeUnit.NANOSECONDS)) {
+            final int waitTime = 5;
+            if (!executor.awaitTermination(waitTime, TimeUnit.SECONDS)) {
                 throw new IllegalStateException("Can't await for termination");
             }
         } catch (InterruptedException e) {
