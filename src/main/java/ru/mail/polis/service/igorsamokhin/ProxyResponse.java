@@ -65,7 +65,7 @@ public class ProxyResponse {
         }
     }
 
-    public Response proxy(Request request, String id, List<Integer> ids, int ack, int from,
+    public Response proxy(Request request, List<Integer> ids, int ack, int from,
                           Callable<Response> thisNodeHandler) {
         request.addHeader(ProxyResponse.PROXY_HEADER);
 
