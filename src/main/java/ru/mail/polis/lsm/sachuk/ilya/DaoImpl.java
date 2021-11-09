@@ -77,7 +77,8 @@ public class DaoImpl implements DAO {
                 new PeekingIterator<>(memory)
         );
 
-        return new TombstoneFilteringIterator(mergedIterators);
+//        return new TombstoneFilteringIterator(mergedIterators);
+        return mergedIterators;
     }
 
     @Override
@@ -149,6 +150,7 @@ public class DaoImpl implements DAO {
 
     @Override
     public void close() throws IOException {
+        logger.info("Dao is closed");
         synchronized (this) {
             isClosed.set(true);
 
