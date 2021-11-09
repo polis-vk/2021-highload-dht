@@ -66,12 +66,12 @@ public class LsmDAO implements DAO {
 
     @Override
     public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
-        return filterTombstones(find(fromKey, toKey), false);
+        return filterTombstones(find(fromKey, toKey), true);
     }
 
     @Override
     public Iterator<Record> rangeWithTombstone(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
-        return filterTombstones(find(fromKey, toKey), true);
+        return filterTombstones(find(fromKey, toKey), false);
     }
 
     /**
@@ -229,7 +229,7 @@ public class LsmDAO implements DAO {
         return new MergeIterator(left, right);
     }
 
-    private static Iterator<Record> filterTombstones(Iterator<Record> iterator, final boolean useTombstone) {
+    private static Iterator<Record> filterTombstones(Iterator<Record> iterator, final boolean noTombstone) {
         PeekingIterator delegate = new PeekingIterator(iterator);
         return new Iterator<>() {
             @Override
@@ -239,7 +239,7 @@ public class LsmDAO implements DAO {
                     if (peek == null) {
                         return false;
                     }
-                    if (!useTombstone) {
+                    if (noTombstone) {
                         if (!peek.isTombstone()) {
                             return true;
                         }

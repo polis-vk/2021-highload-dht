@@ -18,7 +18,6 @@ import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-
 import java.util.NavigableMap;
 import java.util.TreeMap;
 import java.util.concurrent.BlockingQueue;
@@ -34,7 +33,7 @@ public class ReplicationService {
     private final ServiceDAO serviceDAO;
     private final Map<String, HttpClient> clusterServers;
 
-    private boolean stopSender = false;
+    private boolean stopSender;
     private final ExecutorService sendDataExecutor;
     private final BlockingQueue<Quartet<Request, String, String, Integer>> senderQueue;
 
@@ -49,6 +48,7 @@ public class ReplicationService {
         this.selfNode = selfNode;
         this.sendDataExecutor = Executors.newSingleThreadExecutor();
         this.senderQueue = new LinkedBlockingDeque<>();
+        this.stopSender = false;
         setupExecutor();
     }
 
@@ -71,7 +71,7 @@ public class ReplicationService {
                             }
                         }
                     }
-                } catch(InterruptedException e){
+                } catch(InterruptedException e) {
                     LOG.error("Error thread in send data executor: " + e.getMessage());
                 }
             }
@@ -87,6 +87,7 @@ public class ReplicationService {
             }
         } catch (InterruptedException e) {
             LOG.error("Error! Stop Replication service");
+            Thread.currentThread().interrupt();
         }
     }
 
@@ -204,7 +205,7 @@ public class ReplicationService {
         int ack = 0;
         Response response = null;
         for (final Response resp : responses) {
-            if (resp.getStatus() ==  status) {
+            if (resp.getStatus() == status) {
                 response = resp;
                 ack += 1;
             }
@@ -217,8 +218,8 @@ public class ReplicationService {
 
     private void resendMissedData(final Request request, final List<String> resendNodes,
                                   final String id) {
-        if (request.getMethod() != Request.METHOD_PUT &&
-            request.getMethod() != Request.METHOD_DELETE) {
+        if (request.getMethod() != Request.METHOD_PUT
+                && request.getMethod() != Request.METHOD_DELETE) {
             return;
         }
         for (final String node : resendNodes) {
@@ -226,6 +227,7 @@ public class ReplicationService {
                 senderQueue.put(new Quartet<>(request, node, id, 1));
             } catch (InterruptedException e) {
                 LOG.error("Error add new resend request to sender executor");
+                Thread.currentThread().interrupt();
             }
         }
     }

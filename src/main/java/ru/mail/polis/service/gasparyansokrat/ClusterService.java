@@ -10,7 +10,7 @@ import ru.mail.polis.lsm.Record;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.sql.Timestamp;
-import java.util.Hashtable;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -30,7 +30,7 @@ public class ClusterService {
     }
 
     private Map<String, HttpClient> buildTopology(final int port, final Set<String> topology) {
-        Map<String, HttpClient> clusterServers = new Hashtable<>();
+        Map<String, HttpClient> clusterServers = new HashMap<>();
         final String sport = String.valueOf(port);
         for (final String node : topology) {
             if (node.contains(sport)) {

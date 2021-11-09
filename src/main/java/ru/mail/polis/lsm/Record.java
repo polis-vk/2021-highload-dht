@@ -82,7 +82,8 @@ public class Record {
         if (isEmpty() || isTombstone()) {
             return null;
         }
-        return getValueBuffer().asReadOnlyBuffer();
+        ByteBuffer tmp = getValueBuffer();
+        return (tmp == null) ? null : getValueBuffer().asReadOnlyBuffer();
     }
 
     public boolean isTombstone() {
@@ -124,6 +125,9 @@ public class Record {
 
     public byte[] getBytesValue() {
         ByteBuffer tmp = getValueBuffer();
+        if (tmp == null) {
+            return null;
+        }
         byte[] buff = new byte[tmp.limit()];
         tmp.get(buff);
         return buff;

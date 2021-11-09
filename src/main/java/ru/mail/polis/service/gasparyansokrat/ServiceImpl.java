@@ -79,7 +79,6 @@ public class ServiceImpl extends HttpServer implements Service {
     }
 
     private Map<String, String> parseParameters(final Request request) {
-        Map<String, String> parameters = new HashMap<>();
         String id = getParamRequest(request, "id");
         if (id.isEmpty()) {
             return null;
@@ -100,6 +99,7 @@ public class ServiceImpl extends HttpServer implements Service {
         if (numNodes > maxNodes) {
             return null;
         }
+        Map<String, String> parameters = new HashMap<>();
         parameters.put("id", id);
         parameters.put("ack", String.valueOf(numNodes));
         parameters.put("from", String.valueOf(maxNodes));

@@ -5,11 +5,11 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
-import java.util.Iterator;
 
 public class ConsistentHashImpl implements ConsistentHash {
 
@@ -22,7 +22,7 @@ public class ConsistentHashImpl implements ConsistentHash {
         this.hashFunc = new FowlerNollVoHash();
         this.domainNodes = new TreeMap<>();
         List<String> nodes = new ArrayList<>(topology);
-        List<List<Integer>> shuffleNodes = ShuffleNodes(topology.size());
+        List<List<Integer>> shuffleNodes = shuffleNodes(topology.size());
         int nodeIdx = 0;
         int listIdx = 0;
         List<Integer> listNode = shuffleNodes.get(listIdx);
@@ -38,7 +38,7 @@ public class ConsistentHashImpl implements ConsistentHash {
         }
     }
 
-    private List<List<Integer>> ShuffleNodes(final int size) {
+    private List<List<Integer>> shuffleNodes(final int size) {
         Integer[] numNodes = new Integer[size];
         for (int i = 0; i < size; ++i) {
             numNodes[i] = i;
@@ -76,7 +76,7 @@ public class ConsistentHashImpl implements ConsistentHash {
     @Override
     public String getNode(final String key) {
         if (domainNodes.isEmpty()) {
-            return null;
+            return new String();
         }
         int hashValue = hashFunc.hash(key.getBytes(StandardCharsets.UTF_8));
         if (!domainNodes.containsKey(hashValue)) {
@@ -90,13 +90,13 @@ public class ConsistentHashImpl implements ConsistentHash {
     public List<String> getNodes(final String key, final int numNodes) throws IOException {
         Set<String> nodes = new HashSet<>();
         if (domainNodes.isEmpty() || numNodes > domainNodes.size()) {
-            return null;
+            return new ArrayList<>();
         }
         nodes.add(getNode(key));
         int curNumNodes = 1;
         int hashValue = hashFunc.hash(key.getBytes(StandardCharsets.UTF_8));
         long nodeIntervalValue = nextHalfInterval(hashValue);
-        while(curNumNodes != numNodes) {
+        while (curNumNodes != numNodes) {
             SortedMap<Integer, String> tailMap = domainNodes.tailMap((int)nodeIntervalValue);
             Iterator<Integer> itHashValue;
             if (tailMap.isEmpty()) {
@@ -112,19 +112,19 @@ public class ConsistentHashImpl implements ConsistentHash {
         return new ArrayList<>(nodes);
     }
 
-    private long findNode(Set<String> nodes, Iterator<Integer> itHashValue) throws IOException {
+    private long findNode(Set<String> nodes, final Iterator<Integer> itHashValue) throws IOException {
         int limitSize = 1;
-        String node = domainNodes.get(itHashValue.next());
-        while(nodes.contains(node)) {
-            if (limitSize < domainNodes.size()) {
-                if (itHashValue.hasNext()) {
-                    node = domainNodes.get(itHashValue.next());
-                } else {
-                    itHashValue = domainNodes.keySet().iterator();
-                    node = domainNodes.get(itHashValue.next());
-                }
-                limitSize += 1;
+        Iterator<Integer> domainIterator = itHashValue;
+        String node = domainNodes.get(domainIterator.next());
+        while (nodes.contains(node)) {
+            if (domainIterator.hasNext()) {
+                node = domainNodes.get(domainIterator.next());
             } else {
+                domainIterator = domainNodes.keySet().iterator();
+                node = domainNodes.get(domainIterator.next());
+            }
+            limitSize += 1;
+            if (limitSize > domainNodes.size()) {
                 throw new IOException("Not enough nodes in cluster");
             }
         }
@@ -133,6 +133,6 @@ public class ConsistentHashImpl implements ConsistentHash {
     }
 
     private long nextHalfInterval(final long hashValue) {
-        return (hashValue  + (Integer.MAX_VALUE >> 1)) % Integer.MAX_VALUE;
+        return (hashValue + (Integer.MAX_VALUE >> 1)) % Integer.MAX_VALUE;
     }
 }
