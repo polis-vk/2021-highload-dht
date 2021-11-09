@@ -59,11 +59,7 @@ public class ReplicationService {
                     if (senderQueue.isEmpty()) {
                         Thread.sleep(5);
                     } else {
-                        Quartet<Request, String, String, Integer> data = senderQueue.peek();
-                        int counter = data.getValue3() + 1;
-                        if (counter != DEATH_TIME) {
-                            resendData(data, counter);
-                        }
+                        resendData();
                     }
                 } catch (InterruptedException e) {
                     LOG.error("Error thread in send data executor: " + e.getMessage());
@@ -73,7 +69,12 @@ public class ReplicationService {
         });
     }
 
-    private void resendData(final Quartet<Request, String, String, Integer> data, final int counter) throws InterruptedException {
+    private void resendData() throws InterruptedException {
+        Quartet<Request, String, String, Integer> data = senderQueue.peek();
+        int counter = data.getValue3() + 1;
+        if (counter >= DEATH_TIME) {
+            return;
+        }
         final Request request = data.getValue0();
         final String node = data.getValue1();
         final String id = data.getValue2();
