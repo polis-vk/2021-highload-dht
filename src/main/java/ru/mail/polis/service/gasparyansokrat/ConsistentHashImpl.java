@@ -28,13 +28,13 @@ public class ConsistentHashImpl implements ConsistentHash {
         List<Integer> listNode = shuffleNodes.get(listIdx);
         for (long start = 0; start < Integer.MAX_VALUE; start += intervalSize) {
             String node = nodes.get(listNode.get(nodeIdx));
+            domainNodes.put((int)start, node);
             nodeIdx = nodeIdx + 1;
             if (nodeIdx == listNode.size()) {
                 listIdx = (listIdx + 1) % shuffleNodes.size();
                 listNode = shuffleNodes.get(listIdx);
             }
             nodeIdx = nodeIdx % topology.size();
-            domainNodes.put((int)start, node);
         }
     }
 
@@ -76,7 +76,7 @@ public class ConsistentHashImpl implements ConsistentHash {
     @Override
     public String getNode(final String key) {
         if (domainNodes.isEmpty()) {
-            return new String();
+            return "";
         }
         int hashValue = hashFunc.hash(key.getBytes(StandardCharsets.UTF_8));
         if (!domainNodes.containsKey(hashValue)) {

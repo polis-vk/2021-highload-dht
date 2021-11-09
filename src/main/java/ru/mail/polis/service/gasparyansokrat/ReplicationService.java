@@ -62,20 +62,25 @@ public class ReplicationService {
                         Quartet<Request, String, String, Integer> data = senderQueue.peek();
                         int counter = data.getValue3() + 1;
                         if (counter != DEATH_TIME) {
-                            final Request request = data.getValue0();
-                            final String node = data.getValue1();
-                            final String id = data.getValue2();
-                            Response response = externalRequest(id, request, node);
-                            if (response.getStatus() == ServiceImpl.STATUS_BAD_GATEWAY) {
-                                senderQueue.put(new Quartet<>(request, node, id, counter));
-                            }
+                            resendData(data, counter);
                         }
                     }
-                } catch(InterruptedException e) {
+                } catch (InterruptedException e) {
                     LOG.error("Error thread in send data executor: " + e.getMessage());
+                    Thread.currentThread().interrupt();
                 }
             }
         });
+    }
+
+    private void resendData(final Quartet<Request, String, String, Integer> data, final int counter) throws InterruptedException {
+        final Request request = data.getValue0();
+        final String node = data.getValue1();
+        final String id = data.getValue2();
+        Response response = externalRequest(id, request, node);
+        if (response.getStatus() == ServiceImpl.STATUS_BAD_GATEWAY) {
+            senderQueue.put(new Quartet<>(request, node, id, counter));
+        }
     }
 
     public void stop() {
