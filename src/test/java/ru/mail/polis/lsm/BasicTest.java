@@ -17,6 +17,7 @@
 package ru.mail.polis.lsm;
 
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
@@ -30,6 +31,7 @@ import java.util.Map;
 import java.util.TreeMap;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static ru.mail.polis.lsm.Utils.assertDaoEquals;
 import static ru.mail.polis.lsm.Utils.assertEquals;
 import static ru.mail.polis.lsm.Utils.generateMap;
@@ -174,4 +176,15 @@ class BasicTest {
         assertFalse(dao.range(null, null).hasNext());
     }
 
+    @Test
+    void checkTombstoneTimestamp() throws IOException {
+        long timestamp = System.currentTimeMillis();
+        dao.upsert(Record.tombstone(wrap("RETURNABLE_TOMBSTONE_KEY"), timestamp));
+        dao.compact();
+
+        Iterator<Record> iterator = dao.range(null, null, true);
+        assertTrue(iterator.hasNext());
+
+        Assertions.assertEquals(timestamp, iterator.next().getTimestamp());
+    }
 }

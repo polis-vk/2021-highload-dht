@@ -3,6 +3,7 @@ package ru.mail.polis.sharding;
 import net.openhft.hashing.LongHashFunction;
 
 import javax.annotation.Nonnull;
+import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
@@ -36,7 +37,7 @@ public interface HashFunction {
         @Override
         public synchronized long hash(@Nonnull String key) {
             instance.reset();
-            instance.update(key.getBytes());
+            instance.update(key.getBytes(StandardCharsets.US_ASCII));
             byte[] digest = instance.digest();
 
             long h = 0;

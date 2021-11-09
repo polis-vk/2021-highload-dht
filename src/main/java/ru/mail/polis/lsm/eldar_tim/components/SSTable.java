@@ -89,23 +89,25 @@ public class SSTable implements Closeable {
                 FileChannel fileChannel = openForWrite(tmpFileName);
                 FileChannel indexChannel = openForWrite(tmpIndexName)
         ) {
-            ByteBuffer size = ByteBuffer.allocate(Integer.BYTES);
+            ByteBuffer sizeInt = ByteBuffer.allocate(Integer.BYTES);
+            ByteBuffer sizeLong = ByteBuffer.allocate(Long.BYTES);
             while (records.hasNext()) {
                 long position = fileChannel.position();
                 if (position > Integer.MAX_VALUE) {
                     throw new IllegalStateException("File is too long");
                 }
-                writeInt((int) position, indexChannel, size);
+                writeInt((int) position, indexChannel, sizeInt);
 
                 Record record = records.next();
-                writeValueWithSize(record.getKey(), fileChannel, size);
+                writeValueWithSize(record.getKey(), fileChannel, sizeInt);
                 if (record.isTombstone()) {
-                    writeInt(-1, fileChannel, size);
+                    writeInt(-1, fileChannel, sizeInt);
                 } else {
                     // value is null for tombstones only
                     ByteBuffer value = Objects.requireNonNull(record.getValue());
-                    writeValueWithSize(value, fileChannel, size);
+                    writeValueWithSize(value, fileChannel, sizeInt);
                 }
+                writeLong(record.getTimestamp(), fileChannel, sizeLong);
             }
             fileChannel.force(false);
         }
@@ -190,7 +192,8 @@ public class SSTable implements Closeable {
     public static int sizeOf(Record record) {
         int keySize = Integer.BYTES + record.getKeySize();
         int valueSize = Integer.BYTES + record.getValueSize();
-        return keySize + valueSize;
+        int timestampSize = Long.BYTES;
+        return keySize + valueSize + timestampSize;
     }
 
     /**
@@ -263,6 +266,14 @@ public class SSTable implements Closeable {
     private static void writeInt(int value, WritableByteChannel channel, ByteBuffer tmp) throws IOException {
         tmp.position(0);
         tmp.putInt(value);
+        tmp.position(0);
+
+        channel.write(tmp);
+    }
+
+    private static void writeLong(long value, WritableByteChannel channel, ByteBuffer tmp) throws IOException {
+        tmp.position(0);
+        tmp.putLong(value);
         tmp.position(0);
 
         channel.write(tmp);

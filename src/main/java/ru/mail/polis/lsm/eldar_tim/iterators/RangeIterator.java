@@ -30,12 +30,15 @@ public final class RangeIterator implements Iterator<Record> {
         ByteBuffer key = read(keySize);
 
         int valueSize = buffer.getInt();
-        if (valueSize == -1) {
-            return Record.tombstone(key);
-        }
-        ByteBuffer value = read(valueSize);
+        ByteBuffer value = (valueSize == -1) ? null : read(valueSize);
 
-        return Record.of(key, value);
+        long timestamp = buffer.getLong();
+
+        if (valueSize == -1) {
+            return Record.tombstone(key, timestamp);
+        } else {
+            return Record.of(key, value, timestamp);
+        }
     }
 
     private ByteBuffer read(int size) {
@@ -43,5 +46,4 @@ public final class RangeIterator implements Iterator<Record> {
         buffer.position(buffer.position() + size);
         return result;
     }
-
 }
