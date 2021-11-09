@@ -187,7 +187,7 @@ public class ReplicationService {
             final int status = response.getStatus();
             if (status == ServiceImpl.STATUS_OK || status == ServiceImpl.STATUS_NOT_FOUND) {
                 ack += 1;
-                Record record = Record.direct(Record.DummyBuffer, ByteBuffer.wrap(response.getBody()));
+                Record record = Record.direct(Record.dummyBuffer, ByteBuffer.wrap(response.getBody()));
                 if (record.isEmpty()) {
                     continue;
                 }
