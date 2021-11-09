@@ -30,7 +30,7 @@ public class Record {
     private final ByteBuffer key;
     private final ByteBuffer value;
 
-    public static final ByteBuffer dummy = ByteBuffer.allocate(1);
+    public static final ByteBuffer DUMMY = ByteBuffer.allocate(1);
 
     Record(ByteBuffer key, @Nullable ByteBuffer value) {
         this.key = key.asReadOnlyBuffer();
@@ -71,7 +71,7 @@ public class Record {
     }
 
     public static Record tombstone(ByteBuffer key) {
-        return new Record(key, buildValue(dummy, TOMBSTONE, new Timestamp(System.currentTimeMillis())));
+        return new Record(key, buildValue(DUMMY, TOMBSTONE, new Timestamp(System.currentTimeMillis())));
     }
 
     public ByteBuffer getKey() {

@@ -68,7 +68,7 @@ public class ClusterService {
 
     private void addTimeStamp(Request request) {
         Timestamp time = new Timestamp(System.currentTimeMillis());
-        Record record = Record.of(Record.dummy, ByteBuffer.wrap(request.getBody()), time);
+        Record record = Record.of(Record.DUMMY, ByteBuffer.wrap(request.getBody()), time);
         request.setBody(record.getRawBytes());
     }
 
