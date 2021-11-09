@@ -19,12 +19,12 @@ public class DefaultRequestHandler implements RequestHandler {
 
     private static final Logger LOG = LoggerFactory.getLogger(DefaultRequestHandler.class);
 
-    private static final int THREADS_AMOUNT = 3;
+    private static final int CORES_SIZE = Runtime.getRuntime().availableProcessors();
     private static final int REQUESTS_QUEUE_SIZE = 100;
 
     private final MainController controller;
 
-    private final ExecutorService executorService = new ThreadPoolExecutor(THREADS_AMOUNT, THREADS_AMOUNT,
+    private final ExecutorService executorService = new ThreadPoolExecutor(CORES_SIZE, CORES_SIZE + CORES_SIZE / 2,
             0L, TimeUnit.MILLISECONDS, new LinkedBlockingDeque<>(REQUESTS_QUEUE_SIZE));
 
     public DefaultRequestHandler(MainController controller) {
