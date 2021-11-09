@@ -9,17 +9,12 @@ import org.javatuples.Quartet;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.lsm.DAO;
-import ru.mail.polis.lsm.Record;
 
 import java.io.IOException;
-import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.NavigableMap;
-import java.util.TreeMap;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -39,7 +34,6 @@ public class ReplicationService {
 
     private static final int DEATH_TIME = 256;
     private static final String DAO_URI_PARAMETER = "/internal/cluster/entity?id=%s";
-    public static final String BAD_REPLICAS = "504 Not Enough Replicas";
 
     ReplicationService(final DAO dao, final String selfNode,
                         final Map<String, HttpClient> clusterServers) {
@@ -62,7 +56,9 @@ public class ReplicationService {
                         resendData();
                     }
                 } catch (InterruptedException e) {
-                    LOG.error("Error thread in send data executor: " + e.getMessage());
+                    if (LOG.isErrorEnabled()) {
+                        LOG.error("Error thread in send data executor: " + e.getMessage());
+                    }
                     Thread.currentThread().interrupt();
                 }
             }
@@ -155,71 +151,15 @@ public class ReplicationService {
                 responses.add(resp);
             }
         }
-        Response response = validResponse(request, responses, requireAck);
+        Response response = FilterResponses.validResponse(request, responses, requireAck);
         if (!resendNodes.isEmpty()) {
             resendMissedData(request, resendNodes, id);
         }
         return response;
     }
 
-    private Response validResponse(final Request request, final List<Response> responses,
-                                   final int requireAck) throws IOException {
-        switch (request.getMethod()) {
-            case Request.METHOD_GET:
-                return filterGetResponse(responses, requireAck);
-            case Request.METHOD_PUT:
-                return filterPutAndDeleteResponse(responses, ServiceImpl.STATUS_CREATED, requireAck);
-            case Request.METHOD_DELETE:
-                return filterPutAndDeleteResponse(responses, ServiceImpl.STATUS_DELETED, requireAck);
-            default:
-                throw new IOException("Not allowed method");
-        }
-    }
-
     public Response directRequest(final String id, final Request request) throws IOException {
         return serviceDAO.handleRequest(id, request);
-    }
-
-    private Response filterGetResponse(final List<Response> responses, final int requireAck) {
-        NavigableMap<Timestamp, Record> filterResponse = new TreeMap<>();
-        int ack = 0;
-        for (Response response : responses) {
-            final int status = response.getStatus();
-            if (status == ServiceImpl.STATUS_OK || status == ServiceImpl.STATUS_NOT_FOUND) {
-                ack += 1;
-                Record record = Record.direct(Record.dummyBuffer, ByteBuffer.wrap(response.getBody()));
-                if (record.isEmpty()) {
-                    continue;
-                }
-                filterResponse.put(record.getTimestamp(), record);
-            }
-        }
-        if (ack < requireAck) {
-            return new Response(BAD_REPLICAS, Response.EMPTY);
-        }
-        if (!filterResponse.isEmpty()) {
-            Record sendBuffer = filterResponse.lastEntry().getValue();
-            if (!sendBuffer.isTombstone()) {
-                return new Response(Response.OK, sendBuffer.getBytesValue());
-            }
-        }
-        return new Response(Response.NOT_FOUND, Response.EMPTY);
-    }
-
-    private Response filterPutAndDeleteResponse(final List<Response> responses, final int status,
-                                                final int requireAck) {
-        int ack = 0;
-        Response response = null;
-        for (final Response resp : responses) {
-            if (resp.getStatus() == status) {
-                response = resp;
-                ack += 1;
-            }
-        }
-        if (ack < requireAck) {
-            return new Response(BAD_REPLICAS, Response.EMPTY);
-        }
-        return response;
     }
 
     private void resendMissedData(final Request request, final List<String> resendNodes,

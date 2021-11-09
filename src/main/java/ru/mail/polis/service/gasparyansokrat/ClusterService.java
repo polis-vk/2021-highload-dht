@@ -22,6 +22,8 @@ public class ClusterService {
     private final ConsistentHash clusterNodes;
     private final Set<String> topology;
 
+    public static final String BAD_REPLICAS = "504 Not Enough Replicas";
+
     ClusterService(final DAO dao, final Set<String> topology, final ServiceConfig servConf) {
         this.clusterNodes = new ConsistentHashImpl(topology, servConf.clusterIntervals);
         this.topology = topology;
@@ -66,7 +68,7 @@ public class ClusterService {
 
     private void addTimeStamp(Request request) {
         Timestamp time = new Timestamp(System.currentTimeMillis());
-        Record record = Record.of(Record.dummyBuffer, ByteBuffer.wrap(request.getBody()), time);
+        Record record = Record.of(Record.dummy, ByteBuffer.wrap(request.getBody()), time);
         request.setBody(record.getRawBytes());
     }
 
