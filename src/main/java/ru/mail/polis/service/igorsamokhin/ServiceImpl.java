@@ -19,11 +19,11 @@ import javax.annotation.Nullable;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
 import java.util.StringTokenizer;
+import java.util.concurrent.Callable;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -40,12 +40,8 @@ public class ServiceImpl extends HttpServer implements Service {
     private final DAO dao;
     private boolean isWorking; //false by default
 
-    private final ThreadPoolExecutor executor =
-            new ThreadPoolExecutor(MAXIMUM_POOL_SIZE,
-                    MAXIMUM_POOL_SIZE,
-                    KEEP_ALIVE_TIME,
-                    TimeUnit.MINUTES,
-                    new LinkedBlockingQueue<>());
+    private final ThreadPoolExecutor executor = new ThreadPoolExecutor(MAXIMUM_POOL_SIZE,
+            MAXIMUM_POOL_SIZE, KEEP_ALIVE_TIME, TimeUnit.MINUTES, new LinkedBlockingQueue<>());
 
     private final ProxyResponse proxyClients;
 
@@ -56,13 +52,8 @@ public class ServiceImpl extends HttpServer implements Service {
     public ServiceImpl(int port, DAO dao, Set<String> topology, int replicationFactor) throws IOException {
         super(from(port));
         this.dao = dao;
-        this.proxyClients = new ProxyResponse(
-                MAXIMUM_POOL_SIZE,
-                MAXIMUM_POOL_SIZE * replicationFactor,
-                KEEP_ALIVE_TIME,
-                TimeUnit.SECONDS,
-                topology,
-                port);
+        this.proxyClients = new ProxyResponse(MAXIMUM_POOL_SIZE,
+                MAXIMUM_POOL_SIZE * replicationFactor, KEEP_ALIVE_TIME, TimeUnit.SECONDS, topology, port);
     }
 
     private static HttpServerConfig from(int port) {
@@ -169,7 +160,8 @@ public class ServiceImpl extends HttpServer implements Service {
             } else if ((nodeIds.size() == 1) && proxyClients.isMe(nodeIds.get(0))) {
                 response = handleEntity(request, id, false);
             } else {
-                response = proxy(request, id, nodeIds, ack, from);
+                Callable<Response> thisNodeHandler = () -> handleEntity(request, id, true);
+                response = proxyClients.proxy(request, id, nodeIds, ack, from, thisNodeHandler);
             }
         } catch (RuntimeException e) {
             logger.error("Something wrong in task. ack: {}, from: {}", ack, from, e);
@@ -179,53 +171,6 @@ public class ServiceImpl extends HttpServer implements Service {
             response = UtilResponses.serviceUnavailableResponse();
         }
         sendResponse(session, response);
-    }
-
-    private Response proxy(Request request, String id, List<Integer> ids, int ack, int from) {
-        request.addHeader(ProxyResponse.PROXY_HEADER);
-
-        List<Response> responses = new ArrayList<>(from);
-        int confirms = 0;
-        int i;
-        for (i = 0; i < from; i++) {
-            Integer httpClientId = ids.get(i);
-            Response response = askHttpClient(request, id, httpClientId);
-            responses.add(response);
-            confirms += ProxyResponse.isConfirm(response) ? 1 : 0;
-            if (confirms >= ack) {
-                break;
-            }
-        }
-
-        if (confirms < ack) {
-            //maybe need to do something
-            return UtilResponses.responseWithMessage("504", "Not Enough Replicas");
-        }
-
-        final Response result = ProxyResponse.mergeResponses(request, responses);
-
-        int finalI = i + 1;
-        if (finalI < from) {
-            executor.execute(() -> {
-                for (int j = finalI; j < from; j++) {
-                    Integer httpClientId = ids.get(j);
-                    askHttpClient(request, id, httpClientId);
-                }
-                //read repair
-            });
-        }
-
-        return result;
-    }
-
-    private Response askHttpClient(Request request, String id, Integer httpClientId) {
-        Response response;
-        if (proxyClients.isMe(httpClientId)) {
-            response = handleEntity(request, id, true);
-        } else {
-            response = proxyClients.invoke(httpClientId, request);
-        }
-        return response;
     }
 
     @Override

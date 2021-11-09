@@ -14,6 +14,7 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.PriorityQueue;
 import java.util.Set;
+import java.util.concurrent.Callable;
 import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
@@ -23,6 +24,7 @@ public class ProxyResponse {
     public static final String PROXY_HEADER = "Proxy";
     private static final Logger LOGGER = LoggerFactory.getLogger(ProxyResponse.class);
 
+    private static final Response EMPTY_RESPONSE = UtilResponses.emptyResponse("");
     private final ThreadPoolExecutor proxyExecutor;
     private final String[] topology;
     private List<List<HttpClient>> clients;
@@ -61,6 +63,61 @@ public class ProxyResponse {
                 client.add(new HttpClient(conn));
             }
         }
+    }
+
+    public Response proxy(Request request, String id, List<Integer> ids, int ack, int from,
+                          Callable<Response> thisNodeHandler) {
+        request.addHeader(ProxyResponse.PROXY_HEADER);
+
+        List<Response> responses = new ArrayList<>(from);
+        int confirms = 0;
+        int i;
+        for (i = 0; i < from; i++) {
+            Integer httpClientId = ids.get(i);
+            Response response = askHttpClient(request, httpClientId, thisNodeHandler);
+            responses.add(response);
+            confirms += ProxyResponse.isConfirm(response) ? 1 : 0;
+            if (confirms >= ack) {
+                break;
+            }
+        }
+
+        if (confirms < ack) {
+            //maybe need to do something
+            return UtilResponses.responseWithMessage("504", "Not Enough Replicas");
+        }
+
+        final Response result = ProxyResponse.mergeResponses(request, responses);
+
+        int finalI = i + 1;
+        if (finalI < from) {
+            proxyExecutor.execute(() -> {
+                for (int j = finalI; j < from; j++) {
+                    Integer httpClientId = ids.get(j);
+                    askHttpClient(request, httpClientId, thisNodeHandler);
+                }
+                //read repair
+            });
+        }
+
+        return result;
+    }
+
+    private Response askHttpClient(Request request,
+                                   Integer httpClientId,
+                                   Callable<Response> thisNodeHandler) {
+        Response response;
+        try {
+            if (isMe(httpClientId)) {
+                response = thisNodeHandler.call();
+            } else {
+                response = invoke(httpClientId, request);
+            }
+        } catch (Exception e) {
+            LOGGER.error("Error in askHttpClient request:\n{} httpClientId: {}", request, httpClientId);
+            response = UtilResponses.serviceUnavailableResponse();
+        }
+        return response;
     }
 
     //assume that response always contains timestamp, or 404 status with no data
@@ -103,7 +160,7 @@ public class ProxyResponse {
     }
 
     private static Response mergeGetResponses(List<Response> responses) {
-        Response tmp = null;
+        Response tmp = EMPTY_RESPONSE;
         long timeStamp = -2;
 
         for (Response response : responses) {

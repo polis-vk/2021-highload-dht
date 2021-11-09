@@ -6,7 +6,7 @@ public final class UtilResponses {
     private UtilResponses() {
     }
 
-    private static Response emptyResponse(String resultCode) {
+    public static Response emptyResponse(String resultCode) {
         return new Response(resultCode, Response.EMPTY);
     }
 

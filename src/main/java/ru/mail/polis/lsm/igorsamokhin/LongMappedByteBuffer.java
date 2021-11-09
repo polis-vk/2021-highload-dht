@@ -100,19 +100,24 @@ public class LongMappedByteBuffer {
         return position;
     }
 
-    public int getInt() {
-        long pos = position();
+    private ByteBuffer getByteBufferToReadBytes(long pos, int bytes) {
         Pair indexAndOffset = getIndexAndOffset(pos);
         long offset = indexAndOffset.offset;
         int index = indexAndOffset.index;
         ByteBuffer buffer = getBuffer(index);
-        if ((pos - offset + Integer.BYTES > buffer.capacity())) {
+        if ((pos - offset + bytes > buffer.capacity())) {
             // assume that all data is completely in one buffer
             throw new IndexOutOfBoundsException(String.format("pos: %s, off: %s, cap: %s, i: %s, buffer[i].cap: %s",
                     pos, offset, capacity, index, buffer.capacity()));
         } else {
             buffer.position((int) (pos - offset));
         }
+        return buffer;
+    }
+
+    public int getInt() {
+        long pos = position();
+        ByteBuffer buffer = getByteBufferToReadBytes(pos, Integer.BYTES);
         int anInt = buffer.getInt();
         position(pos + Integer.BYTES);
         return anInt;
@@ -120,17 +125,7 @@ public class LongMappedByteBuffer {
 
     public long getLong() {
         long pos = position();
-        Pair indexAndOffset = getIndexAndOffset(pos);
-        long offset = indexAndOffset.offset;
-        int index = indexAndOffset.index;
-        ByteBuffer buffer = getBuffer(index);
-        if ((pos - offset + Long.BYTES > buffer.capacity())) {
-            // assume that all data is completely in one buffer
-            throw new IndexOutOfBoundsException(String.format("pos: %s, off: %s, cap: %s, i: %s, buffer[i].cap: %s",
-                    pos, offset, capacity, index, buffer.capacity()));
-        } else {
-            buffer.position((int) (pos - offset));
-        }
+        ByteBuffer buffer = getByteBufferToReadBytes(pos, Long.BYTES);
         long result = buffer.getLong();
         position(pos + Long.BYTES);
         return result;
