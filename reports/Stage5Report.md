@@ -90,13 +90,13 @@ wrk -c 64 -t 16 -d5m -R 15000 -L -s scripts/get.lua http://localhost:8080
 
 |     | CPU | Alloc | Lock |
 | --- | --- | ----- | ---- |
-| GET | [ссылка](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin-content/graphs/stage4/getCpuReplication.html) | [ссылка](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin-content/graphs/stage4/getAllocReplication.html) | [ссылка](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin-content/graphs/stage4/getLockReplication.html) |   
-| PUT | [ссылка](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin-content/graphs/stage4/putCpuReplication.html) | [ссылка](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin-content/graphs/stage4/putAllocReplication.html) | [ссылка](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin-content/graphs/stage4/putLockReplication.html) |
+| GET | [ссылка](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin-content/graphs/stage5/getCpuReplication.html) | [ссылка](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin-content/graphs/stage5/getAllocReplication.html) | [ссылка](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin-content/graphs/stage5/getLockReplication.html) |   
+| PUT | [ссылка](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin-content/graphs/stage5/putCpuReplication.html) | [ссылка](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin-content/graphs/stage5/putAllocReplication.html) | [ссылка](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin-content/graphs/stage5/putLockReplication.html) |
 
 ## Выводы
 
 * Стало интересно, сколько проблем приносит неправильная конфигурация HttpClient, поэтому профилировка производилась при неправильной. В результате на `Lock` графах видно, что примерно 19% блокировок - вызов HttpClient.invoke.
-* После проведения некоторой конфигурации удалось полностью добиться отсутствия данных блокировок: [flame graph блокировок](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin-content/graphs/stage4/putLockHttpClient.html)
+* После проведения некоторой конфигурации удалось полностью добиться отсутствия данных блокировок: [flame graph блокировок](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin-content/graphs/stage5/putLockHttpClient.html)
 * Однако это никак не повлияло на задержку - основную долю блокировок по-прежнему занимает блокирующая очередь и блокировка на HttpSession. 
 ```text
   Thread Stats   Avg      Stdev     Max   +/- Stdev
