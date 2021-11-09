@@ -24,8 +24,8 @@ public class ProxyResponse {
     private static final Logger LOGGER = LoggerFactory.getLogger(ProxyResponse.class);
 
     private final ThreadPoolExecutor proxyExecutor;
-    private String[] topology;
-    private HttpClient[] clients;
+    private final String[] topology;
+    private List<List<HttpClient>> clients;
     private int id;
 
     public ProxyResponse(int corePoolSize,
@@ -41,25 +41,29 @@ public class ProxyResponse {
                 timeUnit,
                 new LinkedBlockingQueue<>());
         this.topology = new String[topology.size()];
-        this.clients = new HttpClient[topology.size()];
+        this.clients = new ArrayList<>(maxPoolSize);
+
+        for (int i = 0; i < maxPoolSize; i++) {
+            clients.add(new ArrayList<>());
+        }
 
         String[] t = topology.toArray(new String[0]);
         Arrays.sort(t);
         for (int i = 0; i < t.length; i++) {
             String adr = t[i];
-            ConnectionString conn = new ConnectionString(adr + "?timeout=100");
             this.topology[i] = adr;
+            ConnectionString conn = new ConnectionString(adr + "?timeout=100&clientMaxPoolSize=3");
             if (conn.getPort() == me) {
                 this.id = i;
-                this.clients[i] = null;
-                continue;
             }
 
-            this.clients[i] = new HttpClient(conn);
+            for (List<HttpClient> client : clients) {
+                client.add(new HttpClient(conn));
+            }
         }
     }
 
-    //assume there is a timestamp here, or it is 404 response with no data
+    //assume that response always contains timestamp, or 404 status with no data
     public static long parseTimeStamp(Response response) {
         byte[] body = response.getBody();
         long result = -1;
@@ -144,15 +148,15 @@ public class ProxyResponse {
         }
 
         if (clients != null) {
-            for (HttpClient client : clients) {
-                if (client != null) {
-                    client.clear();
+            for (List<HttpClient> client : clients) {
+                for (HttpClient sockets : client) {
+                    sockets.close();
                 }
+                client.clear();
             }
         }
 
         clients = null;
-        topology = null;
     }
 
     public List<Integer> getNodeId(String id) {
@@ -183,11 +187,13 @@ public class ProxyResponse {
     }
 
     public Response invoke(Integer httpClientId, Request request) {
+        int index = (int) (Thread.currentThread().getId() % clients.size());
+        HttpClient sockets = clients.get(index).get(httpClientId);
         try {
-            return clients[httpClientId].invoke(request);
+            return sockets.invoke(request);
         } catch (Exception e) {
             LOGGER.error("Something wrong on request httpClient {}, request: {}, topology: {}",
-                    clients[httpClientId], request, topology, e);
+                    sockets, request, topology, e);
             return UtilResponses.serviceUnavailableResponse();
         }
     }

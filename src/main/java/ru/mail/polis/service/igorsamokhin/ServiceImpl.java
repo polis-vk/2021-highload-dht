@@ -198,6 +198,7 @@ public class ServiceImpl extends HttpServer implements Service {
         }
 
         if (confirms < ack) {
+            //maybe need to do something
             return UtilResponses.responseWithMessage("504", "Not Enough Replicas");
         }
 
