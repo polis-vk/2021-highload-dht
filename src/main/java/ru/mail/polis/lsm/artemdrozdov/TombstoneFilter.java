@@ -5,7 +5,7 @@ import ru.mail.polis.lsm.Record;
 import java.util.Iterator;
 import java.util.NoSuchElementException;
 
-public class TombstoneFilter {
+final public class TombstoneFilter {
 
     private TombstoneFilter() {
 
@@ -17,6 +17,7 @@ public class TombstoneFilter {
     }
 
     private static Iterator getIterator(PeekingIterator delegate, final boolean noTombstone) {
+
         return new Iterator<>() {
             @Override
             public boolean hasNext() {
