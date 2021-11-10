@@ -19,7 +19,6 @@ package ru.mail.polis.lsm;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
-import ru.mail.polis.FileUtils;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -91,7 +90,6 @@ class PersistenceTest {
             Iterator<Record> range = dao.range(null, null);
 
             assertTrue(range.next().isTombstone());
-//            assertFalse(range.hasNext());
         }
     }
 
@@ -152,7 +150,7 @@ class PersistenceTest {
         }
     }
 
-    @Disabled
+//    @Disabled
     @Test
     void hugeRecords(@TempDir Path data) throws IOException {
         // Reference value
@@ -174,7 +172,7 @@ class PersistenceTest {
         }
     }
 
-    @Disabled
+//    @Disabled
     @Test
     void hugeRecordsSearch(@TempDir Path data) throws IOException {
         // Reference value
@@ -192,7 +190,7 @@ class PersistenceTest {
                 ByteBuffer keyFrom = keyWithSuffix(i * searchStep, suffix);
                 ByteBuffer keyTo = keyWithSuffix(i * searchStep + searchStep, suffix);
 
-                System.out.println(i);
+//                System.out.println(i);
 
                 Iterator<Record> range = dao.range(keyFrom, keyTo);
                 for (int j = 0; j < searchStep; j++) {
@@ -217,16 +215,6 @@ class PersistenceTest {
 
             // Check
             try (DAO dao = TestDaoWrapper.create(config)) {
-//
-//                Iterator<Record> range = dao.range(null, null);
-//
-//                while (range.hasNext()) {
-//                    Record record = range.next();
-//                    System.out.println("key is: " + Utils.toString(record.getKey()) + "  value is: " + Utils.toString(record.getValue())
-//                            + "   timestamp is :" + Utils.toTimeStamp(record.getTimestamp()));
-//
-//                }
-
                 assertDaoEquals(dao, map);
             }
         }

@@ -147,7 +147,7 @@ public class DaoImpl implements DAO {
 
     @Override
     public void close() throws IOException {
-        logger.info("Dao is closed");
+//        logger.info("Dao is closed");
         synchronized (this) {
             isClosed.set(true);
 
