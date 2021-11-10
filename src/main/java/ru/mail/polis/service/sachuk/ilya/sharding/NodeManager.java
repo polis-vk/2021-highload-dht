@@ -11,21 +11,20 @@ import java.io.Closeable;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
+import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class NodeManager implements Closeable {
-    private Logger logger = LoggerFactory.getLogger(NodeManager.class);
+    private final Logger logger = LoggerFactory.getLogger(NodeManager.class);
     private final NavigableMap<Integer, VNode> circle = new TreeMap<>();
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
     private final NavigableMap<String, HttpClient> clients;
     private final VNodeConfig vnodeConfig;
-    private final Node node;
 
     public NodeManager(Set<String> topology, VNodeConfig vnodeConfig, Node node) {
         this.vnodeConfig = vnodeConfig;
-        this.node = node;
 
         clients = new TreeMap<>();
 
@@ -49,12 +48,7 @@ public final class NodeManager implements Closeable {
         logger.info("CIRCLE SIZE:" + circle.size());
         logger.info("hash:" + hash);
         Map.Entry<Integer, VNode> integerVNodeEntry;
-        if (hash == null) {
-            integerVNodeEntry = circle.higherEntry(Hash.murmur3(key));
-        } else {
-            integerVNodeEntry = circle.higherEntry(hash);
-        }
-
+        integerVNodeEntry = circle.higherEntry(Objects.requireNonNullElseGet(hash, () -> Hash.murmur3(key)));
 
         VNode vnode;
         Integer hashReturn;
