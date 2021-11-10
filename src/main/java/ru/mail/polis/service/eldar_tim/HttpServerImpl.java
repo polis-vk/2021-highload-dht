@@ -18,6 +18,7 @@ import ru.mail.polis.service.eldar_tim.handlers.EntityRequestHandler;
 import ru.mail.polis.service.eldar_tim.handlers.RoutingRequestHandler;
 import ru.mail.polis.service.eldar_tim.handlers.StatusRequestHandler;
 import ru.mail.polis.service.exceptions.ServerRuntimeException;
+import ru.mail.polis.service.exceptions.ServiceOverloadException;
 import ru.mail.polis.sharding.HashRouter;
 
 import java.io.IOException;
@@ -120,7 +121,10 @@ public class HttpServerImpl extends HttpServer implements Service {
     }
 
     private void sendError(String description, String httpCode, HttpSession session, Exception e) {
-        LOG.debug("Error: {}", description, e); // Влияет на результаты профилирования
+        if (e != ServiceOverloadException.INSTANCE) {
+            LOG.warn("Error: {}", description, e); // Влияет на результаты профилирования
+        }
+
         try {
             String code = httpCode == null ? Response.INTERNAL_ERROR : httpCode;
             session.sendError(code, description);

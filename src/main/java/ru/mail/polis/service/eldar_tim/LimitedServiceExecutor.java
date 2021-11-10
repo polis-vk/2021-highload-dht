@@ -37,7 +37,7 @@ public class LimitedServiceExecutor implements ServiceExecutor {
     @Override
     public void execute(Session session, ExceptionHandler handler, ServiceRunnable runnable) {
         if (!requestExecute()) {
-            handler.handleException(session, new ServiceOverloadException());
+            handler.handleException(session, ServiceOverloadException.INSTANCE);
             return;
         }
 

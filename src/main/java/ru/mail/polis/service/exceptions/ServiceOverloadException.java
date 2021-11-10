@@ -2,14 +2,12 @@ package ru.mail.polis.service.exceptions;
 
 import one.nio.http.Response;
 
-public class ServiceOverloadException extends ServerRuntimeException {
+public final class ServiceOverloadException extends ServerRuntimeException {
 
-    public ServiceOverloadException() {
+    public static ServiceOverloadException INSTANCE = new ServiceOverloadException();
+
+    ServiceOverloadException() {
         super();
-    }
-
-    public ServiceOverloadException(Throwable cause) {
-        super(cause);
     }
 
     @Override
