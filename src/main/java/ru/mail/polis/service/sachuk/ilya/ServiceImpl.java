@@ -114,41 +114,32 @@ public class ServiceImpl extends HttpServer implements Service {
         }
 
         requestPoolExecutor.addTask(() -> {
-            String path = request.getPath();
-            Response response;
-            switch (path) {
-                case ENTITY_PATH:
-                    String id = request.getParameter("id=");
-                    String replicas = request.getParameter("replicas=");
-
-                    ReplicationInfo replicationInfo = replicas == null
-                            ? ReplicationInfo.of(topology.size())
-                            : ReplicationInfo.of(replicas);
-
-                    if (logger.isInfoEnabled()) {
-                        logger.info(replicas);
-                        logger.info("ask=" + replicationInfo.ask + " and from=" + replicationInfo.from);
-                    }
-
-                    if (replicationInfo.ask > replicationInfo.from || replicationInfo.ask == 0) {
-                        response = new Response(Response.BAD_REQUEST, Response.EMPTY);
-                        break;
-                    }
-
-                    response = entityRequest(request, id, replicationInfo);
-                    break;
-                case STATUS_PATH:
-                    response = status();
-                    break;
-                default:
-                    try {
-                        handleDefault(request, session);
-                    } catch (IOException e) {
-                        throw new UncheckedIOException(e);
-                    }
-                    return;
-            }
             try {
+                String path = request.getPath();
+                Response response;
+                switch (path) {
+                    case ENTITY_PATH:
+                        String id = request.getParameter("id=");
+                        String replicas = request.getParameter("replicas=");
+
+                        ReplicationInfo replicationInfo = replicas == null
+                                ? ReplicationInfo.of(topology.size())
+                                : ReplicationInfo.of(replicas);
+
+                        if (replicationInfo.ask > replicationInfo.from || replicationInfo.ask == 0) {
+                            response = new Response(Response.BAD_REQUEST, Response.EMPTY);
+                            break;
+                        }
+
+                        response = entityRequest(request, id, replicationInfo);
+                        break;
+                    case STATUS_PATH:
+                        response = status();
+                        break;
+                    default:
+                        handleDefault(request, session);
+                        return;
+                }
                 session.sendResponse(response);
             } catch (IOException e) {
                 throw new UncheckedIOException(e);

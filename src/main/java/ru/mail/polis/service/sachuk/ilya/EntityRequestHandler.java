@@ -36,7 +36,6 @@ public class EntityRequestHandler {
     }
 
     private Response get(String id) {
-
         logger.info("IN GET");
 
         ByteBuffer fromKey = Utils.stringToBytebuffer(id);
@@ -48,18 +47,19 @@ public class EntityRequestHandler {
 
             if (record.isTombstone()) {
                 logger.info("in get in tombstone block");
-                return addTimeStampHeaderAndTombstone(new Response(Response.NOT_FOUND, Response.EMPTY),
+                return ResponseUtils.addTimeStampHeaderAndTombstone(new Response(Response.NOT_FOUND, Response.EMPTY),
                         Utils.byteBufferToTimestamp(record.getTimestamp()).getTime()
-                ); //  если  tombstone то добавляем и таймстем и томбстоун хедер
+                );
             }
 
             logger.info("in get in not tombstone block");
-            return addTimeStampHeader(new Response(Response.OK, Utils.bytebufferToBytes(record.getValue())),
+            return ResponseUtils.addTimeStampHeader(
+                    new Response(Response.OK, Utils.bytebufferToBytes(record.getValue())),
                     Utils.byteBufferToTimestamp(record.getTimestamp()).getTime()
-            ); // просто добавляем timestamp header
+            );
         } else {
             logger.info("in get in block when not found any");
-            return new Response(Response.NOT_FOUND, Response.EMPTY); // значит вообще нет, timestamp тоже нет
+            return new Response(Response.NOT_FOUND, Response.EMPTY);
         }
     }
 
@@ -99,18 +99,5 @@ public class EntityRequestHandler {
         );
 
         return new Response(Response.CREATED, Response.EMPTY);
-    }
-
-    private Response addTimeStampHeader(Response response, long secs) {
-        response.addHeader(ResponseUtils.TIMESTAMP_HEADER + secs);
-
-        return response;
-    }
-
-    private Response addTimeStampHeaderAndTombstone(Response response, long secs) {
-        response.addHeader(ResponseUtils.TIMESTAMP_HEADER + secs);
-        response.addHeader(ResponseUtils.TOMBSTONE_HEADER);
-
-        return response;
     }
 }

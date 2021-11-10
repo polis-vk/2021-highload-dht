@@ -8,8 +8,8 @@ import ru.mail.polis.ThreadUtils;
 import ru.mail.polis.Utils;
 import ru.mail.polis.lsm.Record;
 import ru.mail.polis.service.sachuk.ilya.EntityRequestHandler;
-import ru.mail.polis.service.sachuk.ilya.ResponseUtils;
 import ru.mail.polis.service.sachuk.ilya.Pair;
+import ru.mail.polis.service.sachuk.ilya.ResponseUtils;
 import ru.mail.polis.service.sachuk.ilya.sharding.Node;
 import ru.mail.polis.service.sachuk.ilya.sharding.NodeManager;
 import ru.mail.polis.service.sachuk.ilya.sharding.NodeRouter;
@@ -35,7 +35,8 @@ public class Coordinator implements Closeable {
     private final Node node;
     private final ExecutorService coordinatorExecutor = Executors.newCachedThreadPool();
 
-    public Coordinator(NodeManager nodeManager, NodeRouter nodeRouter, EntityRequestHandler entityRequestHandler, Node node) {
+    public Coordinator(NodeManager nodeManager, NodeRouter nodeRouter, EntityRequestHandler entityRequestHandler,
+                       Node node) {
         this.nodeManager = nodeManager;
         this.nodeRouter = nodeRouter;
         this.entityRequestHandler = entityRequestHandler;
@@ -103,8 +104,10 @@ public class Coordinator implements Closeable {
                 logger.info(String.valueOf(currentPorts));
             }
             Pair<Integer, VNode> pair = nodeManager.getNearVNodeWithGreaterHash(id, hash, currentPorts);
+
             vnodes.put(pair.key, pair.value);
             hash = pair.key;
+
             currentPorts.add(pair.value.getPhysicalNode().port);
         }
 
@@ -136,41 +139,21 @@ public class Coordinator implements Closeable {
 
         Response finalResponse;
         if (responses.size() < replicationInfo.ask) {
-            if (logger.isInfoEnabled()) {
-                logger.info("RESPONSES SIZE IS LESS THEN ASK");
-            }
             return new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY);
         }
 
         if (request.getMethod() == Request.METHOD_GET) {
             for (Response response : responses) {
                 int status = response.getStatus();
-
                 if (status == 200 || status == 404) {
-
-                    String timestampFromResponse = response.getHeader(ResponseUtils.TIMESTAMP_HEADER);
-                    String tombstoneHeader = response.getHeader(ResponseUtils.TOMBSTONE_HEADER);
-
-                    ByteBuffer value = ByteBuffer.wrap(response.getBody());
-                    if (timestampFromResponse == null) {
-                        records.add(Record.of(key, value, Utils.timeStampToByteBuffer(0L)));
-                    } else {
-                        if (tombstoneHeader == null) {
-                            records.add(Record.of(key,
-                                    value,
-                                    Utils.timeStampToByteBuffer(Long.parseLong(timestampFromResponse)))
-                            );
-                        } else {
-                            records.add(Record.tombstone(key,
-                                    Utils.timeStampToByteBuffer(Long.parseLong(timestampFromResponse)))
-                            );
-                        }
-                    }
+                    Record recordFromResponse = getRecordFromResponse(response, key);
+                    records.add(recordFromResponse);
                 }
             }
 
             Record newestRecord = getNewestRecord(records);
             finalResponse = getFinalResponseForGet(newestRecord);
+
         } else if (request.getMethod() == Request.METHOD_DELETE) {
             finalResponse = new Response(Response.ACCEPTED, Response.EMPTY);
 
@@ -180,6 +163,27 @@ public class Coordinator implements Closeable {
             finalResponse = new Response(Response.METHOD_NOT_ALLOWED, Response.EMPTY);
         }
         return finalResponse;
+    }
+
+    private Record getRecordFromResponse(Response response, ByteBuffer key) {
+        String timestampFromResponse = response.getHeader(ResponseUtils.TIMESTAMP_HEADER);
+        String tombstoneHeader = response.getHeader(ResponseUtils.TOMBSTONE_HEADER);
+
+        ByteBuffer value = ByteBuffer.wrap(response.getBody());
+
+        if (timestampFromResponse == null) {
+            return Record.of(key, value, Utils.timeStampToByteBuffer(0L));
+        } else {
+            if (tombstoneHeader == null) {
+                return Record.of(key,
+                        value,
+                        Utils.timeStampToByteBuffer(Long.parseLong(timestampFromResponse)));
+            } else {
+                return Record.tombstone(key,
+                        Utils.timeStampToByteBuffer(Long.parseLong(timestampFromResponse))
+                );
+            }
+        }
     }
 
     private Record getNewestRecord(List<Record> records) {
