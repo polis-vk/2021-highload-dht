@@ -43,6 +43,11 @@ public class TestDaoWrapper implements DAO {
     }
 
     @Override
+    public Iterator<Record> rangeWithoutTombstoneFiltering(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
+        return delegate.rangeWithoutTombstoneFiltering(toReadOnly(fromKey), toReadOnly(toKey));
+    }
+
+    @Override
     public void upsert(Record record) {
         delegate.upsert(record);
     }

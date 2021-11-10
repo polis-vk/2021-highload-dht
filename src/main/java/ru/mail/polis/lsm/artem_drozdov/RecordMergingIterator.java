@@ -12,8 +12,8 @@ final class RecordMergingIterator implements Iterator<Record> {
     private final PeekingIterator<Record> right;
 
     RecordMergingIterator(
-            final PeekingIterator<Record> left,
-            final PeekingIterator<Record> right) {
+        final PeekingIterator<Record> left,
+        final PeekingIterator<Record> right) {
         this.left = left;
         this.right = right;
     }
@@ -42,6 +42,14 @@ final class RecordMergingIterator implements Iterator<Record> {
 
         int compareResult = leftKey.compareTo(rightKey);
         if (compareResult == 0) {
+
+            if (Objects.requireNonNull(left.peek()).getValue().timestamp() >
+                Objects.requireNonNull(right.peek()).getValue().timestamp()
+            ) {
+                right.next();
+                return left.next();
+            }
+
             left.next();
             return right.next();
         } else if (compareResult < 0) {

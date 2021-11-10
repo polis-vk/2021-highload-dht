@@ -65,6 +65,17 @@ public class LsmDAO implements DAO {
     }
 
     @Override
+    public Iterator<Record> rangeWithoutTombstoneFiltering(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
+        Storage storageSnap = this.storage.get();
+
+        Iterator<Record> sstableRanges = sstableRanges(storageSnap, fromKey, toKey);
+        Iterator<Record> memoryRange = storageSnap.iterator(fromKey, toKey);
+
+        return new RecordMergingIterator(
+            new PeekingIterator<>(sstableRanges), new PeekingIterator<>(memoryRange));
+    }
+
+    @Override
     public void upsert(Record record) {
         Storage storageSnap = this.storage.get();
         long consumption = storageSnap.currentMemTable.putAndGetSize(record);

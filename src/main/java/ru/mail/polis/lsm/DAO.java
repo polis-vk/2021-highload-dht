@@ -27,6 +27,8 @@ import java.util.Iterator;
 public interface DAO extends Closeable {
     Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey);
 
+    Iterator<Record> rangeWithoutTombstoneFiltering(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey);
+
     void upsert(Record record);
 
     void compact();

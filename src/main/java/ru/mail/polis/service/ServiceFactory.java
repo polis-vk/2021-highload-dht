@@ -22,7 +22,6 @@ import ru.mail.polis.service.shabinsky_dmitry.BasicService;
 import java.io.IOException;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.Executors;
 
 /**
  * Constructs {@link Service} instances.

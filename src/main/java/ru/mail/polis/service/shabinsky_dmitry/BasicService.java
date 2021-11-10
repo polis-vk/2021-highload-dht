@@ -16,15 +16,17 @@ import java.net.InetAddress;
 import java.net.UnknownHostException;
 import java.nio.ByteBuffer;
 import java.util.*;
-import java.util.concurrent.Executor;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.stream.Collectors;
 
 public final class BasicService extends HttpServer implements Service {
 
     private static final Logger LOG = LoggerFactory.getLogger(BasicService.class);
-    private static final int TIMEOUT = 100; // TODO config
+    private static final int TIMEOUT = 1000; // TODO config
     private final DAO dao;
-    private final Executor executor;
+    private final ExecutorService executor;
     private final List<String> topology;
 
     public BasicService(
@@ -40,7 +42,7 @@ public final class BasicService extends HttpServer implements Service {
     }
 
     private static Map<String, HttpClient> extractSelfFromInterface(int port, Set<String> topology) throws UnknownHostException {
-        Map<String, HttpClient> clients = new HashMap<>();
+        Map<String, HttpClient> clients = new ConcurrentHashMap<>();
         List<InetAddress> allMe = Arrays.asList(InetAddress.getAllByName(null));
 
         for (String node : topology) {
@@ -77,13 +79,10 @@ public final class BasicService extends HttpServer implements Service {
     public void entity(
         HttpSession session,
         Request request,
-        @Param(value = "id", required = true) final String id
+        @Param(value = "id", required = true) final String id,
+        @Param("replicas") String replicas
     ) {
-        execute(id, request, session, () -> {
-
-            if (id.isBlank()) {
-                return new Response(Response.BAD_REQUEST, toBytes("Bad id"));
-            }
+        execute(id, replicas, request, session, () -> {
 
             switch (request.getMethod()) {
                 case Request.METHOD_GET:
@@ -106,33 +105,44 @@ public final class BasicService extends HttpServer implements Service {
         session.sendResponse(new Response(Response.BAD_REQUEST, Response.EMPTY));
     }
 
-    @Override
-    public synchronized void stop() {
-        super.stop();
-    /*FIXME    for (HttpClient client : clients.values()) {
-            client.close();
-        }*/
-    }
 
     private Response delete(String id) {
         final ByteBuffer key = ByteBuffer.wrap(toBytes(id));
-        dao.upsert(Record.tombstone(key));
+        Record record = Record.tombstone(key);
+        LOG.debug("record delete timestamp: {}", record.getValue().timestamp());
+        dao.upsert(record);
         return new Response(Response.ACCEPTED, Response.EMPTY);
     }
 
     private Response put(String id, byte[] body) {
         final ByteBuffer key = ByteBuffer.wrap(toBytes(id));
         final ByteBuffer value = ByteBuffer.wrap(body);
-        dao.upsert(Record.of(key, value));
+        Record record = Record.of(key, value);
+        LOG.debug("record put timestamp: {}", record.getValue().timestamp());
+        dao.upsert(record);
         return new Response(Response.CREATED, Response.EMPTY);
     }
 
     private Response get(String id) {
         final ByteBuffer key = ByteBuffer.wrap(toBytes(id));
-        final Iterator<Record> range = dao.range(key, DAO.nextKey(key));
+
+        final Iterator<Record> range =
+            dao.rangeWithoutTombstoneFiltering(key, DAO.nextKey(key));
+
         if (range.hasNext()) {
             final Record first = range.next();
-            return new Response(Response.OK, extractBytes(first.getValue()));
+            Record.Value value = first.getValue();
+
+            Response response = value.isTombstone() ?
+                new Response(Response.OK, Response.EMPTY) :
+                new Response(Response.OK, extractBytes(value.get()));
+
+            LOG.debug("record (stone: {}) timestamp: {}", value.isTombstone(), value.timestamp());
+
+            response.addHeader("timestamp" + value.timestamp());
+            response.addHeader("tombstone" + value.isTombstone());
+
+            return response;
         }
         return new Response(Response.NOT_FOUND, Response.EMPTY);
     }
@@ -143,50 +153,164 @@ public final class BasicService extends HttpServer implements Service {
         return result;
     }
 
-    private HttpClient forKey(String id) {
-        String bestMatch = null;
-        int maxHash = Integer.MIN_VALUE;
-
-        for (String option : topology) {
-            int hash = Hash.murmur3(option + id);
-
-            if (hash > maxHash) { // it is important to have topology consistently sorted
-                bestMatch = option;
-                maxHash = hash;
-            }
-        }
-
-        if (bestMatch == null) {
-            throw new IllegalStateException("No nodes?");
-        }
-
-        // local node for no client
-        return ((MyThread) Thread.currentThread()).clients.get(bestMatch);
+    private List<String> forKeyNodes(String id, int replicas) {
+        List<String> list = new LinkedList<>(topology);
+        list.sort(Comparator.comparingInt(option -> Hash.murmur3(option + id)));
+        return list.stream().limit(replicas).collect(Collectors.toList());
     }
 
     private byte[] toBytes(String text) {
         return Utf8.toBytes(text);
     }
 
-    private void execute(String id, Request request, HttpSession session, Task task) {
+    private void execute(String id, String replicas, Request request, HttpSession session, Task task) {
         executor.execute(() -> {
 
-            Response call;
-            try {
-                HttpClient client = forKey(id);
-                if (client != null) {
-                    call = client.invoke(request, TIMEOUT);
-                } else {
-                    call = task.call();
-                }
-            } catch (Exception e) {
-                LOG.error("Unexpected exception during method call {}", request.getMethodName(), e);
-                sendResponse(session, new Response(Response.INTERNAL_ERROR, toBytes("Something wrong")));
+            if (checkAndCalcRequestIfLocal(id, request, session, task)) {
                 return;
             }
 
-            sendResponse(session, call);
+            int ask;
+            int from;
+            if (replicas == null) {
+                ask = topology.size() / 2 + 1;
+                from = topology.size();
+            } else {
+                String[] askFrom = replicas.split("/");
+                ask = Integer.parseInt(askFrom[0]);
+                from = Integer.parseInt(askFrom[1]);
+            }
+
+            if (ask == 0 || ask > from) {
+                try {
+                    session.sendResponse(new Response(Response.BAD_REQUEST, Response.EMPTY));
+                } catch (Exception e) {
+                    LOG.error("bad ask = {} or from = {}", ask, from);
+                }
+                return;
+            }
+
+            List<String> nodes = forKeyNodes(id, from);
+
+            List<Response> responses = new ArrayList<>();
+            Response res;
+            for (String node : nodes) {
+                try {
+                    HttpClient client = ((MyThread) Thread.currentThread()).clients.get(node);
+                    if (client == null) {
+                        res = task.call();
+                    } else {
+                        res = client.invoke(request, TIMEOUT);
+                    }
+                    responses.add(res);
+                } catch (Exception e) {
+                    LOG.error("Unexpected exception during method call {}", request.getMethodName(), e);
+                    responses.add(new Response(Response.INTERNAL_ERROR, toBytes("Something wrong")));
+                }
+            }
+
+            calcRequest(request, session, ask, responses);
         });
+    }
+
+    private void calcRequest(Request request, HttpSession session, int ask, List<Response> responses) {
+        int countSuccess = 0;
+        int error = 0;
+        long youngest = Long.MIN_VALUE;
+        Response result = new Response(Response.NOT_FOUND, Response.EMPTY);
+
+        for (Response response : responses) {
+
+            if (response.getStatus() != getIntSuccessStatus(request)) {
+                if (response.getStatus() == 404) {
+                    countSuccess++;
+                    error++;
+                }
+                continue;
+            }
+
+            countSuccess++;
+            if (request.getMethod() != Request.METHOD_GET) {
+                continue;
+            }
+
+            long respTime = Long.parseLong(response.getHeader("timestamp"));
+            if (respTime > youngest) {
+                youngest = respTime;
+                result = response;
+            }
+        }
+
+        if (request.getMethod() == Request.METHOD_GET &&
+            countSuccess == 0) {
+            result = new Response(Response.NOT_FOUND, Response.EMPTY);
+
+        } else if (countSuccess >= ask) {
+
+            if (request.getMethod() == Request.METHOD_GET) {
+                boolean isTombstone = Boolean.parseBoolean(result.getHeader("tombstone"));
+                if (isTombstone || countSuccess == error) {
+                    result = new Response(Response.NOT_FOUND, Response.EMPTY);
+                }
+            } else {
+                result = new Response(getStringSuccessStatus(request), Response.EMPTY);
+            }
+
+        } else {
+            result = new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY);
+        }
+
+        sendResponse(session, result);
+    }
+
+    private boolean checkAndCalcRequestIfLocal(String id, Request request, HttpSession session, Task task) {
+        if (id.isBlank()) {
+            sendResponse(session, new Response(Response.BAD_REQUEST, toBytes("Bad id")));
+            return true;
+        }
+
+        if (request.getHeader("local") != null) {
+            Response call;
+
+            try {
+                call = task.call();
+            } catch (Exception e) {
+                LOG.error("Unexpected exception during method call {}", request.getMethodName(), e);
+                sendResponse(session, new Response(Response.INTERNAL_ERROR, toBytes("Something wrong")));
+                return true;
+            }
+
+            sendResponse(session, call);
+            return true;
+        }
+        request.addHeader("local");
+        return false;
+    }
+
+    private int getIntSuccessStatus(Request request) {
+        switch (request.getMethod()) {
+            case Request.METHOD_GET:
+                return 200; // Response.OK
+            case Request.METHOD_PUT:
+                return 201; // Response.CREATED
+            case Request.METHOD_DELETE:
+                return 202; // Response.ACCEPTED
+            default:
+                return 400; // Response.BAD_REQUEST
+        }
+    }
+
+    private String getStringSuccessStatus(Request request) {
+        switch (request.getMethod()) {
+            case Request.METHOD_GET:
+                return Response.OK;
+            case Request.METHOD_PUT:
+                return Response.CREATED;
+            case Request.METHOD_DELETE:
+                return Response.ACCEPTED;
+            default:
+                return Response.BAD_REQUEST;
+        }
     }
 
     private void sendResponse(HttpSession session, Response call) {
@@ -198,7 +322,7 @@ public final class BasicService extends HttpServer implements Service {
     }
 
     private static class MyThread extends Thread {
-        final Map<String, HttpClient> clients;
+        public final Map<String, HttpClient> clients;
 
         public MyThread(Runnable target, int port, Set<String> topology) {
             super(target);

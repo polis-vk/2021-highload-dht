@@ -90,11 +90,18 @@ public class SSTable implements Closeable {
 
                 Record record = records.next();
                 writeValueWithSize(record.getKey(), fileChannel, size);
+
+                fileChannel.write(
+                    ByteBuffer.allocate(Long.BYTES)
+                        .putLong(record.getValue().timestamp())
+                        .flip()
+                );
+
                 if (record.isTombstone()) {
                     writeInt(-1, fileChannel, size);
                 } else {
                     // value is null for tombstones only
-                    ByteBuffer value = Objects.requireNonNull(record.getValue());
+                    ByteBuffer value = Objects.requireNonNull(record.getValue().get());
                     writeValueWithSize(value, fileChannel, size);
                 }
             }
@@ -149,7 +156,7 @@ public class SSTable implements Closeable {
 
     public static int sizeOf(Record record) {
         int keySize = Integer.BYTES + record.getKeySize();
-        int valueSize = Integer.BYTES + record.getValueSize();
+        int valueSize = Integer.BYTES + record.getValue().size();
         return keySize + valueSize;
     }
 

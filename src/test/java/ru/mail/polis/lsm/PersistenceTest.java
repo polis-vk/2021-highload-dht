@@ -55,7 +55,7 @@ class PersistenceTest {
 
             Record record = range.next();
             assertEquals(key(1), record.getKey());
-            assertEquals(value(1), record.getValue());
+            assertEquals(value(1), record.getValue().get());
         }
 
         recursiveDelete(data);
@@ -80,14 +80,14 @@ class PersistenceTest {
             Iterator<Record> range = dao.range(null, null);
 
             assertTrue(range.hasNext());
-            assertEquals(value, range.next().getValue());
+            assertEquals(value, range.next().getValue().get());
         }
 
         // Load data and check
         try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
             Iterator<Record> range = dao.range(null, null);
             assertTrue(range.hasNext());
-            assertEquals(value, range.next().getValue());
+            assertEquals(value, range.next().getValue().get());
 
             // Remove data and flush
             dao.upsert(Record.tombstone(key));
@@ -113,21 +113,21 @@ class PersistenceTest {
 
             Iterator<Record> range = dao.range(null, null);
             assertTrue(range.hasNext());
-            assertEquals(value, range.next().getValue());
+            assertEquals(value, range.next().getValue().get());
         }
 
         // Reopen
         try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
             Iterator<Record> range = dao.range(null, null);
             assertTrue(range.hasNext());
-            assertEquals(value, range.next().getValue());
+            assertEquals(value, range.next().getValue().get());
 
             // Replace
             dao.upsert(Record.of(key, value2));
 
             Iterator<Record> range2 = dao.range(null, null);
             assertTrue(range2.hasNext());
-            assertEquals(value2, range2.next().getValue());
+            assertEquals(value2, range2.next().getValue().get());
         }
 
         // Reopen
@@ -135,7 +135,7 @@ class PersistenceTest {
             // Last value should win
             Iterator<Record> range2 = dao.range(null, null);
             assertTrue(range2.hasNext());
-            assertEquals(value2, range2.next().getValue());
+            assertEquals(value2, range2.next().getValue().get());
         }
     }
 
@@ -148,12 +148,12 @@ class PersistenceTest {
             ByteBuffer value = value(i);
             try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
                 dao.upsert(Record.of(key, value));
-                assertEquals(value, dao.range(key, null).next().getValue());
+                assertEquals(value, dao.range(key, null).next().getValue().get());
             }
 
             // Check
             try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
-                assertEquals(value, dao.range(key, null).next().getValue());
+                assertEquals(value, dao.range(key, null).next().getValue().get());
             }
         }
     }
@@ -247,7 +247,7 @@ class PersistenceTest {
 
         Files.walkFileTree(data, new SimpleFileVisitor<>() {
             @Override
-            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
                 size[0] += (int) attrs.size();
                 return FileVisitResult.CONTINUE;
             }
@@ -263,7 +263,7 @@ class PersistenceTest {
         Record next = range.next();
 
         assertEquals(key, next.getKey());
-        assertEquals(value, next.getValue());
+        assertEquals(value, next.getValue().get());
     }
 
     private void prepareHugeDao(@TempDir Path data, int recordsCount, byte[] suffix) throws IOException {

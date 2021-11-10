@@ -11,9 +11,9 @@ final class ByteBufferRecordIterator implements Iterator<Record> {
     private final int toOffset;
 
     ByteBufferRecordIterator(
-            final ByteBuffer buffer,
-            final int fromOffset,
-            final int toOffset) {
+        final ByteBuffer buffer,
+        final int fromOffset,
+        final int toOffset) {
         buffer.position(fromOffset);
         this.buffer = buffer;
         this.toOffset = toOffset;
@@ -33,13 +33,15 @@ final class ByteBufferRecordIterator implements Iterator<Record> {
         int keySize = buffer.getInt();
         ByteBuffer key = read(keySize);
 
+        long timestamp = buffer.getLong();
+
         int valueSize = buffer.getInt();
         if (valueSize == -1) {
             return Record.tombstone(key);
         }
         ByteBuffer value = read(valueSize);
 
-        return Record.of(key, value);
+        return Record.of(key, new Record.Value(value, timestamp));
     }
 
     private ByteBuffer read(int size) {
