@@ -16,13 +16,13 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
-public abstract class RoutingRequestHandler extends ReplicableRequestHandler {
+public abstract class RoutableRequestHandler extends ReplicableRequestHandler {
 
-    private static final Logger LOG = LoggerFactory.getLogger(RoutingRequestHandler.class);
+    private static final Logger LOG = LoggerFactory.getLogger(RoutableRequestHandler.class);
 
     private final HashRouter<Cluster.Node> router;
 
-    public RoutingRequestHandler(
+    public RoutableRequestHandler(
             Cluster.ReplicasManager replicasManager, Cluster.Node self,
             HashRouter<Cluster.Node> router
     ) {

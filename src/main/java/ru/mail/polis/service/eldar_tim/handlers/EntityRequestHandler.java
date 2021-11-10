@@ -15,7 +15,7 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 
-public class EntityRequestHandler extends RoutingRequestHandler {
+public class EntityRequestHandler extends RoutableRequestHandler {
 
     private final DAO dao;
 

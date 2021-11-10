@@ -15,7 +15,7 @@ import ru.mail.polis.Cluster;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.service.Service;
 import ru.mail.polis.service.eldar_tim.handlers.EntityRequestHandler;
-import ru.mail.polis.service.eldar_tim.handlers.RoutingRequestHandler;
+import ru.mail.polis.service.eldar_tim.handlers.RoutableRequestHandler;
 import ru.mail.polis.service.eldar_tim.handlers.StatusRequestHandler;
 import ru.mail.polis.service.exceptions.ServerRuntimeException;
 import ru.mail.polis.service.exceptions.ServiceOverloadException;
@@ -86,8 +86,8 @@ public class HttpServerImpl extends HttpServer implements Service {
 
     @Override
     public void handleRequest(Request request, HttpSession session) {
-        RoutingRequestHandler requestHandler =
-                (RoutingRequestHandler) pathMapper.find(request.getPath(), request.getMethod());
+        RoutableRequestHandler requestHandler =
+                (RoutableRequestHandler) pathMapper.find(request.getPath(), request.getMethod());
 
         if (requestHandler == statusHandler) {
             workers.run(session, this::exceptionHandler, () -> requestHandler.handleRequest(request, session));
