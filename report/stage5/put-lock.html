@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang='en'>
+<head>
+<meta charset='utf-8'>
+<style>
+	body {margin: 0; padding: 10px; background-color: #ffffff}
+	h1 {margin: 5px 0 0 0; font-size: 18px; font-weight: normal; text-align: center}
+	header {margin: -24px 0 5px 0; line-height: 24px}
+	button {font: 12px sans-serif; cursor: pointer}
+	p {margin: 5px 0 5px 0}
+	a {color: #0366d6}
+	#hl {position: absolute; display: none; overflow: hidden; white-space: nowrap; pointer-events: none; background-color: #ffffe0; outline: 1px solid #ffc000; height: 15px}
+	#hl span {padding: 0 3px 0 3px}
+	#status {overflow: hidden; white-space: nowrap}
+	#match {overflow: hidden; white-space: nowrap; display: none; float: right; text-align: right}
+	#reset {cursor: pointer}
+</style>
+</head>
+<body style='font: 12px Verdana, sans-serif'>
+<h1>Lock profile</h1>
+<header style='text-align: left'><button id='reverse' title='Reverse'>&#x1f53b;</button>&nbsp;&nbsp;<button id='search' title='Search'>&#x1f50d;</button></header>
+<header style='text-align: right'>Produced by <a href='https://github.com/jvm-profiling-tools/async-profiler'>async-profiler</a></header>
+<canvas id='canvas' style='width: 100%; height: 432px'></canvas>
+<div id='hl'><span></span></div>
+<p id='match'>Matched: <span id='matchval'></span> <span id='reset' title='Clear'>&#x274c;</span></p>
+<p id='status'>&nbsp;</p>
+<script>
+	// Copyright 2020 Andrei Pangin
+	// Licensed under the Apache License, Version 2.0.
+	'use strict';
+	var root, rootLevel, px, pattern;
+	var reverse = false;
+	const levels = Array(27);
+	for (let h = 0; h < levels.length; h++) {
+		levels[h] = [];
+	}
+
+	const canvas = document.getElementById('canvas');
+	const c = canvas.getContext('2d');
+	const hl = document.getElementById('hl');
+	const status = document.getElementById('status');
+
+	const canvasWidth = canvas.offsetWidth;
+	const canvasHeight = canvas.offsetHeight;
+	canvas.style.width = canvasWidth + 'px';
+	canvas.width = canvasWidth * (devicePixelRatio || 1);
+	canvas.height = canvasHeight * (devicePixelRatio || 1);
+	if (devicePixelRatio) c.scale(devicePixelRatio, devicePixelRatio);
+	c.font = document.body.style.font;
+
+	const palette = [
+		[0x50e150, 30, 30, 30],
+		[0x50bebe, 30, 30, 30],
+		[0xe17d00, 30, 30,  0],
+		[0xc8c83c, 30, 30, 10],
+		[0xe15a5a, 30, 40, 40],
+	];
+
+	function getColor(p) {
+		const v = Math.random();
+		return '#' + (p[0] + ((p[1] * v) << 16 | (p[2] * v) << 8 | (p[3] * v))).toString(16);
+	}
+
+	function f(level, left, width, type, title) {
+		levels[level].push({left: left, width: width, color: getColor(palette[type]), title: title});
+	}
+
+	function samples(n) {
+		return n === 1 ? '1 sample' : n.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',') + ' samples';
+	}
+
+	function pct(a, b) {
+		return a >= b ? '100' : (100 * a / b).toFixed(2);
+	}
+
+	function findFrame(frames, x) {
+		let left = 0;
+		let right = frames.length - 1;
+
+		while (left <= right) {
+			const mid = (left + right) >>> 1;
+			const f = frames[mid];
+
+			if (f.left > x) {
+				right = mid - 1;
+			} else if (f.left + f.width <= x) {
+				left = mid + 1;
+			} else {
+				return f;
+			}
+		}
+
+		if (frames[left] && (frames[left].left - x) * px < 0.5) return frames[left];
+		if (frames[right] && (x - (frames[right].left + frames[right].width)) * px < 0.5) return frames[right];
+
+		return null;
+	}
+
+	function search(r) {
+		if (r && (r = prompt('Enter regexp to search:', '')) === null) {
+			return;
+		}
+
+		pattern = r ? RegExp(r) : undefined;
+		const matched = render(root, rootLevel);
+		document.getElementById('matchval').textContent = pct(matched, root.width) + '%';
+		document.getElementById('match').style.display = r ? 'inherit' : 'none';
+	}
+
+	function render(newRoot, newLevel) {
+		if (root) {
+			c.fillStyle = '#ffffff';
+			c.fillRect(0, 0, canvasWidth, canvasHeight);
+		}
+
+		root = newRoot || levels[0][0];
+		rootLevel = newLevel || 0;
+		px = canvasWidth / root.width;
+
+		const x0 = root.left;
+		const x1 = x0 + root.width;
+		const marked = [];
+
+		function mark(f) {
+			return marked[f.left] >= f.width || (marked[f.left] = f.width);
+		}
+
+		function totalMarked() {
+			let total = 0;
+			let left = 0;
+			Object.keys(marked).sort(function(a, b) { return a - b; }).forEach(function(x) {
+				if (+x >= left) {
+					total += marked[x];
+					left = +x + marked[x];
+				}
+			});
+			return total;
+		}
+
+		function drawFrame(f, y, alpha) {
+			if (f.left < x1 && f.left + f.width > x0) {
+				c.fillStyle = pattern && f.title.match(pattern) && mark(f) ? '#ee00ee' : f.color;
+				c.fillRect((f.left - x0) * px, y, f.width * px, 15);
+
+				if (f.width * px >= 21) {
+					const chars = Math.floor(f.width * px / 7);
+					const title = f.title.length <= chars ? f.title : f.title.substring(0, chars - 2) + '..';
+					c.fillStyle = '#000000';
+					c.fillText(title, Math.max(f.left - x0, 0) * px + 3, y + 12, f.width * px - 6);
+				}
+
+				if (alpha) {
+					c.fillStyle = 'rgba(255, 255, 255, 0.5)';
+					c.fillRect((f.left - x0) * px, y, f.width * px, 15);
+				}
+			}
+		}
+
+		for (let h = 0; h < levels.length; h++) {
+			const y = reverse ? h * 16 : canvasHeight - (h + 1) * 16;
+			const frames = levels[h];
+			for (let i = 0; i < frames.length; i++) {
+				drawFrame(frames[i], y, h < rootLevel);
+			}
+		}
+
+		return totalMarked();
+	}
+
+	canvas.onmousemove = function() {
+		const h = Math.floor((reverse ? event.offsetY : (canvasHeight - event.offsetY)) / 16);
+		if (h >= 0 && h < levels.length) {
+			const f = findFrame(levels[h], event.offsetX / px + root.left);
+			if (f) {
+				hl.style.left = (Math.max(f.left - root.left, 0) * px + canvas.offsetLeft) + 'px';
+				hl.style.width = (Math.min(f.width, root.width) * px) + 'px';
+				hl.style.top = ((reverse ? h * 16 : canvasHeight - (h + 1) * 16) + canvas.offsetTop) + 'px';
+				hl.firstChild.textContent = f.title;
+				hl.style.display = 'block';
+				canvas.title = f.title + '\n(' + samples(f.width) + ', ' + pct(f.width, levels[0][0].width) + '%)';
+				canvas.style.cursor = 'pointer';
+				canvas.onclick = function() {
+					if (f != root) {
+						render(f, h);
+						canvas.onmousemove();
+					}
+				};
+				status.textContent = 'Function: ' + canvas.title;
+				return;
+			}
+		}
+		canvas.onmouseout();
+	}
+
+	canvas.onmouseout = function() {
+		hl.style.display = 'none';
+		status.textContent = '\xa0';
+		canvas.title = '';
+		canvas.style.cursor = '';
+		canvas.onclick = '';
+	}
+
+	document.getElementById('reverse').onclick = function() {
+		reverse = !reverse;
+		render();
+	}
+
+	document.getElementById('search').onclick = function() {
+		search(true);
+	}
+
+	document.getElementById('reset').onclick = function() {
+		search(false);
+	}
+
+	window.onkeydown = function() {
+		if (event.ctrlKey && event.keyCode === 70) {
+			event.preventDefault();
+			search(true);
+		} else if (event.keyCode === 27) {
+			search(false);
+		}
+	}
+f(0,0,490189,4,'all')
+f(1,0,485239,0,'java/lang/Thread.run')
+f(2,0,485239,0,'java/util/concurrent/ThreadPoolExecutor$Worker.run')
+f(3,0,485239,0,'java/util/concurrent/ThreadPoolExecutor.runWorker')
+f(4,0,20359,0,'java/util/concurrent/ThreadPoolExecutor.getTask')
+f(5,0,20359,0,'java/util/concurrent/LinkedBlockingQueue.take')
+f(6,0,4261,0,'java/util/concurrent/locks/AbstractQueuedSynchronizer$ConditionObject.await')
+f(7,0,4261,0,'java/util/concurrent/locks/AbstractQueuedSynchronizer.acquireQueued')
+f(8,0,4261,0,'java/util/concurrent/locks/AbstractQueuedSynchronizer.parkAndCheckInterrupt')
+f(9,0,4261,0,'java/util/concurrent/locks/LockSupport.park')
+f(10,0,4261,0,'jdk/internal/misc/Unsafe.park')
+f(11,0,4261,1,'java.util.concurrent.locks.ReentrantLock$NonfairSync')
+f(6,4261,16098,0,'java/util/concurrent/locks/ReentrantLock.lockInterruptibly')
+f(7,4261,16098,0,'java/util/concurrent/locks/AbstractQueuedSynchronizer.acquireInterruptibly')
+f(8,4261,16098,0,'java/util/concurrent/locks/AbstractQueuedSynchronizer.doAcquireInterruptibly')
+f(9,4261,16098,0,'java/util/concurrent/locks/AbstractQueuedSynchronizer.parkAndCheckInterrupt')
+f(10,4261,16098,0,'java/util/concurrent/locks/LockSupport.park')
+f(11,4261,16098,0,'jdk/internal/misc/Unsafe.park')
+f(12,4261,16098,1,'java.util.concurrent.locks.ReentrantLock$NonfairSync')
+f(4,20359,14,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO$$Lambda$106/1234740931.run')
+f(5,20359,14,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO.lambda$upsert$0')
+f(6,20359,10,0,'ch/qos/logback/classic/Logger.info')
+f(7,20359,10,0,'ch/qos/logback/classic/Logger.filterAndLog_0_Or3Plus')
+f(8,20359,10,0,'ch/qos/logback/classic/Logger.buildLoggingEventAndAppend')
+f(9,20359,10,0,'ch/qos/logback/classic/Logger.callAppenders')
+f(10,20359,10,0,'ch/qos/logback/classic/Logger.appendLoopOnAppenders')
+f(11,20359,10,0,'ch/qos/logback/core/spi/AppenderAttachableImpl.appendLoopOnAppenders')
+f(12,20359,10,0,'ch/qos/logback/core/UnsynchronizedAppenderBase.doAppend')
+f(13,20359,10,0,'ch/qos/logback/core/OutputStreamAppender.append')
+f(14,20359,10,0,'ch/qos/logback/core/OutputStreamAppender.subAppend')
+f(15,20359,10,0,'ch/qos/logback/core/OutputStreamAppender.writeBytes')
+f(16,20359,10,0,'java/util/concurrent/locks/ReentrantLock.lock')
+f(17,20359,10,0,'java/util/concurrent/locks/AbstractQueuedSynchronizer.acquire')
+f(18,20359,10,0,'java/util/concurrent/locks/AbstractQueuedSynchronizer.acquireQueued')
+f(19,20359,10,0,'java/util/concurrent/locks/AbstractQueuedSynchronizer.parkAndCheckInterrupt')
+f(20,20359,10,0,'java/util/concurrent/locks/LockSupport.park')
+f(21,20359,10,0,'jdk/internal/misc/Unsafe.park')
+f(22,20359,10,1,'java.util.concurrent.locks.ReentrantLock$NonfairSync')
+f(6,20369,4,0,'ru/mail/polis/lsm/artem_drozdov/LsmDAO.performCompact')
+f(7,20369,4,0,'ch/qos/logback/classic/Logger.info')
+f(8,20369,4,0,'ch/qos/logback/classic/Logger.filterAndLog_0_Or3Plus')
+f(9,20369,4,0,'ch/qos/logback/classic/Logger.buildLoggingEventAndAppend')
+f(10,20369,4,0,'ch/qos/logback/classic/Logger.callAppenders')
+f(11,20369,4,0,'ch/qos/logback/classic/Logger.appendLoopOnAppenders')
+f(12,20369,4,0,'ch/qos/logback/core/spi/AppenderAttachableImpl.appendLoopOnAppenders')
+f(13,20369,4,0,'ch/qos/logback/core/UnsynchronizedAppenderBase.doAppend')
+f(14,20369,4,0,'ch/qos/logback/core/OutputStreamAppender.append')
+f(15,20369,4,0,'ch/qos/logback/core/OutputStreamAppender.subAppend')
+f(16,20369,4,0,'ch/qos/logback/core/OutputStreamAppender.writeBytes')
+f(17,20369,4,0,'java/util/concurrent/locks/ReentrantLock.lock')
+f(18,20369,4,0,'java/util/concurrent/locks/AbstractQueuedSynchronizer.acquire')
+f(19,20369,4,0,'java/util/concurrent/locks/AbstractQueuedSynchronizer.acquireQueued')
+f(20,20369,4,0,'java/util/concurrent/locks/AbstractQueuedSynchronizer.parkAndCheckInterrupt')
+f(21,20369,4,0,'java/util/concurrent/locks/LockSupport.park')
+f(22,20369,4,0,'jdk/internal/misc/Unsafe.park')
+f(23,20369,4,1,'java.util.concurrent.locks.ReentrantLock$NonfairSync')
+f(4,20373,464866,0,'ru/mail/polis/service/shabinsky_dmitry/BasicService$$Lambda$73/1192909569.run')
+f(5,20373,464866,0,'ru/mail/polis/service/shabinsky_dmitry/BasicService.lambda$execute$3')
+f(6,20373,143016,0,'ru/mail/polis/service/shabinsky_dmitry/BasicService$$Lambda$68/1950665344.call')
+f(7,20373,143016,0,'ru/mail/polis/service/shabinsky_dmitry/BasicService.lambda$entity$1')
+f(8,20373,143016,0,'ru/mail/polis/service/shabinsky_dmitry/BasicService.put')
+f(9,20373,143016,0,'ch/qos/logback/classic/Logger.debug')
+f(10,20373,143016,0,'ch/qos/logback/classic/Logger.filterAndLog_1')
+f(11,20373,143016,0,'ch/qos/logback/classic/Logger.buildLoggingEventAndAppend')
+f(12,20373,143016,0,'ch/qos/logback/classic/Logger.callAppenders')
+f(13,20373,143016,0,'ch/qos/logback/classic/Logger.appendLoopOnAppenders')
+f(14,20373,143016,0,'ch/qos/logback/core/spi/AppenderAttachableImpl.appendLoopOnAppenders')
+f(15,20373,143016,0,'ch/qos/logback/core/UnsynchronizedAppenderBase.doAppend')
+f(16,20373,143016,0,'ch/qos/logback/core/OutputStreamAppender.append')
+f(17,20373,143016,0,'ch/qos/logback/core/OutputStreamAppender.subAppend')
+f(18,20373,142792,0,'ch/qos/logback/core/OutputStreamAppender.writeBytes')
+f(19,20373,142792,0,'java/util/concurrent/locks/ReentrantLock.lock')
+f(20,20373,142792,0,'java/util/concurrent/locks/AbstractQueuedSynchronizer.acquire')
+f(21,20373,142792,0,'java/util/concurrent/locks/AbstractQueuedSynchronizer.acquireQueued')
+f(22,20373,142792,0,'java/util/concurrent/locks/AbstractQueuedSynchronizer.parkAndCheckInterrupt')
+f(23,20373,142792,0,'java/util/concurrent/locks/LockSupport.park')
+f(24,20373,142792,0,'jdk/internal/misc/Unsafe.park')
+f(25,20373,142792,1,'java.util.concurrent.locks.ReentrantLock$NonfairSync')
+f(18,163165,224,0,'ch/qos/logback/core/encoder/LayoutWrappingEncoder.encode')
+f(19,163165,224,0,'ch/qos/logback/classic/layout/TTLLLayout.doLayout')
+f(20,163165,224,0,'ch/qos/logback/classic/layout/TTLLLayout.doLayout')
+f(21,163165,224,0,'ch/qos/logback/core/util/CachingDateFormatter.format')
+f(22,163165,224,1,'ch.qos.logback.core.util.CachingDateFormatter')
+f(6,163389,199,0,'ru/mail/polis/service/shabinsky_dmitry/BasicService.calcRequest')
+f(7,163389,199,0,'ru/mail/polis/service/shabinsky_dmitry/BasicService.sendResponse')
+f(8,163389,199,0,'one/nio/http/HttpSession.sendResponse')
+f(9,163389,199,1,'one.nio.http.HttpSession')
+f(6,163588,321651,0,'ru/mail/polis/service/shabinsky_dmitry/BasicService.checkAndCalcRequestIfLocal')
+f(7,163588,319352,0,'ru/mail/polis/service/shabinsky_dmitry/BasicService$$Lambda$68/1950665344.call')
+f(8,163588,319352,0,'ru/mail/polis/service/shabinsky_dmitry/BasicService.lambda$entity$1')
+f(9,163588,319352,0,'ru/mail/polis/service/shabinsky_dmitry/BasicService.put')
+f(10,163588,319352,0,'ch/qos/logback/classic/Logger.debug')
+f(11,163588,319352,0,'ch/qos/logback/classic/Logger.filterAndLog_1')
+f(12,163588,319352,0,'ch/qos/logback/classic/Logger.buildLoggingEventAndAppend')
+f(13,163588,319352,0,'ch/qos/logback/classic/Logger.callAppenders')
+f(14,163588,319352,0,'ch/qos/logback/classic/Logger.appendLoopOnAppenders')
+f(15,163588,319352,0,'ch/qos/logback/core/spi/AppenderAttachableImpl.appendLoopOnAppenders')
+f(16,163588,319352,0,'ch/qos/logback/core/UnsynchronizedAppenderBase.doAppend')
+f(17,163588,319352,0,'ch/qos/logback/core/OutputStreamAppender.append')
+f(18,163588,319352,0,'ch/qos/logback/core/OutputStreamAppender.subAppend')
+f(19,163588,318899,0,'ch/qos/logback/core/OutputStreamAppender.writeBytes')
+f(20,163588,318899,0,'java/util/concurrent/locks/ReentrantLock.lock')
+f(21,163588,318899,0,'java/util/concurrent/locks/AbstractQueuedSynchronizer.acquire')
+f(22,163588,318899,0,'java/util/concurrent/locks/AbstractQueuedSynchronizer.acquireQueued')
+f(23,163588,318899,0,'java/util/concurrent/locks/AbstractQueuedSynchronizer.parkAndCheckInterrupt')
+f(24,163588,318899,0,'java/util/concurrent/locks/LockSupport.park')
+f(25,163588,318899,0,'jdk/internal/misc/Unsafe.park')
+f(26,163588,318899,1,'java.util.concurrent.locks.ReentrantLock$NonfairSync')
+f(19,482487,453,0,'ch/qos/logback/core/encoder/LayoutWrappingEncoder.encode')
+f(20,482487,453,0,'ch/qos/logback/classic/layout/TTLLLayout.doLayout')
+f(21,482487,453,0,'ch/qos/logback/classic/layout/TTLLLayout.doLayout')
+f(22,482487,453,0,'ch/qos/logback/core/util/CachingDateFormatter.format')
+f(23,482487,453,1,'ch.qos.logback.core.util.CachingDateFormatter')
+f(7,482940,2299,0,'ru/mail/polis/service/shabinsky_dmitry/BasicService.sendResponse')
+f(8,482940,2299,0,'one/nio/http/HttpSession.sendResponse')
+f(9,482940,2299,1,'one.nio.http.HttpSession')
+f(1,485239,4950,0,'one/nio/server/SelectorThread.run')
+f(2,485239,4950,0,'one/nio/net/Session.process')
+f(3,485239,733,1,'one.nio.http.HttpSession')
+f(3,485972,4217,0,'one/nio/http/HttpSession.processRead')
+f(4,485972,4217,0,'one/nio/http/HttpSession.processHttpBuffer')
+f(5,485972,4217,0,'one/nio/http/HttpSession.handleParsedRequest')
+f(6,485972,4217,0,'one/nio/http/HttpServer.handleRequest')
+f(7,485972,4217,0,'RequestHandler1_entity.handleRequest')
+f(8,485972,4217,0,'ru/mail/polis/service/shabinsky_dmitry/BasicService.entity')
+f(9,485972,4217,0,'ru/mail/polis/service/shabinsky_dmitry/BasicService.execute')
+f(10,485972,4217,0,'java/util/concurrent/ThreadPoolExecutor.execute')
+f(11,485972,4217,0,'java/util/concurrent/LinkedBlockingQueue.offer')
+f(12,485972,4019,0,'java/util/concurrent/LinkedBlockingQueue.signalNotEmpty')
+f(13,485972,4019,0,'java/util/concurrent/locks/ReentrantLock.lock')
+f(14,485972,4019,0,'java/util/concurrent/locks/AbstractQueuedSynchronizer.acquire')
+f(15,485972,4019,0,'java/util/concurrent/locks/AbstractQueuedSynchronizer.acquireQueued')
+f(16,485972,4019,0,'java/util/concurrent/locks/AbstractQueuedSynchronizer.parkAndCheckInterrupt')
+f(17,485972,4019,0,'java/util/concurrent/locks/LockSupport.park')
+f(18,485972,4019,0,'jdk/internal/misc/Unsafe.park')
+f(19,485972,4019,1,'java.util.concurrent.locks.ReentrantLock$NonfairSync')
+f(12,489991,198,0,'java/util/concurrent/locks/ReentrantLock.lock')
+f(13,489991,198,0,'java/util/concurrent/locks/AbstractQueuedSynchronizer.acquire')
+f(14,489991,198,0,'java/util/concurrent/locks/AbstractQueuedSynchronizer.acquireQueued')
+f(15,489991,198,0,'java/util/concurrent/locks/AbstractQueuedSynchronizer.parkAndCheckInterrupt')
+f(16,489991,198,0,'java/util/concurrent/locks/LockSupport.park')
+f(17,489991,198,0,'jdk/internal/misc/Unsafe.park')
+f(18,489991,198,1,'java.util.concurrent.locks.ReentrantLock$NonfairSync')
+render();
+</script></body></html>
