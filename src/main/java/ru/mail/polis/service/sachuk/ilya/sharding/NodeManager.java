@@ -3,8 +3,6 @@ package ru.mail.polis.service.sachuk.ilya.sharding;
 import one.nio.http.HttpClient;
 import one.nio.net.ConnectionString;
 import one.nio.util.Hash;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import ru.mail.polis.service.sachuk.ilya.Pair;
 
 import java.io.Closeable;
@@ -17,7 +15,6 @@ import java.util.TreeMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class NodeManager implements Closeable {
-    private final Logger logger = LoggerFactory.getLogger(NodeManager.class);
     private final NavigableMap<Integer, VNode> circle = new TreeMap<>();
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
     private final NavigableMap<String, HttpClient> clients;
@@ -31,7 +28,6 @@ public final class NodeManager implements Closeable {
         for (String endpoint : topology) {
             ConnectionString connectionString = new ConnectionString(endpoint);
 
-            logger.info("port from constructor:" + connectionString.getPort());
             addNode(new Node(connectionString.getPort()));
             if (node.port == connectionString.getPort()) {
                 continue;
@@ -45,30 +41,22 @@ public final class NodeManager implements Closeable {
     public Pair<Integer, VNode> getNearVNodeWithGreaterHash(String key, Integer hash, List<Integer> currentPorts) {
         checkIsClosed();
 
-        logger.info("CIRCLE SIZE:" + circle.size());
-        logger.info("hash:" + hash);
         Map.Entry<Integer, VNode> integerVNodeEntry;
         integerVNodeEntry = circle.higherEntry(Objects.requireNonNullElseGet(hash, () -> Hash.murmur3(key)));
 
         VNode vnode;
         Integer hashReturn;
         if (integerVNodeEntry == null) {
-            logger.info("in if");
             vnode = circle.firstEntry().getValue();
             hashReturn = circle.firstEntry().getKey();
         } else {
-            logger.info("in else");
             vnode = integerVNodeEntry.getValue();
             hashReturn = integerVNodeEntry.getKey();
         }
 
-        logger.info("curr port:" + vnode.getPhysicalNode().port);
-
         if (currentPorts.contains(vnode.getPhysicalNode().port)) {
             return getNearVNodeWithGreaterHash(key, hashReturn, currentPorts);
         }
-
-        logger.info("FOUND HASH IS :" + hashReturn);
 
         return new Pair<>(hashReturn, vnode);
     }
@@ -88,18 +76,11 @@ public final class NodeManager implements Closeable {
     private void addNode(Node node) {
         checkIsClosed();
 
-        logger.info("NODE PORT:" + node.port);
-        logger.info("hashes:");
         for (int i = 0; i < vnodeConfig.nodeWeight; i++) {
             int hashCode = Hash.murmur3(Node.HOST + node.port + i);
 
-//            logger.info(String.valueOf(hashCode));
             circle.put(hashCode, new VNode(node));
         }
-
-        logger.info("first" + circle.firstKey());
-        logger.info("last" + circle.lastKey());
-        logger.info(String.valueOf(circle.keySet()));
     }
 
     private void checkIsClosed() {

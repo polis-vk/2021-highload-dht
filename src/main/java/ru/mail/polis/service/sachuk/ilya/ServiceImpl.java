@@ -21,8 +21,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.sql.Timestamp;
 import java.util.Set;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 
 public class ServiceImpl extends HttpServer implements Service {
     private final Logger logger = LoggerFactory.getLogger(ServiceImpl.class);
@@ -51,7 +49,9 @@ public class ServiceImpl extends HttpServer implements Service {
 
         this.coordinator = new Coordinator(nodeManager, nodeRouter, entityRequestHandler, node);
 
-        logger.info("Node with port " + port + " is started");
+        if (logger.isInfoEnabled()) {
+            logger.info("Node with port " + port + " is started");
+        }
     }
 
     private static HttpServerConfig configFrom(int port) {
@@ -78,15 +78,19 @@ public class ServiceImpl extends HttpServer implements Service {
             request.addHeader("Timestamp" + System.currentTimeMillis());
         } else {
             long secs = Long.parseLong(timestamp);
-            logger.info(String.valueOf(new Timestamp(secs)));
+            if (logger.isInfoEnabled()) {
+                logger.info(String.valueOf(new Timestamp(secs)));
+            }
         }
 
         //если запрос пришел от координатора, от возращаем ему респонс, чтобы он собрал всю инфу
-        if (!isCoordinator) {
-            logger.info("in block from coordinator");
-            return entityRequestHandler.handle(request, id);
-        } else {
+        if (isCoordinator) {
             return coordinator.handle(replicationInfo, id, request);
+        } else {
+            if (logger.isInfoEnabled()) {
+                logger.info("in block from coordinator");
+            }
+            return entityRequestHandler.handle(request, id);
         }
     }
 
@@ -122,8 +126,10 @@ public class ServiceImpl extends HttpServer implements Service {
                             ? ReplicationInfo.from(topology.size())
                             : ReplicationInfo.from(replicas);
 
-                    logger.info(replicas);
-                    logger.info("ask=" + replicationInfo.ask + " and from=" + replicationInfo.from);
+                    if (logger.isInfoEnabled()) {
+                        logger.info(replicas);
+                        logger.info("ask=" + replicationInfo.ask + " and from=" + replicationInfo.from);
+                    }
 
                     if (replicationInfo.ask > replicationInfo.from || replicationInfo.ask == 0) {
                         response = new Response(Response.BAD_REQUEST, Response.EMPTY);
@@ -155,8 +161,9 @@ public class ServiceImpl extends HttpServer implements Service {
     public synchronized void stop() {
         super.stop();
 
-        logger.info("Service with node:" + node.port + " is closed");
-
+        if (logger.isInfoEnabled()) {
+            logger.info("Service with node:" + node.port + " is closed");
+        }
         coordinator.close();
         nodeManager.close();
     }

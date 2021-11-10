@@ -2,7 +2,7 @@ package ru.mail.polis.service.sachuk.ilya.replication;
 
 import java.util.Arrays;
 
-public class ReplicationInfo {
+public final class ReplicationInfo {
     public final int ask;
     public final int from;
 
@@ -12,10 +12,7 @@ public class ReplicationInfo {
     }
 
     public static ReplicationInfo from(String replicas) {
-        //replicas={2/2}
-//        String[] split = replicas.split("/");
         int[] arr = Arrays.stream(replicas.split("/")).mapToInt(Integer::parseInt).toArray();
-
 
         return new ReplicationInfo(arr[0], arr[1]);
     }

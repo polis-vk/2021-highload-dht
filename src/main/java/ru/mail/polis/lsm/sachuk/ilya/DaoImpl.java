@@ -8,7 +8,6 @@ import ru.mail.polis.lsm.DAOConfig;
 import ru.mail.polis.lsm.Record;
 import ru.mail.polis.lsm.sachuk.ilya.iterators.MergeIterator;
 import ru.mail.polis.lsm.sachuk.ilya.iterators.PeekingIterator;
-import ru.mail.polis.lsm.sachuk.ilya.iterators.TombstoneFilteringIterator;
 
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
@@ -72,13 +71,11 @@ public class DaoImpl implements DAO {
                 new PeekingIterator<>(memoryRange),
                 new PeekingIterator<>(tmpMemoryRange)
         );
-        Iterator<Record> mergedIterators = mergeTwo(
+
+        return mergeTwo(
                 new PeekingIterator<>(ssTableRanges),
                 new PeekingIterator<>(memory)
         );
-
-//        return new TombstoneFilteringIterator(mergedIterators);
-        return mergedIterators;
     }
 
     @Override

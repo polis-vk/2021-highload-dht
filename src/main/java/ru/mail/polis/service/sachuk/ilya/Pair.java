@@ -1,10 +1,10 @@
 package ru.mail.polis.service.sachuk.ilya;
 
-public class Pair<Key, Value> {
-    public final Key key;
-    public final Value value;
+public class Pair<K, V> {
+    public final K key;
+    public final V value;
 
-    public Pair(Key key, Value value) {
+    public Pair(K key, V value) {
         this.key = key;
         this.value = value;
     }

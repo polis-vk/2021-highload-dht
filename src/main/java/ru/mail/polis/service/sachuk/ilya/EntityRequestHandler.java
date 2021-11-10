@@ -67,9 +67,10 @@ public class EntityRequestHandler {
 
         long secs = Long.parseLong(request.getHeader("Timestamp"));
 
-        logger.info("IN DELETE");
-        logger.info("Timestamp in delete:" + new Timestamp(secs));
-
+        if (logger.isInfoEnabled()) {
+            logger.info("IN DELETE");
+            logger.info("Timestamp in delete:" + new Timestamp(secs));
+        }
         dao.upsert(Record.tombstone(Utils.stringToBytebuffer(id),
                 Utils.timeStampToByteBuffer(secs))
         );
@@ -80,13 +81,15 @@ public class EntityRequestHandler {
     private Response put(String id, Request request) {
         long secs = Long.parseLong(request.getHeader("Timestamp"));
 
-        logger.info("IN PUT");
-
-        logger.info("Timestamp in put:" + new Timestamp(secs));
+        if (logger.isInfoEnabled()) {
+            logger.info("IN PUT");
+            logger.info("Timestamp in put:" + new Timestamp(secs));
+        }
 
         byte[] body = request.getBody();
-
-        logger.info("WRITE IN PUT :" + body.length + " bytes");
+        if (logger.isInfoEnabled()) {
+            logger.info("WRITE IN PUT :" + body.length + " bytes");
+        }
         ByteBuffer key = ByteBuffer.wrap(id.getBytes(StandardCharsets.UTF_8));
         ByteBuffer value = ByteBuffer.wrap(body);
 

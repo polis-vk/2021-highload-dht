@@ -19,7 +19,7 @@ import java.nio.ByteBuffer;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.SortedMap;
+import java.util.NavigableMap;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -44,22 +44,26 @@ public class Coordinator implements Closeable {
     public Response handle(ReplicationInfo replicationInfo, String id, Request request) {
         ByteBuffer key = Utils.wrap(id);
 
-        logger.info("in block IS coordinator");
-        logger.info("COORDINATOR NODE IS: " + node.port);
+        if (logger.isInfoEnabled()) {
 
-        SortedMap<Integer, VNode> vnodes = getNodes(replicationInfo, id);
+            logger.info("in block IS coordinator");
+            logger.info("COORDINATOR NODE IS: " + node.port);
+        }
+        NavigableMap<Integer, VNode> vnodes = getNodes(replicationInfo, id);
 
         List<Response> responses = getResponses(vnodes, id, request, replicationInfo);
 
         Response finalResponse = getFinalResponse(request, key, responses, replicationInfo);
 
-        logger.info("FINAL RESPONSE:" + finalResponse.getStatus());
+        if (logger.isInfoEnabled()) {
+            logger.info("FINAL RESPONSE:" + finalResponse.getStatus());
+        }
 
         return finalResponse;
     }
 
     //FIXME
-    private List<Response> getResponses(SortedMap<Integer, VNode> vnodes, String id, Request request,
+    private List<Response> getResponses(NavigableMap<Integer, VNode> vnodes, String id, Request request,
                                         ReplicationInfo replicationInfo) {
         List<Response> responses = new ArrayList<>();
 
@@ -90,24 +94,26 @@ public class Coordinator implements Closeable {
         return responses;
     }
 
-    private SortedMap<Integer, VNode> getNodes(ReplicationInfo replicationInfo, String id) {
-        SortedMap<Integer, VNode> vnodes = new TreeMap<>();
+    private NavigableMap<Integer, VNode> getNodes(ReplicationInfo replicationInfo, String id) {
+        NavigableMap<Integer, VNode> vnodes = new TreeMap<>();
         List<Integer> currentPorts = new ArrayList<>();
         Integer hash = null;
 
         for (int i = 0; i < replicationInfo.from; i++) {
-            logger.info("In cycle i is : " + i);
-            logger.info(String.valueOf(currentPorts));
-
+            if (logger.isInfoEnabled()) {
+                logger.info("In cycle i is : " + i);
+                logger.info(String.valueOf(currentPorts));
+            }
             Pair<Integer, VNode> pair = nodeManager.getNearVNodeWithGreaterHash(id, hash, currentPorts);
             vnodes.put(pair.key, pair.value);
             hash = pair.key;
             currentPorts.add(pair.value.getPhysicalNode().port);
         }
 
-        logger.info("vnodeList size is: " + vnodes.size() + " and from is: " + replicationInfo.from);
-        logger.info("nodes to handle: " + currentPorts);
-
+        if (logger.isInfoEnabled()) {
+            logger.info("vnodeList size is: " + vnodes.size() + " and from is: " + replicationInfo.from);
+            logger.info("nodes to handle: " + currentPorts);
+        }
         return vnodes;
     }
 
@@ -134,7 +140,9 @@ public class Coordinator implements Closeable {
 
         Response finalResponse;
         if (responses.size() < replicationInfo.ask) {
-            logger.info("RESPONSES SIZE IS LESS THEN ASK");
+            if (logger.isInfoEnabled()) {
+                logger.info("RESPONSES SIZE IS LESS THEN ASK");
+            }
             return new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY);
         }
 
@@ -147,19 +155,13 @@ public class Coordinator implements Closeable {
                     String timestampFromResponse = response.getHeader("Timestamp");
                     String tombstoneHeader = response.getHeader("Tombstone");
 
-                    byte[] body = response.getBody();
-
-                    logger.info("body size is: " + body.length);
-
                     ByteBuffer value = ByteBuffer.wrap(response.getBody());
                     if (timestampFromResponse == null) {
                         records.add(Record.of(key, value, Utils.timeStampToByteBuffer(0L)));
                     } else {
                         if (tombstoneHeader == null) {
-                            logger.info("Tombstone header is null");
                             records.add(Record.of(key, value, Utils.timeStampToByteBuffer(Long.parseLong(timestampFromResponse))));
                         } else {
-                            logger.info("Tombstone header is not null");
                             records.add(Record.tombstone(key, Utils.timeStampToByteBuffer(Long.parseLong(timestampFromResponse))));
                         }
                     }
@@ -167,9 +169,7 @@ public class Coordinator implements Closeable {
             }
 
             Record newestRecord = getNewestRecord(records);
-            logger.info("is tombstone: " + newestRecord.isTombstone());
             finalResponse = getFinalResponseForGet(newestRecord);
-
         } else if (request.getMethod() == Request.METHOD_DELETE) {
             finalResponse = new Response(Response.ACCEPTED, Response.EMPTY);
 
@@ -182,7 +182,6 @@ public class Coordinator implements Closeable {
     }
 
     private Record getNewestRecord(List<Record> records) {
-        logger.info("records size in getNewestValue:" + records.size());
         records.sort((o1, o2) -> {
             Timestamp timestamp1 = Utils.byteBufferToTimestamp(o1.getTimestamp());
             Timestamp timestamp2 = Utils.byteBufferToTimestamp(o2.getTimestamp());
@@ -221,14 +220,14 @@ public class Coordinator implements Closeable {
     private Response chooseHandler(String id, Request request, VNode vNode) {
         Response response;
         if (vNode.getPhysicalNode().port == node.port) {
-//                    logger.info("find current Node + " + vNode.getPhysicalNode().port);
-            logger.info("HANDLE BY CURRENT NODE: port :" + vNode.getPhysicalNode().port);
-
+            if (logger.isInfoEnabled()) {
+                logger.info("HANDLE BY CURRENT NODE: port :" + vNode.getPhysicalNode().port);
+            }
             response = entityRequestHandler.handle(request, id);
         } else {
-            logger.info("HANDLE BY OTHER NODE: port :" + vNode.getPhysicalNode().port);
-
-//                    logger.info("route to Node + " + vNode.getPhysicalNode().port);
+            if (logger.isInfoEnabled()) {
+                logger.info("HANDLE BY OTHER NODE: port :" + vNode.getPhysicalNode().port);
+            }
             response = nodeRouter.routeToNode(vNode, request);
         }
 
