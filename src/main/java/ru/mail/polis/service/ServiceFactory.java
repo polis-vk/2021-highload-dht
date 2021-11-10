@@ -26,9 +26,9 @@ import ru.mail.polis.sharding.ConsistentHashRouter;
 import ru.mail.polis.sharding.HashRouter;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Collection;
-import java.util.List;
+import java.util.Comparator;
+import java.util.HashSet;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
@@ -53,7 +53,8 @@ public final class ServiceFactory {
     /** Лимит очереди на выполнение прокси-запросов, после превышения которого последующие будут отвергнуты. */
     private static final int PROXY_LIMIT = PROXY_THREADS * 2;
 
-    private static final Map<Integer, Collection<Cluster.Node>> TOPOLOGIES = new ConcurrentHashMap<>();
+    private static final Map<Integer, Set<Cluster.Node>> TOPOLOGIES = new ConcurrentHashMap<>();
+    private static final Map<Integer, Cluster.ReplicasManager> REPLICAS = new ConcurrentHashMap<>();
 
     private ServiceFactory() {
         // Not supposed to be instantiated
@@ -85,19 +86,22 @@ public final class ServiceFactory {
             throw new IllegalArgumentException("Empty cluster");
         }
 
-        Collection<Cluster.Node> clusterNodes = TOPOLOGIES.computeIfAbsent(topology.hashCode(),
+        Set<Cluster.Node> clusterNodes = TOPOLOGIES.computeIfAbsent(topology.hashCode(),
                 key -> buildClusterNodes(topology));
+        Cluster.ReplicasManager replicasManager = REPLICAS.computeIfAbsent(topology.hashCode(),
+                key -> new Cluster.ReplicasManager(clusterNodes, Comparator.comparing(Cluster.Node::getKey)));
+
         Cluster.Node currentNode = findClusterNode(port, clusterNodes);
         HashRouter<Cluster.Node> hashRouter = new ConsistentHashRouter<>(clusterNodes, 30);
 
         ServiceExecutor workers = new LimitedServiceExecutor("worker", WORKERS_NUMBER, TASKS_LIMIT);
         ServiceExecutor proxies = new LimitedServiceExecutor("proxy", PROXY_THREADS, PROXY_LIMIT);
 
-        return new HttpServerImpl(dao, currentNode, hashRouter, workers, proxies);
+        return new HttpServerImpl(dao, currentNode, replicasManager, hashRouter, workers, proxies);
     }
 
-    private static Collection<Cluster.Node> buildClusterNodes(Set<String> topologyRaw) {
-        List<Cluster.Node> topology = new ArrayList<>(topologyRaw.size());
+    private static Set<Cluster.Node> buildClusterNodes(Set<String> topologyRaw) {
+        Set<Cluster.Node> topology = new HashSet<>(topologyRaw.size());
         for (String endpoint : topologyRaw) {
             String params = "?clientMaxPoolSize=" + PROXY_THREADS * (topologyRaw.size() - 1);
             ConnectionString connectionString = new ConnectionString(endpoint + "/" + params);

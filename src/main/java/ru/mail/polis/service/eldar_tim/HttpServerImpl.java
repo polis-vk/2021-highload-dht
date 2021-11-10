@@ -33,6 +33,7 @@ public class HttpServerImpl extends HttpServer implements Service {
 
     private final DAO dao;
     private final Cluster.Node node;
+    private final Cluster.ReplicasManager replicas;
     private final HashRouter<Cluster.Node> router;
     private final ServiceExecutor workers;
     private final ServiceExecutor proxies;
@@ -42,11 +43,13 @@ public class HttpServerImpl extends HttpServer implements Service {
 
     public HttpServerImpl(
             DAO dao, Cluster.Node node,
-            HashRouter<Cluster.Node> router, ServiceExecutor workers, ServiceExecutor proxies
+            Cluster.ReplicasManager replicas, HashRouter<Cluster.Node> router,
+            ServiceExecutor workers, ServiceExecutor proxies
     ) throws IOException {
         super(buildHttpServerConfig(node.port));
         this.dao = dao;
         this.node = node;
+        this.replicas = replicas;
         this.router = router;
         this.workers = workers;
         this.proxies = proxies;

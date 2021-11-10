@@ -25,10 +25,19 @@ import ru.mail.polis.lsm.DAOConfig;
 import ru.mail.polis.lsm.DAOFactory;
 import ru.mail.polis.service.Service;
 import ru.mail.polis.service.ServiceFactory;
+import ru.mail.polis.sharding.ConsistentHashRouter;
+import ru.mail.polis.sharding.HashFunction;
+import ru.mail.polis.sharding.HashRouter;
 
 import java.io.IOException;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
+import java.util.SortedSet;
+import java.util.StringJoiner;
+import java.util.TreeSet;
 
 /**
  * Starts 3-node storage cluster and waits for shutdown.
@@ -92,6 +101,39 @@ public final class Cluster {
         @Override
         public String getKey() {
             return ip + ":" + port;
+        }
+    }
+
+    public static class ReplicasManager {
+        private final int replicasCount;
+        private final Map<Node, SortedSet<Node>> replicas = new HashMap<>();
+
+        public ReplicasManager(Set<Node> topology, Comparator<Node> comparator) {
+            this.replicasCount = topology.size() > 3 ? 3 : topology.size() - 1;
+
+            HashRouter<Node> router = new ConsistentHashRouter<>(topology, 100, new HashFunction.HashMD5());
+            for (Node node : topology) {
+                replicas.computeIfAbsent(node, key -> calcReplicas(node, router, comparator));
+
+                StringJoiner joiner = new StringJoiner(", ");
+                replicas.get(node).forEach(n -> joiner.add(n.getKey()));
+                LOG.info("Created replicas for node " + node.getKey() + ": {}", joiner);
+            }
+        }
+
+        public SortedSet<Node> getReplicas(Node node) {
+            return replicas.get(node);
+        }
+
+        private SortedSet<Node> calcReplicas(Node node, HashRouter<Node> router, Comparator<Node> comparator) {
+            SortedSet<Node> replicas = new TreeSet<>(comparator);
+            for (int i = 0; replicas.size() < replicasCount; i++) {
+                Node next = router.route(node.getKey() + ":" + i);
+                if (next != node) {
+                    replicas.add(next);
+                }
+            }
+            return replicas;
         }
     }
 }
