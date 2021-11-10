@@ -129,43 +129,6 @@ public class Coordinator {
         return finalResponse;
     }
 
-    private Record getNewestRecord(List<Record> records) {
-        logger.info("records size in getNewestValue:" + records.size());
-        records.sort((o1, o2) -> {
-            Timestamp timestamp1 = Utils.byteBufferToTimestamp(o1.getTimestamp());
-            Timestamp timestamp2 = Utils.byteBufferToTimestamp(o2.getTimestamp());
-
-            int compare = timestamp2.compareTo(timestamp1);
-
-            if (compare != 0) {
-                return compare;
-            }
-
-            if (o1.getValue() == null && o2.getValue() == null) {
-                return 1;
-            }
-
-            if (o1.getValue() == null) {
-                return -1;
-            }
-            if (o2.getValue() == null) {
-                return 1;
-            }
-
-            if (o1.getValue().remaining() == 0) {
-                return -1;
-            }
-
-            if (o2.getValue().remaining() == 0) {
-                return 1;
-            }
-
-            return o2.getValue().compareTo(o1.getValue());
-        });
-
-        return records.get(0);
-    }
-
     private Response getFinalResponse(Request request, ByteBuffer key, List<Response> responses, List<Record> records,
                                       ReplicationInfo replicationInfo) {
         Response finalResponse;
@@ -214,5 +177,42 @@ public class Coordinator {
             finalResponse = new Response(Response.METHOD_NOT_ALLOWED, Response.EMPTY);
         }
         return finalResponse;
+    }
+
+    private Record getNewestRecord(List<Record> records) {
+        logger.info("records size in getNewestValue:" + records.size());
+        records.sort((o1, o2) -> {
+            Timestamp timestamp1 = Utils.byteBufferToTimestamp(o1.getTimestamp());
+            Timestamp timestamp2 = Utils.byteBufferToTimestamp(o2.getTimestamp());
+
+            int compare = timestamp2.compareTo(timestamp1);
+
+            if (compare != 0) {
+                return compare;
+            }
+
+            if (o1.getValue() == null && o2.getValue() == null) {
+                return 1;
+            }
+
+            if (o1.getValue() == null) {
+                return -1;
+            }
+            if (o2.getValue() == null) {
+                return 1;
+            }
+
+            if (o1.getValue().remaining() == 0) {
+                return -1;
+            }
+
+            if (o2.getValue().remaining() == 0) {
+                return 1;
+            }
+
+            return o2.getValue().compareTo(o1.getValue());
+        });
+
+        return records.get(0);
     }
 }

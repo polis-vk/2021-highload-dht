@@ -8,7 +8,6 @@ import one.nio.http.Response;
 import one.nio.server.AcceptorConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import ru.mail.polis.Utils;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.service.Service;
 import ru.mail.polis.service.sachuk.ilya.replication.Coordinator;
@@ -20,7 +19,6 @@ import ru.mail.polis.service.sachuk.ilya.sharding.VNodeConfig;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.ByteBuffer;
 import java.sql.Timestamp;
 import java.util.Set;
 import java.util.concurrent.ExecutorService;
@@ -39,7 +37,6 @@ public class ServiceImpl extends HttpServer implements Service {
 
     private final ExecutorService coordinatorExecutor = Executors.newCachedThreadPool();
     private final NodeManager nodeManager;
-    private final NodeRouter nodeRouter;
     private final Node node;
     private final Set<String> topology;
     private final Coordinator coordinator;
@@ -51,7 +48,7 @@ public class ServiceImpl extends HttpServer implements Service {
         this.entityRequestHandler = new EntityRequestHandler(dao);
         this.node = new Node(port);
         this.nodeManager = new NodeManager(topology, new VNodeConfig(), node);
-        this.nodeRouter = new NodeRouter(nodeManager);
+        NodeRouter nodeRouter = new NodeRouter(nodeManager);
 
         this.coordinator = new Coordinator(nodeManager, nodeRouter, entityRequestHandler, node);
 
@@ -83,15 +80,6 @@ public class ServiceImpl extends HttpServer implements Service {
         } else {
             long secs = Long.parseLong(timestamp);
             logger.info(String.valueOf(new Timestamp(secs)));
-        }
-
-        String fromCoordinatorHeader = request.getHeader("FromCoordinator");
-        boolean fromCoordinator = false;
-        if (fromCoordinatorHeader == null) {
-            request.addHeader("FromCoordinator" + "Yes");
-        } else {
-            fromCoordinator = true;
-            logger.info(fromCoordinatorHeader);
         }
 
         //если запрос пришел от координатора, от возращаем ему респонс, чтобы он собрал всю инфу
