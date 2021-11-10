@@ -12,6 +12,7 @@ import ru.mail.polis.Utils;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.Record;
 import ru.mail.polis.service.Service;
+import ru.mail.polis.service.sachuk.ilya.replication.Coordinator;
 import ru.mail.polis.service.sachuk.ilya.replication.ReplicationInfo;
 import ru.mail.polis.service.sachuk.ilya.sharding.Node;
 import ru.mail.polis.service.sachuk.ilya.sharding.NodeManager;
@@ -47,6 +48,7 @@ public class ServiceImpl extends HttpServer implements Service {
     private final NodeRouter nodeRouter;
     private final Node node;
     private final Set<String> topology;
+    private final Coordinator coordinator;
 
     public ServiceImpl(int port, DAO dao, Set<String> topology) throws IOException {
         super(configFrom(port));
@@ -56,6 +58,8 @@ public class ServiceImpl extends HttpServer implements Service {
         this.node = new Node(port);
         this.nodeManager = new NodeManager(topology, new VNodeConfig(), node);
         this.nodeRouter = new NodeRouter(nodeManager);
+
+        this.coordinator = new Coordinator(nodeManager, nodeRouter, entityRequestHandler);
 
         logger.info("Node with port " + port + " is started");
     }
@@ -234,18 +238,6 @@ public class ServiceImpl extends HttpServer implements Service {
         }
         return finalResponse;
     }
-
-//        //запрос на другую ноду если надо, инча обрабатываем на месте
-//        VNode vnode = nodeManager.getNearVNode(id);
-//
-//        //Если налл то уже на той ноде, которая отвечает за ключ
-//        if (node.port != vnode.getPhysicalNode().port) {
-//            return nodeRouter.routeToNode(vnode, request);
-//        }
-//
-//
-//        return entityRequestHandler.handle(request, id);
-//}
 
     private Response status() {
         return new Response(Response.OK, Response.EMPTY);
