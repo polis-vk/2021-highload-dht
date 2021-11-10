@@ -40,6 +40,7 @@ import java.util.stream.StreamSupport;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static ru.mail.polis.lsm.Utils.timestamp;
 
 class ConcurrentTest {
 
@@ -66,7 +67,7 @@ class ConcurrentTest {
         for (int i = 0; i < TASKS_COUNT; i++) {
             ByteBuffer key = ByteBuffer.wrap(("key" + i).getBytes(StandardCharsets.UTF_8));
             ByteBuffer value = ByteBuffer.wrap(("value" + i).getBytes(StandardCharsets.UTF_8));
-            Record record = Record.of(key, value);
+            Record record = Record.of(key, value, timestamp(System.currentTimeMillis()));
             Future<?> future = executor.submit(() -> {
                 dao.upsert(record);
                 Optional<Record> found = StreamSupport.stream(

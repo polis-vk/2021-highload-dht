@@ -8,7 +8,9 @@ import one.nio.http.Response;
 import one.nio.server.AcceptorConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import ru.mail.polis.Utils;
 import ru.mail.polis.lsm.DAO;
+import ru.mail.polis.lsm.Record;
 import ru.mail.polis.service.Service;
 import ru.mail.polis.service.sachuk.ilya.replication.ReplicationInfo;
 import ru.mail.polis.service.sachuk.ilya.sharding.Node;
@@ -19,8 +21,16 @@ import ru.mail.polis.service.sachuk.ilya.sharding.VNodeConfig;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.ByteBuffer;
 import java.sql.Timestamp;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Set;
+import java.util.SortedMap;
+import java.util.TreeMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.stream.Collectors;
 
 public class ServiceImpl extends HttpServer implements Service {
     private final Logger logger = LoggerFactory.getLogger(ServiceImpl.class);
@@ -32,6 +42,8 @@ public class ServiceImpl extends HttpServer implements Service {
     private final RequestPoolExecutor requestPoolExecutor = new RequestPoolExecutor(
             new ExecutorConfig(16, 1000)
     );
+
+    private final ExecutorService coordinatorExecutor = Executors.newCachedThreadPool();
     private final NodeManager nodeManager;
     private final NodeRouter nodeRouter;
     private final Node node;
@@ -45,6 +57,8 @@ public class ServiceImpl extends HttpServer implements Service {
         this.node = new Node(port);
         this.nodeManager = new NodeManager(topology, new VNodeConfig(), node);
         this.nodeRouter = new NodeRouter(nodeManager);
+
+        logger.info("Node with port " + port + " is started");
     }
 
     private static HttpServerConfig configFrom(int port) {
@@ -60,39 +74,176 @@ public class ServiceImpl extends HttpServer implements Service {
     }
 
     private Response entityRequest(Request request, String id, ReplicationInfo replicationInfo) {
-
         if (id == null || id.isBlank()) {
             return new Response(Response.BAD_REQUEST, Response.EMPTY);
         }
 
+        ByteBuffer key = Utils.wrap(id);
+
+        boolean isCoordinator = false;
         String timestamp = request.getHeader("Timestamp");
         if (timestamp == null) {
+            isCoordinator = true;
             request.addHeader("Timestamp" + System.currentTimeMillis());
         } else {
             long secs = Long.parseLong(timestamp);
             logger.info(String.valueOf(new Timestamp(secs)));
         }
 
-        String fromCoordinator = request.getHeader("FromCoordinator");
-        boolean needToRotate = true;
-        if (fromCoordinator == null) {
+        String fromCoordinatorHeader = request.getHeader("FromCoordinator");
+        boolean fromCoordinator = false;
+        if (fromCoordinatorHeader == null) {
             request.addHeader("FromCoordinator" + "Yes");
         } else {
-            needToRotate = false;
-            logger.info(fromCoordinator);
+            fromCoordinator = true;
+            logger.info(fromCoordinatorHeader);
         }
 
-//        VNode vnode = nodeManager.getNearVNode(key);
+        //если запрос пришел от координатора, от возращаем ему респонс, чтобы он собрал всю инфу
+        if (!isCoordinator) {
+            logger.info("in block from coordinator");
+            return entityRequestHandler.handle(request, id);
+        } else {
 
-        Response response = nodeRouter.route(node, id, request);
-        //Если налл то уже на той ноде, которая отвечает за ключ
-        if (response != null) {
-            return response;
+            logger.info("in block IS coordinator");
+            logger.info("COORDINATOR NODE IS: " + node.port);
+
+//        if (isCoordinator) {
+//            List<VNode> vnodeList = new ArrayList<>()
+            SortedMap<Integer, VNode> vnodes = new TreeMap<>();
+            Integer hash = null;
+
+            for (int i = 0; i < replicationInfo.from; i++) {
+//                vnodeList.add(nodeManager.getNearVnodeNotInList(id, vnodeList));
+                logger.info("In cycle i is : " + i);
+                List<Integer> currentPorts = vnodes.values().stream().map(vNode -> vNode.getPhysicalNode().port).collect(Collectors.toList());
+
+                logger.info(String.valueOf(currentPorts));
+
+                Pair<Integer, VNode> pair = nodeManager.getNearVNodeWithGreaterHash(id, hash, currentPorts);
+                vnodes.put(pair.key, pair.value);
+                hash = pair.key;
+            }
+
+            List<Response> responses = new ArrayList<>();
+            List<Record> records = new ArrayList<>();
+//            List<Record> records = new ArrayList<>();
+
+            logger.info("vnodeList size is: " + vnodes.size() + " and from is: " + replicationInfo.from);
+
+            //берем респонсы
+            for (VNode vNode : vnodes.values()) {
+//                if (count == replicationInfo.ask) {
+//                    coordinatorExecutor.execute(() -> {
+//                        if (vNode.getPhysicalNode().port == node.port) {
+//                            entityRequestHandler.handle(request, id);
+//                        } else {
+//                            nodeRouter.routeToNode(vNode, request);
+//                        }
+//                    });
+//
+//                    continue;
+//                }
+
+                Response response;
+                if (vNode.getPhysicalNode().port == node.port) {
+//                    logger.info("find current Node + " + vNode.getPhysicalNode().port);
+                    logger.info("HANDLE BY CURRENT NODE: port :" + vNode.getPhysicalNode().port);
+
+                    response = entityRequestHandler.handle(request, id);
+                } else {
+                    logger.info("HANDLE BY OTHER NODE: port :" + vNode.getPhysicalNode().port);
+
+//                    logger.info("route to Node + " + vNode.getPhysicalNode().port);
+                    response = nodeRouter.routeToNode(vNode, request);
+                }
+
+                if (response.getStatus() == 504 || response.getStatus() == 405) {
+                    continue;
+                }
+                responses.add(response);
+            }
+
+            if (responses.size() < replicationInfo.ask) {
+                return new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY);
+            }
+
+            Response finalResponse = getFinalResponse(request, key, responses, records);
+
+            return finalResponse;
         }
-
-
-        return entityRequestHandler.handle(request, id);
     }
+
+    private Response getFinalResponse(Request request, ByteBuffer key, List<Response> responses, List<Record> records) {
+        Response finalResponse;
+        if (request.getMethod() == Request.METHOD_GET) {
+            for (Response response : responses) {
+                int status = response.getStatus();
+
+                if (status == 200 || status == 404) {
+
+                    String timestampFromResponse = response.getHeader("Timestamp");
+                    String tombstoneHeader = response.getHeader("Tombstone");
+
+                    byte[] body = response.getBody();
+
+                    logger.info("body size is: " + body.length);
+
+                    ByteBuffer value = ByteBuffer.wrap(response.getBody());
+                    if (timestampFromResponse == null) {
+                        records.add(Record.of(key, value, Utils.timeStampToByteBuffer(0L)));
+                    } else {
+                        if (tombstoneHeader == null) {
+                            logger.info("Tombstone header is null");
+                            records.add(Record.of(key, value, Utils.timeStampToByteBuffer(Long.parseLong(timestampFromResponse))));
+                        } else {
+                            logger.info("Tombstone header is not null");
+                            records.add(Record.tombstone(key, Utils.timeStampToByteBuffer(Long.parseLong(timestampFromResponse))));
+                        }
+                    }
+                }
+            }
+
+            Record newestRecord = getNewestRecord(records);
+            logger.info("is tombstone: " + newestRecord.isTombstone());
+            finalResponse = getFinalResponseForGet(newestRecord);
+
+        } else if (request.getMethod() == Request.METHOD_DELETE) {
+            finalResponse = new Response(Response.ACCEPTED, Response.EMPTY);
+
+        } else if (request.getMethod() == Request.METHOD_PUT) {
+            finalResponse = new Response(Response.CREATED, Response.EMPTY);
+        } else {
+            finalResponse = new Response(Response.METHOD_NOT_ALLOWED, Response.EMPTY);
+        }
+        return finalResponse;
+    }
+
+    private Response getFinalResponseForGet(Record newestRecord) {
+        Response finalResponse;
+        if (newestRecord.isTombstone()) {
+            finalResponse = new Response(Response.NOT_FOUND, Response.EMPTY);
+        } else {
+            if (Utils.byteBufferToTimestamp(newestRecord.getTimestamp()).getTime() == 0) {
+                finalResponse = new Response(Response.NOT_FOUND, Response.EMPTY);
+            } else {
+                finalResponse = new Response(Response.OK, Utils.bytebufferToBytes(newestRecord.getValue()));
+            }
+        }
+        return finalResponse;
+    }
+
+//        //запрос на другую ноду если надо, инча обрабатываем на месте
+//        VNode vnode = nodeManager.getNearVNode(id);
+//
+//        //Если налл то уже на той ноде, которая отвечает за ключ
+//        if (node.port != vnode.getPhysicalNode().port) {
+//            return nodeRouter.routeToNode(vnode, request);
+//        }
+//
+//
+//        return entityRequestHandler.handle(request, id);
+//}
 
     private Response status() {
         return new Response(Response.OK, Response.EMPTY);
@@ -159,6 +310,49 @@ public class ServiceImpl extends HttpServer implements Service {
     public synchronized void stop() {
         super.stop();
 
+        logger.info("Service is closed");
+
         nodeManager.close();
+    }
+
+    private Record getNewestRecord(List<Record> records) {
+        logger.info("records size in getNewestValue:" + records.size());
+        records.sort((o1, o2) -> {
+            Timestamp timestamp1 = Utils.byteBufferToTimestamp(o1.getTimestamp());
+            Timestamp timestamp2 = Utils.byteBufferToTimestamp(o2.getTimestamp());
+
+            int compare = timestamp1.compareTo(timestamp2);
+
+            if (compare != 0) {
+                return compare;
+            }
+
+            if (o1.getValue() == null && o2.getValue() == null) {
+                return 1;
+            }
+
+            if (o1.getValue() == null) {
+                return 1;
+            }
+            if (o2.getValue() == null) {
+                return -1;
+            }
+
+            if (o1.getValue().remaining() == 0) {
+                return 1;
+            }
+
+            if (o2.getValue().remaining() == 0) {
+                return -1;
+            }
+
+//            String value1 = Utils.toString(o1.getValue().position(0).duplicate());
+//            String value2 = Utils.toString(o2.getValue().position(0).duplicate());
+
+
+            return o1.getValue().compareTo(o2.getValue());
+        });
+
+        return records.get(0);
     }
 }

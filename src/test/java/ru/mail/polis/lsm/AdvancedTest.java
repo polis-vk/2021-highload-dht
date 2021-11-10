@@ -26,10 +26,7 @@ import java.util.Iterator;
 import java.util.Map;
 import java.util.TreeMap;
 
-import static ru.mail.polis.lsm.Utils.assertEquals;
-import static ru.mail.polis.lsm.Utils.generateMap;
-import static ru.mail.polis.lsm.Utils.key;
-import static ru.mail.polis.lsm.Utils.value;
+import static ru.mail.polis.lsm.Utils.*;
 
 public class AdvancedTest {
 
@@ -40,9 +37,9 @@ public class AdvancedTest {
         Map<ByteBuffer, ByteBuffer> map = generateMap(0, 1000);
 
         try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
-            dao.upsert(Record.of(key(1), value(1)));
+            dao.upsert(Record.of(key(1), value(1), timestamp(System.currentTimeMillis())));
 
-            map.forEach((k, v) -> dao.upsert(Record.of(k, v)));
+            map.forEach((k, v) -> dao.upsert(Record.of(k, v, timestamp(System.currentTimeMillis()))));
 
             iterator = dao.range(null, null);
         }

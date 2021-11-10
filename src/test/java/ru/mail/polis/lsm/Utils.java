@@ -26,6 +26,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.SimpleFileVisitor;
 import java.nio.file.attribute.BasicFileAttributes;
+import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.HashMap;
@@ -64,6 +65,13 @@ class Utils {
 
     static ByteBuffer key(int index) {
         return wrap(KEY_PREFIX + index);
+    }
+
+    static ByteBuffer timestamp(Long dateInSec) {
+//        long dateInSec = timestamp.getTime();
+        ByteBuffer buffer = ByteBuffer.allocate(8).putLong(dateInSec);
+
+        return buffer.flip().duplicate();
     }
 
     static byte[] sizeBasedRandomData(int size) {
@@ -144,6 +152,14 @@ class Utils {
         } catch (CharacterCodingException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public static Timestamp toTimeStamp(ByteBuffer timeStamp) {
+//        long dateInSec = buffer.flip().getLong();
+        long arr = timeStamp.position(0).getLong();
+//        long timeInSec = ByteBuffer.wrap(arr).getLong();
+
+        return new Timestamp(arr);
     }
 
     static void recursiveDelete(Path path) throws IOException {

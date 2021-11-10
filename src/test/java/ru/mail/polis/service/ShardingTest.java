@@ -72,7 +72,8 @@ class ShardingTest extends ClusterTestBase {
     }
 
     @Test
-    void lifecycle2keys() {
+    void
+    lifecycle2keys() {
         assertTimeoutPreemptively(TIMEOUT, () -> {
             final String key1 = randomId();
             final byte[] value1 = randomValue();
