@@ -30,7 +30,6 @@ import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.stream.Collectors;
 
 public class ServiceImpl extends HttpServer implements Service {
     private final Logger logger = LoggerFactory.getLogger(ServiceImpl.class);
@@ -111,25 +110,26 @@ public class ServiceImpl extends HttpServer implements Service {
 //        if (isCoordinator) {
 //            List<VNode> vnodeList = new ArrayList<>()
             SortedMap<Integer, VNode> vnodes = new TreeMap<>();
+            List<Integer> currentPorts = new ArrayList<>();
             Integer hash = null;
 
             for (int i = 0; i < replicationInfo.from; i++) {
 //                vnodeList.add(nodeManager.getNearVnodeNotInList(id, vnodeList));
                 logger.info("In cycle i is : " + i);
-                List<Integer> currentPorts = vnodes.values().stream().map(vNode -> vNode.getPhysicalNode().port).collect(Collectors.toList());
-
                 logger.info(String.valueOf(currentPorts));
 
                 Pair<Integer, VNode> pair = nodeManager.getNearVNodeWithGreaterHash(id, hash, currentPorts);
                 vnodes.put(pair.key, pair.value);
                 hash = pair.key;
+                currentPorts.add(pair.value.getPhysicalNode().port);
             }
 
             List<Response> responses = new ArrayList<>();
             List<Record> records = new ArrayList<>();
-//            List<Record> records = new ArrayList<>();
 
             logger.info("vnodeList size is: " + vnodes.size() + " and from is: " + replicationInfo.from);
+
+            logger.info("nodes to handle: " + currentPorts);
 
             //берем респонсы
             for (VNode vNode : vnodes.values()) {
@@ -312,7 +312,7 @@ public class ServiceImpl extends HttpServer implements Service {
     public synchronized void stop() {
         super.stop();
 
-        logger.info("Service is closed");
+        logger.info("Service with node:" + node.port + " is closed");
 
         nodeManager.close();
     }
@@ -323,7 +323,7 @@ public class ServiceImpl extends HttpServer implements Service {
             Timestamp timestamp1 = Utils.byteBufferToTimestamp(o1.getTimestamp());
             Timestamp timestamp2 = Utils.byteBufferToTimestamp(o2.getTimestamp());
 
-            int compare = timestamp1.compareTo(timestamp2);
+            int compare = timestamp2.compareTo(timestamp1);
 
             if (compare != 0) {
                 return compare;
@@ -334,25 +334,25 @@ public class ServiceImpl extends HttpServer implements Service {
             }
 
             if (o1.getValue() == null) {
-                return 1;
+                return -1;
             }
             if (o2.getValue() == null) {
-                return -1;
+                return 1;
             }
 
             if (o1.getValue().remaining() == 0) {
-                return 1;
+                return -1;
             }
 
             if (o2.getValue().remaining() == 0) {
-                return -1;
+                return 1;
             }
 
 //            String value1 = Utils.toString(o1.getValue().position(0).duplicate());
 //            String value2 = Utils.toString(o2.getValue().position(0).duplicate());
 
 
-            return o1.getValue().compareTo(o2.getValue());
+            return o2.getValue().compareTo(o1.getValue());
         });
 
         return records.get(0);
