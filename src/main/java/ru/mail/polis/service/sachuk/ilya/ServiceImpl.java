@@ -35,7 +35,6 @@ public class ServiceImpl extends HttpServer implements Service {
             new ExecutorConfig(16, 1000)
     );
 
-    private final ExecutorService coordinatorExecutor = Executors.newCachedThreadPool();
     private final NodeManager nodeManager;
     private final Node node;
     private final Set<String> topology;
@@ -158,6 +157,7 @@ public class ServiceImpl extends HttpServer implements Service {
 
         logger.info("Service with node:" + node.port + " is closed");
 
+        coordinator.close();
         nodeManager.close();
     }
 }

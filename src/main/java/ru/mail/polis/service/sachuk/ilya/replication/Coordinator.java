@@ -4,6 +4,7 @@ import one.nio.http.Request;
 import one.nio.http.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import ru.mail.polis.ThreadUtils;
 import ru.mail.polis.Utils;
 import ru.mail.polis.lsm.Record;
 import ru.mail.polis.service.sachuk.ilya.EntityRequestHandler;
@@ -13,14 +14,17 @@ import ru.mail.polis.service.sachuk.ilya.sharding.NodeManager;
 import ru.mail.polis.service.sachuk.ilya.sharding.NodeRouter;
 import ru.mail.polis.service.sachuk.ilya.sharding.VNode;
 
+import java.io.Closeable;
 import java.nio.ByteBuffer;
 import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.SortedMap;
 import java.util.TreeMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
-public class Coordinator {
+public class Coordinator implements Closeable {
 
     private final Logger logger = LoggerFactory.getLogger(Coordinator.class);
 
@@ -28,6 +32,7 @@ public class Coordinator {
     private final NodeRouter nodeRouter;
     private final EntityRequestHandler entityRequestHandler;
     private final Node node;
+    private final ExecutorService coordinatorExecutor = Executors.newCachedThreadPool();
 
     public Coordinator(NodeManager nodeManager, NodeRouter nodeRouter, EntityRequestHandler entityRequestHandler, Node node) {
         this.nodeManager = nodeManager;
@@ -44,7 +49,7 @@ public class Coordinator {
 
         SortedMap<Integer, VNode> vnodes = getNodes(replicationInfo, id);
 
-        List<Response> responses = getResponses(vnodes, id, request);
+        List<Response> responses = getResponses(vnodes, id, request, replicationInfo);
 
         Response finalResponse = getFinalResponse(request, key, responses, replicationInfo);
 
@@ -54,48 +59,35 @@ public class Coordinator {
     }
 
     //FIXME
-    private List<Response> getResponses(SortedMap<Integer, VNode> vnodes, String id, Request request) {
+    private List<Response> getResponses(SortedMap<Integer, VNode> vnodes, String id, Request request,
+                                        ReplicationInfo replicationInfo) {
         List<Response> responses = new ArrayList<>();
 
+        int count = 0;
         for (VNode vNode : vnodes.values()) {
-//                if (count == replicationInfo.ask) {
-//                    coordinatorExecutor.execute(() -> {
-//                        if (vNode.getPhysicalNode().port == node.port) {
-//                            entityRequestHandler.handle(request, id);
-//                        } else {
-//                            nodeRouter.routeToNode(vNode, request);
-//                        }
-//                    });
-//
-//                    continue;
-//                }
+            if (count >= replicationInfo.ask) {
+                coordinatorExecutor.execute(() -> {
+                    if (vNode.getPhysicalNode().port == node.port) {
+                        entityRequestHandler.handle(request, id);
+                    } else {
+                        nodeRouter.routeToNode(vNode, request);
+                    }
+                });
+
+                continue;
+            }
 
             Response response = chooseHandler(id, request, vNode);
+
 
             if (response.getStatus() == 504 || response.getStatus() == 405) {
                 continue;
             }
+            count++;
             responses.add(response);
         }
 
         return responses;
-    }
-
-    private Response chooseHandler(String id, Request request, VNode vNode) {
-        Response response;
-        if (vNode.getPhysicalNode().port == node.port) {
-//                    logger.info("find current Node + " + vNode.getPhysicalNode().port);
-            logger.info("HANDLE BY CURRENT NODE: port :" + vNode.getPhysicalNode().port);
-
-            response = entityRequestHandler.handle(request, id);
-        } else {
-            logger.info("HANDLE BY OTHER NODE: port :" + vNode.getPhysicalNode().port);
-
-//                    logger.info("route to Node + " + vNode.getPhysicalNode().port);
-            response = nodeRouter.routeToNode(vNode, request);
-        }
-
-        return response;
     }
 
     private SortedMap<Integer, VNode> getNodes(ReplicationInfo replicationInfo, String id) {
@@ -142,6 +134,7 @@ public class Coordinator {
 
         Response finalResponse;
         if (responses.size() < replicationInfo.ask) {
+            logger.info("RESPONSES SIZE IS LESS THEN ASK");
             return new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY);
         }
 
@@ -223,5 +216,27 @@ public class Coordinator {
         });
 
         return records.get(0);
+    }
+
+    private Response chooseHandler(String id, Request request, VNode vNode) {
+        Response response;
+        if (vNode.getPhysicalNode().port == node.port) {
+//                    logger.info("find current Node + " + vNode.getPhysicalNode().port);
+            logger.info("HANDLE BY CURRENT NODE: port :" + vNode.getPhysicalNode().port);
+
+            response = entityRequestHandler.handle(request, id);
+        } else {
+            logger.info("HANDLE BY OTHER NODE: port :" + vNode.getPhysicalNode().port);
+
+//                    logger.info("route to Node + " + vNode.getPhysicalNode().port);
+            response = nodeRouter.routeToNode(vNode, request);
+        }
+
+        return response;
+    }
+
+    @Override
+    public void close() {
+        ThreadUtils.awaitForShutdown(coordinatorExecutor);
     }
 }
