@@ -19,7 +19,7 @@ import java.util.stream.Collectors;
 
 public final class NodeManager implements Closeable {
     private Logger logger = LoggerFactory.getLogger(NodeManager.class);
-    private static final NavigableMap<Integer, VNode> CIRCLE = new TreeMap<>();
+    private final NavigableMap<Integer, VNode> CIRCLE = new TreeMap<>();
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
     private final NavigableMap<String, HttpClient> clients;
     private final VNodeConfig vnodeConfig;
@@ -33,6 +33,8 @@ public final class NodeManager implements Closeable {
 
         for (String endpoint : topology) {
             ConnectionString connectionString = new ConnectionString(endpoint);
+
+            addNode(new Node(connectionString.getPort()));
             if (node.port == connectionString.getPort()) {
                 continue;
             }
@@ -41,7 +43,7 @@ public final class NodeManager implements Closeable {
             clients.put(endpoint, client);
         }
 
-        addNode(node);
+//        addNode(node);
     }
 
     public VNode getNearVNode(String key) {
@@ -149,9 +151,9 @@ public final class NodeManager implements Closeable {
             }
         }
 
-        for (Integer hash : vnodesToRemove) {
-            CIRCLE.remove(hash);
-        }
+//        for (Integer hash : vnodesToRemove) {
+//            CIRCLE.remove(hash);
+//        }
     }
 
     private void addNode(Node node) {
@@ -168,6 +170,7 @@ public final class NodeManager implements Closeable {
 
         logger.info("first" + String.valueOf(CIRCLE.firstKey()));
         logger.info("last" + String.valueOf(CIRCLE.lastKey()));
+        logger.info(String.valueOf(CIRCLE.keySet()));
     }
 
     private void checkIsClosed() {

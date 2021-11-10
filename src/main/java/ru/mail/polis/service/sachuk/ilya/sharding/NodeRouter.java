@@ -42,7 +42,9 @@ public class NodeRouter {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException(e);
-        } catch (PoolException | HttpException e) {
+        } catch (PoolException e) {
+            return new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY);
+        } catch (HttpException e) {
             throw new IllegalStateException(e);
         } catch (IOException e) {
             throw new UncheckedIOException(e);

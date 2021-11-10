@@ -170,6 +170,8 @@ public class ServiceImpl extends HttpServer implements Service {
 
             Response finalResponse = getFinalResponse(request, key, responses, records);
 
+            logger.info("FINAL RESPONSE:" + finalResponse.getStatus());
+
             return finalResponse;
         }
     }
