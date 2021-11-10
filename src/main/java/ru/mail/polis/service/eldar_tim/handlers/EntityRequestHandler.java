@@ -19,8 +19,10 @@ public class EntityRequestHandler extends RoutingRequestHandler {
 
     private final DAO dao;
 
-    public EntityRequestHandler(Cluster.Node self, HashRouter<Cluster.Node> router, DAO dao) {
-        super(self, router);
+    public EntityRequestHandler(
+            Cluster.ReplicasManager replicasManager, Cluster.Node self, HashRouter<Cluster.Node> router,
+            DAO dao) {
+        super(replicasManager, self, router);
         this.dao = dao;
     }
 

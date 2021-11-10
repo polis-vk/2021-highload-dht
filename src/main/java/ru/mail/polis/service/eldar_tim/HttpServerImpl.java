@@ -32,8 +32,8 @@ public class HttpServerImpl extends HttpServer implements Service {
     private static final Logger LOG = LoggerFactory.getLogger(HttpServerImpl.class);
 
     private final DAO dao;
-    private final Cluster.Node node;
-    private final Cluster.ReplicasManager replicas;
+    private final Cluster.Node self;
+    private final Cluster.ReplicasManager replicasManager;
     private final HashRouter<Cluster.Node> router;
     private final ServiceExecutor workers;
     private final ServiceExecutor proxies;
@@ -42,20 +42,20 @@ public class HttpServerImpl extends HttpServer implements Service {
     private final RequestHandler statusHandler;
 
     public HttpServerImpl(
-            DAO dao, Cluster.Node node,
-            Cluster.ReplicasManager replicas, HashRouter<Cluster.Node> router,
+            DAO dao, Cluster.Node self,
+            Cluster.ReplicasManager replicasManager, HashRouter<Cluster.Node> router,
             ServiceExecutor workers, ServiceExecutor proxies
     ) throws IOException {
-        super(buildHttpServerConfig(node.port));
+        super(buildHttpServerConfig(self.port));
         this.dao = dao;
-        this.node = node;
-        this.replicas = replicas;
+        this.self = self;
+        this.replicasManager = replicasManager;
         this.router = router;
         this.workers = workers;
         this.proxies = proxies;
 
         pathMapper = new PathMapper();
-        statusHandler = new StatusRequestHandler(node, router);
+        statusHandler = new StatusRequestHandler(replicasManager, self, router);
         mapPaths();
     }
 
@@ -75,7 +75,7 @@ public class HttpServerImpl extends HttpServer implements Service {
 
         pathMapper.add("/v0/entity",
                 new int[]{Request.METHOD_GET, Request.METHOD_PUT, Request.METHOD_DELETE},
-                new EntityRequestHandler(node, router, dao));
+                new EntityRequestHandler(replicasManager, self, router, dao));
     }
 
     @Override
@@ -92,13 +92,13 @@ public class HttpServerImpl extends HttpServer implements Service {
         if (requestHandler == statusHandler) {
             workers.run(session, this::exceptionHandler, () -> requestHandler.handleRequest(request, session));
         } else if (requestHandler != null) {
-            Cluster.Node target = requestHandler.getTargetNode(request);
-            if (target == null) {
+            Cluster.Node targetNode = requestHandler.getTargetNode(request);
+            if (requestHandler.shouldParse(request, targetNode)) {
                 workers.execute(session, this::exceptionHandler, () ->
                         requestHandler.handleRequest(request, session));
             } else {
                 proxies.execute(session, this::exceptionHandler, () ->
-                        requestHandler.redirect(target, request, session));
+                        requestHandler.redirect(targetNode, request, session));
             }
         } else {
             handleDefault(request, session);

@@ -3,7 +3,6 @@ package ru.mail.polis.service.eldar_tim.handlers;
 import one.nio.http.HttpException;
 import one.nio.http.HttpSession;
 import one.nio.http.Request;
-import one.nio.http.RequestHandler;
 import one.nio.http.Response;
 import one.nio.pool.PoolException;
 import org.slf4j.Logger;
@@ -11,20 +10,23 @@ import org.slf4j.LoggerFactory;
 import ru.mail.polis.Cluster;
 import ru.mail.polis.sharding.HashRouter;
 
+import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
-public abstract class RoutingRequestHandler implements RequestHandler {
+public abstract class RoutingRequestHandler extends ReplicableRequestHandler {
 
     private static final Logger LOG = LoggerFactory.getLogger(RoutingRequestHandler.class);
 
-    private final Cluster.Node self;
     private final HashRouter<Cluster.Node> router;
 
-    public RoutingRequestHandler(Cluster.Node self, HashRouter<Cluster.Node> router) {
-        this.self = self;
+    public RoutingRequestHandler(
+            Cluster.ReplicasManager replicasManager, Cluster.Node self,
+            HashRouter<Cluster.Node> router
+    ) {
+        super(replicasManager, self);
         this.router = router;
     }
 
@@ -35,16 +37,16 @@ public abstract class RoutingRequestHandler implements RequestHandler {
      * Detects the node to redirect request.
      *
      * @param request request to redirect
-     * @return null if the request must be handled by the current node, otherwise node to redirect
+     * @return node to redirect request
      */
+    @Nonnull
     public final Cluster.Node getTargetNode(Request request) {
         String key = getRouteKey(request);
         if (key == null) {
-            return null;
+            return self;
         }
 
-        Cluster.Node target = router.route(key);
-        return target == self ? null : target;
+        return router.route(key);
     }
 
     /**

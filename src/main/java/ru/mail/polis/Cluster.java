@@ -30,14 +30,14 @@ import ru.mail.polis.sharding.HashFunction;
 import ru.mail.polis.sharding.HashRouter;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.SortedSet;
 import java.util.StringJoiner;
-import java.util.TreeSet;
 
 /**
  * Starts 3-node storage cluster and waits for shutdown.
@@ -105,8 +105,8 @@ public final class Cluster {
     }
 
     public static class ReplicasManager {
-        private final int replicasCount;
-        private final Map<Node, SortedSet<Node>> replicas = new HashMap<>();
+        public final int replicasCount;
+        private final Map<Node, List<Node>> replicas = new HashMap<>();
 
         public ReplicasManager(Set<Node> topology, Comparator<Node> comparator) {
             this.replicasCount = topology.size() > 3 ? 3 : topology.size() - 1;
@@ -121,18 +121,23 @@ public final class Cluster {
             }
         }
 
-        public SortedSet<Node> getReplicas(Node node) {
+        public List<Node> getAllReplicas(Node node) {
             return replicas.get(node);
         }
 
-        private SortedSet<Node> calcReplicas(Node node, HashRouter<Node> router, Comparator<Node> comparator) {
-            SortedSet<Node> replicas = new TreeSet<>(comparator);
+        public List<Node> getAskReplicas(int count, Node node) {
+            return replicas.get(node).subList(0, count);
+        }
+
+        private List<Node> calcReplicas(Node node, HashRouter<Node> router, Comparator<Node> comparator) {
+            List<Node> replicas = new ArrayList<>();
             for (int i = 0; replicas.size() < replicasCount; i++) {
                 Node next = router.route(node.getKey() + ":" + i);
                 if (next != node) {
                     replicas.add(next);
                 }
             }
+            replicas.sort(comparator);
             return replicas;
         }
     }
