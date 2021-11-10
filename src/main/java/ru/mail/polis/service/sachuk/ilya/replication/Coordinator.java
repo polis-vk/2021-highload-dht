@@ -42,20 +42,18 @@ public class Coordinator {
         logger.info("in block IS coordinator");
         logger.info("COORDINATOR NODE IS: " + node.port);
 
-
-        List<Record> records = new ArrayList<>();
-
         SortedMap<Integer, VNode> vnodes = getNodes(replicationInfo, id);
 
         List<Response> responses = getResponses(vnodes, id, request);
 
-        Response finalResponse = getFinalResponse(request, key, responses, records, replicationInfo);
+        Response finalResponse = getFinalResponse(request, key, responses, replicationInfo);
 
         logger.info("FINAL RESPONSE:" + finalResponse.getStatus());
 
         return finalResponse;
     }
 
+    //FIXME
     private List<Response> getResponses(SortedMap<Integer, VNode> vnodes, String id, Request request) {
         List<Response> responses = new ArrayList<>();
 
@@ -72,18 +70,7 @@ public class Coordinator {
 //                    continue;
 //                }
 
-            Response response;
-            if (vNode.getPhysicalNode().port == node.port) {
-//                    logger.info("find current Node + " + vNode.getPhysicalNode().port);
-                logger.info("HANDLE BY CURRENT NODE: port :" + vNode.getPhysicalNode().port);
-
-                response = entityRequestHandler.handle(request, id);
-            } else {
-                logger.info("HANDLE BY OTHER NODE: port :" + vNode.getPhysicalNode().port);
-
-//                    logger.info("route to Node + " + vNode.getPhysicalNode().port);
-                response = nodeRouter.routeToNode(vNode, request);
-            }
+            Response response = chooseHandler(id, request, vNode);
 
             if (response.getStatus() == 504 || response.getStatus() == 405) {
                 continue;
@@ -92,6 +79,23 @@ public class Coordinator {
         }
 
         return responses;
+    }
+
+    private Response chooseHandler(String id, Request request, VNode vNode) {
+        Response response;
+        if (vNode.getPhysicalNode().port == node.port) {
+//                    logger.info("find current Node + " + vNode.getPhysicalNode().port);
+            logger.info("HANDLE BY CURRENT NODE: port :" + vNode.getPhysicalNode().port);
+
+            response = entityRequestHandler.handle(request, id);
+        } else {
+            logger.info("HANDLE BY OTHER NODE: port :" + vNode.getPhysicalNode().port);
+
+//                    logger.info("route to Node + " + vNode.getPhysicalNode().port);
+            response = nodeRouter.routeToNode(vNode, request);
+        }
+
+        return response;
     }
 
     private SortedMap<Integer, VNode> getNodes(ReplicationInfo replicationInfo, String id) {
@@ -129,8 +133,13 @@ public class Coordinator {
         return finalResponse;
     }
 
-    private Response getFinalResponse(Request request, ByteBuffer key, List<Response> responses, List<Record> records,
+
+    //FIXME
+    private Response getFinalResponse(Request request, ByteBuffer key, List<Response> responses,
                                       ReplicationInfo replicationInfo) {
+
+        List<Record> records = new ArrayList<>();
+
         Response finalResponse;
         if (responses.size() < replicationInfo.ask) {
             return new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY);
