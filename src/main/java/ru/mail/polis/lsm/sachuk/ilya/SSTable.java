@@ -117,9 +117,6 @@ public class SSTable {
                     } else {
                         FileUtils.writeSizeAndValue(value, saveFileChannel, buffer);
                     }
-
-//                    FileUtils.writeSizeAndValueForTimestamp(record.getTimestamp().flip(), saveFileChannel, bufferForTimestamp);
-//                    FileUtils.writeSizeAndValue(record.getTimestamp().flip(), saveFileChannel, bufferForTimestamp);
                     FileUtils.writeLong(saveFileChannel, bufferForTimestamp, record.getTimestamp().getLong());
                 }
 

@@ -8,6 +8,7 @@ import ru.mail.polis.ThreadUtils;
 import ru.mail.polis.Utils;
 import ru.mail.polis.lsm.Record;
 import ru.mail.polis.service.sachuk.ilya.EntityRequestHandler;
+import ru.mail.polis.service.sachuk.ilya.ResponseUtils;
 import ru.mail.polis.service.sachuk.ilya.Pair;
 import ru.mail.polis.service.sachuk.ilya.sharding.Node;
 import ru.mail.polis.service.sachuk.ilya.sharding.NodeManager;
@@ -62,27 +63,24 @@ public class Coordinator implements Closeable {
         return finalResponse;
     }
 
-    //FIXME
     private List<Response> getResponses(NavigableMap<Integer, VNode> vnodes, String id, Request request,
                                         ReplicationInfo replicationInfo) {
         List<Response> responses = new ArrayList<>();
 
         int count = 0;
-        for (VNode vNode : vnodes.values()) {
+        for (VNode vnode : vnodes.values()) {
             if (count >= replicationInfo.ask) {
                 coordinatorExecutor.execute(() -> {
-                    if (vNode.getPhysicalNode().port == node.port) {
+                    if (vnode.getPhysicalNode().port == node.port) {
                         entityRequestHandler.handle(request, id);
                     } else {
-                        nodeRouter.routeToNode(vNode, request);
+                        nodeRouter.routeToNode(vnode, request);
                     }
                 });
-
                 continue;
             }
 
-            Response response = chooseHandler(id, request, vNode);
-
+            Response response = chooseHandler(id, request, vnode);
 
             if (response.getStatus() == 504 || response.getStatus() == 405) {
                 continue;
@@ -131,8 +129,6 @@ public class Coordinator implements Closeable {
         return finalResponse;
     }
 
-
-    //FIXME
     private Response getFinalResponse(Request request, ByteBuffer key, List<Response> responses,
                                       ReplicationInfo replicationInfo) {
 
@@ -152,17 +148,22 @@ public class Coordinator implements Closeable {
 
                 if (status == 200 || status == 404) {
 
-                    String timestampFromResponse = response.getHeader("Timestamp");
-                    String tombstoneHeader = response.getHeader("Tombstone");
+                    String timestampFromResponse = response.getHeader(ResponseUtils.TIMESTAMP_HEADER);
+                    String tombstoneHeader = response.getHeader(ResponseUtils.TOMBSTONE_HEADER);
 
                     ByteBuffer value = ByteBuffer.wrap(response.getBody());
                     if (timestampFromResponse == null) {
                         records.add(Record.of(key, value, Utils.timeStampToByteBuffer(0L)));
                     } else {
                         if (tombstoneHeader == null) {
-                            records.add(Record.of(key, value, Utils.timeStampToByteBuffer(Long.parseLong(timestampFromResponse))));
+                            records.add(Record.of(key,
+                                    value,
+                                    Utils.timeStampToByteBuffer(Long.parseLong(timestampFromResponse)))
+                            );
                         } else {
-                            records.add(Record.tombstone(key, Utils.timeStampToByteBuffer(Long.parseLong(timestampFromResponse))));
+                            records.add(Record.tombstone(key,
+                                    Utils.timeStampToByteBuffer(Long.parseLong(timestampFromResponse)))
+                            );
                         }
                     }
                 }
@@ -217,18 +218,18 @@ public class Coordinator implements Closeable {
         return records.get(0);
     }
 
-    private Response chooseHandler(String id, Request request, VNode vNode) {
+    private Response chooseHandler(String id, Request request, VNode vnode) {
         Response response;
-        if (vNode.getPhysicalNode().port == node.port) {
+        if (vnode.getPhysicalNode().port == node.port) {
             if (logger.isInfoEnabled()) {
-                logger.info("HANDLE BY CURRENT NODE: port :" + vNode.getPhysicalNode().port);
+                logger.info("HANDLE BY CURRENT NODE: port :" + vnode.getPhysicalNode().port);
             }
             response = entityRequestHandler.handle(request, id);
         } else {
             if (logger.isInfoEnabled()) {
-                logger.info("HANDLE BY OTHER NODE: port :" + vNode.getPhysicalNode().port);
+                logger.info("HANDLE BY OTHER NODE: port :" + vnode.getPhysicalNode().port);
             }
-            response = nodeRouter.routeToNode(vNode, request);
+            response = nodeRouter.routeToNode(vnode, request);
         }
 
         return response;

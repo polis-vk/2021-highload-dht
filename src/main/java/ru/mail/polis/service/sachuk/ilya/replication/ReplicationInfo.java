@@ -11,13 +11,13 @@ public final class ReplicationInfo {
         this.from = from;
     }
 
-    public static ReplicationInfo from(String replicas) {
+    public static ReplicationInfo of(String replicas) {
         int[] arr = Arrays.stream(replicas.split("/")).mapToInt(Integer::parseInt).toArray();
 
         return new ReplicationInfo(arr[0], arr[1]);
     }
 
-    public static ReplicationInfo from(int nodeNumber) {
+    public static ReplicationInfo of(int nodeNumber) {
         int ask = (nodeNumber / 2) + 1;
 
         return new ReplicationInfo(ask, nodeNumber);

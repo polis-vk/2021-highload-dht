@@ -72,10 +72,10 @@ public class ServiceImpl extends HttpServer implements Service {
         }
 
         boolean isCoordinator = false;
-        String timestamp = request.getHeader("Timestamp");
+        String timestamp = request.getHeader(ResponseUtils.TIMESTAMP_HEADER);
         if (timestamp == null) {
             isCoordinator = true;
-            request.addHeader("Timestamp" + System.currentTimeMillis());
+            request.addHeader(ResponseUtils.TIMESTAMP_HEADER + System.currentTimeMillis());
         } else {
             long secs = Long.parseLong(timestamp);
             if (logger.isInfoEnabled()) {
@@ -83,7 +83,6 @@ public class ServiceImpl extends HttpServer implements Service {
             }
         }
 
-        //если запрос пришел от координатора, от возращаем ему респонс, чтобы он собрал всю инфу
         if (isCoordinator) {
             return coordinator.handle(replicationInfo, id, request);
         } else {
@@ -123,8 +122,8 @@ public class ServiceImpl extends HttpServer implements Service {
                     String replicas = request.getParameter("replicas=");
 
                     ReplicationInfo replicationInfo = replicas == null
-                            ? ReplicationInfo.from(topology.size())
-                            : ReplicationInfo.from(replicas);
+                            ? ReplicationInfo.of(topology.size())
+                            : ReplicationInfo.of(replicas);
 
                     if (logger.isInfoEnabled()) {
                         logger.info(replicas);

@@ -65,7 +65,7 @@ public class EntityRequestHandler {
 
     private Response delete(String id, Request request) {
 
-        long secs = Long.parseLong(request.getHeader("Timestamp"));
+        long secs = Long.parseLong(request.getHeader(ResponseUtils.TIMESTAMP_HEADER));
 
         if (logger.isInfoEnabled()) {
             logger.info("IN DELETE");
@@ -79,7 +79,7 @@ public class EntityRequestHandler {
     }
 
     private Response put(String id, Request request) {
-        long secs = Long.parseLong(request.getHeader("Timestamp"));
+        long secs = Long.parseLong(request.getHeader(ResponseUtils.TIMESTAMP_HEADER));
 
         if (logger.isInfoEnabled()) {
             logger.info("IN PUT");
@@ -101,16 +101,15 @@ public class EntityRequestHandler {
         return new Response(Response.CREATED, Response.EMPTY);
     }
 
-
     private Response addTimeStampHeader(Response response, long secs) {
-        response.addHeader("Timestamp" + secs);
+        response.addHeader(ResponseUtils.TIMESTAMP_HEADER + secs);
 
         return response;
     }
 
     private Response addTimeStampHeaderAndTombstone(Response response, long secs) {
-        response.addHeader("Timestamp" + secs);
-        response.addHeader("Tombstone" + "ddd");
+        response.addHeader(ResponseUtils.TIMESTAMP_HEADER + secs);
+        response.addHeader(ResponseUtils.TOMBSTONE_HEADER);
 
         return response;
     }
