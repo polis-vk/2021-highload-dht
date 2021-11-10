@@ -33,7 +33,7 @@ public class NodeRouter {
         HttpClient httpClient = nodeManager.getHttpClient(host + port);
 
         if (httpClient == null) {
-            throw new IllegalStateException("Node is not in topology");
+            return new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY);
         }
 
         try {
@@ -41,7 +41,9 @@ public class NodeRouter {
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new IllegalStateException(e);
-        } catch (PoolException | HttpException e) {
+        } catch (PoolException e) {
+            return new Response(Response.BAD_GATEWAY, Response.EMPTY);
+        } catch (HttpException e) {
             throw new IllegalStateException(e);
         } catch (IOException e) {
             throw new UncheckedIOException(e);
