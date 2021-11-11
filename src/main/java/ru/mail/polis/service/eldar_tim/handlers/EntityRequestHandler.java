@@ -15,14 +15,14 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 
-public class EntityRequestHandler extends RoutableRequestHandler {
+public class EntityRequestHandler extends DefaultRequestHandler {
 
     private final DAO dao;
 
     public EntityRequestHandler(
-            Cluster.ReplicasManager replicasManager, Cluster.Node self, HashRouter<Cluster.Node> router,
+            Cluster.ReplicasHolder replicasHolder, Cluster.Node self, HashRouter<Cluster.Node> router,
             DAO dao) {
-        super(replicasManager, self, router);
+        super(replicasHolder, self, router);
         this.dao = dao;
     }
 
@@ -30,6 +30,23 @@ public class EntityRequestHandler extends RoutableRequestHandler {
     @Override
     protected String getRouteKey(Request request) {
         return request.getParameter("id=");
+    }
+
+    @Override
+    public DTO get(Request request) {
+        String id = parseId(request);
+        if (id == null) {
+            return DTO.answer(Response.BAD_REQUEST, "Bad id".getBytes(StandardCharsets.UTF_8));
+        }
+
+        ByteBuffer key = ByteBuffer.wrap(id.getBytes(StandardCharsets.UTF_8));
+        final Iterator<Record> iterator = dao.range(key, DAO.nextKey(key));
+        if (iterator.hasNext()) {
+            Record next = iterator.next();
+            return DTO.answer(Response.OK, extractBytes(next.getValue()), next.getTimestamp());
+        } else {
+            return DTO.answer(Response.NOT_FOUND, null);
+        }
     }
 
     @Override
@@ -80,5 +97,11 @@ public class EntityRequestHandler extends RoutableRequestHandler {
         ByteBuffer key = ByteBuffer.wrap(id.getBytes(StandardCharsets.UTF_8));
         dao.upsert(Record.tombstone(key));
         return new Response(Response.ACCEPTED, Response.EMPTY);
+    }
+
+    @Nullable
+    private String parseId(Request request)  {
+        String id = request.getRequiredParameter("id=");
+        return id.isEmpty() ? null : id;
     }
 }

@@ -104,16 +104,17 @@ public final class Cluster {
         }
     }
 
-    public static class ReplicasManager {
+    public static class ReplicasHolder {
         public final int replicasCount;
         private final Map<Node, List<Node>> replicas = new HashMap<>();
 
-        public ReplicasManager(Set<Node> topology, Comparator<Node> comparator) {
-            this.replicasCount = topology.size() > 3 ? 3 : topology.size() - 1;
+        public ReplicasHolder(int maxReplicas, Set<Node> topology, Comparator<Node> comparator) {
+            maxReplicas = Math.max(maxReplicas, 0);
+            this.replicasCount = topology.size() > maxReplicas ? maxReplicas : topology.size() - 1;
 
             HashRouter<Node> router = new ConsistentHashRouter<>(topology, 100, new HashFunction.HashMD5());
             for (Node node : topology) {
-                replicas.computeIfAbsent(node, key -> calcReplicas(node, router, comparator));
+                replicas.computeIfAbsent(node, key -> computeReplicas(node, router, comparator));
 
                 StringJoiner joiner = new StringJoiner(", ");
                 replicas.get(node).forEach(n -> joiner.add(n.getKey()));
@@ -121,15 +122,15 @@ public final class Cluster {
             }
         }
 
-        public List<Node> getAllReplicas(Node node) {
+        public List<Node> getReplicas(Node node) {
             return replicas.get(node);
         }
 
-        public List<Node> getAskReplicas(int count, Node node) {
+        public List<Node> getReplicas(int count, Node node) {
             return replicas.get(node).subList(0, count);
         }
 
-        private List<Node> calcReplicas(Node node, HashRouter<Node> router, Comparator<Node> comparator) {
+        private List<Node> computeReplicas(Node node, HashRouter<Node> router, Comparator<Node> comparator) {
             List<Node> replicas = new ArrayList<>();
             for (int i = 0; replicas.size() < replicasCount; i++) {
                 Node next = router.route(node.getKey() + ":" + i);

@@ -12,10 +12,10 @@ import java.io.IOException;
 public class StatusRequestHandler extends RoutableRequestHandler {
 
     public StatusRequestHandler(
-            Cluster.ReplicasManager replicasManager,
+            Cluster.ReplicasHolder replicasHolder,
             Cluster.Node self, HashRouter<Cluster.Node> router
     ) {
-        super(replicasManager, self, router);
+        super(replicasHolder, self, router);
     }
 
     @Nullable

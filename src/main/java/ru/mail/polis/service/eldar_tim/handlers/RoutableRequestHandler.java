@@ -23,10 +23,10 @@ public abstract class RoutableRequestHandler extends ReplicableRequestHandler {
     private final HashRouter<Cluster.Node> router;
 
     public RoutableRequestHandler(
-            Cluster.ReplicasManager replicasManager, Cluster.Node self,
+            Cluster.ReplicasHolder replicasHolder, Cluster.Node self,
             HashRouter<Cluster.Node> router
     ) {
-        super(replicasManager, self);
+        super(replicasHolder, self);
         this.router = router;
     }
 

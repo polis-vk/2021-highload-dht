@@ -36,8 +36,6 @@ import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * Constructs {@link Service} instances.
- *
- * @author Vadim Tsesko
  */
 public final class ServiceFactory {
     /** Максимальный размер кучи. */
@@ -53,8 +51,11 @@ public final class ServiceFactory {
     /** Лимит очереди на выполнение прокси-запросов, после превышения которого последующие будут отвергнуты. */
     private static final int PROXY_LIMIT = PROXY_THREADS * 2;
 
+    /** Число репликаций для каждого узла. */
+    private static final int REPLICAS_NUMBER = 2;
+
     private static final Map<Integer, Set<Cluster.Node>> TOPOLOGIES = new ConcurrentHashMap<>();
-    private static final Map<Integer, Cluster.ReplicasManager> REPLICAS = new ConcurrentHashMap<>();
+    private static final Map<Integer, Cluster.ReplicasHolder> REPLICAS = new ConcurrentHashMap<>();
 
     private ServiceFactory() {
         // Not supposed to be instantiated
@@ -88,8 +89,10 @@ public final class ServiceFactory {
 
         Set<Cluster.Node> clusterNodes = TOPOLOGIES.computeIfAbsent(topology.hashCode(),
                 key -> buildClusterNodes(topology));
-        Cluster.ReplicasManager replicasManager = REPLICAS.computeIfAbsent(topology.hashCode(),
-                key -> new Cluster.ReplicasManager(clusterNodes, Comparator.comparing(Cluster.Node::getKey)));
+
+        Comparator<Cluster.Node> comparator = Comparator.comparing(Cluster.Node::getKey);
+        Cluster.ReplicasHolder replicasHolder = REPLICAS.computeIfAbsent(topology.hashCode(),
+                key -> new Cluster.ReplicasHolder(REPLICAS_NUMBER, clusterNodes, comparator));
 
         Cluster.Node currentNode = findClusterNode(port, clusterNodes);
         HashRouter<Cluster.Node> hashRouter = new ConsistentHashRouter<>(clusterNodes, 30);
@@ -97,7 +100,7 @@ public final class ServiceFactory {
         ServiceExecutor workers = new LimitedServiceExecutor("worker", WORKERS_NUMBER, TASKS_LIMIT);
         ServiceExecutor proxies = new LimitedServiceExecutor("proxy", PROXY_THREADS, PROXY_LIMIT);
 
-        return new HttpServerImpl(dao, currentNode, replicasManager, hashRouter, workers, proxies);
+        return new HttpServerImpl(dao, currentNode, replicasHolder, hashRouter, workers, proxies);
     }
 
     private static Set<Cluster.Node> buildClusterNodes(Set<String> topologyRaw) {

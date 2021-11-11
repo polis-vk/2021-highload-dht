@@ -33,7 +33,7 @@ public class HttpServerImpl extends HttpServer implements Service {
 
     private final DAO dao;
     private final Cluster.Node self;
-    private final Cluster.ReplicasManager replicasManager;
+    private final Cluster.ReplicasHolder replicasHolder;
     private final HashRouter<Cluster.Node> router;
     private final ServiceExecutor workers;
     private final ServiceExecutor proxies;
@@ -43,19 +43,19 @@ public class HttpServerImpl extends HttpServer implements Service {
 
     public HttpServerImpl(
             DAO dao, Cluster.Node self,
-            Cluster.ReplicasManager replicasManager, HashRouter<Cluster.Node> router,
+            Cluster.ReplicasHolder replicasHolder, HashRouter<Cluster.Node> router,
             ServiceExecutor workers, ServiceExecutor proxies
     ) throws IOException {
         super(buildHttpServerConfig(self.port));
         this.dao = dao;
         this.self = self;
-        this.replicasManager = replicasManager;
+        this.replicasHolder = replicasHolder;
         this.router = router;
         this.workers = workers;
         this.proxies = proxies;
 
         pathMapper = new PathMapper();
-        statusHandler = new StatusRequestHandler(replicasManager, self, router);
+        statusHandler = new StatusRequestHandler(replicasHolder, self, router);
         mapPaths();
     }
 
@@ -75,7 +75,7 @@ public class HttpServerImpl extends HttpServer implements Service {
 
         pathMapper.add("/v0/entity",
                 new int[]{Request.METHOD_GET, Request.METHOD_PUT, Request.METHOD_DELETE},
-                new EntityRequestHandler(replicasManager, self, router, dao));
+                new EntityRequestHandler(replicasHolder, self, router, dao));
     }
 
     @Override
@@ -95,7 +95,7 @@ public class HttpServerImpl extends HttpServer implements Service {
             Cluster.Node targetNode = requestHandler.getTargetNode(request);
             if (requestHandler.shouldParse(request, targetNode)) {
                 workers.execute(session, this::exceptionHandler, () ->
-                        requestHandler.handleRequest(request, session));
+                        requestHandler.handleRequest(request, session, targetNode));
             } else {
                 proxies.execute(session, this::exceptionHandler, () ->
                         requestHandler.redirect(targetNode, request, session));
