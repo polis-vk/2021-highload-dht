@@ -1,8 +1,6 @@
 package ru.mail.polis.service.gasparyansokrat;
 
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.Set;
 import java.util.SortedMap;
 import java.util.TreeMap;
