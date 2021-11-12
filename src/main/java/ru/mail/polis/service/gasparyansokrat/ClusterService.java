@@ -18,26 +18,25 @@ import java.util.Set;
 public class ClusterService {
 
     private final ReplicationService replicationService;
-    private String selfNode;
     private final ConsistentHash clusterNodes;
-    private final Set<String> topology;
+    private final int topologySize;
+    private final int quorumCluster;
 
+    private static final float quorumMajority = 0.66f;
     public static final String BAD_REPLICAS = "504 Not Enough Replicas";
 
     ClusterService(final DAO dao, final Set<String> topology, final ServiceConfig servConf) {
-        this.clusterNodes = new ConsistentHashImpl(topology, servConf.clusterIntervals);
-        this.topology = topology;
-        Map<String, HttpClient> clusterServers = buildTopology(servConf.port, this.topology);
-        this.replicationService = new ReplicationService(dao, selfNode, clusterServers);
+        this.clusterNodes = new ConsistentHashImpl(topology);
+        this.topologySize = topology.size();
+        Map<String, HttpClient> clusterServers = buildTopology(servConf, topology);
+        this.replicationService = new ReplicationService(dao, servConf.fullAddress, clusterServers);
+        this.quorumCluster = Math.round(quorumMajority * getClusterSize());
     }
 
-    private Map<String, HttpClient> buildTopology(final int port, final Set<String> topology) {
+    private Map<String, HttpClient> buildTopology(final ServiceConfig servConf, final Set<String> topology) {
         Map<String, HttpClient> clusterServers = new HashMap<>();
-        final String sport = String.valueOf(port);
         for (final String node : topology) {
-            if (node.contains(sport)) {
-                this.selfNode = node;
-            } else {
+            if (!node.equals(servConf.fullAddress)) {
                 clusterServers.put(node, new HttpClient(new ConnectionString(node)));
             }
         }
@@ -63,7 +62,7 @@ public class ClusterService {
 
         final List<String> nodes = clusterNodes.getNodes(params.get("id"), from);
 
-        return replicationService.handleRequest(request, params, nodes);
+        return replicationService.handleRequest(request, ack, params.get("id"), nodes);
     }
 
     private void addTimeStamp(Request request) {
@@ -72,13 +71,12 @@ public class ClusterService {
         request.setBody(record.getRawBytes());
     }
 
-    public int quorumCompute() {
-        final float quorumMajority = 0.66f;
-        return Math.round(getClusterSize() * quorumMajority);
+    public int getClusterSize() {
+        return topologySize;
     }
 
-    public int getClusterSize() {
-        return topology.size();
+    public int getQuorumCluster() {
+        return quorumCluster;
     }
 
     public Response internalRequest(final Request request, final String id) throws IOException {
@@ -87,6 +85,7 @@ public class ClusterService {
         }
         final String host = request.getHost();
         boolean validHost = false;
+        final Set<String> topology = replicationService.getTopology();
         for (final String node : topology) {
             if (node.contains(host)) {
                 validHost = true;

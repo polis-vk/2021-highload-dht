@@ -79,30 +79,27 @@ public class ServiceImpl extends HttpServer implements Service {
     }
 
     private Map<String, String> parseParameters(final Request request) {
+        Map<String, String> parameters = new HashMap<>();
         String id = getParamRequest(request, "id");
         if (id.isEmpty()) {
             return null;
         }
-        int numNodes = 0;
-        int maxNodes = 0;
-        Iterator<String> params = request.getParameters("replicas");
-        if (params.hasNext()) {
-            String replicas = params.next().substring(1);
-            String[] ackfrom = replicas.split("/");
-            numNodes = Integer.parseInt(ackfrom[0]);
-            maxNodes = Integer.parseInt(ackfrom[1]);
+        parameters.put("id", id);
+        String ackFrom = getParamRequest(request, "replicas");
+        if (!ackFrom.isEmpty()) {
+            String[] ackfrom = ackFrom.split("/");
+            final int numNodes = Integer.parseInt(ackfrom[0]);
+            final int maxNodes = Integer.parseInt(ackfrom[1]);
+            if (numNodes > maxNodes) {
+                return null;
+            }
+            parameters.put("ack", ackfrom[0]);
+            parameters.put("from", ackfrom[1]);
         } else {
-            numNodes = clusterService.quorumCompute();
-            maxNodes = clusterService.getClusterSize();
+            parameters.put("ack", String.valueOf(clusterService.getQuorumCluster()));
+            parameters.put("from", String.valueOf(clusterService.getClusterSize()));
         }
 
-        if (numNodes > maxNodes) {
-            return null;
-        }
-        Map<String, String> parameters = new HashMap<>();
-        parameters.put("id", id);
-        parameters.put("ack", String.valueOf(numNodes));
-        parameters.put("from", String.valueOf(maxNodes));
         return parameters;
     }
 

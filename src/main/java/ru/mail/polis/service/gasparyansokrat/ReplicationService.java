@@ -15,10 +15,11 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
-import java.util.concurrent.LinkedBlockingDeque;
+import java.util.concurrent.LinkedBlockingQueue;
 import java.util.concurrent.TimeUnit;
 
 public class ReplicationService {
@@ -41,9 +42,13 @@ public class ReplicationService {
         this.clusterServers = clusterServers;
         this.selfNode = selfNode;
         this.sendDataExecutor = Executors.newSingleThreadExecutor();
-        this.senderQueue = new LinkedBlockingDeque<>();
+        this.senderQueue = new LinkedBlockingQueue<>();
         this.stopSender = false;
         setupExecutor();
+    }
+
+    public Set<String> getTopology() {
+        return clusterServers.keySet();
     }
 
     private void setupExecutor() {
@@ -134,10 +139,8 @@ public class ReplicationService {
         }
     }
 
-    public Response handleRequest(final Request request, Map<String, String> params,
-                                  final List<String> nodes) throws IOException {
-        final int requireAck = Integer.parseInt(params.get("ack"));
-        final String id = params.get("id");
+    public Response handleRequest(final Request request, final int requireAck,
+                                  final String id, final List<String> nodes) throws IOException {
         List<Response> responses = new ArrayList<>();
         List<String> resendNodes = new ArrayList<>();
         for (String node : nodes) {

@@ -23,7 +23,7 @@ import java.sql.Timestamp;
 @SuppressWarnings("JavaLangClash")
 public class Record {
 
-    private static final short EMPTY = 0;
+    private static final short JUST_VALUE = 0;
     private static final short USETIME = 1;
     private static final short TOMBSTONE = 2;
 
@@ -38,7 +38,7 @@ public class Record {
     }
 
     public static Record of(ByteBuffer key, ByteBuffer value) {
-        return new Record(key.asReadOnlyBuffer(), buildValue(value, EMPTY, null).asReadOnlyBuffer());
+        return new Record(key.asReadOnlyBuffer(), buildValue(value, JUST_VALUE, null).asReadOnlyBuffer());
     }
 
     public static Record of(ByteBuffer key, ByteBuffer value, final Timestamp time) {
@@ -52,21 +52,23 @@ public class Record {
     private static ByteBuffer buildValue(final ByteBuffer value, final short type, final Timestamp time) {
         final ByteBuffer curValue;
         switch (type) {
-            case EMPTY:
+            case JUST_VALUE:
                 curValue = ByteBuffer.allocate(value.limit() + Short.BYTES);
+                curValue.putShort(type);
                 curValue.put(value.asReadOnlyBuffer());
                 break;
             case USETIME:
             case TOMBSTONE:
                 curValue = ByteBuffer.allocate(value.limit() + Long.BYTES + Short.BYTES);
-                curValue.put(value.asReadOnlyBuffer());
+                curValue.putShort(type);
                 curValue.putLong(time.getTime());
+                curValue.put(value.asReadOnlyBuffer());
                 break;
             default:
                 curValue = value;
                 break;
         }
-        curValue.putShort(type);
+
         return curValue;
     }
 
@@ -101,19 +103,20 @@ public class Record {
     private ByteBuffer getValueBuffer() {
         final ByteBuffer entireValue = value.duplicate();
         final short field = getTypeBuffer(entireValue);
+        final ByteBuffer result;
         switch (field) {
-            case EMPTY:
-                entireValue.limit(value.limit() - Short.BYTES);
-                entireValue.position(0);
+            case JUST_VALUE:
+                result = entireValue.position(Short.BYTES).slice();
+                result.position(0);
                 break;
             case USETIME:
-                entireValue.limit(value.limit() - Short.BYTES - Long.BYTES);
-                entireValue.position(0);
+                result = entireValue.position(Short.BYTES + Long.BYTES).slice();
+                result.position(0);
                 break;
             default:
                 return null;
         }
-        return entireValue;
+        return result;
     }
 
     public byte[] getRawBytes() {
@@ -143,7 +146,7 @@ public class Record {
             return null;
         }
 
-        final long time = entireValue.position(value.limit() - Long.BYTES - Short.BYTES).slice().getLong();
+        final long time = entireValue.position(Short.BYTES).slice().getLong();
         return new Timestamp(time);
     }
 
@@ -152,7 +155,7 @@ public class Record {
     }
 
     private short getTypeBuffer(final ByteBuffer buffer) {
-        return buffer.position(buffer.limit() - Short.BYTES).slice().getShort();
+        return buffer.position(0).getShort();
     }
 
     public boolean isEmpty() {
