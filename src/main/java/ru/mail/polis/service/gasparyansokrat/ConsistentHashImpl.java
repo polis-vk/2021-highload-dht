@@ -12,15 +12,12 @@ public class ConsistentHashImpl implements ConsistentHash {
     private final SortedMap<Integer, String> domainNodes;
     private final FowlerNollVoHash hashFunc;
 
-    public ConsistentHashImpl(Set<String> topology, final int numIntervals) {
+    public ConsistentHashImpl(Set<String> topology) {
         this.hashFunc = new FowlerNollVoHash();
         this.domainNodes = new TreeMap<>();
-        List<String> nodes = new ArrayList<>(topology);
-        int nodeIdx = 0;
-        for (long start = 0; start < Integer.MAX_VALUE; start += numIntervals) {
-            String node = nodes.get(nodeIdx);
-            domainNodes.put((int)start, node);
-            nodeIdx = (nodeIdx + 1) % topology.size();
+        for (final String node : topology) {
+            int hashValue = hashFunc.hash(node.getBytes(StandardCharsets.UTF_8));
+            domainNodes.put(hashValue, node);
         }
     }
 

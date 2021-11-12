@@ -26,7 +26,7 @@ public class ClusterService {
 
     ClusterService(final DAO dao, final Set<String> topology, final ServiceConfig servConf) {
         this.servDAO = new ServiceDAO(dao);
-        this.clusterNodes = new ConsistentHashImpl(topology, servConf.clusterIntervals);
+        this.clusterNodes = new ConsistentHashImpl(topology);
         this.clusterServers = new Hashtable<>();
         buildTopology(servConf.port, topology);
     }

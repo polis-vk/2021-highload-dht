@@ -32,7 +32,6 @@ import java.util.Set;
  */
 public final class ServiceFactory {
     private static final long MAX_HEAP = 512 * 1024 * 1024;
-    private static final int SIZE_INTERVAL = 32_768;
 
     private ServiceFactory() {
         // Not supposed to be instantiated
@@ -64,7 +63,7 @@ public final class ServiceFactory {
             throw new IllegalArgumentException("Empty cluster");
         }
 
-        ServiceConfig servConfig = new ServiceConfig(port, ThreadPoolConfig.MAX_THREADS, "localhost", SIZE_INTERVAL);
+        ServiceConfig servConfig = new ServiceConfig(port, ThreadPoolConfig.MAX_THREADS, "localhost");
         return new ServiceImpl(servConfig, topology, dao);
     }
 }
