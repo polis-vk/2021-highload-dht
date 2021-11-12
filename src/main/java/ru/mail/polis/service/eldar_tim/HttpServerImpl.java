@@ -5,7 +5,6 @@ import one.nio.http.HttpServerConfig;
 import one.nio.http.HttpSession;
 import one.nio.http.PathMapper;
 import one.nio.http.Request;
-import one.nio.http.RequestHandler;
 import one.nio.http.Response;
 import one.nio.net.Session;
 import one.nio.server.AcceptorConfig;
@@ -14,8 +13,8 @@ import org.slf4j.LoggerFactory;
 import ru.mail.polis.Cluster;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.service.Service;
+import ru.mail.polis.service.eldar_tim.handlers.RequestHandler;
 import ru.mail.polis.service.eldar_tim.handlers.EntityRequestHandler;
-import ru.mail.polis.service.eldar_tim.handlers.RoutableRequestHandler;
 import ru.mail.polis.service.eldar_tim.handlers.StatusRequestHandler;
 import ru.mail.polis.service.exceptions.ServerRuntimeException;
 import ru.mail.polis.service.exceptions.ServiceOverloadException;
@@ -39,7 +38,7 @@ public class HttpServerImpl extends HttpServer implements Service {
     private final ServiceExecutor proxies;
 
     private final PathMapper pathMapper;
-    private final RequestHandler statusHandler;
+    private final one.nio.http.RequestHandler statusHandler;
 
     public HttpServerImpl(
             DAO dao, Cluster.Node self,
@@ -55,7 +54,7 @@ public class HttpServerImpl extends HttpServer implements Service {
         this.proxies = proxies;
 
         pathMapper = new PathMapper();
-        statusHandler = new StatusRequestHandler(replicasHolder, self, router);
+        statusHandler = new StatusRequestHandler(self, router, replicasHolder);
         mapPaths();
     }
 
@@ -75,7 +74,7 @@ public class HttpServerImpl extends HttpServer implements Service {
 
         pathMapper.add("/v0/entity",
                 new int[]{Request.METHOD_GET, Request.METHOD_PUT, Request.METHOD_DELETE},
-                new EntityRequestHandler(replicasHolder, self, router, dao));
+                new EntityRequestHandler(self, router, replicasHolder, dao));
     }
 
     @Override
@@ -86,16 +85,16 @@ public class HttpServerImpl extends HttpServer implements Service {
 
     @Override
     public void handleRequest(Request request, HttpSession session) {
-        RoutableRequestHandler requestHandler =
-                (RoutableRequestHandler) pathMapper.find(request.getPath(), request.getMethod());
+        RequestHandler requestHandler =
+                (RequestHandler) pathMapper.find(request.getPath(), request.getMethod());
 
         if (requestHandler == statusHandler) {
             workers.run(session, this::exceptionHandler, () -> requestHandler.handleRequest(request, session));
         } else if (requestHandler != null) {
             Cluster.Node targetNode = requestHandler.getTargetNode(request);
-            if (requestHandler.shouldParse(request, targetNode)) {
+            if (requestHandler.shouldHandleLocally(targetNode, request)) {
                 workers.execute(session, this::exceptionHandler, () ->
-                        requestHandler.handleRequest(request, session, targetNode));
+                        requestHandler.handleRequest(targetNode, request, session));
             } else {
                 proxies.execute(session, this::exceptionHandler, () ->
                         requestHandler.redirect(targetNode, request, session));

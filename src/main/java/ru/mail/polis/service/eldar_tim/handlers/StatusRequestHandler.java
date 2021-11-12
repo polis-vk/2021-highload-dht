@@ -9,13 +9,12 @@ import ru.mail.polis.sharding.HashRouter;
 import javax.annotation.Nullable;
 import java.io.IOException;
 
-public class StatusRequestHandler extends RoutableRequestHandler {
+public class StatusRequestHandler extends RequestHandler {
 
     public StatusRequestHandler(
-            Cluster.ReplicasHolder replicasHolder,
-            Cluster.Node self, HashRouter<Cluster.Node> router
+            Cluster.Node self, HashRouter<Cluster.Node> router, Cluster.ReplicasHolder replicasHolder
     ) {
-        super(replicasHolder, self, router);
+        super(self, router, replicasHolder);
     }
 
     @Nullable

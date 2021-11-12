@@ -16,20 +16,23 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
-public abstract class RoutableRequestHandler extends ReplicableRequestHandler {
+public abstract class RoutableRequestHandler {
 
     private static final Logger LOG = LoggerFactory.getLogger(RoutableRequestHandler.class);
 
+    public final Cluster.Node self;
     private final HashRouter<Cluster.Node> router;
 
-    public RoutableRequestHandler(
-            Cluster.ReplicasHolder replicasHolder, Cluster.Node self,
-            HashRouter<Cluster.Node> router
-    ) {
-        super(replicasHolder, self);
+    public RoutableRequestHandler(Cluster.Node self, HashRouter<Cluster.Node> router) {
+        this.self = self;
         this.router = router;
     }
 
+    /**
+     * Primary key to detect node for
+     * @param request
+     * @return
+     */
     @Nullable
     protected abstract String getRouteKey(Request request);
 

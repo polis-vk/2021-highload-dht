@@ -35,15 +35,15 @@ public class DTO implements Serializable {
         return new DTO(responseCode, errorMessage);
     }
 
-    public static DTO serverError(@Nonnull String responseCode) {
-        return serverError(responseCode, null);
-    }
-
     public static DTO answer(@Nonnull String responseCode, @Nullable byte[] value, long timestamp) {
         return new DTO(responseCode, value, timestamp);
     }
 
     public static DTO answer(@Nonnull String responseCode, @Nullable byte[] value) {
         return answer(responseCode, value, -1);
+    }
+
+    public static DTO answer(@Nonnull String responseCode) {
+        return answer(responseCode, null, -1);
     }
 }

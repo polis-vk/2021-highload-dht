@@ -10,6 +10,7 @@ import one.nio.pool.PoolException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.Cluster;
+import ru.mail.polis.sharding.HashRouter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -25,31 +26,27 @@ import java.util.concurrent.ForkJoinTask;
 import java.util.concurrent.RecursiveTask;
 import java.util.function.BiFunction;
 
-public abstract class ReplicableRequestHandler implements RequestHandler {
+public abstract class ReplicableRequestHandler extends RoutableRequestHandler implements RequestHandler {
 
     private static final Logger LOG = LoggerFactory.getLogger(ReplicableRequestHandler.class);
 
-    private static final String HEADER_NOT_USE_REPLICAS = "Not-Use-Replicas: 1";
+    private static final String HEADER_HANDLE_LOCALLY = "Service-Handle-Locally: 1";
     private static final String RESPONSE_NOT_ENOUGH_REPLICAS = "504 Not Enough Replicas";
 
     private final Cluster.ReplicasHolder replicasHolder;
-    public final Cluster.Node self;
 
-    public ReplicableRequestHandler(Cluster.ReplicasHolder replicasHolder, Cluster.Node self) {
+    public ReplicableRequestHandler(
+            Cluster.Node self, HashRouter<Cluster.Node> router,
+            Cluster.ReplicasHolder replicasHolder
+    ) {
+        super(self, router);
         this.replicasHolder = replicasHolder;
-        this.self = self;
     }
 
-    public abstract DTO get(Request request);
+    protected abstract DTO handleRequest(Request request);
 
-    public abstract DTO put(Request request);
-
-    public abstract DTO delete(Request request);
-
-    public abstract DTO other(Request request);
-
-    public void handleRequest(Request request, HttpSession session, Cluster.Node target) throws IOException {
-        if (request.getHeader(HEADER_NOT_USE_REPLICAS) != null) {
+    public void handleRequest(Cluster.Node target, Request request, HttpSession session) throws IOException {
+        if (request.getHeader(HEADER_HANDLE_LOCALLY) != null) {
             writeDTO(handleLocally(request), session);
             return;
         }
@@ -64,7 +61,7 @@ public abstract class ReplicableRequestHandler implements RequestHandler {
             nodes.remove(self);
         }
 
-        request.addHeader(HEADER_NOT_USE_REPLICAS);
+        request.addHeader(HEADER_HANDLE_LOCALLY);
         List<ForkJoinTask<DTO>> forks = fork(nodes, request);
 
         // to do: calculate access time for each host
@@ -118,11 +115,11 @@ public abstract class ReplicableRequestHandler implements RequestHandler {
      * Detects if the current node should parse request.
      * This node should parse the request, if it's included in the list of requested replicas.
      *
-     * @param request current request
      * @param target target node
+     * @param request current request
      * @return true, if the current node should parse request, otherwise false
      */
-    public boolean shouldParse(Request request, Cluster.Node target) {
+    public boolean shouldHandleLocally(Cluster.Node target, Request request) {
         if (target == self) {
             return true;
         }
@@ -159,21 +156,7 @@ public abstract class ReplicableRequestHandler implements RequestHandler {
     }
 
     private DTO handleLocally(@Nonnull Request request) {
-        final DTO dto;
-        switch (request.getMethod()) {
-            case Request.METHOD_GET:
-                dto = get(request);
-                break;
-            case Request.METHOD_PUT:
-                dto = put(request);
-                break;
-            case Request.METHOD_DELETE:
-                dto = delete(request);
-                break;
-            default:
-                dto = other(request);
-        }
-        return dto;
+        return handleRequest(request);
     }
 
     private DTO handleRemote(@Nonnull Request request, @Nonnull HttpClient client) {
