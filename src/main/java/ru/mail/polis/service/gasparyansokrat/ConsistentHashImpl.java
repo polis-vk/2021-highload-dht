@@ -22,7 +22,7 @@ public class ConsistentHashImpl implements ConsistentHash {
     @Override
     public String getNode(final String key) {
         if (domainNodes.isEmpty()) {
-            return null;
+            return "";
         }
         int hashValue = hashFunc.hash(key.getBytes(StandardCharsets.UTF_8));
         if (!domainNodes.containsKey(hashValue)) {
