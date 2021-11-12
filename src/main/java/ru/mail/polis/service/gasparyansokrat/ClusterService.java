@@ -22,7 +22,7 @@ public class ClusterService {
     private final int topologySize;
     private final int quorumCluster;
 
-    private static final float quorumMajority = 0.66f;
+    private static final float QUORUM_MAJORITY = 0.66f;
     public static final String BAD_REPLICAS = "504 Not Enough Replicas";
 
     ClusterService(final DAO dao, final Set<String> topology, final ServiceConfig servConf) {
@@ -30,7 +30,7 @@ public class ClusterService {
         this.topologySize = topology.size();
         Map<String, HttpClient> clusterServers = buildTopology(servConf, topology);
         this.replicationService = new ReplicationService(dao, servConf.fullAddress, clusterServers);
-        this.quorumCluster = Math.round(quorumMajority * getClusterSize());
+        this.quorumCluster = Math.round(QUORUM_MAJORITY * topologySize);
     }
 
     private Map<String, HttpClient> buildTopology(final ServiceConfig servConf, final Set<String> topology) {

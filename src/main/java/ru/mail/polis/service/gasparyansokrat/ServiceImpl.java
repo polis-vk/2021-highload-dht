@@ -86,7 +86,10 @@ public class ServiceImpl extends HttpServer implements Service {
         }
         parameters.put("id", id);
         String ackFrom = getParamRequest(request, "replicas");
-        if (!ackFrom.isEmpty()) {
+        if (ackFrom.isEmpty()) {
+            parameters.put("ack", String.valueOf(clusterService.getQuorumCluster()));
+            parameters.put("from", String.valueOf(clusterService.getClusterSize()));
+        } else {
             String[] ackfrom = ackFrom.split("/");
             final int numNodes = Integer.parseInt(ackfrom[0]);
             final int maxNodes = Integer.parseInt(ackfrom[1]);
@@ -95,9 +98,6 @@ public class ServiceImpl extends HttpServer implements Service {
             }
             parameters.put("ack", ackfrom[0]);
             parameters.put("from", ackfrom[1]);
-        } else {
-            parameters.put("ack", String.valueOf(clusterService.getQuorumCluster()));
-            parameters.put("from", String.valueOf(clusterService.getClusterSize()));
         }
 
         return parameters;
