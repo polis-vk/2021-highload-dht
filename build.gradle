@@ -42,6 +42,7 @@ application {
 
 test {
     maxHeapSize = "512m"
+    excludeTestsMatching "*NodeTest*"
     useJUnitPlatform()
 }
 
