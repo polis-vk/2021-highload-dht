@@ -30,11 +30,12 @@ public class EntityRequestHandler extends RequestHandler {
         return parseId(request);
     }
 
+    @Nonnull
     @Override
-    protected DTO handleRequest(Request request) {
+    protected ServiceResponse handleReplicableRequest(Request request) {
         String id = parseId(request);
         if (id == null) {
-            return DTO.answer(Response.BAD_REQUEST, "Bad id".getBytes(StandardCharsets.UTF_8));
+            return ServiceResponse.of(new Response(Response.BAD_REQUEST, "Bad id".getBytes(StandardCharsets.UTF_8)));
         }
 
         switch (request.getMethod()) {
@@ -45,88 +46,37 @@ public class EntityRequestHandler extends RequestHandler {
             case Request.METHOD_DELETE:
                 return delete(id);
             default:
-                return super.handleRequest(request);
+                return super.handleReplicableRequest(request);
         }
     }
 
-    @Nonnull
-    private DTO get(@Nonnull String id) {
+    private ServiceResponse get(@Nonnull String id) {
         ByteBuffer key = ByteBuffer.wrap(id.getBytes(StandardCharsets.UTF_8));
         final Iterator<Record> iterator = dao.range(key, DAO.nextKey(key));
         if (iterator.hasNext()) {
             Record next = iterator.next();
-            return DTO.answer(Response.OK, extractBytes(next.getValue()), next.getTimestamp());
+            return ServiceResponse.of(new Response(Response.OK, extractBytes(next.getValue())), next.getTimestamp());
         } else {
-            return DTO.answer(Response.NOT_FOUND);
+            return ServiceResponse.of(new Response(Response.NOT_FOUND, Response.EMPTY));
         }
     }
 
-    private DTO put(@Nonnull String id, @Nonnull byte[] body) {
+    private ServiceResponse put(@Nonnull String id, @Nonnull byte[] body) {
         ByteBuffer key = ByteBuffer.wrap(id.getBytes(StandardCharsets.UTF_8));
         ByteBuffer value = ByteBuffer.wrap(body);
         dao.upsert(Record.of(key, value));
-        return DTO.answer(Response.CREATED);
+        return ServiceResponse.of(new Response(Response.CREATED, Response.EMPTY));
     }
 
-    private DTO delete(@Nonnull String id) {
+    private ServiceResponse delete(@Nonnull String id) {
         ByteBuffer key = ByteBuffer.wrap(id.getBytes(StandardCharsets.UTF_8));
         dao.upsert(Record.tombstone(key));
-        return DTO.answer(Response.ACCEPTED);
+        return ServiceResponse.of(new Response(Response.ACCEPTED, Response.EMPTY));
     }
 
     @Nullable
     private String parseId(Request request)  {
-        String id = request.getRequiredParameter("id=");
-        return id.isEmpty() ? null : id;
+        String id = request.getParameter("id=");
+        return (id == null || id.isEmpty()) ? null : id;
     }
-
-//    @Override
-//    public void handleRequest(Request request, HttpSession session) throws IOException {
-//        String id = request.getRequiredParameter("id=");
-//        if (id.isEmpty()) {
-//            Response response = new Response(Response.BAD_REQUEST, "Bad id".getBytes(StandardCharsets.UTF_8));
-//            session.sendResponse(response);
-//            return;
-//        }
-//
-//        final Response response;
-//        switch (request.getMethod()) {
-//            case Request.METHOD_GET:
-//                response = get(id);
-//                break;
-//            case Request.METHOD_PUT:
-//                response = put(id, request.getBody());
-//                break;
-//            case Request.METHOD_DELETE:
-//                response = delete(id);
-//                break;
-//            default:
-//                response = new Response(Response.METHOD_NOT_ALLOWED);
-//                break;
-//        }
-//        session.sendResponse(response);
-//    }
-
-//    private Response get(@Nonnull String id) {
-//        ByteBuffer key = ByteBuffer.wrap(id.getBytes(StandardCharsets.UTF_8));
-//        final Iterator<Record> iterator = dao.range(key, DAO.nextKey(key));
-//        if (iterator.hasNext()) {
-//            return new Response(Response.OK, extractBytes(iterator.next().getValue()));
-//        } else {
-//            return new Response(Response.NOT_FOUND, Response.EMPTY);
-//        }
-//    }
-//
-//    private Response put(@Nonnull String id, @Nonnull byte[] body) {
-//        ByteBuffer key = ByteBuffer.wrap(id.getBytes(StandardCharsets.UTF_8));
-//        ByteBuffer value = ByteBuffer.wrap(body);
-//        dao.upsert(Record.of(key, value));
-//        return new Response(Response.CREATED, Response.EMPTY);
-//    }
-//
-//    private Response delete(@Nonnull String id) {
-//        ByteBuffer key = ByteBuffer.wrap(id.getBytes(StandardCharsets.UTF_8));
-//        dao.upsert(Record.tombstone(key));
-//        return new Response(Response.ACCEPTED, Response.EMPTY);
-//    }
 }

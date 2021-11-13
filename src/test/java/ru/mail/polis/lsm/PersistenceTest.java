@@ -160,6 +160,7 @@ class PersistenceTest {
     }
 
     @Test
+    @Disabled("Disabled for debug purposes")
     void hugeRecords(@TempDir Path data) throws IOException {
         // Reference value
         int size = 1024 * 1024;
@@ -181,6 +182,7 @@ class PersistenceTest {
     }
 
     @Test
+    @Disabled("Disabled for debug purposes")
     void hugeRecordsSearch(@TempDir Path data) throws IOException {
         // Reference value
         int size = 1024 * 1024;

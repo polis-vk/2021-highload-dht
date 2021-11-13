@@ -5,9 +5,12 @@ import one.nio.http.Response;
 import ru.mail.polis.Cluster;
 import ru.mail.polis.sharding.HashRouter;
 
+import javax.annotation.Nonnull;
+
 public abstract class RequestHandler extends ReplicableRequestHandler {
 
-    private static final DTO METHOD_NOT_ALLOWED = DTO.answer(Response.METHOD_NOT_ALLOWED, null);
+    private static final ServiceResponse METHOD_NOT_ALLOWED =
+            ServiceResponse.of(new Response(Response.METHOD_NOT_ALLOWED, Response.EMPTY));
 
     public RequestHandler(
             Cluster.Node self, HashRouter<Cluster.Node> router, Cluster.ReplicasHolder replicasHolder
@@ -15,8 +18,9 @@ public abstract class RequestHandler extends ReplicableRequestHandler {
         super(self, router, replicasHolder);
     }
 
+    @Nonnull
     @Override
-    protected DTO handleRequest(Request request) {
+    protected ServiceResponse handleReplicableRequest(Request request) {
         return METHOD_NOT_ALLOWED;
     }
 }

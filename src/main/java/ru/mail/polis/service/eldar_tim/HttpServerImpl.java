@@ -85,8 +85,7 @@ public class HttpServerImpl extends HttpServer implements Service {
 
     @Override
     public void handleRequest(Request request, HttpSession session) {
-        RequestHandler requestHandler =
-                (RequestHandler) pathMapper.find(request.getPath(), request.getMethod());
+        RequestHandler requestHandler = (RequestHandler) pathMapper.find(request.getPath(), request.getMethod());
 
         if (requestHandler == statusHandler) {
             workers.run(session, this::exceptionHandler, () -> requestHandler.handleRequest(request, session));
@@ -94,7 +93,7 @@ public class HttpServerImpl extends HttpServer implements Service {
             Cluster.Node targetNode = requestHandler.getTargetNode(request);
             if (requestHandler.shouldHandleLocally(targetNode, request)) {
                 workers.execute(session, this::exceptionHandler, () ->
-                        requestHandler.handleRequest(targetNode, request, session));
+                        requestHandler.handleReplicableRequest(targetNode, request, session));
             } else {
                 proxies.execute(session, this::exceptionHandler, () ->
                         requestHandler.redirect(targetNode, request, session));

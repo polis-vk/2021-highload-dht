@@ -10,27 +10,24 @@ import one.nio.pool.PoolException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.Cluster;
+import ru.mail.polis.service.exceptions.ClientBadRequestException;
 import ru.mail.polis.sharding.HashRouter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
-import java.io.ObjectInputStream;
-import java.io.ObjectOutputStream;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.ListIterator;
 import java.util.concurrent.ForkJoinTask;
 import java.util.concurrent.RecursiveTask;
-import java.util.function.BiFunction;
 
 public abstract class ReplicableRequestHandler extends RoutableRequestHandler implements RequestHandler {
 
     private static final Logger LOG = LoggerFactory.getLogger(ReplicableRequestHandler.class);
 
-    private static final String HEADER_HANDLE_LOCALLY = "Service-Handle-Locally: 1";
+    private static final String HEADER_HANDLE_LOCALLY = "Service-Handle-Locally";
     private static final String RESPONSE_NOT_ENOUGH_REPLICAS = "504 Not Enough Replicas";
 
     private final Cluster.ReplicasHolder replicasHolder;
@@ -43,11 +40,17 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
         this.replicasHolder = replicasHolder;
     }
 
-    protected abstract DTO handleRequest(Request request);
+    @Nonnull
+    protected abstract ServiceResponse handleReplicableRequest(Request request);
 
-    public void handleRequest(Cluster.Node target, Request request, HttpSession session) throws IOException {
+    @Override
+    public final void handleRequest(Request request, HttpSession session) throws IOException {
+        session.sendResponse(handleLocally(request));
+    }
+
+    public void handleReplicableRequest(Cluster.Node target, Request request, HttpSession session) throws IOException {
         if (request.getHeader(HEADER_HANDLE_LOCALLY) != null) {
-            writeDTO(handleLocally(request), session);
+            session.sendResponse(handleLocally(request));
             return;
         }
 
@@ -55,60 +58,13 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
         int ask = askFrom[0];
         int from = askFrom[1];
 
-        List<Cluster.Node> nodes = replicasHolder.getReplicas(from - 1, target);
-        if (self != target) {
-            nodes.add(0, target);
-            nodes.remove(self);
-        }
+        List<Cluster.Node> nodes = replicasHolder.getReplicas(from, target);
 
-        request.addHeader(HEADER_HANDLE_LOCALLY);
-        List<ForkJoinTask<DTO>> forks = fork(nodes, request);
+        var pollResultsHandler = new ReplicasPollResultsHandler();
+        var pollRecursiveTask = new ReplicasPollRecursiveTask(ask, nodes, request, pollResultsHandler);
+        Response result = pollRecursiveTask.invoke();
 
-        // to do: calculate access time for each host
-        // to do: make non-blocking HttpClient
-
-        List<DTO> answers = new ArrayList<>(ask);
-        ListIterator<ForkJoinTask<DTO>> iterator = forks.listIterator();
-        while (iterator.hasNext() && answers.size() < ask) {
-            DTO answer = iterator.next().join();
-            if (answer != null && answer.isOk) {
-                answers.add(answer);
-            }
-            iterator.remove();
-        }
-
-        parseResults(ask, answers, session);
-
-        // to do: make synchronization (repair)
-
-        while (iterator.hasNext()) {
-            iterator.next().quietlyJoin();
-        }
-    }
-
-    private void parseResults(int ask, List<DTO> answers, HttpSession session) throws IOException {
-        if (answers.size() < ask) {
-            session.sendError(RESPONSE_NOT_ENOUGH_REPLICAS, RESPONSE_NOT_ENOUGH_REPLICAS);
-            return;
-        }
-
-        if (dto.isOk) {
-            byte[] value = dto.value != null ? dto.value : Response.EMPTY;
-            session.sendResponse(new Response(Response.OK, value));
-        } else {
-            session.sendError(dto.responseCode, dto.errorMessage);
-        }
-    }
-
-    private List<ForkJoinTask<DTO>> fork(List<Cluster.Node> nodes, Request request) {
-        List<ForkJoinTask<DTO>> tasks = new ArrayList<>(nodes.size() + 1);
-        for (Cluster.Node node : nodes) {
-            AsyncRequestTask task = new AsyncRequestTask(request, node.httpClient, this::handleRemote);
-            tasks.add(task.fork());
-        }
-        AsyncRequestTask selfTask = new AsyncRequestTask(request, null, (r, c) -> handleLocally(r));
-        tasks.add(0, selfTask.fork());
-        return tasks;
+        session.sendResponse(result);
     }
 
     /**
@@ -124,44 +80,51 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
             return true;
         }
 
-        String param = request.getParameter("replicas=");
-        int[] askFrom = parseAskFromParameter(param);
+        int[] askFrom;
+        try {
+            String param = request.getParameter("replicas=");
+            askFrom = parseAskFromParameter(param);
+        } catch (ClientBadRequestException e) {
+            return true;
+        }
 
-        return replicasHolder.getReplicas(askFrom[1] - 1, target).contains(self);
+        return replicasHolder.getReplicas(askFrom[1], target).contains(self);
     }
 
     private int[] parseAskFromParameter(@Nullable String param) {
-        int ask = -1, from = -1;
+        int ask, from, maxFrom = replicasHolder.replicasCount + 1;
 
         if (param != null) {
             try {
                 int indexOf = param.indexOf('/');
                 ask = Integer.parseInt(param.substring(0, indexOf));
                 from = Integer.parseInt(param.substring(indexOf + 1));
-            } catch (IndexOutOfBoundsException | NumberFormatException ignored) {
-                ask = -1;
+            } catch (IndexOutOfBoundsException | NumberFormatException e) {
+                throw new ClientBadRequestException(e);
             }
-        }
-
-        int maxFrom = replicasHolder.replicasCount + 1;
-        if (param == null || ask < 1 || from < 1 || from > maxFrom || ask > from) {
+        } else {
             from = maxFrom;
             ask = quorum(from);
         }
-        return new int[]{ask, from};
+
+        if (ask < 1 || from < 1 || from > maxFrom || ask > from) {
+            throw new ClientBadRequestException(null);
+        } else {
+            return new int[]{ask, from};
+        }
     }
 
     private int quorum(int from) {
-        return (int) Math.ceil(from * 0.5);
+        return (int) Math.ceil(from * 0.51);
     }
 
-    private DTO handleLocally(@Nonnull Request request) {
-        return handleRequest(request);
+    private Response handleLocally(@Nonnull Request request) {
+        return handleReplicableRequest(request).transform();
     }
 
-    private DTO handleRemote(@Nonnull Request request, @Nonnull HttpClient client) {
+    private Response handleRemote(@Nonnull Request request, @Nonnull HttpClient client) {
         try {
-            return parseResponse(client.invoke(request));
+            return client.invoke(request);
         } catch (InterruptedException e) {
             String errorText = "Proxy error: interrupted";
             LOG.debug(errorText, e);
@@ -173,60 +136,133 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
         return null;
     }
 
-    private DTO parseResponse(Response response) {
-        byte[] body = response.getBody();
-        if (body != null) {
-            try (
-                    ByteArrayInputStream is = new ByteArrayInputStream(body);
-                    ObjectInputStream objectIs = new ObjectInputStream(is)
-            ) {
-                return (DTO) objectIs.readObject();
-            } catch (IOException | ClassNotFoundException e) {
-                LOG.debug("Exception while parsing replica's answer body", e);
-            }
-        }
-        return null;
-    }
+    private final class ReplicasPollRecursiveTask extends RecursiveTask<Response> {
 
-    private void writeDTO(DTO dto, HttpSession session) throws IOException {
-        if (!dto.isOk) {
-            session.sendError(dto.responseCode, dto.errorMessage);
-            return;
-        }
+        private final boolean master;
 
-        byte[] result;
-        try (
-                ByteArrayOutputStream os = new ByteArrayOutputStream();
-                ObjectOutputStream objectOs = new ObjectOutputStream(os)
-        ) {
-            objectOs.writeObject(dto);
-            objectOs.flush();
-            os.flush();
-            result = os.toByteArray();
-        } catch (IOException e) {
-            LOG.debug("Exception while serializing DTO", e);
-            session.sendError(Response.INTERNAL_ERROR, null);
-            return;
-        }
-        session.sendResponse(new Response(dto.responseCode, result));
-    }
-
-    private static class AsyncRequestTask extends RecursiveTask<DTO> {
+        private final int ask;
+        private final List<Cluster.Node> from;
         private final Request request;
-        private final HttpClient client;
-        private final BiFunction<Request, HttpClient, DTO> function;
+        private final ReplicasPollResultsHandler handler;
 
-        public AsyncRequestTask(
-                Request request, HttpClient client, BiFunction<Request, HttpClient, DTO> function
-        ) {
+        public ReplicasPollRecursiveTask(int ask, List<Cluster.Node> from, Request request, ReplicasPollResultsHandler handler) {
+            this.master = true;
+            this.ask = ask;
+            this.from = from;
             this.request = request;
-            this.client = client;
-            this.function = function;
+            this.handler = handler;
+        }
+
+        private ReplicasPollRecursiveTask(Cluster.Node from, Request request) {
+            this.master = false;
+            this.ask = 1;
+            this.from = Collections.singletonList(from);
+            this.request = request;
+            this.handler = null;
         }
 
         @Override
-        protected DTO compute() {
-            return function.apply(request, client);
+        protected Response compute() {
+            if (master) {
+                return master();
+            } else {
+                return slave();
+            }
+        }
+
+        private Response master() {
+            request.addHeader(HEADER_HANDLE_LOCALLY + ": 1");
+
+            List<ForkJoinTask<Response>> futures = new ArrayList<>(from.size());
+            for (Cluster.Node node : from) {
+                var task = new ReplicasPollRecursiveTask(node, request);
+                futures.add(task);
+            }
+            futures.forEach(ForkJoinTask::fork);
+
+            List<Response> results = new ArrayList<>();
+            while (true) {
+                ListIterator<ForkJoinTask<Response>> iterator = futures.listIterator();
+                while (iterator.hasNext()) {
+                    ForkJoinTask<Response> future = iterator.next();
+                    if (!future.isDone()) {
+                        continue;
+                    } else {
+                        iterator.remove();
+                    }
+
+                    Response response = future.join();
+                    if (response != null && isCorrect(response)) {
+                        results.add(response);
+                    } else {
+                        LOG.debug("Got incorrect answer from replica: " + response);
+                    }
+                }
+
+                if (results.size() >= ask || futures.isEmpty()) {
+                    return handler.handle(request, results, ask);
+                }
+
+                // to do: wait others and make repair if needed
+            }
+        }
+
+        private Response slave() {
+            Cluster.Node target = from.get(0);
+            if (target == self) {
+                return handleLocally(request);
+            } else {
+                return handleRemote(request, target.httpClient);
+            }
+        }
+
+        private boolean isCorrect(@Nonnull Response response) {
+            int status = response.getStatus();
+            return status < 500;
+        }
+    }
+
+    private static final class ReplicasPollResultsHandler {
+
+        public ReplicasPollResultsHandler() {
+            // No need.
+        }
+
+        public Response handle(Request request, List<Response> responses, int ask) {
+            int answers = responses.size();
+            if (answers < ask) {
+                return new Response(RESPONSE_NOT_ENOUGH_REPLICAS, Response.EMPTY);
+            }
+
+            if (request.getMethod() == Request.METHOD_GET) {
+                return findMostRecentData(responses);
+            } else {
+                return responses.get(0);
+            }
+        }
+
+        private Response findMostRecentData(List<Response> responses) {
+            Response mostRecentResponse = responses.get(0);
+            long mostRecentTimestamp = -1;
+
+            for (Response response : responses) {
+                String timestampHeader = response.getHeader(ServiceResponse.HEADER_TIMESTAMP);
+                if (timestampHeader == null) {
+                    continue;
+                }
+
+                long timestamp;
+                try {
+                    timestamp = Long.parseLong(timestampHeader);
+                } catch (NumberFormatException e) {
+                    timestamp = -1;
+                }
+                if (timestamp > mostRecentTimestamp) {
+                    mostRecentResponse = response;
+                    mostRecentTimestamp = timestamp;
+                }
+            }
+            return mostRecentResponse;
         }
     }
 }

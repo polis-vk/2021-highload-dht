@@ -20,7 +20,7 @@ public abstract class RoutableRequestHandler {
 
     private static final Logger LOG = LoggerFactory.getLogger(RoutableRequestHandler.class);
 
-    public final Cluster.Node self;
+    protected final Cluster.Node self;
     private final HashRouter<Cluster.Node> router;
 
     public RoutableRequestHandler(Cluster.Node self, HashRouter<Cluster.Node> router) {
@@ -29,9 +29,10 @@ public abstract class RoutableRequestHandler {
     }
 
     /**
-     * Primary key to detect node for
-     * @param request
-     * @return
+     * Defines the key for detecting the owner node.
+     *
+     * @param request target request
+     * @return string representation of the key
      */
     @Nullable
     protected abstract String getRouteKey(Request request);

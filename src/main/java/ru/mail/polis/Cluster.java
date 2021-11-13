@@ -31,6 +31,7 @@ import ru.mail.polis.sharding.HashRouter;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -139,7 +140,8 @@ public final class Cluster {
                 }
             }
             replicas.sort(comparator);
-            return replicas;
+            replicas.add(0, node);
+            return Collections.unmodifiableList(replicas);
         }
     }
 }

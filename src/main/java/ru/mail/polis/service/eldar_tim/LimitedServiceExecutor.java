@@ -5,6 +5,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.service.exceptions.ClientBadRequestException;
 import ru.mail.polis.service.exceptions.ServerRuntimeException;
+import ru.mail.polis.service.exceptions.ServiceClosedException;
 import ru.mail.polis.service.exceptions.ServiceOverloadException;
 
 import java.io.IOException;
@@ -27,6 +28,7 @@ public class LimitedServiceExecutor implements ServiceExecutor {
     private final ExecutorService delegate;
 
     private final AtomicInteger queueSize = new AtomicInteger();
+    private boolean shutdown = false;
 
     public LimitedServiceExecutor(String threadName, int defaultWorkers, int queueLimit) {
         this.queueLimit = queueLimit;
@@ -39,6 +41,10 @@ public class LimitedServiceExecutor implements ServiceExecutor {
         if (!requestExecute()) {
             handler.handleException(session, ServiceOverloadException.INSTANCE);
             return;
+        }
+
+        if (shutdown) {
+            handler.handleException(session, new ServiceClosedException());
         }
 
         delegate.execute(() -> {
@@ -74,6 +80,7 @@ public class LimitedServiceExecutor implements ServiceExecutor {
     @Override
     public void awaitAndShutdown() {
         try {
+            shutdown = true;
             delegate.shutdown();
             if (!delegate.awaitTermination(60, TimeUnit.SECONDS)) {
                 delegate.shutdownNow();

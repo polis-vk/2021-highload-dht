@@ -44,7 +44,7 @@ public final class ServiceFactory {
     /** Число рабочих потоков. */
     private static final int WORKERS_NUMBER = Runtime.getRuntime().availableProcessors();
     /** Лимит очереди запросов, после превышения которого последующие будут отвергнуты. */
-    private static final int TASKS_LIMIT = WORKERS_NUMBER * 2;
+    private static final int TASKS_LIMIT = WORKERS_NUMBER * 20;
 
     /** Число потоков, обрабатывающих прокси-запросы. */
     private static final int PROXY_THREADS = Runtime.getRuntime().availableProcessors();
