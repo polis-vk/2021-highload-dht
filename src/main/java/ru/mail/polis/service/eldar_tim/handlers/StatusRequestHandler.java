@@ -24,7 +24,7 @@ public class StatusRequestHandler extends RequestHandler {
 
     @Nonnull
     @Override
-    public ServiceResponse handleReplicableRequest(Request request) {
+    public ServiceResponse handleRequest(Request request) {
         return ServiceResponse.of(Response.ok(Response.OK));
     }
 }

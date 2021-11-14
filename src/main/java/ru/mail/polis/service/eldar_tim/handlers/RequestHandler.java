@@ -20,7 +20,7 @@ public abstract class RequestHandler extends ReplicableRequestHandler {
 
     @Nonnull
     @Override
-    protected ServiceResponse handleReplicableRequest(Request request) {
+    protected ServiceResponse handleRequest(Request request) {
         return METHOD_NOT_ALLOWED;
     }
 }

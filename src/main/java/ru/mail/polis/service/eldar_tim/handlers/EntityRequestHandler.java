@@ -32,7 +32,7 @@ public class EntityRequestHandler extends RequestHandler {
 
     @Nonnull
     @Override
-    protected ServiceResponse handleReplicableRequest(Request request) {
+    protected ServiceResponse handleRequest(Request request) {
         String id = parseId(request);
         if (id == null) {
             return ServiceResponse.of(new Response(Response.BAD_REQUEST, "Bad id".getBytes(StandardCharsets.UTF_8)));
@@ -46,7 +46,7 @@ public class EntityRequestHandler extends RequestHandler {
             case Request.METHOD_DELETE:
                 return delete(id);
             default:
-                return super.handleReplicableRequest(request);
+                return super.handleRequest(request);
         }
     }
 

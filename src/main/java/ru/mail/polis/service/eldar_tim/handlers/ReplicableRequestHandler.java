@@ -42,7 +42,7 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
     }
 
     @Nonnull
-    protected abstract ServiceResponse handleReplicableRequest(Request request);
+    protected abstract ServiceResponse handleRequest(Request request);
 
     @Override
     public final void handleRequest(Request request, HttpSession session) throws IOException {
@@ -122,10 +122,10 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
 
     private Response handleLocally(@Nonnull Request request) {
         LOG.debug("Handling locally: {}", self.getKey());
-        return handleReplicableRequest(request).transform();
+        return handleRequest(request).transform();
     }
 
-    private Response handleRemote(@Nonnull Request request, @Nonnull Cluster.Node target) {
+    private Response handleRemotely(@Nonnull Request request, @Nonnull Cluster.Node target) {
         try {
             LOG.debug("Self {}, Handling remote: {}", self.getKey(), target.getKey());
             return target.getClient().invoke(request);
@@ -190,7 +190,7 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
             if (target == self) {
                 return handleLocally(request);
             } else {
-                return handleRemote(request, target);
+                return handleRemotely(request, target);
             }
         }
 
