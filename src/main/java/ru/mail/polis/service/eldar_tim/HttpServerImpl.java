@@ -5,7 +5,6 @@ import one.nio.http.HttpServerConfig;
 import one.nio.http.HttpSession;
 import one.nio.http.PathMapper;
 import one.nio.http.Request;
-import one.nio.http.RequestHandler;
 import one.nio.http.Response;
 import one.nio.net.Session;
 import one.nio.server.AcceptorConfig;
@@ -15,7 +14,7 @@ import ru.mail.polis.Cluster;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.service.Service;
 import ru.mail.polis.service.eldar_tim.handlers.EntityRequestHandler;
-import ru.mail.polis.service.eldar_tim.handlers.RoutingRequestHandler;
+import ru.mail.polis.service.eldar_tim.handlers.RequestHandler;
 import ru.mail.polis.service.eldar_tim.handlers.StatusRequestHandler;
 import ru.mail.polis.service.exceptions.ServerRuntimeException;
 import ru.mail.polis.service.exceptions.ServiceOverloadException;
@@ -33,30 +32,32 @@ public class HttpServerImpl extends HttpServer implements Service {
 
     private final DAO dao;
     private final Cluster.Node self;
-    private final Cluster.ReplicasManager replicasManager;
+    private final Cluster.ReplicasHolder replicasHolder;
     private final HashRouter<Cluster.Node> router;
     private final ServiceExecutor workers;
     private final ServiceExecutor proxies;
 
     private final PathMapper pathMapper;
-    private final RequestHandler statusHandler;
+    private final one.nio.http.RequestHandler statusHandler;
 
     public HttpServerImpl(
             DAO dao, Cluster.Node self,
-            Cluster.ReplicasManager replicasManager, HashRouter<Cluster.Node> router,
+            Cluster.ReplicasHolder replicasHolder, HashRouter<Cluster.Node> router,
             ServiceExecutor workers, ServiceExecutor proxies
     ) throws IOException {
         super(buildHttpServerConfig(self.port));
         this.dao = dao;
         this.self = self;
-        this.replicasManager = replicasManager;
+        this.replicasHolder = replicasHolder;
         this.router = router;
         this.workers = workers;
         this.proxies = proxies;
 
         pathMapper = new PathMapper();
-        statusHandler = new StatusRequestHandler(replicasManager, self, router);
+        statusHandler = new StatusRequestHandler(self, router, replicasHolder);
         mapPaths();
+
+        LOG.info("{}: server is running now", self.getKey());
     }
 
     private static HttpServerConfig buildHttpServerConfig(final int port) {
@@ -75,27 +76,29 @@ public class HttpServerImpl extends HttpServer implements Service {
 
         pathMapper.add("/v0/entity",
                 new int[]{Request.METHOD_GET, Request.METHOD_PUT, Request.METHOD_DELETE},
-                new EntityRequestHandler(replicasManager, self, router, dao));
+                new EntityRequestHandler(self, router, replicasHolder, dao));
     }
 
     @Override
     public synchronized void stop() {
         super.stop();
+        self.close();
         workers.awaitAndShutdown();
+
+        LOG.info("{}: server has been stopped", self.getKey());
     }
 
     @Override
     public void handleRequest(Request request, HttpSession session) {
-        RoutingRequestHandler requestHandler =
-                (RoutingRequestHandler) pathMapper.find(request.getPath(), request.getMethod());
+        RequestHandler requestHandler = (RequestHandler) pathMapper.find(request.getPath(), request.getMethod());
 
         if (requestHandler == statusHandler) {
             workers.run(session, this::exceptionHandler, () -> requestHandler.handleRequest(request, session));
         } else if (requestHandler != null) {
             Cluster.Node targetNode = requestHandler.getTargetNode(request);
-            if (requestHandler.shouldParse(request, targetNode)) {
+            if (requestHandler.shouldHandleLocally(targetNode, request)) {
                 workers.execute(session, this::exceptionHandler, () ->
-                        requestHandler.handleRequest(request, session));
+                        requestHandler.handleReplicableRequest(targetNode, request, session));
             } else {
                 proxies.execute(session, this::exceptionHandler, () ->
                         requestHandler.redirect(targetNode, request, session));

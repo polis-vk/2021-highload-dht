@@ -4,7 +4,7 @@ import one.nio.http.Response;
 
 public final class ServiceOverloadException extends ServerRuntimeException {
 
-    public static ServiceOverloadException INSTANCE = new ServiceOverloadException();
+    public static final ServiceOverloadException INSTANCE = new ServiceOverloadException();
 
     ServiceOverloadException() {
         super();

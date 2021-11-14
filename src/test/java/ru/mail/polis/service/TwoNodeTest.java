@@ -16,6 +16,7 @@
 
 package ru.mail.polis.service;
 
+import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
@@ -339,6 +340,45 @@ class TwoNodeTest extends ClusterTestBase {
                 stop(node);
             }
             assertEquals(1, copies);
+        });
+    }
+
+    @Test
+    @Disabled("Not implemented functionality")
+    void repairCheck() {
+        assertTimeoutPreemptively(TIMEOUT, () -> {
+            final String key = randomId();
+            final byte[] value = randomValue();
+
+            // Stopping 1
+            stop(1);
+
+            // Insert at 0
+            assertEquals(201, upsert(0, key, value, 1, 2).getStatus());
+
+            // Stopping 0
+            stop(0);
+
+            // Starting 1
+            createAndStart(1);
+
+            // Check 1
+            assertEquals(404, get(1, key, 1, 2).getStatus());
+
+            // Starting 0
+            createAndStart(0);
+
+            // Check 0 & 1
+            assertEquals(200, get(0, key, 2, 2).getStatus());
+
+            // Help implementors with ms precision for conflict resolution
+            waitForVersionAdvancement();
+
+            // Stopping 0
+            stop(0);
+
+            // Check repair between 0 & 1
+            assertEquals(200, get(1, key, 1, 2).getStatus());
         });
     }
 }

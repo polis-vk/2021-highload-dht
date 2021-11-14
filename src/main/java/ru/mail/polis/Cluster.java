@@ -31,6 +31,7 @@ import ru.mail.polis.sharding.HashRouter;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -90,55 +91,82 @@ public final class Cluster {
     public static class Node implements ru.mail.polis.sharding.Node {
         public final String ip;
         public final int port;
-        public final HttpClient httpClient;
+        private final ConnectionString connectionString;
+
+        private volatile HttpClient httpClient;
 
         public Node(ConnectionString connectionString) {
+            this.connectionString = connectionString;
             this.ip = connectionString.getHost();
             this.port = connectionString.getPort();
-            this.httpClient = new HttpClient(connectionString);
         }
 
         @Override
         public String getKey() {
             return ip + ":" + port;
         }
+
+        public Node init() {
+            httpClient = new HttpClient(connectionString);
+            return this;
+        }
+
+        public void close() {
+            httpClient.close();
+        }
+
+        public HttpClient getClient() {
+            return httpClient;
+        }
     }
 
-    public static class ReplicasManager {
+    public static class ReplicasHolder {
         public final int replicasCount;
-        private final Map<Node, List<Node>> replicas = new HashMap<>();
+        private final Map<Node, List<Node>> replicas;
 
-        public ReplicasManager(Set<Node> topology, Comparator<Node> comparator) {
-            this.replicasCount = topology.size() > 3 ? 3 : topology.size() - 1;
+        public ReplicasHolder(int maxReplicas, Set<Node> topology, Comparator<Node> comparator) {
+            if (maxReplicas < 1) {
+                throw new IllegalArgumentException("max. replicas < 1");
+            } else if (maxReplicas > topology.size()) {
+                throw new IllegalArgumentException("max. replicas > nodes in topology (=" + topology.size() + ")");
+            }
 
-            HashRouter<Node> router = new ConsistentHashRouter<>(topology, 100, new HashFunction.HashMD5());
+            replicasCount = maxReplicas;
+            replicas = new HashMap<>(replicasCount);
+
+            HashRouter<Node> router = new ConsistentHashRouter<>(topology, 30, new HashFunction.HashXXH3());
             for (Node node : topology) {
-                replicas.computeIfAbsent(node, key -> calcReplicas(node, router, comparator));
+                replicas.computeIfAbsent(node, key -> computeReplicas(node, router, comparator));
 
                 StringJoiner joiner = new StringJoiner(", ");
-                replicas.get(node).forEach(n -> joiner.add(n.getKey()));
-                LOG.info("Created replicas for node " + node.getKey() + ": {}", joiner);
+                replicas.get(node).forEach(n -> {
+                    if (n != node) {
+                        joiner.add(n.getKey());
+                    }
+                });
+                LOG.info("Created replicas for node {}: {}", node.getKey(), joiner);
             }
         }
 
-        public List<Node> getAllReplicas(Node node) {
-            return replicas.get(node);
+        public List<Node> getBunch(Node target) {
+            return replicas.get(target);
         }
 
-        public List<Node> getAskReplicas(int count, Node node) {
-            return replicas.get(node).subList(0, count);
+        public List<Node> getBunch(Node target, int max) {
+            return getBunch(target).subList(0, max);
         }
 
-        private List<Node> calcReplicas(Node node, HashRouter<Node> router, Comparator<Node> comparator) {
-            List<Node> replicas = new ArrayList<>();
+        private List<Node> computeReplicas(Node node, HashRouter<Node> router, Comparator<Node> comparator) {
+            Set<Node> replicas = new HashSet<>();
             for (int i = 0; replicas.size() < replicasCount; i++) {
                 Node next = router.route(node.getKey() + ":" + i);
-                if (next != node) {
-                    replicas.add(next);
-                }
+                replicas.add(next);
             }
-            replicas.sort(comparator);
-            return replicas;
+
+            List<Node> replicasList = new ArrayList<>(replicas.size());
+            replicasList.addAll(replicas);
+            replicasList.sort(comparator);
+            return Collections.unmodifiableList(replicasList);
         }
     }
 }

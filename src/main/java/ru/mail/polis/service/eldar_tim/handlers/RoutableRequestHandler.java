@@ -16,20 +16,24 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
-public abstract class RoutingRequestHandler extends ReplicableRequestHandler {
+public abstract class RoutableRequestHandler {
 
-    private static final Logger LOG = LoggerFactory.getLogger(RoutingRequestHandler.class);
+    private static final Logger LOG = LoggerFactory.getLogger(RoutableRequestHandler.class);
 
+    protected final Cluster.Node self;
     private final HashRouter<Cluster.Node> router;
 
-    public RoutingRequestHandler(
-            Cluster.ReplicasManager replicasManager, Cluster.Node self,
-            HashRouter<Cluster.Node> router
-    ) {
-        super(replicasManager, self);
+    public RoutableRequestHandler(Cluster.Node self, HashRouter<Cluster.Node> router) {
+        this.self = self;
         this.router = router;
     }
 
+    /**
+     * Defines the key for detecting the owner node.
+     *
+     * @param request target request
+     * @return string representation of the key
+     */
     @Nullable
     protected abstract String getRouteKey(Request request);
 
@@ -59,7 +63,7 @@ public abstract class RoutingRequestHandler extends ReplicableRequestHandler {
     public final void redirect(Cluster.Node target, Request request, HttpSession session) throws IOException {
         Response response;
         try {
-            response = target.httpClient.invoke(request);
+            response = target.getClient().invoke(request);
         } catch (InterruptedException e) {
             String errorText = "Proxy error: interrupted";
             LOG.debug(errorText, e);
