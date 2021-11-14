@@ -56,9 +56,11 @@ public class EntityRequestHandler extends RequestHandler {
         if (iterator.hasNext()) {
             Record next = iterator.next();
             if (next.isTombstone()) {
-                return ServiceResponse.of(new Response(Response.NOT_FOUND, Response.EMPTY), next.getTimestamp());
+                return ServiceResponse.of(new Response(Response.NOT_FOUND, Response.EMPTY),
+                        next.getTimestamp());
             } else {
-                return ServiceResponse.of(new Response(Response.OK, extractBytes(next.getValue())), next.getTimestamp());
+                return ServiceResponse.of(new Response(Response.OK, extractBytes(next.getValue())),
+                        next.getTimestamp());
             }
         } else {
             return ServiceResponse.of(new Response(Response.NOT_FOUND, Response.EMPTY));
@@ -79,7 +81,7 @@ public class EntityRequestHandler extends RequestHandler {
     }
 
     @Nullable
-    private String parseId(Request request)  {
+    private String parseId(Request request) {
         String id = request.getParameter("id=");
         return (id == null || id.isEmpty()) ? null : id;
     }

@@ -92,7 +92,8 @@ public final class ServiceFactory {
 
         Comparator<Cluster.Node> comparator = Comparator.comparing(Cluster.Node::getKey);
         Cluster.ReplicasHolder replicasHolder = REPLICAS.computeIfAbsent(topology.hashCode(),
-                key -> new Cluster.ReplicasHolder(Math.min(REPLICAS_NUMBER, topology.size()), clusterNodes, comparator));
+                key -> new Cluster.ReplicasHolder(Math.min(REPLICAS_NUMBER, topology.size()),
+                        clusterNodes, comparator));
 
         Cluster.Node currentNode = findClusterNode(port, clusterNodes).init();
         HashRouter<Cluster.Node> hashRouter = new ConsistentHashRouter<>(clusterNodes, 30);

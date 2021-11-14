@@ -30,6 +30,7 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
     private static final String RESPONSE_NOT_ENOUGH_REPLICAS = "504 Not Enough Replicas";
 
     private final Cluster.ReplicasHolder replicasHolder;
+    private final ReplicasPollResultsHandler pollResultsHandler;
 
     public ReplicableRequestHandler(
             Cluster.Node self, HashRouter<Cluster.Node> router,
@@ -37,6 +38,7 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
     ) {
         super(self, router);
         this.replicasHolder = replicasHolder;
+        this.pollResultsHandler = new ReplicasPollResultsHandler();
     }
 
     @Nonnull
@@ -59,8 +61,7 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
 
         List<Cluster.Node> replicas = replicasHolder.getBunch(target, from);
 
-        var pollResultsHandler = new ReplicasPollResultsHandler();
-        var pollRecursiveTask = new ReplicasPollRecursiveTask(ask, replicas, request, pollResultsHandler);
+        var pollRecursiveTask = new ReplicasPollRecursiveTask(ask, replicas, request);
         Response result = pollRecursiveTask.invoke();
 
         session.sendResponse(result);
@@ -144,17 +145,15 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
         private final int ask;
         private final List<Cluster.Node> from;
         private final Request request;
-        private final ReplicasPollResultsHandler handler;
 
         public ReplicasPollRecursiveTask(
-                int ask, List<Cluster.Node> from, Request request, ReplicasPollResultsHandler handler
+                int ask, List<Cluster.Node> from, Request request
         ) {
             super();
             this.master = true;
             this.ask = ask;
             this.from = from;
             this.request = request;
-            this.handler = handler;
         }
 
         private ReplicasPollRecursiveTask(Cluster.Node from, Request request) {
@@ -163,7 +162,6 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
             this.ask = 1;
             this.from = Collections.singletonList(from);
             this.request = request;
-            this.handler = null;
         }
 
         @Override
@@ -184,6 +182,19 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
                 futures.add(task.fork());
             }
 
+            return parseFutures(futures);
+        }
+
+        private Response slave() {
+            Cluster.Node target = from.get(0);
+            if (target == self) {
+                return handleLocally(request);
+            } else {
+                return handleRemote(request, target);
+            }
+        }
+
+        private Response parseFutures(List<ForkJoinTask<Response>> futures) {
             List<Response> results = new ArrayList<>();
             while (true) {
                 ListIterator<ForkJoinTask<Response>> iterator = futures.listIterator();
@@ -204,19 +215,10 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
                 }
 
                 if (results.size() >= ask || futures.isEmpty()) {
-                    return handler.handle(results, ask);
+                    return pollResultsHandler.handle(results, ask);
                 }
 
                 // to do: wait others and make repair if needed
-            }
-        }
-
-        private Response slave() {
-            Cluster.Node target = from.get(0);
-            if (target == self) {
-                return handleLocally(request);
-            } else {
-                return handleRemote(request, target);
             }
         }
 
