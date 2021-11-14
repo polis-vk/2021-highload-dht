@@ -91,17 +91,32 @@ public final class Cluster {
     public static class Node implements ru.mail.polis.sharding.Node {
         public final String ip;
         public final int port;
-        public final HttpClient httpClient;
+        private final ConnectionString connectionString;
+
+        private volatile HttpClient httpClient;
 
         public Node(ConnectionString connectionString) {
+            this.connectionString = connectionString;
             this.ip = connectionString.getHost();
             this.port = connectionString.getPort();
-            this.httpClient = new HttpClient(connectionString);
         }
 
         @Override
         public String getKey() {
             return ip + ":" + port;
+        }
+
+        public Node init() {
+            httpClient = new HttpClient(connectionString);
+            return this;
+        }
+
+        public void close() {
+            httpClient.close();
+        }
+
+        public HttpClient getClient() {
+            return httpClient;
         }
     }
 

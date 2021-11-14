@@ -1,6 +1,5 @@
 package ru.mail.polis.service.eldar_tim.handlers;
 
-import one.nio.http.HttpClient;
 import one.nio.http.HttpException;
 import one.nio.http.HttpSession;
 import one.nio.http.Request;
@@ -119,17 +118,19 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
     }
 
     private Response handleLocally(@Nonnull Request request) {
+        LOG.debug("Handling locally: {}", self.getKey());
         return handleReplicableRequest(request).transform();
     }
 
-    private Response handleRemote(@Nonnull Request request, @Nonnull HttpClient client) {
+    private Response handleRemote(@Nonnull Request request, @Nonnull Cluster.Node target) {
         try {
-            return client.invoke(request);
+            LOG.debug("Self {}, Handling remote: {}", self.getKey(), target.getKey());
+            return target.getClient().invoke(request);
         } catch (InterruptedException e) {
             LOG.debug("Proxy error: interrupted", e);
             Thread.currentThread().interrupt();
         } catch (PoolException | IOException | HttpException e) {
-            LOG.debug("Proxy error", e);
+            LOG.debug("Proxy execution error on {}:\n{}", target.getKey(), e.getMessage());
         }
         return null;
     }
@@ -192,8 +193,13 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
                     if (response != null && isCorrect(response)) {
                         results.add(response);
                     } else {
-                        LOG.debug("Got incorrect answer from replica {}: ", response);
+                        LOG.debug("Got incorrect answer from replica: {}", response);
                     }
+                }
+
+                if (results.size() < ask && futures.isEmpty()) {
+                    var r = handler.handle(results, ask);
+//                    LOG.debug("" + r);
                 }
 
                 if (results.size() >= ask || futures.isEmpty()) {
@@ -209,7 +215,7 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
             if (target == self) {
                 return handleLocally(request);
             } else {
-                return handleRemote(request, target.httpClient);
+                return handleRemote(request, target);
             }
         }
 

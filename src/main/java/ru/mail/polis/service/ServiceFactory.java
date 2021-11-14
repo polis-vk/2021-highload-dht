@@ -94,7 +94,7 @@ public final class ServiceFactory {
         Cluster.ReplicasHolder replicasHolder = REPLICAS.computeIfAbsent(topology.hashCode(),
                 key -> new Cluster.ReplicasHolder(REPLICAS_NUMBER, clusterNodes, comparator));
 
-        Cluster.Node currentNode = findClusterNode(port, clusterNodes);
+        Cluster.Node currentNode = findClusterNode(port, clusterNodes).init();
         HashRouter<Cluster.Node> hashRouter = new ConsistentHashRouter<>(clusterNodes, 30);
 
         ServiceExecutor workers = new LimitedServiceExecutor("worker", WORKERS_NUMBER, TASKS_LIMIT);

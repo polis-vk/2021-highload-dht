@@ -63,7 +63,7 @@ public abstract class RoutableRequestHandler {
     public final void redirect(Cluster.Node target, Request request, HttpSession session) throws IOException {
         Response response;
         try {
-            response = target.httpClient.invoke(request);
+            response = target.getClient().invoke(request);
         } catch (InterruptedException e) {
             String errorText = "Proxy error: interrupted";
             LOG.debug(errorText, e);

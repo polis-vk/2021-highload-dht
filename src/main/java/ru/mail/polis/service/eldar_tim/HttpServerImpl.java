@@ -13,8 +13,8 @@ import org.slf4j.LoggerFactory;
 import ru.mail.polis.Cluster;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.service.Service;
-import ru.mail.polis.service.eldar_tim.handlers.RequestHandler;
 import ru.mail.polis.service.eldar_tim.handlers.EntityRequestHandler;
+import ru.mail.polis.service.eldar_tim.handlers.RequestHandler;
 import ru.mail.polis.service.eldar_tim.handlers.StatusRequestHandler;
 import ru.mail.polis.service.exceptions.ServerRuntimeException;
 import ru.mail.polis.service.exceptions.ServiceOverloadException;
@@ -56,6 +56,8 @@ public class HttpServerImpl extends HttpServer implements Service {
         pathMapper = new PathMapper();
         statusHandler = new StatusRequestHandler(self, router, replicasHolder);
         mapPaths();
+
+        LOG.info(self.getKey() + ": server is running now");
     }
 
     private static HttpServerConfig buildHttpServerConfig(final int port) {
@@ -80,7 +82,10 @@ public class HttpServerImpl extends HttpServer implements Service {
     @Override
     public synchronized void stop() {
         super.stop();
+        self.close();
         workers.awaitAndShutdown();
+
+        LOG.info(self.getKey() + ": server has been stopped");
     }
 
     @Override
