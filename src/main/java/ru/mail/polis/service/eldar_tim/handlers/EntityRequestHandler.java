@@ -52,10 +52,14 @@ public class EntityRequestHandler extends RequestHandler {
 
     private ServiceResponse get(@Nonnull String id) {
         ByteBuffer key = ByteBuffer.wrap(id.getBytes(StandardCharsets.UTF_8));
-        final Iterator<Record> iterator = dao.range(key, DAO.nextKey(key));
+        final Iterator<Record> iterator = dao.range(key, DAO.nextKey(key), true);
         if (iterator.hasNext()) {
             Record next = iterator.next();
-            return ServiceResponse.of(new Response(Response.OK, extractBytes(next.getValue())), next.getTimestamp());
+            if (next.isTombstone()) {
+                return ServiceResponse.of(new Response(Response.NOT_FOUND, Response.EMPTY), next.getTimestamp());
+            } else {
+                return ServiceResponse.of(new Response(Response.OK, extractBytes(next.getValue())), next.getTimestamp());
+            }
         } else {
             return ServiceResponse.of(new Response(Response.NOT_FOUND, Response.EMPTY));
         }

@@ -51,8 +51,8 @@ public final class ServiceFactory {
     /** Лимит очереди на выполнение прокси-запросов, после превышения которого последующие будут отвергнуты. */
     private static final int PROXY_LIMIT = PROXY_THREADS * 2;
 
-    /** Число репликаций для каждого узла. */
-    private static final int REPLICAS_NUMBER = 2;
+    /** Число репликаций для каждого узла, включая сам узел. Минимальное значение = 1. */
+    private static final int REPLICAS_NUMBER = 3;
 
     private static final Map<Integer, Set<Cluster.Node>> TOPOLOGIES = new ConcurrentHashMap<>();
     private static final Map<Integer, Cluster.ReplicasHolder> REPLICAS = new ConcurrentHashMap<>();

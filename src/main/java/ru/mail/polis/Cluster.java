@@ -110,38 +110,42 @@ public final class Cluster {
         private final Map<Node, List<Node>> replicas = new HashMap<>();
 
         public ReplicasHolder(int maxReplicas, Set<Node> topology, Comparator<Node> comparator) {
-            maxReplicas = Math.max(maxReplicas, 0);
-            this.replicasCount = topology.size() > maxReplicas ? maxReplicas : topology.size() - 1;
+            maxReplicas = Math.max(maxReplicas, 1);
+            this.replicasCount = Math.min(maxReplicas, topology.size());
 
-            HashRouter<Node> router = new ConsistentHashRouter<>(topology, 100, new HashFunction.HashMD5());
+            HashRouter<Node> router = new ConsistentHashRouter<>(topology, 30, new HashFunction.HashXXH3());
             for (Node node : topology) {
                 replicas.computeIfAbsent(node, key -> computeReplicas(node, router, comparator));
 
                 StringJoiner joiner = new StringJoiner(", ");
-                replicas.get(node).forEach(n -> joiner.add(n.getKey()));
+                replicas.get(node).forEach(n -> {
+                    if (n != node) {
+                        joiner.add(n.getKey());
+                    }
+                });
                 LOG.info("Created replicas for node " + node.getKey() + ": {}", joiner);
             }
         }
 
-        public List<Node> getReplicas(Node node) {
-            return replicas.get(node);
+        public List<Node> getBunch(Node target) {
+            return replicas.get(target);
         }
 
-        public List<Node> getReplicas(int count, Node node) {
-            return replicas.get(node).subList(0, count);
+        public List<Node> getBunch(Node target, int max) {
+            return getBunch(target).subList(0, max);
         }
 
         private List<Node> computeReplicas(Node node, HashRouter<Node> router, Comparator<Node> comparator) {
-            List<Node> replicas = new ArrayList<>();
+            Set<Node> replicas = new HashSet<>();
             for (int i = 0; replicas.size() < replicasCount; i++) {
                 Node next = router.route(node.getKey() + ":" + i);
-                if (next != node) {
-                    replicas.add(next);
-                }
+                replicas.add(next);
             }
-            replicas.sort(comparator);
-            replicas.add(0, node);
-            return Collections.unmodifiableList(replicas);
+
+            List<Node> replicasList = new ArrayList<>(replicas.size());
+            replicasList.addAll(replicas);
+            replicasList.sort(comparator);
+            return Collections.unmodifiableList(replicasList);
         }
     }
 }

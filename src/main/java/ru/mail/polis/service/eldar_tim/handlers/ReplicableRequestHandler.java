@@ -50,7 +50,7 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
 
     public void handleReplicableRequest(Cluster.Node target, Request request, HttpSession session) throws IOException {
         if (request.getHeader(HEADER_HANDLE_LOCALLY) != null) {
-            session.sendResponse(handleLocally(request));
+            handleRequest(request, session);
             return;
         }
 
@@ -58,10 +58,10 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
         int ask = askFrom[0];
         int from = askFrom[1];
 
-        List<Cluster.Node> nodes = replicasHolder.getReplicas(from, target);
+        List<Cluster.Node> replicas = replicasHolder.getBunch(target, from);
 
         var pollResultsHandler = new ReplicasPollResultsHandler();
-        var pollRecursiveTask = new ReplicasPollRecursiveTask(ask, nodes, request, pollResultsHandler);
+        var pollRecursiveTask = new ReplicasPollRecursiveTask(ask, replicas, request, pollResultsHandler);
         Response result = pollRecursiveTask.invoke();
 
         session.sendResponse(result);
@@ -88,11 +88,11 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
             return true;
         }
 
-        return replicasHolder.getReplicas(askFrom[1], target).contains(self);
+        return replicasHolder.getBunch(target, askFrom[1]).contains(self);
     }
 
     private int[] parseAskFromParameter(@Nullable String param) {
-        int ask, from, maxFrom = replicasHolder.replicasCount + 1;
+        int ask, from, maxFrom = replicasHolder.replicasCount;
 
         if (param != null) {
             try {
@@ -126,12 +126,10 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
         try {
             return client.invoke(request);
         } catch (InterruptedException e) {
-            String errorText = "Proxy error: interrupted";
-            LOG.debug(errorText, e);
+            LOG.debug("Proxy error: interrupted", e);
             Thread.currentThread().interrupt();
         } catch (PoolException | IOException | HttpException e) {
-            String errorText = "Proxy error: " + e.getMessage();
-            LOG.debug(errorText, e);
+            LOG.debug("Proxy error", e);
         }
         return null;
     }
@@ -176,9 +174,8 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
             List<ForkJoinTask<Response>> futures = new ArrayList<>(from.size());
             for (Cluster.Node node : from) {
                 var task = new ReplicasPollRecursiveTask(node, request);
-                futures.add(task);
+                futures.add(task.fork());
             }
-            futures.forEach(ForkJoinTask::fork);
 
             List<Response> results = new ArrayList<>();
             while (true) {
@@ -195,12 +192,12 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
                     if (response != null && isCorrect(response)) {
                         results.add(response);
                     } else {
-                        LOG.debug("Got incorrect answer from replica: " + response);
+                        LOG.debug("Got incorrect answer from replica {}: ", response);
                     }
                 }
 
                 if (results.size() >= ask || futures.isEmpty()) {
-                    return handler.handle(request, results, ask);
+                    return handler.handle(results, ask);
                 }
 
                 // to do: wait others and make repair if needed
@@ -228,20 +225,16 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
             // No need.
         }
 
-        public Response handle(Request request, List<Response> responses, int ask) {
+        public Response handle(List<Response> responses, int ask) {
             int answers = responses.size();
             if (answers < ask) {
                 return new Response(RESPONSE_NOT_ENOUGH_REPLICAS, Response.EMPTY);
-            }
-
-            if (request.getMethod() == Request.METHOD_GET) {
-                return findMostRecentData(responses);
             } else {
-                return responses.get(0);
+                return findMostRecent(responses);
             }
         }
 
-        private Response findMostRecentData(List<Response> responses) {
+        private Response findMostRecent(List<Response> responses) {
             Response mostRecentResponse = responses.get(0);
             long mostRecentTimestamp = -1;
 
@@ -253,8 +246,8 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
 
                 long timestamp;
                 try {
-                    timestamp = Long.parseLong(timestampHeader);
-                } catch (NumberFormatException e) {
+                    timestamp = Long.parseLong(timestampHeader, 2, timestampHeader.length(), 10);
+                } catch (IndexOutOfBoundsException | NumberFormatException e) {
                     timestamp = -1;
                 }
                 if (timestamp > mostRecentTimestamp) {
