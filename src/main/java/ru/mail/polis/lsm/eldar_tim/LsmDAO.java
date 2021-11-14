@@ -95,7 +95,6 @@ public class LsmDAO implements DAO {
                 return;
             }
 
-            executorCompact.await(); // remove or change after supporting ByteBuffer with files over 2Gb
             executorCompact.execute(context -> {
                 try {
                     LOG.info("Compacting...");
@@ -148,7 +147,7 @@ public class LsmDAO implements DAO {
                     throw new UncheckedIOException("Flush error", e);
                 }
             }
-            // compact(); need to support ByteBuffer with files over 2Gb first
+            compact();
         });
     }
 
