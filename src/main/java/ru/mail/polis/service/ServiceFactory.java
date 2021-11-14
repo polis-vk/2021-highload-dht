@@ -44,7 +44,7 @@ public final class ServiceFactory {
     /** Число рабочих потоков. */
     private static final int WORKERS_NUMBER = Runtime.getRuntime().availableProcessors();
     /** Лимит очереди запросов, после превышения которого последующие будут отвергнуты. */
-    private static final int TASKS_LIMIT = WORKERS_NUMBER * 20;
+    private static final int TASKS_LIMIT = WORKERS_NUMBER * 2;
 
     /** Число потоков, обрабатывающих прокси-запросы. */
     private static final int PROXY_THREADS = Runtime.getRuntime().availableProcessors();
@@ -92,7 +92,7 @@ public final class ServiceFactory {
 
         Comparator<Cluster.Node> comparator = Comparator.comparing(Cluster.Node::getKey);
         Cluster.ReplicasHolder replicasHolder = REPLICAS.computeIfAbsent(topology.hashCode(),
-                key -> new Cluster.ReplicasHolder(REPLICAS_NUMBER, clusterNodes, comparator));
+                key -> new Cluster.ReplicasHolder(Math.min(REPLICAS_NUMBER, topology.size()), clusterNodes, comparator));
 
         Cluster.Node currentNode = findClusterNode(port, clusterNodes).init();
         HashRouter<Cluster.Node> hashRouter = new ConsistentHashRouter<>(clusterNodes, 30);

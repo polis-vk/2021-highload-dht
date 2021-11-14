@@ -57,7 +57,7 @@ public class HttpServerImpl extends HttpServer implements Service {
         statusHandler = new StatusRequestHandler(self, router, replicasHolder);
         mapPaths();
 
-        LOG.info(self.getKey() + ": server is running now");
+        LOG.info("{}: server is running now", self.getKey());
     }
 
     private static HttpServerConfig buildHttpServerConfig(final int port) {
@@ -85,7 +85,7 @@ public class HttpServerImpl extends HttpServer implements Service {
         self.close();
         workers.awaitAndShutdown();
 
-        LOG.info(self.getKey() + ": server has been stopped");
+        LOG.info("{}: server has been stopped", self.getKey());
     }
 
     @Override

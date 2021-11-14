@@ -122,11 +122,17 @@ public final class Cluster {
 
     public static class ReplicasHolder {
         public final int replicasCount;
-        private final Map<Node, List<Node>> replicas = new HashMap<>();
+        private final Map<Node, List<Node>> replicas;
 
         public ReplicasHolder(int maxReplicas, Set<Node> topology, Comparator<Node> comparator) {
-            maxReplicas = Math.max(maxReplicas, 1);
-            this.replicasCount = Math.min(maxReplicas, topology.size());
+            if (maxReplicas < 1) {
+                throw new IllegalArgumentException("max. replicas < 1");
+            } else if (maxReplicas > topology.size()) {
+                throw new IllegalArgumentException("max. replicas > nodes in topology (=" + topology.size() + ")");
+            }
+
+            replicasCount = maxReplicas;
+            replicas = new HashMap<>(replicasCount);
 
             HashRouter<Node> router = new ConsistentHashRouter<>(topology, 30, new HashFunction.HashXXH3());
             for (Node node : topology) {
@@ -138,7 +144,7 @@ public final class Cluster {
                         joiner.add(n.getKey());
                     }
                 });
-                LOG.info("Created replicas for node " + node.getKey() + ": {}", joiner);
+                LOG.info("Created replicas for node {}: {}", node.getKey(), joiner);
             }
         }
 

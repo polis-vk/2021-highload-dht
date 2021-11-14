@@ -4,7 +4,7 @@ import one.nio.http.Response;
 
 import javax.annotation.Nonnull;
 
-public class ServiceResponse {
+public final class ServiceResponse {
 
     public static final String HEADER_TIMESTAMP = "Service-Data-Timestamp";
 

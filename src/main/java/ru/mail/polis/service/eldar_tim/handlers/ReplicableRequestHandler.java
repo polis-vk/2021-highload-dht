@@ -91,7 +91,9 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
     }
 
     private int[] parseAskFromParameter(@Nullable String param) {
-        int ask, from, maxFrom = replicasHolder.replicasCount;
+        int ask;
+        int from;
+        int maxFrom = replicasHolder.replicasCount;
 
         if (param != null) {
             try {
@@ -144,7 +146,10 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
         private final Request request;
         private final ReplicasPollResultsHandler handler;
 
-        public ReplicasPollRecursiveTask(int ask, List<Cluster.Node> from, Request request, ReplicasPollResultsHandler handler) {
+        public ReplicasPollRecursiveTask(
+                int ask, List<Cluster.Node> from, Request request, ReplicasPollResultsHandler handler
+        ) {
+            super();
             this.master = true;
             this.ask = ask;
             this.from = from;
@@ -153,6 +158,7 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
         }
 
         private ReplicasPollRecursiveTask(Cluster.Node from, Request request) {
+            super();
             this.master = false;
             this.ask = 1;
             this.from = Collections.singletonList(from);
@@ -195,11 +201,6 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
                     } else {
                         LOG.debug("Got incorrect answer from replica: {}", response);
                     }
-                }
-
-                if (results.size() < ask && futures.isEmpty()) {
-                    var r = handler.handle(results, ask);
-//                    LOG.debug("" + r);
                 }
 
                 if (results.size() >= ask || futures.isEmpty()) {
