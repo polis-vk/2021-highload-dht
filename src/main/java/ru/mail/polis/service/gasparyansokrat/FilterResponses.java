@@ -6,10 +6,7 @@ import ru.mail.polis.lsm.Record;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
-import java.sql.Timestamp;
 import java.util.List;
-import java.util.NavigableMap;
-import java.util.TreeMap;
 
 final class FilterResponses {
 
@@ -55,10 +52,8 @@ final class FilterResponses {
         if (ack < requireAck) {
             return new Response(ClusterService.BAD_REPLICAS, Response.EMPTY);
         }
-        if (freshEntry != null) {
-            if (!freshEntry.isTombstone()) {
-                return new Response(Response.OK, freshEntry.getBytesValue());
-            }
+        if (freshEntry != null && !freshEntry.isTombstone()) {
+            return new Response(Response.OK, freshEntry.getBytesValue());
         }
         return new Response(Response.NOT_FOUND, Response.EMPTY);
     }
