@@ -81,9 +81,6 @@ public class ServiceImpl extends HttpServer implements Service {
     private Map<String, String> parseParameters(final Request request) {
         Map<String, String> parameters = new HashMap<>();
         String id = getParamRequest(request, "id");
-        if (id.isEmpty()) {
-            return null;
-        }
         parameters.put("id", id);
         String ackFrom = getParamRequest(request, "replicas");
         if (ackFrom.isEmpty()) {
@@ -91,11 +88,6 @@ public class ServiceImpl extends HttpServer implements Service {
             parameters.put("from", String.valueOf(clusterService.getClusterSize()));
         } else {
             String[] ackfrom = ackFrom.split("/");
-            final int numNodes = Integer.parseInt(ackfrom[0]);
-            final int maxNodes = Integer.parseInt(ackfrom[1]);
-            if (numNodes > maxNodes) {
-                return null;
-            }
             parameters.put("ack", ackfrom[0]);
             parameters.put("from", ackfrom[1]);
         }
@@ -128,11 +120,7 @@ public class ServiceImpl extends HttpServer implements Service {
     }
 
     private String getParamRequest(final Request request, final String nameParam) {
-        String param = "";
         Iterator<String> params = request.getParameters(nameParam);
-        if (params.hasNext()) {
-            param = params.next().substring(1);
-        }
-        return param;
+        return params.hasNext() ? params.next().substring(1) : "";
     }
 }

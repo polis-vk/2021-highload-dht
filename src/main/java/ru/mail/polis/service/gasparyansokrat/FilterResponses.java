@@ -32,26 +32,32 @@ final class FilterResponses {
     }
 
     private static Response filterGetResponse(final List<Response> responses, final int requireAck) {
-        NavigableMap<Timestamp, Record> filterResponse = new TreeMap<>();
         int ack = 0;
-        for (Response response : responses) {
+        Record freshEntry = null;
+        for (final Response response : responses) {
             final int status = response.getStatus();
             if (status == ServiceImpl.STATUS_OK || status == ServiceImpl.STATUS_NOT_FOUND) {
-                ack += 1;
                 Record record = Record.direct(Record.DUMMY, ByteBuffer.wrap(response.getBody()));
+                ack += 1;
                 if (record.isEmpty()) {
                     continue;
                 }
-                filterResponse.put(record.getTimestamp(), record);
+                if (freshEntry == null) {
+                    freshEntry = record;
+                    continue;
+                }
+                if (record.getTimestamp().after(freshEntry.getTimestamp())) {
+                    freshEntry = record;
+                }
             }
         }
+
         if (ack < requireAck) {
             return new Response(ClusterService.BAD_REPLICAS, Response.EMPTY);
         }
-        if (!filterResponse.isEmpty()) {
-            Record sendBuffer = filterResponse.lastEntry().getValue();
-            if (!sendBuffer.isTombstone()) {
-                return new Response(Response.OK, sendBuffer.getBytesValue());
+        if (freshEntry != null) {
+            if (!freshEntry.isTombstone()) {
+                return new Response(Response.OK, freshEntry.getBytesValue());
             }
         }
         return new Response(Response.NOT_FOUND, Response.EMPTY);

@@ -48,7 +48,7 @@ public class ClusterService {
     }
 
     public Response handleRequest(final Request request, final Map<String, String> params) throws IOException {
-        if (params == null) {
+        if (params.get("id").isEmpty()) {
             return badRequest();
         }
         final int ack = Integer.parseInt(params.get("ack"));

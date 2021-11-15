@@ -2,7 +2,6 @@ package ru.mail.polis.service.gasparyansokrat;
 
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
-import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
@@ -38,13 +37,12 @@ public class ConsistentHashImpl implements ConsistentHash {
 
     @Override
     public List<String> getNodes(final String key, final int numNodes) {
-        Set<String> nodes = new HashSet<>();
         if (domainNodes.isEmpty() || numNodes > domainNodes.size()) {
             return new ArrayList<>();
         }
-        nodes.add(getNode(key));
+        List<String> nodes = new ArrayList<>();
         int hashValue = hashFunc.hash(key.getBytes(StandardCharsets.UTF_8));
-        Iterator<Integer> itHashValue = getDomainIterator(hashValue);
+        Iterator<Integer> itHashValue = domainNodes.tailMap(hashValue).keySet().iterator();
         String node;
         while (nodes.size() != numNodes) {
             if (itHashValue.hasNext()) {
@@ -56,15 +54,6 @@ public class ConsistentHashImpl implements ConsistentHash {
             nodes.add(node);
         }
 
-        return new ArrayList<>(nodes);
-    }
-
-    private Iterator<Integer> getDomainIterator(int hashValue) {
-        SortedMap<Integer, String> tailMap = domainNodes.tailMap(hashValue);
-        if (tailMap.isEmpty()) {
-            return domainNodes.keySet().iterator();
-        } else {
-            return tailMap.keySet().iterator();
-        }
+        return nodes;
     }
 }

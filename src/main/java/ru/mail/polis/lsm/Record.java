@@ -24,7 +24,7 @@ import java.sql.Timestamp;
 public class Record {
 
     private static final short JUST_VALUE = 0;
-    private static final short USETIME = 1;
+    private static final short USE_TIME = 1;
     private static final short TOMBSTONE = 2;
 
     private final ByteBuffer key;
@@ -42,10 +42,13 @@ public class Record {
     }
 
     public static Record of(ByteBuffer key, ByteBuffer value, final Timestamp time) {
-        return new Record(key.asReadOnlyBuffer(), buildValue(value, USETIME, time).asReadOnlyBuffer());
+        return new Record(key.asReadOnlyBuffer(), buildValue(value, USE_TIME, time).asReadOnlyBuffer());
     }
 
     public static Record direct(ByteBuffer key, ByteBuffer value) {
+        if (value == null || value.limit() == 0) {
+            return tombstone(key);
+        }
         return new Record(key.asReadOnlyBuffer(), value.asReadOnlyBuffer());
     }
 
@@ -57,7 +60,7 @@ public class Record {
                 curValue.putShort(type);
                 curValue.put(value.asReadOnlyBuffer());
                 break;
-            case USETIME:
+            case USE_TIME:
             case TOMBSTONE:
                 curValue = ByteBuffer.allocate(value.limit() + Long.BYTES + Short.BYTES);
                 curValue.putShort(type);
@@ -81,7 +84,7 @@ public class Record {
     }
 
     public ByteBuffer getValue() {
-        if (isEmpty() || isTombstone()) {
+        if (isTombstone()) {
             return null;
         }
         ByteBuffer tmp = getValueBuffer();
@@ -97,7 +100,7 @@ public class Record {
     }
 
     public int getValueSize() {
-        return (isEmpty()) ? 0 : value.remaining();
+        return isEmpty() ? 0 : value.remaining();
     }
 
     private ByteBuffer getValueBuffer() {
@@ -109,7 +112,7 @@ public class Record {
                 result = entireValue.position(Short.BYTES).slice();
                 result.position(0);
                 break;
-            case USETIME:
+            case USE_TIME:
                 result = entireValue.position(Short.BYTES + Long.BYTES).slice();
                 result.position(0);
                 break;
@@ -142,7 +145,7 @@ public class Record {
         }
         final ByteBuffer entireValue = value.duplicate();
         final short field = getTypeBuffer(entireValue);
-        if (field != USETIME && field != TOMBSTONE) {
+        if (field != USE_TIME && field != TOMBSTONE) {
             return null;
         }
 
@@ -151,7 +154,7 @@ public class Record {
     }
 
     public ByteBuffer getRawValue() {
-        return (isEmpty()) ? null : value.position(0).asReadOnlyBuffer();
+        return isEmpty() ? null : value.position(0).asReadOnlyBuffer();
     }
 
     private short getTypeBuffer(final ByteBuffer buffer) {
@@ -159,6 +162,6 @@ public class Record {
     }
 
     public boolean isEmpty() {
-        return (value == null || value.limit() < Short.BYTES);
+        return value == null;
     }
 }
