@@ -33,7 +33,7 @@ public class ReplicationService {
     private final ExecutorService sendDataExecutor;
     private final BlockingQueue<Quartet<Request, String, String, Integer>> senderQueue;
 
-    private static final int DEATH_TIME = 1024;
+    private static final int DEATH_TIME = 128;
     private static final String DAO_URI_PARAMETER = "/internal/cluster/entity?id=%s";
 
     ReplicationService(final DAO dao, final String selfNode,
