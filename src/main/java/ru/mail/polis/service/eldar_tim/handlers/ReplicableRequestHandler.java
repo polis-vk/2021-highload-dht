@@ -10,15 +10,17 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.Cluster;
 import ru.mail.polis.service.exceptions.ClientBadRequestException;
+import ru.mail.polis.service.exceptions.ServerRuntimeException;
 import ru.mail.polis.sharding.HashRouter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.Collections;
+import java.util.Iterator;
 import java.util.List;
-import java.util.ListIterator;
 import java.util.concurrent.ForkJoinTask;
 import java.util.concurrent.RecursiveTask;
 
@@ -46,7 +48,7 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
 
     @Override
     public final void handleRequest(Request request, HttpSession session) throws IOException {
-        session.sendResponse(handleLocally(request));
+        session.sendResponse(handleRequest(request).transform());
     }
 
     public void handleReplicableRequest(Cluster.Node target, Request request, HttpSession session) throws IOException {
@@ -61,10 +63,8 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
 
         List<Cluster.Node> replicas = replicasHolder.getBunch(target, from);
 
-        var pollRecursiveTask = new ReplicasPollRecursiveTask(ask, replicas, request);
-        Response result = pollRecursiveTask.invoke();
-
-        session.sendResponse(result);
+        Response response = new ReplicasPollRecursiveTask(ask, replicas, request).invoke();
+        session.sendResponse(response);
     }
 
     /**
@@ -121,13 +121,15 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
     }
 
     private Response handleLocally(@Nonnull Request request) {
-        LOG.debug("Handling locally: {}", self.getKey());
-        return handleRequest(request).transform();
+        try {
+            return handleRequest(request).transform();
+        } catch (ServerRuntimeException e) {
+            return null;
+        }
     }
 
     private Response handleRemotely(@Nonnull Request request, @Nonnull Cluster.Node target) {
         try {
-            LOG.debug("Self {}, Handling remote: {}", self.getKey(), target.getKey());
             return target.getClient().invoke(request);
         } catch (InterruptedException e) {
             LOG.debug("Proxy error: interrupted", e);
@@ -194,23 +196,21 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
             }
         }
 
-        private Response parseFutures(List<ForkJoinTask<Response>> futures) {
+        private Response parseFutures(Collection<ForkJoinTask<Response>> futures) {
             List<Response> results = new ArrayList<>();
             while (true) {
-                ListIterator<ForkJoinTask<Response>> iterator = futures.listIterator();
+                Iterator<ForkJoinTask<Response>> iterator = futures.iterator();
                 while (iterator.hasNext()) {
                     ForkJoinTask<Response> future = iterator.next();
-                    if (!future.isDone()) {
-                        continue;
-                    } else {
+                    if (future.isDone() || results.size() < ask) {
                         iterator.remove();
+                    } else {
+                        continue;
                     }
 
                     Response response = future.join();
                     if (response != null && isCorrect(response)) {
                         results.add(response);
-                    } else {
-                        LOG.debug("Got incorrect answer from replica: {}", response);
                     }
                 }
 
@@ -218,7 +218,7 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
                     return pollResultsHandler.handle(results, ask);
                 }
 
-                // to do: wait others and make repair if needed
+                // Here we might wait others and make repair if needed.
             }
         }
 
