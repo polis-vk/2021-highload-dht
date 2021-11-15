@@ -36,15 +36,14 @@ final class FilterResponses {
             if (status == ServiceImpl.STATUS_OK || status == ServiceImpl.STATUS_NOT_FOUND) {
                 Record record = Record.direct(Record.DUMMY, ByteBuffer.wrap(response.getBody()));
                 ack += 1;
-                if (record.isEmpty()) {
-                    continue;
-                }
-                if (freshEntry == null) {
-                    freshEntry = record;
-                    continue;
-                }
-                if (record.getTimestamp().after(freshEntry.getTimestamp())) {
-                    freshEntry = record;
+                if (!record.isEmpty()) {
+                    if (freshEntry == null) {
+                        freshEntry = record;
+                        continue;
+                    }
+                    if (record.getTimestamp().after(freshEntry.getTimestamp())) {
+                        freshEntry = record;
+                    }
                 }
             }
         }
