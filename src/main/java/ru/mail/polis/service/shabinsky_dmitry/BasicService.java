@@ -188,27 +188,32 @@ public final class BasicService extends HttpServer implements Service {
                 return;
             }
 
-            List<String> nodes = forKeyNodes(id, from);
-
-            List<Response> responses = new ArrayList<>();
-            Response res;
-            for (String node : nodes) {
-                try {
-                    HttpClient client = ((MyThread) Thread.currentThread()).clients.get(node);
-                    if (client == null) {
-                        res = task.call();
-                    } else {
-                        res = client.invoke(request, TIMEOUT);
-                    }
-                    responses.add(res);
-                } catch (Exception e) {
-                    LOG.error("Unexpected exception during method call {}", request.getMethodName(), e);
-                    responses.add(new Response(Response.INTERNAL_ERROR, toBytes("Something wrong")));
-                }
-            }
+            List<Response> responses = getResponses(id, request, task, from);
 
             calcRequest(request, session, ask, responses);
         });
+    }
+
+    private List<Response> getResponses(String id, Request request, Task task, int from) {
+        List<String> nodes = forKeyNodes(id, from);
+        List<Response> responses = new ArrayList<>();
+        Response res;
+
+        for (String node : nodes) {
+            try {
+                HttpClient client = ((MyThread) Thread.currentThread()).clients.get(node);
+                if (client == null) {
+                    res = task.call();
+                } else {
+                    res = client.invoke(request, TIMEOUT);
+                }
+                responses.add(res);
+            } catch (Exception e) {
+                LOG.error("Unexpected exception during method call {}", request.getMethodName(), e);
+                responses.add(new Response(Response.INTERNAL_ERROR, toBytes("Something wrong")));
+            }
+        }
+        return responses;
     }
 
     private void calcRequest(Request request, HttpSession session, int ask, List<Response> responses) {
@@ -239,6 +244,12 @@ public final class BasicService extends HttpServer implements Service {
             }
         }
 
+        result = getResult(request, ask, countSuccess, error, result);
+
+        sendResponse(session, result);
+    }
+
+    private Response getResult(Request request, int ask, int countSuccess, int error, Response result) {
         if (request.getMethod() == Request.METHOD_GET
             && countSuccess == 0) {
             result = new Response(Response.NOT_FOUND, Response.EMPTY);
@@ -257,8 +268,7 @@ public final class BasicService extends HttpServer implements Service {
         } else {
             result = new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY);
         }
-
-        sendResponse(session, result);
+        return result;
     }
 
     private boolean checkAndCalcRequestIfLocal(String id, Request request, HttpSession session, Task task) {
