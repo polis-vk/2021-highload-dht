@@ -41,13 +41,16 @@ public final class BasicService extends HttpServer implements Service {
         Collections.sort(this.topology);
     }
 
-    private static Map<String, HttpClient> extractSelfFromInterface(int port, Set<String> topology) throws UnknownHostException {
+    private static Map<String, HttpClient> extractSelfFromInterface(
+        int port,
+        Set<String> topology
+    ) throws UnknownHostException {
         Map<String, HttpClient> clients = new ConcurrentHashMap<>();
         List<InetAddress> allMe = Arrays.asList(InetAddress.getAllByName(null));
 
         for (String node : topology) {
-            ConnectionString connection = new ConnectionString(node +
-                "?clientMinPoolSize=1&clientMaxPoolSize=1");
+            ConnectionString connection = new ConnectionString(node
+                + "?clientMinPoolSize=1&clientMaxPoolSize=1");
 
             List<InetAddress> nodeAddresses = Arrays.asList(
                 InetAddress.getAllByName(connection.getHost())
@@ -105,7 +108,6 @@ public final class BasicService extends HttpServer implements Service {
         session.sendResponse(new Response(Response.BAD_REQUEST, Response.EMPTY));
     }
 
-
     private Response delete(String id) {
         final ByteBuffer key = ByteBuffer.wrap(toBytes(id));
         Record record = Record.tombstone(key);
@@ -131,9 +133,9 @@ public final class BasicService extends HttpServer implements Service {
             final Record first = range.next();
             Record.Value value = first.getValue();
 
-            Response response = value.isTombstone() ?
-                new Response(Response.OK, Response.EMPTY) :
-                new Response(Response.OK, extractBytes(value.get()));
+            Response response = value.isTombstone()
+                ? new Response(Response.OK, Response.EMPTY)
+                : new Response(Response.OK, extractBytes(value.get()));
 
             response.addHeader("timestamp" + value.timestamp());
             response.addHeader("tombstone" + value.isTombstone());
@@ -237,8 +239,8 @@ public final class BasicService extends HttpServer implements Service {
             }
         }
 
-        if (request.getMethod() == Request.METHOD_GET &&
-            countSuccess == 0) {
+        if (request.getMethod() == Request.METHOD_GET
+            && countSuccess == 0) {
             result = new Response(Response.NOT_FOUND, Response.EMPTY);
 
         } else if (countSuccess >= ask) {

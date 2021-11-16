@@ -43,8 +43,8 @@ final class RecordMergingIterator implements Iterator<Record> {
         int compareResult = leftKey.compareTo(rightKey);
         if (compareResult == 0) {
 
-            if (Objects.requireNonNull(left.peek()).getValue().timestamp() >
-                Objects.requireNonNull(right.peek()).getValue().timestamp()
+            if (Objects.requireNonNull(left.peek()).getValue().timestamp()
+                > Objects.requireNonNull(right.peek()).getValue().timestamp()
             ) {
                 right.next();
                 return left.next();
