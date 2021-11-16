@@ -17,7 +17,6 @@ import ru.mail.polis.service.sachuk.ilya.sharding.VNode;
 
 import java.io.Closeable;
 import java.nio.ByteBuffer;
-import java.sql.Timestamp;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.NavigableMap;
@@ -188,8 +187,8 @@ public class Coordinator implements Closeable {
 
     private Record getNewestRecord(List<Record> records) {
         records.sort((o1, o2) -> {
-            Timestamp timestamp1 = new Timestamp(o1.getTimestamp());
-            Timestamp timestamp2 = new Timestamp(o2.getTimestamp());
+            Long timestamp1 = o1.getTimestamp();
+            Long timestamp2 = o2.getTimestamp();
 
             int compare = timestamp2.compareTo(timestamp1);
 
