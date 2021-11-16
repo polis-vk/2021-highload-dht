@@ -150,7 +150,7 @@ class PersistenceTest {
         }
     }
 
-    @Disabled
+//    @Disabled
     @Test
     void hugeRecords(@TempDir Path data) throws IOException {
         // Reference value
@@ -172,7 +172,7 @@ class PersistenceTest {
         }
     }
 
-    @Disabled
+//    @Disabled
     @Test
     void hugeRecordsSearch(@TempDir Path data) throws IOException {
         // Reference value
