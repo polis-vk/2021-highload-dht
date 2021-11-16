@@ -109,7 +109,6 @@ public final class BasicService extends HttpServer implements Service {
     private Response delete(String id) {
         final ByteBuffer key = ByteBuffer.wrap(toBytes(id));
         Record record = Record.tombstone(key);
-        LOG.debug("record delete timestamp: {}", record.getValue().timestamp());
         dao.upsert(record);
         return new Response(Response.ACCEPTED, Response.EMPTY);
     }
@@ -118,7 +117,6 @@ public final class BasicService extends HttpServer implements Service {
         final ByteBuffer key = ByteBuffer.wrap(toBytes(id));
         final ByteBuffer value = ByteBuffer.wrap(body);
         Record record = Record.of(key, value);
-        LOG.debug("record put timestamp: {}", record.getValue().timestamp());
         dao.upsert(record);
         return new Response(Response.CREATED, Response.EMPTY);
     }
@@ -136,8 +134,6 @@ public final class BasicService extends HttpServer implements Service {
             Response response = value.isTombstone() ?
                 new Response(Response.OK, Response.EMPTY) :
                 new Response(Response.OK, extractBytes(value.get()));
-
-            LOG.debug("record (stone: {}) timestamp: {}", value.isTombstone(), value.timestamp());
 
             response.addHeader("timestamp" + value.timestamp());
             response.addHeader("tombstone" + value.isTombstone());
