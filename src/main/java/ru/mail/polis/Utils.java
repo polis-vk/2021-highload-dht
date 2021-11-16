@@ -2,7 +2,6 @@ package ru.mail.polis;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.sql.Timestamp;
 
 public final class Utils {
 
@@ -19,17 +18,6 @@ public final class Utils {
         buffer.get(arr);
 
         return arr;
-    }
-
-    public static Timestamp byteBufferToTimestamp(ByteBuffer buffer) {
-        long dateInSec = buffer.position(0).getLong();
-
-        return new Timestamp(dateInSec);
-    }
-
-    public static ByteBuffer timeStampToByteBuffer(Long dateInSec) {
-        ByteBuffer buffer = ByteBuffer.allocate(8).putLong(dateInSec);
-        return buffer.position(0).duplicate();
     }
 
     public static ByteBuffer wrap(String text) {

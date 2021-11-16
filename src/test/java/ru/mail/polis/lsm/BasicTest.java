@@ -62,7 +62,7 @@ class BasicTest {
                 "NEW_KEY", "NEW_VALUE"
         );
 
-        map.forEach((k, v) -> dao.upsert(Record.of(k, v, timestamp(System.currentTimeMillis()))));
+        map.forEach((k, v) -> dao.upsert(Record.of(k, v, System.currentTimeMillis())));
 
         assertDaoEquals(dao, map);
     }
@@ -71,7 +71,7 @@ class BasicTest {
     void insertSome() {
         Map<ByteBuffer, ByteBuffer> map = generateMap(0, 10);
 
-        map.forEach((k, v) -> dao.upsert(Record.of(k, v, timestamp(System.currentTimeMillis()))));
+        map.forEach((k, v) -> dao.upsert(Record.of(k, v, System.currentTimeMillis())));
 
         assertDaoEquals(dao, map);
     }
@@ -80,7 +80,7 @@ class BasicTest {
     void insertMany() {
         Map<ByteBuffer, ByteBuffer> map = generateMap(0, 1000);
 
-        map.forEach((k, v) -> dao.upsert(Record.of(k, v, timestamp(System.currentTimeMillis()))));
+        map.forEach((k, v) -> dao.upsert(Record.of(k, v, System.currentTimeMillis())));
 
         assertDaoEquals(dao, map);
     }
@@ -89,7 +89,7 @@ class BasicTest {
     void middleScan() {
         Map<ByteBuffer, ByteBuffer> map = generateMap(0, 10);
 
-        map.forEach((k, v) -> dao.upsert(Record.of(k, v, timestamp(System.currentTimeMillis()))));
+        map.forEach((k, v) -> dao.upsert(Record.of(k, v, System.currentTimeMillis())));
 
         Iterator<Record> range = dao.range(key(5), null);
         assertEquals(range, new TreeMap<>(generateMap(5, 10)).entrySet());
@@ -99,7 +99,7 @@ class BasicTest {
     void rightScan() {
         Map<ByteBuffer, ByteBuffer> map = generateMap(0, 10);
 
-        map.forEach((k, v) -> dao.upsert(Record.of(k, v, timestamp(System.currentTimeMillis()))));
+        map.forEach((k, v) -> dao.upsert(Record.of(k, v, System.currentTimeMillis())));
 
         Iterator<Record> range = dao.range(key(9), null);
         assertEquals(range, new TreeMap<>(generateMap(9, 10)).entrySet());
@@ -111,7 +111,7 @@ class BasicTest {
                 "", "VALUE"
         );
 
-        map.forEach((k, v) -> dao.upsert(Record.of(k, v, timestamp(System.currentTimeMillis()))));
+        map.forEach((k, v) -> dao.upsert(Record.of(k, v, System.currentTimeMillis())));
 
         assertDaoEquals(dao, map);
     }
@@ -122,7 +122,7 @@ class BasicTest {
                 "KEY", ""
         );
 
-        map.forEach((k, v) -> dao.upsert(Record.of(k, v, timestamp(System.currentTimeMillis()))));
+        map.forEach((k, v) -> dao.upsert(Record.of(k, v, System.currentTimeMillis())));
 
         assertDaoEquals(dao, map);
     }
@@ -131,8 +131,8 @@ class BasicTest {
     void upsert() {
         Map<ByteBuffer, ByteBuffer> map = generateMap(0, 10);
 
-        map.forEach((k, v) -> dao.upsert(Record.of(k, v, timestamp(System.currentTimeMillis()))));
-        map.forEach((k, v) -> dao.upsert(Record.of(k, v, timestamp(System.currentTimeMillis()))));
+        map.forEach((k, v) -> dao.upsert(Record.of(k, v, System.currentTimeMillis())));
+        map.forEach((k, v) -> dao.upsert(Record.of(k, v, System.currentTimeMillis())));
 
         assertDaoEquals(dao, map);
     }
@@ -141,13 +141,13 @@ class BasicTest {
     void upsertDifferent() {
         Map<ByteBuffer, ByteBuffer> map = generateMap(0, 10);
 
-        map.forEach((k, v) -> dao.upsert(Record.of(k, v, timestamp(System.currentTimeMillis()))));
+        map.forEach((k, v) -> dao.upsert(Record.of(k, v, System.currentTimeMillis())));
 
         ByteBuffer upsertKey = key(5);
         ByteBuffer upsertValue = wrap("VALUE_CHANGED");
 
         map.put(upsertKey, upsertValue);
-        dao.upsert(Record.of(upsertKey, upsertValue, timestamp(System.currentTimeMillis())));
+        dao.upsert(Record.of(upsertKey, upsertValue, System.currentTimeMillis()));
 
         assertDaoEquals(dao, map);
     }
@@ -157,20 +157,20 @@ class BasicTest {
     void remove() {
         Map<ByteBuffer, ByteBuffer> map = generateMap(0, 10);
 
-        map.forEach((k, v) -> dao.upsert(Record.of(k, v, timestamp(System.currentTimeMillis()))));
+        map.forEach((k, v) -> dao.upsert(Record.of(k, v, System.currentTimeMillis())));
 
-        dao.upsert(Record.of(wrap("KEY_TO_REMOVE"), wrap("VALUE_TO_REMOVE"), timestamp(System.currentTimeMillis())));
-        dao.upsert(Record.tombstone(wrap("KEY_TO_REMOVE"), timestamp(System.currentTimeMillis())));
+        dao.upsert(Record.of(wrap("KEY_TO_REMOVE"), wrap("VALUE_TO_REMOVE"), System.currentTimeMillis()));
+        dao.upsert(Record.tombstone(wrap("KEY_TO_REMOVE"), System.currentTimeMillis()));
 
         assertDaoEquals(dao, map);
     }
 
     @Test
     void removeAbsent() {
-        dao.upsert(Record.tombstone(wrap("NOT_EXISTED_KEY"), timestamp(System.currentTimeMillis())));
+        dao.upsert(Record.tombstone(wrap("NOT_EXISTED_KEY"), System.currentTimeMillis()));
 
         assertTrue(dao.range(null, null).hasNext());
-        assertTrue(dao.range(null,null).next().isTombstone());
+        assertTrue(dao.range(null, null).next().isTombstone());
     }
 
 }

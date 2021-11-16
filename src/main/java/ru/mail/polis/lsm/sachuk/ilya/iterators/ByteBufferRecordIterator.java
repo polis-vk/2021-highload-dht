@@ -1,6 +1,5 @@
 package ru.mail.polis.lsm.sachuk.ilya.iterators;
 
-import ru.mail.polis.Utils;
 import ru.mail.polis.lsm.Record;
 
 import java.nio.ByteBuffer;
@@ -36,15 +35,13 @@ public final class ByteBufferRecordIterator implements Iterator<Record> {
 
         int valueSize = buffer.getInt();
         if (valueSize == -1) {
-            long timestampSize = buffer.getLong();
-            ByteBuffer timestamp = Utils.timeStampToByteBuffer(timestampSize);
+            long timestamp = buffer.getLong();
 
             return Record.tombstone(key, timestamp);
         }
         ByteBuffer value = read(valueSize);
 
-        long timestampSize = buffer.getLong();
-        ByteBuffer timestamp = Utils.timeStampToByteBuffer(timestampSize);
+        long timestamp = buffer.getLong();
 
         return Record.of(key, value, timestamp);
     }

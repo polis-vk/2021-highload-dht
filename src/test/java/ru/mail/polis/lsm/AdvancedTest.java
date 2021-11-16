@@ -37,9 +37,9 @@ public class AdvancedTest {
         Map<ByteBuffer, ByteBuffer> map = generateMap(0, 1000);
 
         try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
-            dao.upsert(Record.of(key(1), value(1), timestamp(System.currentTimeMillis())));
+            dao.upsert(Record.of(key(1), value(1), System.currentTimeMillis()));
 
-            map.forEach((k, v) -> dao.upsert(Record.of(k, v, timestamp(System.currentTimeMillis()))));
+            map.forEach((k, v) -> dao.upsert(Record.of(k, v, System.currentTimeMillis())));
 
             iterator = dao.range(null, null);
         }

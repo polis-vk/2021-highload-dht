@@ -26,7 +26,6 @@ import java.nio.file.Path;
 import java.util.Iterator;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
-import static ru.mail.polis.lsm.Utils.timestamp;
 import static ru.mail.polis.lsm.Utils.wrap;
 
 class MusicTest {
@@ -118,7 +117,7 @@ class MusicTest {
         return Record.of(
                 wrap(track),
                 duration(duration),
-                timestamp(System.currentTimeMillis())
+                System.currentTimeMillis()
         );
     }
 

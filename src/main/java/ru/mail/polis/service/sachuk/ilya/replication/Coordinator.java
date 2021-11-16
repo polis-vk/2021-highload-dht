@@ -123,7 +123,7 @@ public class Coordinator implements Closeable {
         if (newestRecord.isTombstone()) {
             finalResponse = new Response(Response.NOT_FOUND, Response.EMPTY);
         } else {
-            if (Utils.byteBufferToTimestamp(newestRecord.getTimestamp()).getTime() == 0) {
+            if (newestRecord.getTimestamp() == 0) {
                 finalResponse = new Response(Response.NOT_FOUND, Response.EMPTY);
             } else {
                 finalResponse = new Response(Response.OK, Utils.bytebufferToBytes(newestRecord.getValue()));
@@ -172,15 +172,15 @@ public class Coordinator implements Closeable {
         ByteBuffer value = ByteBuffer.wrap(response.getBody());
 
         if (timestampFromResponse == null) {
-            return Record.of(key, value, Utils.timeStampToByteBuffer(0L));
+            return Record.of(key, value, 0L);
         } else {
             if (tombstoneHeader == null) {
                 return Record.of(key,
                         value,
-                        Utils.timeStampToByteBuffer(Long.parseLong(timestampFromResponse)));
+                        Long.parseLong(timestampFromResponse));
             } else {
                 return Record.tombstone(key,
-                        Utils.timeStampToByteBuffer(Long.parseLong(timestampFromResponse))
+                        Long.parseLong(timestampFromResponse)
                 );
             }
         }
@@ -188,8 +188,8 @@ public class Coordinator implements Closeable {
 
     private Record getNewestRecord(List<Record> records) {
         records.sort((o1, o2) -> {
-            Timestamp timestamp1 = Utils.byteBufferToTimestamp(o1.getTimestamp());
-            Timestamp timestamp2 = Utils.byteBufferToTimestamp(o2.getTimestamp());
+            Timestamp timestamp1 = new Timestamp(o1.getTimestamp());
+            Timestamp timestamp2 = new Timestamp(o2.getTimestamp());
 
             int compare = timestamp2.compareTo(timestamp1);
 

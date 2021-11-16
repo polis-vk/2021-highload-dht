@@ -117,7 +117,7 @@ public class SSTable {
                     } else {
                         FileUtils.writeSizeAndValue(value, saveFileChannel, buffer);
                     }
-                    FileUtils.writeLong(saveFileChannel, bufferForTimestamp, record.getTimestamp().getLong());
+                    FileUtils.writeLong(saveFileChannel, bufferForTimestamp, record.getTimestamp());
                 }
 
                 int curPos = (int) indexFileChanel.position();

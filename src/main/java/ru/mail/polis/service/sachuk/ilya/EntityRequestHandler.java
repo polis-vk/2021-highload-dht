@@ -48,14 +48,14 @@ public class EntityRequestHandler {
             if (record.isTombstone()) {
                 logger.info("in get in tombstone block");
                 return ResponseUtils.addTimeStampHeaderAndTombstone(new Response(Response.NOT_FOUND, Response.EMPTY),
-                        Utils.byteBufferToTimestamp(record.getTimestamp()).getTime()
+                        record.getTimestamp()
                 );
             }
 
             logger.info("in get in not tombstone block");
             return ResponseUtils.addTimeStampHeader(
                     new Response(Response.OK, Utils.bytebufferToBytes(record.getValue())),
-                    Utils.byteBufferToTimestamp(record.getTimestamp()).getTime()
+                    record.getTimestamp()
             );
         } else {
             logger.info("in get in block when not found any");
@@ -72,7 +72,7 @@ public class EntityRequestHandler {
             logger.info("Timestamp in delete:" + new Timestamp(secs));
         }
         dao.upsert(Record.tombstone(Utils.stringToBytebuffer(id),
-                Utils.timeStampToByteBuffer(secs))
+                secs)
         );
 
         return new Response(Response.ACCEPTED, Response.EMPTY);
@@ -95,7 +95,7 @@ public class EntityRequestHandler {
 
         dao.upsert(Record.of(key,
                 value,
-                Utils.timeStampToByteBuffer(secs))
+                secs)
         );
 
         return new Response(Response.CREATED, Response.EMPTY);

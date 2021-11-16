@@ -24,19 +24,19 @@ public class Record {
 
     private final ByteBuffer key;
     private final ByteBuffer value;
-    private final ByteBuffer timestamp;
+    private final long timestamp;
 
-    Record(ByteBuffer key, @Nullable ByteBuffer value, ByteBuffer timestamp) {
+    Record(ByteBuffer key, @Nullable ByteBuffer value, long timestamp) {
         this.key = key.asReadOnlyBuffer();
         this.value = value == null ? null : value.asReadOnlyBuffer();
-        this.timestamp = timestamp.asReadOnlyBuffer();
+        this.timestamp = timestamp;
     }
 
-    public static Record of(ByteBuffer key, ByteBuffer value, ByteBuffer timestamp) {
-        return new Record(key.asReadOnlyBuffer(), value.asReadOnlyBuffer(), timestamp.asReadOnlyBuffer());
+    public static Record of(ByteBuffer key, ByteBuffer value, long timestamp) {
+        return new Record(key.asReadOnlyBuffer(), value.asReadOnlyBuffer(), timestamp);
     }
 
-    public static Record tombstone(ByteBuffer key, ByteBuffer timestamp) {
+    public static Record tombstone(ByteBuffer key, long timestamp) {
         return new Record(key, null, timestamp);
     }
 
@@ -48,8 +48,8 @@ public class Record {
         return value == null ? null : value.asReadOnlyBuffer();
     }
 
-    public ByteBuffer getTimestamp() {
-        return timestamp.asReadOnlyBuffer();
+    public long getTimestamp() {
+        return timestamp;
     }
 
     public boolean isTombstone() {
