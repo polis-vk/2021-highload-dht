@@ -83,7 +83,9 @@ public class Coordinator implements Closeable {
                 responses.add(response);
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-            } catch (ExecutionException ignored) {
+                throw new IllegalStateException(e);
+            } catch (ExecutionException e) {
+                throw new IllegalStateException(e);
             }
         }
 
