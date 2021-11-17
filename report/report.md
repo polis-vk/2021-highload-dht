@@ -591,4 +591,16 @@ Value   Percentile   TotalCount 1/(1-Percentile)
 Requests/sec:   9966.79  
 Transfer/sec:    717.30KB  
 
-После изменений получилось сделать для 99% меньше 300msec, но все так же как-то не очень.
+После изменений получилось сделать для 99% меньше 300msec, но все так же как-то не очень.  
+
+
+## Put:
+[cpu_put](second/hw566cpu_put.html)
+[alloc_put](second/hw566alloc_put.html)
+[lock_put](second/hw566lock_put.html)
+
+
+## Get:
+[cpu_get](second/hw566cpu_get.html)
+[alloc_get](second/hw566alloc_get.html)
+[lock_get](second/hw566lock_get.html)
