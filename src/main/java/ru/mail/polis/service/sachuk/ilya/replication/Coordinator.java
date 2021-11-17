@@ -43,7 +43,7 @@ public class Coordinator implements Closeable {
     }
 
     public Response handle(ReplicationInfo replicationInfo, String id, Request request) {
-        if(coordinatorExecutor.isQueueFull()) {
+        if (coordinatorExecutor.isQueueFull()) {
             return new Response(Response.SERVICE_UNAVAILABLE, Response.EMPTY);
         }
 
