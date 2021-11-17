@@ -19,10 +19,10 @@ import java.io.Closeable;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.NavigableMap;
-import java.util.TreeMap;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
 
 public class Coordinator implements Closeable {
 
@@ -46,13 +46,11 @@ public class Coordinator implements Closeable {
         ByteBuffer key = Utils.wrap(id);
 
         if (logger.isInfoEnabled()) {
-
             logger.info("in block IS coordinator");
             logger.info("COORDINATOR NODE IS: " + node.port);
         }
-        NavigableMap<Integer, VNode> vnodes = getNodes(replicationInfo, id);
 
-        List<Response> responses = getResponses(vnodes, id, request, replicationInfo);
+        List<Response> responses = getResponses(replicationInfo, id, request);
 
         Response finalResponse = getFinalResponse(request, key, responses, replicationInfo);
 
@@ -63,59 +61,52 @@ public class Coordinator implements Closeable {
         return finalResponse;
     }
 
-    private List<Response> getResponses(NavigableMap<Integer, VNode> vnodes, String id, Request request,
-                                        ReplicationInfo replicationInfo) {
+    private List<Response> getResponses(ReplicationInfo replicationInfo, String id, Request request) {
         List<Response> responses = new ArrayList<>();
+        List<Future<Response>> futures = getFutures(replicationInfo, id, request);
 
-        int count = 0;
-        for (VNode vnode : vnodes.values()) {
-            if (count >= replicationInfo.ask) {
-                coordinatorExecutor.execute(() -> {
-                    if (vnode.getPhysicalNode().port == node.port) {
-                        entityRequestHandler.handle(request, id);
-                    } else {
-                        nodeRouter.routeToNode(vnode, request);
-                    }
-                });
-                continue;
+        int counter = 0;
+        for (Future<Response> future : futures) {
+            try {
+                if (counter >= replicationInfo.ask) {
+                    break;
+                }
+
+                Response response = future.get();
+
+                int status = response.getStatus();
+                if (status == 504 || status == 405 || status == 503) {
+                    continue;
+                }
+
+                counter++;
+                responses.add(response);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            } catch (ExecutionException ignored) {
             }
-
-            Response response = chooseHandler(id, request, vnode);
-
-            int status = response.getStatus();
-            if (status == 504 || status == 405 || status == 503) {
-                continue;
-            }
-            count++;
-            responses.add(response);
         }
 
         return responses;
     }
 
-    private NavigableMap<Integer, VNode> getNodes(ReplicationInfo replicationInfo, String id) {
-        NavigableMap<Integer, VNode> vnodes = new TreeMap<>();
-        List<Integer> currentPorts = new ArrayList<>();
+    private List<Future<Response>> getFutures(ReplicationInfo replicationInfo, String id, Request request) {
+        List<Future<Response>> futures = new ArrayList<>();
         Integer hash = null;
+        List<Integer> currentPorts = new ArrayList<>();
 
         for (int i = 0; i < replicationInfo.from; i++) {
-            if (logger.isInfoEnabled()) {
-                logger.info("In cycle i is : " + i);
-                logger.info(String.valueOf(currentPorts));
-            }
             Pair<Integer, VNode> pair = nodeManager.getNearVNodeWithGreaterHash(id, hash, currentPorts);
-
-            vnodes.put(pair.key, pair.value);
             hash = pair.key;
-
+            VNode vnode = pair.value;
             currentPorts.add(pair.value.getPhysicalNode().port);
+
+            futures.add(
+                    coordinatorExecutor.submit(() -> chooseHandler(id, request, vnode))
+            );
         }
 
-        if (logger.isInfoEnabled()) {
-            logger.info("vnodeList size is: " + vnodes.size() + " and from is: " + replicationInfo.from);
-            logger.info("nodes to handle: " + currentPorts);
-        }
-        return vnodes;
+        return futures;
     }
 
     private Response getFinalResponseForGet(Record newestRecord) {
@@ -129,6 +120,7 @@ public class Coordinator implements Closeable {
                 finalResponse = new Response(Response.OK, Utils.bytebufferToBytes(newestRecord.getValue()));
             }
         }
+
         return finalResponse;
     }
 
@@ -144,11 +136,8 @@ public class Coordinator implements Closeable {
 
         if (request.getMethod() == Request.METHOD_GET) {
             for (Response response : responses) {
-                int status = response.getStatus();
-                if (status == 200 || status == 404) {
-                    Record recordFromResponse = getRecordFromResponse(response, key);
-                    records.add(recordFromResponse);
-                }
+                Record recordFromResponse = getRecordFromResponse(response, key);
+                records.add(recordFromResponse);
             }
 
             Record newestRecord = getNewestRecord(records);
@@ -162,6 +151,7 @@ public class Coordinator implements Closeable {
         } else {
             finalResponse = new Response(Response.METHOD_NOT_ALLOWED, Response.EMPTY);
         }
+
         return finalResponse;
     }
 
