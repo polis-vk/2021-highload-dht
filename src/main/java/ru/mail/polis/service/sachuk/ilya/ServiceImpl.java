@@ -19,7 +19,6 @@ import ru.mail.polis.service.sachuk.ilya.sharding.VNodeConfig;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.sql.Timestamp;
 import java.util.Set;
 
 public class ServiceImpl extends HttpServer implements Service {
@@ -30,7 +29,7 @@ public class ServiceImpl extends HttpServer implements Service {
 
     private final EntityRequestHandler entityRequestHandler;
     private final ConfiguredPoolExecutor requestPoolExecutor = new ConfiguredPoolExecutor(
-            new ExecutorConfig(16, 1000)
+            new ExecutorConfig(8, 1000)
     );
 
     private final NodeManager nodeManager;
@@ -76,11 +75,6 @@ public class ServiceImpl extends HttpServer implements Service {
         if (timestamp == null) {
             isCoordinator = true;
             request.addHeader(ResponseUtils.TIMESTAMP_HEADER + System.currentTimeMillis());
-        } else {
-            long secs = Long.parseLong(timestamp);
-            if (logger.isInfoEnabled()) {
-                logger.info(String.valueOf(new Timestamp(secs)));
-            }
         }
 
         if (isCoordinator) {

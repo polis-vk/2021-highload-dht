@@ -32,7 +32,7 @@ public class Coordinator implements Closeable {
     private final EntityRequestHandler entityRequestHandler;
     private final Node node;
     private final ConfiguredPoolExecutor coordinatorExecutor =
-            new ConfiguredPoolExecutor(new ExecutorConfig(8, 1000));
+            new ConfiguredPoolExecutor(new ExecutorConfig(8, 2000));
 
     public Coordinator(NodeManager nodeManager, NodeRouter nodeRouter, EntityRequestHandler entityRequestHandler,
                        Node node) {
