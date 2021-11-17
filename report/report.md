@@ -450,9 +450,9 @@ Value   Percentile   TotalCount 1/(1-Percentile)
     1007.103     0.999999      1646811   1497965.71
     1008.127     0.999999      1646812   1747626.67
     1008.127     1.000000      1646812          inf
-[Mean    =       14.843, StdDeviation   =       58.577]
-[Max     =     1007.616, Total count    =      1646812]
-[Buckets =           27, SubBuckets     =         2048]
+[Mean    =       14.843, StdDeviation   =       58.577]  
+[Max     =     1007.616, Total count    =      1646812]  
+[Buckets =           27, SubBuckets     =         2048]  
 ----------------------------------------------------------
 1789428 requests in 2.00m, 114.34MB read  
 Requests/sec:  14911.54  
@@ -583,9 +583,9 @@ Value   Percentile   TotalCount 1/(1-Percentile)
     1017.855     0.999998      1097942    524288.00
     1018.879     0.999998      1097944    582542.22
     1018.879     1.000000      1097944          inf
-[Mean    =        9.154, StdDeviation   =       50.652]
-[Max     =     1018.368, Total count    =      1097944]
-[Buckets =           27, SubBuckets     =         2048]
+[Mean    =        9.154, StdDeviation   =       50.652]  
+[Max     =     1018.368, Total count    =      1097944]  
+[Buckets =           27, SubBuckets     =         2048]  
 ----------------------------------------------------------
 1196009 requests in 2.00m, 84.06MB read  
 Requests/sec:   9966.79  
