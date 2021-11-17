@@ -40,30 +40,25 @@ public final class NodeManager implements Closeable {
 
     public Pair<Integer, VNode> getNearVNodeWithGreaterHash(String key, Integer hash, List<Integer> currentPorts) {
         checkIsClosed();
-        Integer currHash = hash;
 
-        while (true) {
-            Map.Entry<Integer, VNode> integerVNodeEntry;
-            integerVNodeEntry = circle.higherEntry(Objects.requireNonNullElseGet(currHash, () -> Hash.murmur3(key)));
+        Map.Entry<Integer, VNode> integerVNodeEntry;
+        integerVNodeEntry = circle.higherEntry(Objects.requireNonNullElseGet(hash, () -> Hash.murmur3(key)));
 
-            VNode vnode;
-            Integer hashReturn;
-            if (integerVNodeEntry == null) {
-                vnode = circle.firstEntry().getValue();
-                hashReturn = circle.firstEntry().getKey();
-            } else {
-                vnode = integerVNodeEntry.getValue();
-                hashReturn = integerVNodeEntry.getKey();
-            }
-
-            if (currentPorts.contains(vnode.getPhysicalNode().port)) {
-                currHash = hashReturn;
-
-                continue;
-            }
-
-            return new Pair<>(hashReturn, vnode);
+        VNode vnode;
+        Integer hashReturn;
+        if (integerVNodeEntry == null) {
+            vnode = circle.firstEntry().getValue();
+            hashReturn = circle.firstEntry().getKey();
+        } else {
+            vnode = integerVNodeEntry.getValue();
+            hashReturn = integerVNodeEntry.getKey();
         }
+
+        if (currentPorts.contains(vnode.getPhysicalNode().port)) {
+            return getNearVNodeWithGreaterHash(key, hashReturn, currentPorts);
+        }
+
+        return new Pair<>(hashReturn, vnode);
     }
 
     public HttpClient getHttpClient(String endpoint) {
