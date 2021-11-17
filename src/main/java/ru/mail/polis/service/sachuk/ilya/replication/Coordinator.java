@@ -82,7 +82,8 @@ public class Coordinator implements Closeable {
 
             Response response = chooseHandler(id, request, vnode);
 
-            if (response.getStatus() == 504 || response.getStatus() == 405) {
+            int status = response.getStatus();
+            if (status == 504 || status == 405 || status == 503) {
                 continue;
             }
             count++;
