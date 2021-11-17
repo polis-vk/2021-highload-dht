@@ -29,7 +29,7 @@ public class ServiceImpl extends HttpServer implements Service {
     private static final String STATUS_PATH = "/v0/status";
 
     private final EntityRequestHandler entityRequestHandler;
-    private final RequestPoolExecutor requestPoolExecutor = new RequestPoolExecutor(
+    private final ConfiguredPoolExecutor requestPoolExecutor = new ConfiguredPoolExecutor(
             new ExecutorConfig(16, 1000)
     );
 
@@ -113,7 +113,7 @@ public class ServiceImpl extends HttpServer implements Service {
             return;
         }
 
-        requestPoolExecutor.addTask(() -> {
+        requestPoolExecutor.execute(() -> {
             try {
                 String path = request.getPath();
                 Response response;

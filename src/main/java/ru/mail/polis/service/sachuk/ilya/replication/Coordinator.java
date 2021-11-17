@@ -4,10 +4,11 @@ import one.nio.http.Request;
 import one.nio.http.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import ru.mail.polis.ThreadUtils;
 import ru.mail.polis.Utils;
 import ru.mail.polis.lsm.Record;
+import ru.mail.polis.service.sachuk.ilya.ConfiguredPoolExecutor;
 import ru.mail.polis.service.sachuk.ilya.EntityRequestHandler;
+import ru.mail.polis.service.sachuk.ilya.ExecutorConfig;
 import ru.mail.polis.service.sachuk.ilya.Pair;
 import ru.mail.polis.service.sachuk.ilya.ResponseUtils;
 import ru.mail.polis.service.sachuk.ilya.sharding.Node;
@@ -20,8 +21,6 @@ import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 
 public class Coordinator implements Closeable {
@@ -32,7 +31,8 @@ public class Coordinator implements Closeable {
     private final NodeRouter nodeRouter;
     private final EntityRequestHandler entityRequestHandler;
     private final Node node;
-    private final ExecutorService coordinatorExecutor = Executors.newCachedThreadPool();
+    private final ConfiguredPoolExecutor coordinatorExecutor =
+            new ConfiguredPoolExecutor(new ExecutorConfig(8, 1000));
 
     public Coordinator(NodeManager nodeManager, NodeRouter nodeRouter, EntityRequestHandler entityRequestHandler,
                        Node node) {
@@ -43,6 +43,10 @@ public class Coordinator implements Closeable {
     }
 
     public Response handle(ReplicationInfo replicationInfo, String id, Request request) {
+        if(coordinatorExecutor.isQueueFull()) {
+            return new Response(Response.SERVICE_UNAVAILABLE, Response.EMPTY);
+        }
+
         ByteBuffer key = Utils.wrap(id);
 
         if (logger.isInfoEnabled()) {
@@ -233,6 +237,6 @@ public class Coordinator implements Closeable {
 
     @Override
     public void close() {
-        ThreadUtils.awaitForShutdown(coordinatorExecutor);
+        coordinatorExecutor.close();
     }
 }
