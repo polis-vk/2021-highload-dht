@@ -320,7 +320,7 @@ ______
 
 #После попытки что-то изменить
 
-# GET
+# PUT
 
 root@DESKTOP-E01FUOQ:~/wrk2# wrk -c 120 -t 3 -d 2m -R 15000 -L -s put.lua http://localhost:8080  
 Running 2m test @ http://localhost:8080  
