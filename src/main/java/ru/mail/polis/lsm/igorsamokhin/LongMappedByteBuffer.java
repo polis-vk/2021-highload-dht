@@ -36,10 +36,22 @@ public class LongMappedByteBuffer {
     }
 
     public void free() throws IOException {
+        IOException exception = null;
         for (int i = 0; i < buffers.length; i++) {
             ByteBuffer buffer = buffers[i];
-            free((MappedByteBuffer) buffer);
+            try {
+                free((MappedByteBuffer) buffer);
+            } catch (IOException e) {
+                if (exception == null) {
+                    exception = new IOException("Something wrong in attempt to free buffer");
+                }
+                exception.addSuppressed(e);
+            }
             buffers[i] = null;
+        }
+
+        if (exception != null) {
+            throw exception;
         }
     }
 
@@ -106,7 +118,6 @@ public class LongMappedByteBuffer {
         int index = indexAndOffset.index;
         ByteBuffer buffer = getBuffer(index);
         if ((pos - offset + bytes > buffer.capacity())) {
-            // assume that all data is completely in one buffer
             throw new IndexOutOfBoundsException(String.format("pos: %s, off: %s, cap: %s, i: %s, buffer[i].cap: %s",
                     pos, offset, capacity, index, buffer.capacity()));
         } else {
@@ -157,7 +168,7 @@ public class LongMappedByteBuffer {
         return capacity;
     }
 
-    public Pair getIndexAndOffset(long position) {
+    private Pair getIndexAndOffset(long position) {
         long sum = 0;
         int i;
         for (i = 0; i < buffers.length; i++) {

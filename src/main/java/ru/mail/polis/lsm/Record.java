@@ -34,11 +34,11 @@ public class Record {
     }
 
     public static Record of(ByteBuffer key, ByteBuffer value) {
-        return new Record(key.asReadOnlyBuffer(), value.asReadOnlyBuffer(), -1);
+        return new Record(key, value, -1);
     }
 
     public static Record of(ByteBuffer key, ByteBuffer value, long timeStamp) {
-        return new Record(key.asReadOnlyBuffer(), value.asReadOnlyBuffer(), timeStamp);
+        return new Record(key, value, timeStamp);
     }
 
     public static Record tombstone(ByteBuffer key) {

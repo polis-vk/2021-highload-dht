@@ -135,7 +135,7 @@ final class FileUtils {
 
     private static void shiftFileNamesToBeginning(Path dir, File... files) throws IOException {
         int n = 0;
-        for (int i = files.length - 1; i >= 0; --i) {
+        for (int i = files.length - 1; i >= 0; i--) {
             if ((files[i] == null) || files[i].getName().endsWith(INDEX_FILE_EXT)) {
                 continue;
             }
@@ -154,7 +154,7 @@ final class FileUtils {
             }
 
             Files.move(files[i].toPath(), newFile, StandardCopyOption.ATOMIC_MOVE);
-            ++n;
+            n++;
         }
     }
 }
