@@ -214,7 +214,6 @@ public class ServiceImpl extends HttpServer implements Service {
         }
     }
 
-    //todo время нужно задавать сверху (до проксирования)
     private Response put(@Param(value = "id", required = true) String id, Request request) {
         Record record = Record.of(wrapString(id), ByteBuffer.wrap(request.getBody()), timeStamp());
         dao.upsert(record);
@@ -242,7 +241,7 @@ public class ServiceImpl extends HttpServer implements Service {
         return result;
     }
 
-    private Response  handleEntity(Request request, String id, boolean includeTombstones) {
+    private Response handleEntity(Request request, String id, boolean includeTombstones) {
         Response response;
         switch (request.getMethod()) {
             case Request.METHOD_GET:
