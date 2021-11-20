@@ -1,19 +1,19 @@
 package ru.mail.polis.service.gasparyansokrat;
 
-import one.nio.http.HttpClient;
 import one.nio.http.Request;
 import one.nio.http.Response;
-import one.nio.net.ConnectionString;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.Record;
 
 import java.io.IOException;
+import java.net.http.HttpClient;
 import java.nio.ByteBuffer;
 import java.sql.Timestamp;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
 
 public class ClusterService {
 
@@ -37,14 +37,10 @@ public class ClusterService {
         Map<String, HttpClient> clusterServers = new HashMap<>();
         for (final String node : topology) {
             if (!node.equals(servConf.fullAddress)) {
-                clusterServers.put(node, new HttpClient(new ConnectionString(node)));
+                clusterServers.put(node, HttpClient.newHttpClient());
             }
         }
         return clusterServers;
-    }
-
-    public void stop() {
-        replicationService.stop();
     }
 
     public Response handleRequest(final Request request, final Map<String, String> params) throws IOException {
@@ -62,7 +58,11 @@ public class ClusterService {
 
         final List<String> nodes = clusterNodes.getNodes(params.get("id"), from);
 
-        return replicationService.handleRequest(request, ack, params.get("id"), nodes);
+        long start = System.currentTimeMillis();
+        Response resp = replicationService.handleRequest(request, ack, params.get("id"), nodes);
+        long end = System.currentTimeMillis();
+        //System.out.println("Elapsed times ms: " + (end - start));
+        return resp;
     }
 
     private void addTimeStamp(Request request) {
@@ -104,6 +104,12 @@ public class ClusterService {
 
     private Response badGateway() {
         return new Response(Response.BAD_GATEWAY, Response.EMPTY);
+    }
+
+    public static CompletableFuture<Response> asyncBadMethod() {
+        return CompletableFuture.supplyAsync(() ->
+                new Response(Response.METHOD_NOT_ALLOWED, ServiceImpl.BAD_REQUEST)
+        );
     }
 
     private boolean validParameter(final int ack, final int from) {

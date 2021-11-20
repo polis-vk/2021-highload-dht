@@ -11,6 +11,7 @@ import ru.mail.polis.service.Service;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.Map;
@@ -24,11 +25,7 @@ public class ServiceImpl extends HttpServer implements Service {
     private final ThreadPoolExecutor executor;
     private final ClusterService clusterService;
 
-    public static final int STATUS_OK = 200;
-    public static final int STATUS_NOT_FOUND = 404;
-    public static final int STATUS_BAD_GATEWAY = 502;
-    public static final int STATUS_CREATED = 201;
-    public static final int STATUS_DELETED = 202;
+    public static byte[] BAD_REQUEST = "Bad request".getBytes(StandardCharsets.UTF_8);
 
     /**
      * some doc.
@@ -37,12 +34,6 @@ public class ServiceImpl extends HttpServer implements Service {
         super(HttpConfigFactory.buildHttpConfig(servConf));
         this.executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(servConf.poolSize);
         this.clusterService = new ClusterService(dao, topology, servConf);
-    }
-
-    @Override
-    public void stop() {
-        clusterService.stop();
-        super.stop();
     }
 
     public Response status() {
