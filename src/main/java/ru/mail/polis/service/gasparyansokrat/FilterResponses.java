@@ -10,8 +10,11 @@ import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.nio.ByteBuffer;
 import java.util.List;
+import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
+
 
 final class FilterResponses {
 
@@ -40,21 +43,27 @@ final class FilterResponses {
                                               final int requireAck) {
         int ack = 0;
         Record freshEntry = null;
-        for (final CompletableFuture<Response> response : responses) {
-            final Response localResponse = takeHttpResponse(response);
-            if (localResponse == null) {
-                continue;
-            }
-            if (localResponse.getStatus() == HttpURLConnection.HTTP_OK ||
-                    localResponse.getStatus() == HttpURLConnection.HTTP_NOT_FOUND) {
-                ack += 1;
-                if (!ResponseIsEmpty(localResponse)) {
-                    freshEntry = getHttpEntry(localResponse, freshEntry);
+        final Queue<CompletableFuture<Response>> respQueue = new ConcurrentLinkedQueue<>(responses);
+        while (!respQueue.isEmpty()) {
+            final CompletableFuture<Response> response = respQueue.poll();
+            if (response.isDone()) {
+                final Response tmpResponse = takeHttpResponse(response);
+                if (tmpResponse == null) {
+                    continue;
                 }
-            }
-            Response readyResponse = checkAckResponse(ack, requireAck, freshEntry);
-            if (readyResponse != null) {
-                return readyResponse;
+                if (tmpResponse.getStatus() == HttpURLConnection.HTTP_OK ||
+                        tmpResponse.getStatus() == HttpURLConnection.HTTP_NOT_FOUND) {
+                    ack += 1;
+                    if (!ResponseIsEmpty(tmpResponse)) {
+                        freshEntry = getHttpEntry(tmpResponse, freshEntry);
+                    }
+                }
+                Response readyResponse = checkAckResponse(ack, requireAck, freshEntry);
+                if (readyResponse != null) {
+                    return readyResponse;
+                }
+            } else {
+                respQueue.add(response);
             }
         }
 
@@ -65,20 +74,27 @@ final class FilterResponses {
                                                        final int status,
                                                        final int requireAck) {
         int ack = 0;
+        final Queue<CompletableFuture<Response>> respQueue = new ConcurrentLinkedQueue<>(responses);
         Response localResponse = null;
-        for (final CompletableFuture<Response> response : responses) {
-            final Response tmpResponse = takeHttpResponse(response);
-            if (tmpResponse == null) {
-                continue;
-            }
-            if (tmpResponse.getStatus() == status) {
-                localResponse = tmpResponse;
-                ack += 1;
-            }
-            if (ack >= requireAck) {
-                return localResponse;
+        while (!respQueue.isEmpty()) {
+            final CompletableFuture<Response> response = respQueue.poll();
+            if (response.isDone()) {
+                final Response tmpResponse = takeHttpResponse(response);
+                if (tmpResponse == null) {
+                    continue;
+                }
+                if (tmpResponse.getStatus() == status) {
+                    localResponse = tmpResponse;
+                    ack += 1;
+                }
+            } else {
+                respQueue.add(response);
             }
         }
+        if (ack >= requireAck) {
+            return localResponse;
+        }
+
         return new Response(ClusterService.BAD_REPLICAS, Response.EMPTY);
     }
 

@@ -14,11 +14,15 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 public class ClusterService {
 
     private final ReplicationService replicationService;
     private final ConsistentHash clusterNodes;
+    //private final ExecutorService executorService;
     private final int topologySize;
     private final int quorumCluster;
 
@@ -28,6 +32,7 @@ public class ClusterService {
     ClusterService(final DAO dao, final Set<String> topology, final ServiceConfig servConf) {
         this.clusterNodes = new ConsistentHashImpl(topology);
         this.topologySize = topology.size();
+        //this.executorService = Executors.newFixedThreadPool(servConf.poolSize);
         Map<String, HttpClient> clusterServers = buildTopology(servConf, topology);
         this.replicationService = new ReplicationService(dao, servConf.fullAddress, clusterServers);
         this.quorumCluster = Math.round(QUORUM_MAJORITY * topologySize);
@@ -37,7 +42,9 @@ public class ClusterService {
         Map<String, HttpClient> clusterServers = new HashMap<>();
         for (final String node : topology) {
             if (!node.equals(servConf.fullAddress)) {
-                clusterServers.put(node, HttpClient.newHttpClient());
+                clusterServers.put(node,
+                        HttpClient.newBuilder()
+                                .build());
             }
         }
         return clusterServers;
@@ -63,6 +70,19 @@ public class ClusterService {
         long end = System.currentTimeMillis();
         //System.out.println("Elapsed times ms: " + (end - start));
         return resp;
+    }
+
+    public void stop() {
+        /*
+        executorService.shutdown();
+        try {
+            if (!executorService.awaitTermination(Long.MAX_VALUE, TimeUnit.MILLISECONDS)) {
+                throw new IllegalStateException("Error! Await termination stop Cluster service...");
+            }
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            return;
+        }*/
     }
 
     private void addTimeStamp(Request request) {
