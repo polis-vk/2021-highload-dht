@@ -69,12 +69,6 @@ public class ServiceImpl extends HttpServer implements Service {
         });
     }
 
-    @Override
-    public synchronized void stop() {
-        clusterService.stop();
-        super.stop();
-    }
-
     private Map<String, String> parseParameters(final Request request) {
         Map<String, String> parameters = new HashMap<>();
         String id = getParamRequest(request, "id");

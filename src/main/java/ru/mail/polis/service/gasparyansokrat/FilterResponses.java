@@ -10,9 +10,7 @@ import java.io.IOException;
 import java.net.HttpURLConnection;
 import java.nio.ByteBuffer;
 import java.util.List;
-import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.ExecutionException;
 
 
@@ -43,27 +41,21 @@ final class FilterResponses {
                                               final int requireAck) {
         int ack = 0;
         Record freshEntry = null;
-        final Queue<CompletableFuture<Response>> respQueue = new ConcurrentLinkedQueue<>(responses);
-        while (!respQueue.isEmpty()) {
-            final CompletableFuture<Response> response = respQueue.poll();
-            if (response.isDone()) {
-                final Response tmpResponse = takeHttpResponse(response);
-                if (tmpResponse == null) {
-                    continue;
+        for (final CompletableFuture<Response> response : responses) {
+            final Response tmpResponse = takeHttpResponse(response);
+            if (tmpResponse == null) {
+                continue;
+            }
+            if (tmpResponse.getStatus() == HttpURLConnection.HTTP_OK ||
+                    tmpResponse.getStatus() == HttpURLConnection.HTTP_NOT_FOUND) {
+                ack += 1;
+                if (!ResponseIsEmpty(tmpResponse)) {
+                    freshEntry = getHttpEntry(tmpResponse, freshEntry);
                 }
-                if (tmpResponse.getStatus() == HttpURLConnection.HTTP_OK ||
-                        tmpResponse.getStatus() == HttpURLConnection.HTTP_NOT_FOUND) {
-                    ack += 1;
-                    if (!ResponseIsEmpty(tmpResponse)) {
-                        freshEntry = getHttpEntry(tmpResponse, freshEntry);
-                    }
-                }
-                Response readyResponse = checkAckResponse(ack, requireAck, freshEntry);
-                if (readyResponse != null) {
-                    return readyResponse;
-                }
-            } else {
-                respQueue.add(response);
+            }
+            Response readyResponse = checkAckResponse(ack, requireAck, freshEntry);
+            if (readyResponse != null) {
+                return readyResponse;
             }
         }
 
@@ -74,25 +66,17 @@ final class FilterResponses {
                                                        final int status,
                                                        final int requireAck) {
         int ack = 0;
-        final Queue<CompletableFuture<Response>> respQueue = new ConcurrentLinkedQueue<>(responses);
-        Response localResponse = null;
-        while (!respQueue.isEmpty()) {
-            final CompletableFuture<Response> response = respQueue.poll();
-            if (response.isDone()) {
-                final Response tmpResponse = takeHttpResponse(response);
-                if (tmpResponse == null) {
-                    continue;
-                }
-                if (tmpResponse.getStatus() == status) {
-                    localResponse = tmpResponse;
-                    ack += 1;
-                }
-            } else {
-                respQueue.add(response);
+        for (final CompletableFuture<Response> response : responses) {
+            final Response tmpResponse = takeHttpResponse(response);
+            if (tmpResponse == null) {
+                continue;
             }
-        }
-        if (ack >= requireAck) {
-            return localResponse;
+            if (tmpResponse.getStatus() == status) {
+                ack += 1;
+            }
+            if (ack >= requireAck) {
+                return tmpResponse;
+            }
         }
 
         return new Response(ClusterService.BAD_REPLICAS, Response.EMPTY);
@@ -100,23 +84,6 @@ final class FilterResponses {
 
     private static boolean ResponseIsEmpty(final Response response) {
         return response.getBody().length == 0;
-    }
-
-    public static String code2Str(final int statusCode) {
-        switch (statusCode) {
-            case HttpURLConnection.HTTP_OK:
-                return Response.OK;
-            case HttpURLConnection.HTTP_NOT_FOUND:
-                return Response.NOT_FOUND;
-            case HttpURLConnection.HTTP_CREATED:
-                return Response.CREATED;
-            case HttpURLConnection.HTTP_ACCEPTED:
-                return Response.ACCEPTED;
-            case HttpURLConnection.HTTP_BAD_METHOD:
-                return Response.METHOD_NOT_ALLOWED;
-            default:
-                return Response.BAD_GATEWAY;
-        }
     }
     
     private static Response takeHttpResponse(final CompletableFuture<Response> response) {
