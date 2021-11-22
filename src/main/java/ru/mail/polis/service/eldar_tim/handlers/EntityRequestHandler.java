@@ -9,6 +9,7 @@ import ru.mail.polis.sharding.HashRouter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.net.http.HttpClient;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
@@ -20,9 +21,9 @@ public class EntityRequestHandler extends RequestHandler {
 
     public EntityRequestHandler(
             Cluster.Node self, HashRouter<Cluster.Node> router,
-            Cluster.ReplicasHolder replicasHolder, Executor executor,
+            Cluster.ReplicasHolder replicasHolder, HttpClient httpClient, Executor workers,
             DAO dao) {
-        super(self, router, replicasHolder, executor);
+        super(self, router, replicasHolder, httpClient, workers);
         this.dao = dao;
     }
 

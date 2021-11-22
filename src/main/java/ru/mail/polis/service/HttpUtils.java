@@ -2,8 +2,8 @@ package ru.mail.polis.service;
 
 import one.nio.http.Request;
 import one.nio.http.Response;
+import ru.mail.polis.Cluster;
 
-import java.net.Authenticator;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -19,17 +19,33 @@ public class HttpUtils {
                 .followRedirects(HttpClient.Redirect.NEVER)
                 .connectTimeout(Duration.ofSeconds(3))
                 .proxy(HttpClient.Builder.NO_PROXY)
-                .authenticator(Authenticator.getDefault())
                 .executor(executor)
                 .build();
     }
 
-    public static HttpRequest mapRequest(Request request) {
-        return HttpRequest.newBuilder()
-                .uri(URI.create(request.getURI()))
-                .headers(request.getHeaders())
-                .method(request.getMethodName(), HttpRequest.BodyPublishers.ofByteArray(request.getBody()))
-                .build();
+    public static HttpRequest mapRequest(Request request, Cluster.Node target) {
+        HttpRequest.BodyPublisher bodyPublisher = HttpRequest.BodyPublishers.noBody();
+        byte[] body = request.getBody();
+        if (body != null && body.length != 0) {
+            bodyPublisher = HttpRequest.BodyPublishers.ofByteArray(request.getBody());
+        }
+
+        HttpRequest.Builder builder = HttpRequest.newBuilder()
+                .uri(URI.create(target.uri + request.getURI()))
+                .method(request.getMethodName(), bodyPublisher);
+
+        for (var header : request.getHeaders()) {
+            if (header == null) {
+                continue;
+            }
+            String[] sp = header.split(":");
+            try {
+                builder.header(sp[0], sp[1].trim());
+            } catch (IllegalArgumentException ignored) {
+                // Ignore Java restricted headers.
+            }
+        }
+        return builder.build();
     }
 
     public static Response mapResponse(HttpResponse<byte[]> response) {

@@ -7,15 +7,16 @@ import ru.mail.polis.sharding.HashRouter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
+import java.net.http.HttpClient;
 import java.util.concurrent.Executor;
 
 public class StatusRequestHandler extends RequestHandler {
 
     public StatusRequestHandler(
             Cluster.Node self, HashRouter<Cluster.Node> router,
-            Cluster.ReplicasHolder replicasHolder, Executor executor
+            Cluster.ReplicasHolder replicasHolder, HttpClient httpClient, Executor workers
     ) {
-        super(self, router, replicasHolder, executor);
+        super(self, router, replicasHolder, httpClient, workers);
     }
 
     @Nullable

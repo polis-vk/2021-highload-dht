@@ -28,7 +28,6 @@ import ru.mail.polis.sharding.HashFunction;
 import ru.mail.polis.sharding.HashRouter;
 
 import java.io.IOException;
-import java.net.http.HttpClient;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -88,32 +87,21 @@ public final class Cluster {
     }
 
     public static class Node implements ru.mail.polis.sharding.Node {
+        public final String uri;
         public final String ip;
         public final int port;
-        private final HttpClient httpClient;
 
-        public Node(String host, int port, HttpClient httpClient) {
-            this.ip =  host;
-            this.port = port;
-            this.httpClient = httpClient;
+        public Node(String uri) {
+            this.uri = uri;
+
+            String[] host_port = uri.replaceFirst(".*://", "").split(":");
+            this.ip = host_port[0];
+            this.port = Integer.parseInt(host_port[1]);
         }
 
         @Override
         public String getKey() {
             return ip + ":" + port;
-        }
-
-        public Node init() {
-            //httpClient = HttpUtils.createClient(Executors.newFixedThreadPool(4)); // FIXME
-            return this;
-        }
-
-        public void close() {
-            // FIXME: remove or ???
-        }
-
-        public HttpClient getClient() {
-            return httpClient;
         }
     }
 

@@ -16,7 +16,6 @@
 
 package ru.mail.polis.service;
 
-import one.nio.net.ConnectionString;
 import ru.mail.polis.Cluster;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.service.eldar_tim.HttpServerImpl;
@@ -90,20 +89,19 @@ public final class ServiceFactory {
                 key -> new Cluster.ReplicasHolder(Math.min(REPLICAS_NUMBER, topology.size()),
                         clusterNodes, comparator));
 
-        Cluster.Node currentNode = findClusterNode(port, clusterNodes).init();
+        Cluster.Node currentNode = findClusterNode(port, clusterNodes);
         HashRouter<Cluster.Node> hashRouter = new ConsistentHashRouter<>(clusterNodes, 30);
 
         ServiceExecutor workers = new LimitedServiceExecutor("worker", WORKERS_NUMBER, TASKS_LIMIT);
+        ServiceExecutor ioWorkers = new LimitedServiceExecutor("net_io", WORKERS_NUMBER, TASKS_LIMIT);
 
-        return new HttpServerImpl(dao, currentNode, replicasHolder, hashRouter, workers);
+        return new HttpServerImpl(dao, currentNode, replicasHolder, hashRouter, workers, ioWorkers);
     }
 
     private static Set<Cluster.Node> buildClusterNodes(Set<String> topologyRaw) {
         Set<Cluster.Node> topology = new HashSet<>(topologyRaw.size());
         for (String endpoint : topologyRaw) {
-            String params = "?clientMaxPoolSize=" + WORKERS_NUMBER * (topologyRaw.size() - 1);
-            ConnectionString connectionString = new ConnectionString(endpoint + "/" + params);
-            Cluster.Node node = new Cluster.Node(connectionString);
+            Cluster.Node node = new Cluster.Node(endpoint);
             topology.add(node);
         }
         return topology;

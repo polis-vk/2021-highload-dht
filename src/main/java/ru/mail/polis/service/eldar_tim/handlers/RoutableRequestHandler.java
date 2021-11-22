@@ -14,6 +14,7 @@ import ru.mail.polis.sharding.HashRouter;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
+import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.ByteBuffer;
@@ -29,12 +30,16 @@ public abstract class RoutableRequestHandler implements RequestHandler {
 
     protected final Cluster.Node self;
     private final HashRouter<Cluster.Node> router;
-    private final Executor executor;
+    protected final HttpClient httpClient;
+    protected final Executor workers;
 
-    public RoutableRequestHandler(Cluster.Node self, HashRouter<Cluster.Node> router, Executor executor) {
+    public RoutableRequestHandler(
+            Cluster.Node self, HashRouter<Cluster.Node> router,
+            HttpClient httpClient, Executor workers) {
         this.self = self;
         this.router = router;
-        this.executor = executor;
+        this.httpClient = httpClient;
+        this.workers = workers;
     }
 
     /**
@@ -86,7 +91,7 @@ public abstract class RoutableRequestHandler implements RequestHandler {
      */
     protected final ServiceResponse redirectRequest(Request request, Cluster.Node target) {
         try {
-            return redirectRequestAsync(request, target, executor).get();
+            return redirectRequestAsync(request, target, workers).get();
         } catch (CancellationException | ExecutionException e) {
             String errorText = "Proxy error: " + e.getMessage();
             LOG.debug(errorText, e);
@@ -108,16 +113,16 @@ public abstract class RoutableRequestHandler implements RequestHandler {
      *
      * @param request request to redirect
      * @param target target node to redirect request
-     * @param executor executor for response post-processing
+     * @param workers executor for response post-processing
      * @return response
      */
     protected final CompletableFuture<ServiceResponse> redirectRequestAsync(
-            Request request, Cluster.Node target, Executor executor
+            Request request, Cluster.Node target, Executor workers
     ) {
-        HttpRequest mappedRequest = HttpUtils.mapRequest(request);
-        return target.getClient()
+        HttpRequest mappedRequest = HttpUtils.mapRequest(request, target);
+        return httpClient
                 .sendAsync(mappedRequest, ServiceResponseBodySubscriber.INSTANCE)
-                .thenApplyAsync(HttpResponse::body, executor);
+                .thenApplyAsync(HttpResponse::body, workers);
     }
 
     protected final byte[] extractBytes(ByteBuffer buffer) {

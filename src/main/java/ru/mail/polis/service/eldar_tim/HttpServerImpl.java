@@ -12,6 +12,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.Cluster;
 import ru.mail.polis.lsm.DAO;
+import ru.mail.polis.service.HttpUtils;
 import ru.mail.polis.service.Service;
 import ru.mail.polis.service.eldar_tim.handlers.EntityRequestHandler;
 import ru.mail.polis.service.eldar_tim.handlers.RequestHandler;
@@ -21,6 +22,7 @@ import ru.mail.polis.service.exceptions.ServiceOverloadException;
 import ru.mail.polis.sharding.HashRouter;
 
 import java.io.IOException;
+import java.net.http.HttpClient;
 
 /**
  * Service implementation for 2021-highload-dht.
@@ -36,13 +38,15 @@ public class HttpServerImpl extends HttpServer implements Service {
     private final HashRouter<Cluster.Node> router;
     private final ServiceExecutor workers;
 
+    private final HttpClient httpClient;
+
     private final PathMapper pathMapper;
     private final one.nio.http.RequestHandler statusHandler;
 
     public HttpServerImpl(
             DAO dao, Cluster.Node self,
             Cluster.ReplicasHolder replicasHolder, HashRouter<Cluster.Node> router,
-            ServiceExecutor workers
+            ServiceExecutor workers, ServiceExecutor ioWorkers
     ) throws IOException {
         super(buildHttpServerConfig(self.port));
         this.dao = dao;
@@ -51,8 +55,10 @@ public class HttpServerImpl extends HttpServer implements Service {
         this.router = router;
         this.workers = workers;
 
+        httpClient = HttpUtils.createClient(ioWorkers);
+
         pathMapper = new PathMapper();
-        statusHandler = new StatusRequestHandler(self, router, replicasHolder, workers);
+        statusHandler = new StatusRequestHandler(self, router, replicasHolder, httpClient, workers);
         mapPaths();
 
         LOG.info("{}: server is running now", self.getKey());
@@ -74,13 +80,12 @@ public class HttpServerImpl extends HttpServer implements Service {
 
         pathMapper.add("/v0/entity",
                 new int[]{Request.METHOD_GET, Request.METHOD_PUT, Request.METHOD_DELETE},
-                new EntityRequestHandler(self, router, replicasHolder, workers, dao));
+                new EntityRequestHandler(self, router, replicasHolder, httpClient, workers, dao));
     }
 
     @Override
     public synchronized void stop() {
         super.stop();
-        self.close();
         workers.awaitAndShutdown();
 
         LOG.info("{}: server has been stopped", self.getKey());

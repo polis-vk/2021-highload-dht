@@ -12,6 +12,7 @@ import ru.mail.polis.sharding.HashRouter;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
+import java.net.http.HttpClient;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.Collections;
@@ -33,15 +34,13 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
     public static final String RESPONSE_NOT_ENOUGH_REPLICAS = "504 Not Enough Replicas";
 
     private final Cluster.ReplicasHolder replicasHolder;
-    private final Executor executor;
 
     public ReplicableRequestHandler(
             Cluster.Node self, HashRouter<Cluster.Node> router,
-            Cluster.ReplicasHolder replicasHolder, Executor executor
+            Cluster.ReplicasHolder replicasHolder, HttpClient httpClient, Executor workers
     ) {
-        super(self, router, executor);
+        super(self, router, httpClient, workers);
         this.replicasHolder = replicasHolder;
-        this.executor = executor;
     }
 
     @Override
@@ -130,9 +129,9 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
         Map<Cluster.Node, CompletableFuture<ServiceResponse>> futures = new HashMap<>(replicas.size());
         for (var target : replicas) {
             if (target == self) {
-                futures.put(target, handleLocallyAsync(request, executor));
+                futures.put(target, handleLocallyAsync(request, workers));
             } else {
-                futures.put(target, handleRemotelyAsync(target, request, executor));
+                futures.put(target, handleRemotelyAsync(target, request, workers));
             }
         }
 
