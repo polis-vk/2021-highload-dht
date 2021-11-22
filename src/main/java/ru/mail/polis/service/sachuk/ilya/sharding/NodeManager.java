@@ -1,23 +1,34 @@
 package ru.mail.polis.service.sachuk.ilya.sharding;
 
-import one.nio.http.HttpClient;
 import one.nio.net.ConnectionString;
 import one.nio.util.Hash;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import ru.mail.polis.service.sachuk.ilya.Pair;
 
 import java.io.Closeable;
+import java.net.http.HttpClient;
+import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.NavigableMap;
 import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class NodeManager implements Closeable {
+    private Logger logger = LoggerFactory.getLogger(NodeManager.class);
     private final NavigableMap<Integer, VNode> circle = new TreeMap<>();
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
     private final NavigableMap<String, HttpClient> clients;
+    private final ExecutorService coordinatorExecutor = new ThreadPoolExecutor(8, 8,
+            0L,
+            TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(2000));
     private final VNodeConfig vnodeConfig;
 
     public NodeManager(Set<String> topology, VNodeConfig vnodeConfig, Node node) {
@@ -27,13 +38,18 @@ public final class NodeManager implements Closeable {
 
         for (String endpoint : topology) {
             ConnectionString connectionString = new ConnectionString(endpoint);
+            logger.info(connectionString.toString());
 
             addNode(new Node(connectionString.getPort()));
             if (node.port == connectionString.getPort()) {
                 continue;
             }
 
-            HttpClient client = new HttpClient(new ConnectionString(endpoint));
+            HttpClient client = HttpClient.newBuilder()
+                    .version(HttpClient.Version.HTTP_1_1)
+                    .connectTimeout(Duration.ofSeconds(3))
+                    .executor(coordinatorExecutor)
+                    .build();
             clients.put(endpoint, client);
         }
     }
@@ -68,9 +84,7 @@ public final class NodeManager implements Closeable {
     @Override
     public void close() {
         isClosed.set(true);
-        for (HttpClient httpClient : clients.values()) {
-            httpClient.close();
-        }
+
     }
 
     private void addNode(Node node) {
