@@ -123,7 +123,7 @@ public abstract class RoutableRequestHandler implements RequestHandler {
         HttpRequest mappedRequest = HttpUtils.mapRequest(request, target);
         return httpClient
                 .sendAsync(mappedRequest, ServiceResponseBodySubscriber.INSTANCE)
-                .thenApplyAsync(HttpResponse::body, workers);
+                .thenApply(HttpResponse::body);
     }
 
     protected final byte[] extractBytes(ByteBuffer buffer) {

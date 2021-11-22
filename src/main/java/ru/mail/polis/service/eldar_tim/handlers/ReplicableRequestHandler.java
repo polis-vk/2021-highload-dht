@@ -4,6 +4,8 @@ import one.nio.http.HttpSession;
 import one.nio.http.Request;
 import one.nio.http.RequestHandler;
 import one.nio.http.Response;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import ru.mail.polis.Cluster;
 import ru.mail.polis.service.eldar_tim.ServiceResponse;
 import ru.mail.polis.service.exceptions.ClientBadRequestException;
@@ -18,17 +20,16 @@ import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
-import java.util.HashMap;
-import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
-import java.util.SortedMap;
-import java.util.TreeMap;
+import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 public abstract class ReplicableRequestHandler extends RoutableRequestHandler implements RequestHandler {
+
+    private static final Logger LOG = LoggerFactory.getLogger(ReplicableRequestHandler.class);
 
     public static final String HEADER_HANDLE_LOCALLY = "Service-Handle-Locally";
     public static final String HEADER_HANDLE_LOCALLY_TRUE = HEADER_HANDLE_LOCALLY + ": 1";
@@ -58,8 +59,13 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
         Cluster.Node targetNode = getTargetNode(request);
         List<Cluster.Node> replicas = replicasHolder.getBunch(targetNode, from);
 
-        ServiceResponse serviceResponse = mergePollResults(makePoll(ack, replicas, request), ack);
-        session.sendResponse(serviceResponse.raw());
+        pollReplicas(ack, replicas, request).thenAccept(response -> {
+            try {
+                session.sendResponse(response.raw());
+            } catch (IOException e) {
+                LOG.debug("Failed to send response", e);
+            }
+        }); // TODO: network thread or workers?
     }
 
     private int[] parseAckFromParameter(@Nullable String param) {
@@ -102,91 +108,85 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
     }
 
     @Nonnull
-    private CompletableFuture<ServiceResponse> handleLocallyAsync(
-            @Nonnull Request request, @Nonnull Executor executor
-    ) {
-        return CompletableFuture.supplyAsync(() -> handleLocally(request), executor);
+    private CompletableFuture<ServiceResponse> handleLocallyAsync(@Nonnull Request request) {
+        return CompletableFuture.supplyAsync(() -> handleLocally(request), workers);
     }
 
     @Nonnull
     private CompletableFuture<ServiceResponse> handleRemotelyAsync(
-            @Nonnull Cluster.Node target, @Nonnull Request request, @Nonnull Executor executor
+            @Nonnull Cluster.Node target, @Nonnull Request request
     ) {
-        return redirectRequestAsync(request, target, executor);
+        return redirectRequestAsync(request, target, workers);
     }
 
-    /**
-     * Sends requests to the specified nodes and returns the <code>ack</code> fastest responses,
-     * or < <code>ack</code>, if requests failed.
-     *
-     * @param ack      number of answers
-     * @param replicas target nodes for poll
-     * @param request  original request
-     * @return see the description
-     */
-    private Collection<ServiceResponse> makePoll(int ack, List<Cluster.Node> replicas, Request request) {
+    private CompletableFuture<ServiceResponse> pollReplicas(
+            int ack, List<Cluster.Node> replicas, Request request
+    ) {
         request.addHeader(HEADER_HANDLE_LOCALLY_TRUE);
 
-        Map<Cluster.Node, CompletableFuture<ServiceResponse>> futures = new HashMap<>(replicas.size());
+        PollHandler handler = new PollHandler(ack, replicas.size());
         for (var target : replicas) {
+            final CompletableFuture<ServiceResponse> future;
             if (target == self) {
-                futures.put(target, handleLocallyAsync(request, workers));
+                future = handleLocallyAsync(request);
             } else {
-                futures.put(target, handleRemotelyAsync(target, request, workers));
+                future = handleRemotelyAsync(target, request);
+            }
+            future.thenAccept(handler::parse);
+        }
+        return handler.result;
+    }
+
+    private static class PollHandler {
+
+        private final int ack;
+        private final int from;
+        private final CompletableFuture<ServiceResponse> result;
+
+        private final Queue<ServiceResponse> responses = new ConcurrentLinkedQueue<>();
+        private final AtomicBoolean parsingRequest = new AtomicBoolean();
+
+        public PollHandler(int ack, int from) {
+            this.ack = ack;
+            this.from = from;
+            this.result = new CompletableFuture<>();
+        }
+
+        public void parse(ServiceResponse response) {
+            if (response != null && isCorrect(response)) {
+                responses.add(response);
+            }
+
+            if (requestProcessing()) {
+                ServiceResponse merged = mergePollResults(responses, ack);
+                result.complete(merged);
             }
         }
 
-        SortedMap<Cluster.Node, ServiceResponse> results = new TreeMap<>(Comparator.comparing(Cluster.Node::getKey));
-        while (true) {
-            Iterator<Cluster.Node> iterator = futures.keySet().iterator();
-            while (iterator.hasNext()) {
-                Cluster.Node node = iterator.next();
-                CompletableFuture<ServiceResponse> future = futures.get(node);
-
-                if (future.isDone()) {
-                    iterator.remove();
-                } else {
-                    continue;
-                }
-
-                final ServiceResponse response;
-                try {
-                    response = future.get();
-                } catch (ExecutionException | InterruptedException ignored) {
-                    continue;
-                }
-
-                if (response != null && isCorrect(response)) {
-                    results.put(node, response);
-                }
-            }
-
-            if (results.size() >= ack || futures.isEmpty()) {
-                return results.values();
-            }
-
-            // Here we might wait others and make repair if needed.
+        private boolean requestProcessing() {
+            int size = responses.size();
+            return (size > ack || size == from) && parsingRequest.compareAndSet(false, true);
         }
-    }
 
-    private boolean isCorrect(@Nonnull ServiceResponse serviceResponse) {
-        int status = serviceResponse.raw().getStatus();
-        return status < 500;
-    }
+        private boolean isCorrect(@Nonnull ServiceResponse serviceResponse) {
+            int status = serviceResponse.raw().getStatus();
+            return status < 500;
+        }
 
-    /**
-     * Combines multiple responses into one according to the latest time criterion.
-     * If none of the answers are relevant, the first in the list will be returned.
-     *
-     * @param responses ordered responses to merge
-     * @param ack       minimal success answers count
-     * @return one merged response
-     */
-    private ServiceResponse mergePollResults(Collection<ServiceResponse> responses, int ack) {
-        if (responses.size() < ack) {
-            return ServiceResponse.of(new Response(RESPONSE_NOT_ENOUGH_REPLICAS, Response.EMPTY));
-        } else {
-            return Collections.max(responses, Comparator.comparingLong(o -> o.timestamp));
+        /**
+         * Combines multiple responses into one according to the latest time criterion.
+         * If none of the answers are relevant, the first in the list will be returned.
+         *
+         * @param success ordered responses to merge
+         * @param ack     minimal success answers count
+         * @return one merged response
+         */
+        private ServiceResponse mergePollResults(Collection<ServiceResponse> success, int ack) {
+            if (success.size() < ack) {
+                return ServiceResponse.of(new Response(RESPONSE_NOT_ENOUGH_REPLICAS, Response.EMPTY));
+            } else {
+                return Collections.max(success, Comparator.comparingLong(o -> o.timestamp));
+            }
         }
     }
 }
