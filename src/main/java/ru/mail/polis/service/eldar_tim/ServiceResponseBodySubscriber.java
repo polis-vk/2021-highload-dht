@@ -32,7 +32,7 @@ public class ServiceResponseBodySubscriber implements HttpResponse.BodyHandler<S
     private long parseTimestampHeader(String timestampHeader) {
         long timestamp;
         try {
-            timestamp = Long.parseLong(timestampHeader, 2, timestampHeader.length(), 10);
+            timestamp = Long.parseLong(timestampHeader, 0, timestampHeader.length(), 10);
         } catch (NullPointerException | IndexOutOfBoundsException | NumberFormatException e) {
             timestamp = -1;
         }
