@@ -42,7 +42,7 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
     @Override
     public void handleRequest(Request request, HttpSession session) throws IOException {
         if (request.getHeader(HEADER_HANDLE_LOCALLY) != null) {
-            session.sendResponse(handleLocally(request));
+            session.sendResponse(handleLocally(request).internal());
             return;
         }
 
@@ -87,16 +87,17 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
     }
 
     @Nonnull
-    private Response handleLocally(@Nonnull Request request) {
+    private ServiceResponse handleLocally(@Nonnull Request request) {
         try {
-            return handleRequest(request).transform();
+            return handleRequest(request);
         } catch (ServerRuntimeException e) {
-            return new Response(Response.INTERNAL_ERROR, e.getMessage().getBytes(StandardCharsets.UTF_8));
+            Response answer = new Response(Response.INTERNAL_ERROR, e.getMessage().getBytes(StandardCharsets.UTF_8));
+            return ServiceResponse.of(answer);
         }
     }
 
     @Nonnull
-    private Response handleRemotely(@Nonnull Request request, @Nonnull Cluster.Node target) {
+    private ServiceResponse handleRemotely(@Nonnull Request request, @Nonnull Cluster.Node target) {
         return redirectRequest(request, target);
     }
 

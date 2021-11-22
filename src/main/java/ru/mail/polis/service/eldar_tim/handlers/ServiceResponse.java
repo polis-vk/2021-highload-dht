@@ -16,10 +16,20 @@ public final class ServiceResponse {
         this.timestamp = timestamp;
     }
 
-    public Response transform() {
+    /**
+     * @return response for internal targets
+     */
+    public Response internal() {
         if (timestamp > 0) {
             response.addHeader(HEADER_TIMESTAMP + ": " + timestamp);
         }
+        return response;
+    }
+
+    /**
+     * @return response for external targets
+     */
+    public Response external() {
         return response;
     }
 

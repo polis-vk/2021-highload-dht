@@ -16,13 +16,13 @@
 
 package ru.mail.polis;
 
-import one.nio.http.HttpClient;
 import one.nio.net.ConnectionString;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.DAOConfig;
 import ru.mail.polis.lsm.DAOFactory;
+import ru.mail.polis.service.HttpUtils;
 import ru.mail.polis.service.Service;
 import ru.mail.polis.service.ServiceFactory;
 import ru.mail.polis.sharding.ConsistentHashRouter;
@@ -30,6 +30,7 @@ import ru.mail.polis.sharding.HashFunction;
 import ru.mail.polis.sharding.HashRouter;
 
 import java.io.IOException;
+import java.net.http.HttpClient;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -39,6 +40,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.StringJoiner;
+import java.util.concurrent.Executors;
 
 /**
  * Starts 3-node storage cluster and waits for shutdown.
@@ -107,12 +109,12 @@ public final class Cluster {
         }
 
         public Node init() {
-            httpClient = new HttpClient(connectionString);
+            httpClient = HttpUtils.createClient(Executors.newFixedThreadPool(4)); // FIXME
             return this;
         }
 
         public void close() {
-            httpClient.close();
+            // FIXME: remove or ???
         }
 
         public HttpClient getClient() {
