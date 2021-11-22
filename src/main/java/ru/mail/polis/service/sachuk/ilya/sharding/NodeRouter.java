@@ -14,7 +14,6 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 
 public class NodeRouter {
     private Logger logger = LoggerFactory.getLogger(NodeRouter.class);
@@ -25,63 +24,37 @@ public class NodeRouter {
         this.nodeManager = nodeManager;
     }
 
-//    public Response routeToNode(VNode vnode, Request request) {
-//        String host = Node.HOST;
-//        int port = vnode.getPhysicalNode().port;
-//
-//        HttpClient httpClient = nodeManager.getHttpClient(host + port);
-//
-//        if (httpClient == null) {
-//            return new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY);
-//        }
-//
-//        try {
-//            return httpClient.invoke(request);
-//        } catch (InterruptedException e) {
-//            Thread.currentThread().interrupt();
-//            throw new IllegalStateException(e);
-//        } catch (PoolException e) {
-//            return new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY);
-//        } catch (HttpException e) {
-//            throw new IllegalStateException(e);
-//        } catch (IOException e) {
-//            throw new UncheckedIOException(e);
-//        }
-//    }
-
     public CompletableFuture<Response> routeToNode(VNode vnode, Request request) {
         String host = Node.HOST;
         int port = vnode.getPhysicalNode().port;
 
         HttpClient httpClient = nodeManager.getHttpClient(host + port);
 
-//        logger.info(httpClient.);
-
-        logger.info("BEFORE sendAsync");
-
-        try {
-            httpClient.sendAsync(getHttpRequest(request, port), HttpResponse.BodyHandlers.ofByteArray())
-    //                .thenApplyAsync(httpResponse -> {
-    //                    httpResponse.headers().map().forEach();
-    //                });
-                    .thenAccept(httpResponse -> httpResponse.headers().map().forEach((k, v) -> logger.info("key is " + k + " and values is : " + v))).get();
-        } catch (InterruptedException e) {
-            e.printStackTrace();
-        } catch (ExecutionException e) {
-            e.printStackTrace();
-        }
-
-        logger.info("AFTER sendAsync");
-
-        return CompletableFuture.supplyAsync(() -> new Response(Response.OK, Response.EMPTY));
+        return httpClient
+                .sendAsync(getHttpRequest(request, port), HttpResponse.BodyHandlers.ofByteArray())
+                .thenApplyAsync(this::httpResponseToResponse)
+                .exceptionally(t -> new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY));
     }
 
     private Response httpResponseToResponse(HttpResponse<byte[]> httpResponse) {
         Response response = new Response(getResultCode(httpResponse.statusCode()), httpResponse.body());
+
+
         logger.info("body: " + httpResponse.body().length);
         Map<String, List<String>> map = httpResponse.headers().map();
-//        map.forEach();
+
+        map.forEach((k, v) -> {
+            for (String s : v) {
+                addHeaderToResponse(response, k, s);
+            }
+        });
+
         return response;
+    }
+
+    //FIXME
+    private void addHeaderToResponse(Response response, String header, String values) {
+        response.addHeader(header + ": " + values);
     }
 
     private String getResultCode(int statusCode) {
@@ -155,9 +128,7 @@ public class NodeRouter {
 
         }
 
-        HttpRequest httpRequest = builder.build();
-
-        return httpRequest;
+        return builder.build();
     }
 
 }

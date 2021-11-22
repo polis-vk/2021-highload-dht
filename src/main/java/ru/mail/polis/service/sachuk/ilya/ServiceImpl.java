@@ -70,6 +70,12 @@ public class ServiceImpl extends HttpServer implements Service {
             return new Response(Response.BAD_REQUEST, Response.EMPTY);
         }
 
+        for (String header : request.getHeaders()) {
+            logger.info(header);
+        }
+
+        logger.info("CURR METHOD FROM SERVICE " + request.getMethodName());
+
         boolean isCoordinator = false;
         String timestamp = request.getHeader(ResponseUtils.TIMESTAMP_HEADER);
         if (timestamp == null) {
@@ -77,7 +83,10 @@ public class ServiceImpl extends HttpServer implements Service {
             request.addHeader(ResponseUtils.TIMESTAMP_HEADER + System.currentTimeMillis());
         }
 
+        logger.info("Timestamp header from service: " + timestamp);
+
         if (isCoordinator) {
+            logger.info("in block is coordinator");
             return coordinator.handle(replicationInfo, id, request);
         } else {
             if (logger.isInfoEnabled()) {

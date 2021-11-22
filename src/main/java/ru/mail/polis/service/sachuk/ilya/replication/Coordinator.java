@@ -6,9 +6,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.Utils;
 import ru.mail.polis.lsm.Record;
-import ru.mail.polis.service.sachuk.ilya.ConfiguredPoolExecutor;
 import ru.mail.polis.service.sachuk.ilya.EntityRequestHandler;
-import ru.mail.polis.service.sachuk.ilya.ExecutorConfig;
 import ru.mail.polis.service.sachuk.ilya.Pair;
 import ru.mail.polis.service.sachuk.ilya.ResponseUtils;
 import ru.mail.polis.service.sachuk.ilya.sharding.Node;
@@ -20,8 +18,8 @@ import java.io.Closeable;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
-import java.util.concurrent.Future;
 
 public class Coordinator implements Closeable {
 
@@ -31,8 +29,6 @@ public class Coordinator implements Closeable {
     private final NodeRouter nodeRouter;
     private final EntityRequestHandler entityRequestHandler;
     private final Node node;
-    private final ConfiguredPoolExecutor coordinatorExecutor =
-            new ConfiguredPoolExecutor(new ExecutorConfig(8, 2000));
 
     public Coordinator(NodeManager nodeManager, NodeRouter nodeRouter, EntityRequestHandler entityRequestHandler,
                        Node node) {
@@ -43,9 +39,6 @@ public class Coordinator implements Closeable {
     }
 
     public Response handle(ReplicationInfo replicationInfo, String id, Request request) {
-        if (coordinatorExecutor.isQueueFull()) {
-            return new Response(Response.SERVICE_UNAVAILABLE, Response.EMPTY);
-        }
 
         ByteBuffer key = Utils.wrap(id);
 
@@ -67,10 +60,10 @@ public class Coordinator implements Closeable {
 
     private List<Response> getResponses(ReplicationInfo replicationInfo, String id, Request request) {
         List<Response> responses = new ArrayList<>();
-        List<Future<Response>> futures = getFutures(replicationInfo, id, request);
+        List<CompletableFuture<Response>> futures = getFutures(replicationInfo, id, request);
 
         int counter = 0;
-        for (Future<Response> future : futures) {
+        for (CompletableFuture<Response> future : futures) {
             try {
                 if (counter >= replicationInfo.ask) {
                     break;
@@ -96,8 +89,8 @@ public class Coordinator implements Closeable {
         return responses;
     }
 
-    private List<Future<Response>> getFutures(ReplicationInfo replicationInfo, String id, Request request) {
-        List<Future<Response>> futures = new ArrayList<>();
+    private List<CompletableFuture<Response>> getFutures(ReplicationInfo replicationInfo, String id, Request request) {
+        List<CompletableFuture<Response>> futures = new ArrayList<>();
         Integer hash = null;
         List<Integer> currentPorts = new ArrayList<>();
 
@@ -107,8 +100,8 @@ public class Coordinator implements Closeable {
             VNode vnode = pair.value;
             currentPorts.add(pair.value.getPhysicalNode().port);
 
-            futures.add(
-                    coordinatorExecutor.submit(() -> chooseHandler(id, request, vnode))
+            futures.add(chooseHandler(id, request, vnode)
+//                    coordinatorExecutor.submit(() -> chooseHandler(id, request, vnode))
             );
         }
 
@@ -218,13 +211,13 @@ public class Coordinator implements Closeable {
         return records.get(0);
     }
 
-    private Response chooseHandler(String id, Request request, VNode vnode) {
-        Response response;
+    private CompletableFuture<Response> chooseHandler(String id, Request request, VNode vnode) {
+        CompletableFuture<Response> response;
         if (vnode.getPhysicalNode().port == node.port) {
             if (logger.isInfoEnabled()) {
                 logger.info("HANDLE BY CURRENT NODE: port :" + vnode.getPhysicalNode().port);
             }
-            response = entityRequestHandler.handle(request, id);
+            response = CompletableFuture.supplyAsync(() -> entityRequestHandler.handle(request, id));
         } else {
             if (logger.isInfoEnabled()) {
                 logger.info("HANDLE BY OTHER NODE: port :" + vnode.getPhysicalNode().port);
@@ -237,6 +230,6 @@ public class Coordinator implements Closeable {
 
     @Override
     public void close() {
-        coordinatorExecutor.close();
+//        ThreadUtils.awaitForShutdown(coordinatorExecutor);
     }
 }
