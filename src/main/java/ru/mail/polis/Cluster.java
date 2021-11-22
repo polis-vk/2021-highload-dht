@@ -120,7 +120,7 @@ public final class Cluster {
         }
     }
 
-    public static class ReplicasHolder {
+    public static final class ReplicasHolder {
         public final int replicasCount;
         private final Map<Node, List<Node>> replicas;
 
@@ -136,15 +136,17 @@ public final class Cluster {
 
             HashRouter<Node> router = new ConsistentHashRouter<>(topology, 30, new HashFunction.HashXXH3());
             for (Node node : topology) {
-                replicas.computeIfAbsent(node, key -> computeReplicas(node, router, comparator));
+                replicas.put(node, computeReplicas(node, router, comparator));
 
-                StringJoiner joiner = new StringJoiner(", ");
-                replicas.get(node).forEach(n -> {
-                    if (n != node) {
-                        joiner.add(n.getKey());
-                    }
-                });
-                LOG.info("Created replicas for node {}: {}", node.getKey(), joiner);
+                if (LOG.isInfoEnabled()) {
+                    StringJoiner joiner = new StringJoiner(", ");
+                    replicas.get(node).forEach(n -> {
+                        if (n != node) {
+                            joiner.add(n.getKey());
+                        }
+                    });
+                    LOG.info("Created replicas for node {}: {}", node.getKey(), joiner);
+                }
             }
         }
 
