@@ -20,9 +20,7 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 
 public abstract class RoutableRequestHandler implements RequestHandler {
@@ -91,29 +89,14 @@ public abstract class RoutableRequestHandler implements RequestHandler {
      * @return response
      */
     protected final ServiceResponse redirectRequest(Request request, Cluster.Node target) {
-        try {
-            return redirectRequestAsync(request, target, workers).get();
-        } catch (CancellationException | ExecutionException e) {
-            String errorText = "Proxy error: " + e.getMessage();
-            LOG.debug(errorText, e);
-
-            Response answer = new Response(Response.INTERNAL_ERROR, errorText.getBytes(StandardCharsets.UTF_8));
-            return ServiceResponse.of(answer);
-        } catch (InterruptedException e) {
-            Thread.currentThread().interrupt();
-            String errorText = "Proxy error: interrupted";
-            LOG.debug(errorText, e);
-
-            Response answer = new Response(Response.INTERNAL_ERROR, errorText.getBytes(StandardCharsets.UTF_8));
-            return ServiceResponse.of(answer);
-        }
+        return redirectRequestAsync(request, target, workers).join();
     }
 
     /**
      * Asynchronously redirects the request to the specified host.
      *
      * @param request request to redirect
-     * @param target target node to redirect request
+     * @param target  target node to redirect request
      * @param workers executor for response post-processing
      * @return response
      */
@@ -121,9 +104,20 @@ public abstract class RoutableRequestHandler implements RequestHandler {
             Request request, Cluster.Node target, Executor workers
     ) {
         HttpRequest mappedRequest = HttpUtils.mapRequest(request, target);
-        return httpClient
-                .sendAsync(mappedRequest, ServiceResponseBodySubscriber.INSTANCE)
-                .thenApply(HttpResponse::body);
+        CompletableFuture<ServiceResponse> result = new CompletableFuture<>();
+        httpClient.sendAsync(mappedRequest, ServiceResponseBodySubscriber.INSTANCE)
+                .thenApply(HttpResponse::body)
+                .whenComplete((response, t) -> {
+                    if (response != null) {
+                        result.complete(response);
+                    } else {
+                        LOG.debug("Remote connection error", t);
+                        var answer = new Response(Response.INTERNAL_ERROR,
+                                t.getMessage().getBytes(StandardCharsets.UTF_8));
+                        result.complete(ServiceResponse.of(answer));
+                    }
+                });
+        return result;
     }
 
     protected final byte[] extractBytes(ByteBuffer buffer) {

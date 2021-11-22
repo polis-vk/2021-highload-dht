@@ -32,6 +32,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executor;
+import java.util.concurrent.Executors;
 
 /**
  * Constructs {@link Service} instances.
@@ -96,8 +98,7 @@ public final class ServiceFactory {
         HashRouter<Cluster.Node> hashRouter = new ConsistentHashRouter<>(clusterNodes, 30);
 
         ServiceExecutor workers = new LimitedServiceExecutor("worker", WORKERS_NUMBER, TASKS_LIMIT);
-        ServiceExecutor ioWorkers = new LimitedServiceExecutor("net_io",
-                (topology.size() - 1) * NET_IO_NUMBER, ((topology.size() - 1) * NET_IO_NUMBER) * 2);
+        Executor ioWorkers = Executors.newFixedThreadPool(NET_IO_NUMBER);
 
         return new HttpServerImpl(dao, currentNode, replicasHolder, hashRouter, workers, ioWorkers);
     }

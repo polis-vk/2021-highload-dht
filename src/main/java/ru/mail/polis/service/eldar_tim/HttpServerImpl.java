@@ -23,6 +23,7 @@ import ru.mail.polis.sharding.HashRouter;
 
 import java.io.IOException;
 import java.net.http.HttpClient;
+import java.util.concurrent.Executor;
 
 /**
  * Service implementation for 2021-highload-dht.
@@ -46,7 +47,7 @@ public class HttpServerImpl extends HttpServer implements Service {
     public HttpServerImpl(
             DAO dao, Cluster.Node self,
             Cluster.ReplicasHolder replicasHolder, HashRouter<Cluster.Node> router,
-            ServiceExecutor workers, ServiceExecutor ioWorkers
+            ServiceExecutor workers, Executor ioWorkers
     ) throws IOException {
         super(buildHttpServerConfig(self.port));
         this.dao = dao;

@@ -7,6 +7,7 @@ import one.nio.http.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.Cluster;
+import ru.mail.polis.service.HttpUtils;
 import ru.mail.polis.service.eldar_tim.ServiceResponse;
 import ru.mail.polis.service.exceptions.ClientBadRequestException;
 import ru.mail.polis.service.exceptions.ServerRuntimeException;
@@ -59,13 +60,12 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
         Cluster.Node targetNode = getTargetNode(request);
         List<Cluster.Node> replicas = replicasHolder.getBunch(targetNode, from);
 
-        pollReplicas(ack, replicas, request).thenAccept(response -> {
-            try {
-                session.sendResponse(response.raw());
-            } catch (IOException e) {
-                LOG.debug("Failed to send response", e);
-            }
-        }); // TODO: network thread or workers?
+        pollReplicas(ack, replicas, request)
+                .thenAccept(response -> HttpUtils.sendResponse(LOG, session, response.raw()))
+                .exceptionally(t -> {
+                    HttpUtils.sendError(LOG, session, Response.INTERNAL_ERROR, t.getMessage());
+                    return null;
+                }); // TODO: network thread or workers?
     }
 
     private int[] parseAckFromParameter(@Nullable String param) {
@@ -102,7 +102,7 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
         try {
             return handleRequest(request);
         } catch (ServerRuntimeException e) {
-            Response answer = new Response(Response.INTERNAL_ERROR, e.getMessage().getBytes(StandardCharsets.UTF_8));
+            var answer = new Response(Response.INTERNAL_ERROR, e.getMessage().getBytes(StandardCharsets.UTF_8));
             return ServiceResponse.of(answer);
         }
     }
@@ -143,7 +143,8 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
         private final int from;
         private final CompletableFuture<ServiceResponse> result;
 
-        private final Queue<ServiceResponse> responses = new ConcurrentLinkedQueue<>();
+        private final Queue<ServiceResponse> successResponses = new ConcurrentLinkedQueue<>();
+        private final Queue<ServiceResponse> badResponses = new ConcurrentLinkedQueue<>();
         private final AtomicBoolean parsingRequest = new AtomicBoolean();
 
         public PollHandler(int ack, int from) {
@@ -154,18 +155,22 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
 
         public void parse(ServiceResponse response) {
             if (response != null && isCorrect(response)) {
-                responses.add(response);
+                successResponses.add(response);
+            } else {
+                badResponses.add(response);
             }
 
             if (requestProcessing()) {
-                ServiceResponse merged = mergePollResults(responses, ack);
+                ServiceResponse merged = mergePollResults(successResponses, ack);
                 result.complete(merged);
             }
         }
 
         private boolean requestProcessing() {
-            int size = responses.size();
-            return (size > ack || size == from) && parsingRequest.compareAndSet(false, true);
+            int successSize = successResponses.size();
+            int totalSize = successSize + badResponses.size();
+            return (successSize >= ack || totalSize >= from)
+                    && parsingRequest.compareAndSet(false, true);
         }
 
         private boolean isCorrect(@Nonnull ServiceResponse serviceResponse) {
