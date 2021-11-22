@@ -46,11 +46,6 @@ public final class ServiceFactory {
     /** Лимит очереди запросов, после превышения которого последующие будут отвергнуты. */
     private static final int TASKS_LIMIT = WORKERS_NUMBER * 2;
 
-    /** Число потоков, обрабатывающих прокси-запросы. */
-    private static final int PROXY_THREADS = Runtime.getRuntime().availableProcessors();
-    /** Лимит очереди на выполнение прокси-запросов, после превышения которого последующие будут отвергнуты. */
-    private static final int PROXY_LIMIT = PROXY_THREADS * 2;
-
     /** Число репликаций для каждого узла, включая сам узел. Минимальное значение = 1. */
     private static final int REPLICAS_NUMBER = 3;
 
@@ -99,15 +94,14 @@ public final class ServiceFactory {
         HashRouter<Cluster.Node> hashRouter = new ConsistentHashRouter<>(clusterNodes, 30);
 
         ServiceExecutor workers = new LimitedServiceExecutor("worker", WORKERS_NUMBER, TASKS_LIMIT);
-        ServiceExecutor proxies = new LimitedServiceExecutor("proxy", PROXY_THREADS, PROXY_LIMIT);
 
-        return new HttpServerImpl(dao, currentNode, replicasHolder, hashRouter, workers, proxies);
+        return new HttpServerImpl(dao, currentNode, replicasHolder, hashRouter, workers);
     }
 
     private static Set<Cluster.Node> buildClusterNodes(Set<String> topologyRaw) {
         Set<Cluster.Node> topology = new HashSet<>(topologyRaw.size());
         for (String endpoint : topologyRaw) {
-            String params = "?clientMaxPoolSize=" + PROXY_THREADS * (topologyRaw.size() - 1);
+            String params = "?clientMaxPoolSize=" + WORKERS_NUMBER * (topologyRaw.size() - 1);
             ConnectionString connectionString = new ConnectionString(endpoint + "/" + params);
             Cluster.Node node = new Cluster.Node(connectionString);
             topology.add(node);

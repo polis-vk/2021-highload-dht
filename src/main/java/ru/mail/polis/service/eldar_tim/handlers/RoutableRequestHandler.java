@@ -3,6 +3,7 @@ package ru.mail.polis.service.eldar_tim.handlers;
 import one.nio.http.HttpException;
 import one.nio.http.HttpSession;
 import one.nio.http.Request;
+import one.nio.http.RequestHandler;
 import one.nio.http.Response;
 import one.nio.pool.PoolException;
 import org.slf4j.Logger;
@@ -16,7 +17,7 @@ import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
-public abstract class RoutableRequestHandler {
+public abstract class RoutableRequestHandler implements RequestHandler {
 
     private static final Logger LOG = LoggerFactory.getLogger(RoutableRequestHandler.class);
 
@@ -44,7 +45,7 @@ public abstract class RoutableRequestHandler {
      * @return node to redirect request
      */
     @Nonnull
-    public final Cluster.Node getTargetNode(Request request) {
+    protected final Cluster.Node getTargetNode(Request request) {
         String key = getRouteKey(request);
         if (key == null) {
             return self;
@@ -53,14 +54,29 @@ public abstract class RoutableRequestHandler {
         return router.route(key);
     }
 
+    @Nonnull
+    protected abstract ServiceResponse handleRequest(Request request);
+
+    @Override
+    public void handleRequest(Request request, HttpSession session) throws IOException {
+        Cluster.Node targetNode = getTargetNode(request);
+        final Response response;
+        if (targetNode == self) {
+            response = handleRequest(request).transform();
+        } else {
+            response = redirectRequest(request, targetNode);
+        }
+        session.sendResponse(response);
+    }
+
     /**
      * Redirects the request to the specified host.
      *
-     * @param target target node to redirect request
      * @param request request to redirect
-     * @param session session for the current connection
+     * @param target target node to redirect request
+     * @return response
      */
-    public final void redirect(Cluster.Node target, Request request, HttpSession session) throws IOException {
+    protected final Response redirectRequest(Request request, Cluster.Node target) {
         Response response;
         try {
             response = target.getClient().invoke(request);
@@ -74,8 +90,8 @@ public abstract class RoutableRequestHandler {
             LOG.debug(errorText, e);
             response = new Response(Response.INTERNAL_ERROR, errorText.getBytes(StandardCharsets.UTF_8));
         }
-        session.sendResponse(response);
-    }
+        return response;
+     }
 
     protected final byte[] extractBytes(ByteBuffer buffer) {
         final byte[] result = new byte[buffer.remaining()];

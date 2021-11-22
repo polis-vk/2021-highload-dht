@@ -35,7 +35,6 @@ public class HttpServerImpl extends HttpServer implements Service {
     private final Cluster.ReplicasHolder replicasHolder;
     private final HashRouter<Cluster.Node> router;
     private final ServiceExecutor workers;
-    private final ServiceExecutor proxies;
 
     private final PathMapper pathMapper;
     private final one.nio.http.RequestHandler statusHandler;
@@ -43,7 +42,7 @@ public class HttpServerImpl extends HttpServer implements Service {
     public HttpServerImpl(
             DAO dao, Cluster.Node self,
             Cluster.ReplicasHolder replicasHolder, HashRouter<Cluster.Node> router,
-            ServiceExecutor workers, ServiceExecutor proxies
+            ServiceExecutor workers
     ) throws IOException {
         super(buildHttpServerConfig(self.port));
         this.dao = dao;
@@ -51,7 +50,6 @@ public class HttpServerImpl extends HttpServer implements Service {
         this.replicasHolder = replicasHolder;
         this.router = router;
         this.workers = workers;
-        this.proxies = proxies;
 
         pathMapper = new PathMapper();
         statusHandler = new StatusRequestHandler(self, router, replicasHolder);
@@ -93,16 +91,10 @@ public class HttpServerImpl extends HttpServer implements Service {
         RequestHandler requestHandler = (RequestHandler) pathMapper.find(request.getPath(), request.getMethod());
 
         if (requestHandler == statusHandler) {
+            request.addHeader(RequestHandler.HEADER_HANDLE_LOCALLY_TRUE);
             workers.run(session, this::exceptionHandler, () -> requestHandler.handleRequest(request, session));
         } else if (requestHandler != null) {
-            Cluster.Node targetNode = requestHandler.getTargetNode(request);
-            if (requestHandler.shouldHandleLocally(targetNode, request)) {
-                workers.execute(session, this::exceptionHandler, () ->
-                        requestHandler.handleReplicableRequest(targetNode, request, session));
-            } else {
-                proxies.execute(session, this::exceptionHandler, () ->
-                        requestHandler.redirect(targetNode, request, session));
-            }
+            workers.execute(session, this::exceptionHandler, () -> requestHandler.handleRequest(request, session));
         } else {
             handleDefault(request, session);
         }
