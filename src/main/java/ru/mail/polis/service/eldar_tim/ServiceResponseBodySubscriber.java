@@ -1,12 +1,11 @@
 package ru.mail.polis.service.eldar_tim;
 
 import ru.mail.polis.service.HttpUtils;
-import ru.mail.polis.service.eldar_tim.handlers.ServiceResponse;
 
 import java.net.http.HttpResponse;
 import java.util.Optional;
 
-public class ServiceResponseBodySubscriber implements HttpResponse.BodyHandler<ServiceResponse> {
+public final class ServiceResponseBodySubscriber implements HttpResponse.BodyHandler<ServiceResponse> {
 
     public static final ServiceResponseBodySubscriber INSTANCE = new ServiceResponseBodySubscriber();
 

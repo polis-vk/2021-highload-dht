@@ -5,6 +5,7 @@ import one.nio.http.Request;
 import one.nio.http.RequestHandler;
 import one.nio.http.Response;
 import ru.mail.polis.Cluster;
+import ru.mail.polis.service.eldar_tim.ServiceResponse;
 import ru.mail.polis.service.exceptions.ClientBadRequestException;
 import ru.mail.polis.service.exceptions.ServerRuntimeException;
 import ru.mail.polis.sharding.HashRouter;
@@ -50,39 +51,39 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
             return;
         }
 
-        int[] askFrom = parseAskFromParameter(request.getParameter("replicas="));
-        int ask = askFrom[0];
-        int from = askFrom[1];
+        int[] ackFrom = parseAckFromParameter(request.getParameter("replicas="));
+        int ack = ackFrom[0];
+        int from = ackFrom[1];
 
         Cluster.Node targetNode = getTargetNode(request);
         List<Cluster.Node> replicas = replicasHolder.getBunch(targetNode, from);
 
-        ServiceResponse serviceResponse = mergePollResults(makePoll(ask, replicas, request), ask);
+        ServiceResponse serviceResponse = mergePollResults(makePoll(ack, replicas, request), ack);
         session.sendResponse(serviceResponse.raw());
     }
 
-    private int[] parseAskFromParameter(@Nullable String param) {
-        int ask;
+    private int[] parseAckFromParameter(@Nullable String param) {
+        int ack;
         int from;
         int maxFrom = replicasHolder.replicasCount;
 
         if (param != null) {
             try {
                 int indexOf = param.indexOf('/');
-                ask = Integer.parseInt(param.substring(0, indexOf));
+                ack = Integer.parseInt(param.substring(0, indexOf));
                 from = Integer.parseInt(param.substring(indexOf + 1));
             } catch (IndexOutOfBoundsException | NumberFormatException e) {
                 throw new ClientBadRequestException(e);
             }
         } else {
             from = maxFrom;
-            ask = quorum(from);
+            ack = quorum(from);
         }
 
-        if (ask < 1 || from < 1 || from > maxFrom || ask > from) {
+        if (ack < 1 || from < 1 || from > maxFrom || ack > from) {
             throw new ClientBadRequestException(null);
         } else {
-            return new int[]{ask, from};
+            return new int[]{ack, from};
         }
     }
 
@@ -115,15 +116,15 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
     }
 
     /**
-     * Sends requests to the specified nodes and returns the <code>ask</code> fastest responses,
-     * or < <code>ask</code>, if requests failed.
+     * Sends requests to the specified nodes and returns the <code>ack</code> fastest responses,
+     * or < <code>ack</code>, if requests failed.
      *
-     * @param ask      number of answers
+     * @param ack      number of answers
      * @param replicas target nodes for poll
      * @param request  original request
      * @return see the description
      */
-    private Collection<ServiceResponse> makePoll(int ask, List<Cluster.Node> replicas, Request request) {
+    private Collection<ServiceResponse> makePoll(int ack, List<Cluster.Node> replicas, Request request) {
         request.addHeader(HEADER_HANDLE_LOCALLY_TRUE);
 
         Map<Cluster.Node, CompletableFuture<ServiceResponse>> futures = new HashMap<>(replicas.size());
@@ -160,7 +161,7 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
                 }
             }
 
-            if (results.size() >= ask || futures.isEmpty()) {
+            if (results.size() >= ack || futures.isEmpty()) {
                 return results.values();
             }
 
@@ -178,11 +179,11 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
      * If none of the answers are relevant, the first in the list will be returned.
      *
      * @param responses ordered responses to merge
-     * @param ask       minimal success answers count
+     * @param ack       minimal success answers count
      * @return one merged response
      */
-    private ServiceResponse mergePollResults(Collection<ServiceResponse> responses, int ask) {
-        if (responses.size() < ask) {
+    private ServiceResponse mergePollResults(Collection<ServiceResponse> responses, int ack) {
+        if (responses.size() < ack) {
             return ServiceResponse.of(new Response(RESPONSE_NOT_ENOUGH_REPLICAS, Response.EMPTY));
         } else {
             return Collections.max(responses, Comparator.comparingLong(o -> o.timestamp));

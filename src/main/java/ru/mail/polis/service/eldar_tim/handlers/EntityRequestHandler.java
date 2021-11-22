@@ -5,6 +5,7 @@ import one.nio.http.Response;
 import ru.mail.polis.Cluster;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.Record;
+import ru.mail.polis.service.eldar_tim.ServiceResponse;
 import ru.mail.polis.sharding.HashRouter;
 
 import javax.annotation.Nonnull;

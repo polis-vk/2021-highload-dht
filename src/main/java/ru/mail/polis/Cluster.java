@@ -94,9 +94,9 @@ public final class Cluster {
         public Node(String uri) {
             this.uri = uri;
 
-            String[] host_port = uri.replaceFirst(".*://", "").split(":");
-            this.ip = host_port[0];
-            this.port = Integer.parseInt(host_port[1]);
+            String[] hostPort = uri.replaceFirst(".*://", "").split(":");
+            this.ip = hostPort[0];
+            this.port = Integer.parseInt(hostPort[1]);
         }
 
         @Override

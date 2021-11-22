@@ -1,4 +1,4 @@
-package ru.mail.polis.service.eldar_tim.handlers;
+package ru.mail.polis.service.eldar_tim;
 
 import one.nio.http.Response;
 

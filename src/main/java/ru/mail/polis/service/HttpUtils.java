@@ -38,10 +38,10 @@ public class HttpUtils {
             if (header == null) {
                 continue;
             }
-            String[] sp = header.split(":");
             try {
-                builder.header(sp[0], sp[1].trim());
-            } catch (IllegalArgumentException ignored) {
+                int i = header.indexOf(':');
+                builder.header(header.substring(0, i), header.substring(i + 1).trim());
+            } catch (IllegalArgumentException | IndexOutOfBoundsException ignored) {
                 // Ignore Java restricted headers.
             }
         }
@@ -49,10 +49,10 @@ public class HttpUtils {
     }
 
     public static Response mapResponse(HttpResponse<byte[]> response) {
-        return new Response(response.statusCode() + "", response.body()); // FIXME: status
+        return new Response(String.valueOf(response.statusCode()), response.body());
     }
 
     public static Response mapResponseInfo(HttpResponse.ResponseInfo responseInfo, byte[] body) {
-        return new Response(responseInfo.statusCode() + "", body); // FIXME: status
+        return new Response(String.valueOf(responseInfo.statusCode()), body);
     }
 }

@@ -8,6 +8,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.Cluster;
 import ru.mail.polis.service.HttpUtils;
+import ru.mail.polis.service.eldar_tim.ServiceResponse;
 import ru.mail.polis.service.eldar_tim.ServiceResponseBodySubscriber;
 import ru.mail.polis.sharding.HashRouter;
 
