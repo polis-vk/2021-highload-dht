@@ -6,6 +6,7 @@ import ru.mail.polis.Cluster;
 import ru.mail.polis.sharding.HashRouter;
 
 import javax.annotation.Nonnull;
+import java.util.concurrent.Executor;
 
 public abstract class RequestHandler extends ReplicableRequestHandler {
 
@@ -13,9 +14,10 @@ public abstract class RequestHandler extends ReplicableRequestHandler {
             ServiceResponse.of(new Response(Response.METHOD_NOT_ALLOWED, Response.EMPTY));
 
     public RequestHandler(
-            Cluster.Node self, HashRouter<Cluster.Node> router, Cluster.ReplicasHolder replicasHolder
+            Cluster.Node self, HashRouter<Cluster.Node> router,
+            Cluster.ReplicasHolder replicasHolder, Executor executor
     ) {
-        super(self, router, replicasHolder);
+        super(self, router, replicasHolder, executor);
     }
 
     @Nonnull

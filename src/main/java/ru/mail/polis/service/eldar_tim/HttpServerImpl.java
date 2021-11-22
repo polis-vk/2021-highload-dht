@@ -52,7 +52,7 @@ public class HttpServerImpl extends HttpServer implements Service {
         this.workers = workers;
 
         pathMapper = new PathMapper();
-        statusHandler = new StatusRequestHandler(self, router, replicasHolder);
+        statusHandler = new StatusRequestHandler(self, router, replicasHolder, workers);
         mapPaths();
 
         LOG.info("{}: server is running now", self.getKey());
@@ -74,7 +74,7 @@ public class HttpServerImpl extends HttpServer implements Service {
 
         pathMapper.add("/v0/entity",
                 new int[]{Request.METHOD_GET, Request.METHOD_PUT, Request.METHOD_DELETE},
-                new EntityRequestHandler(self, router, replicasHolder, dao));
+                new EntityRequestHandler(self, router, replicasHolder, workers, dao));
     }
 
     @Override

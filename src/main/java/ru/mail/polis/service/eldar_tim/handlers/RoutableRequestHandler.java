@@ -21,6 +21,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 
 public abstract class RoutableRequestHandler implements RequestHandler {
 
@@ -28,10 +29,12 @@ public abstract class RoutableRequestHandler implements RequestHandler {
 
     protected final Cluster.Node self;
     private final HashRouter<Cluster.Node> router;
+    private final Executor executor;
 
-    public RoutableRequestHandler(Cluster.Node self, HashRouter<Cluster.Node> router) {
+    public RoutableRequestHandler(Cluster.Node self, HashRouter<Cluster.Node> router, Executor executor) {
         this.self = self;
         this.router = router;
+        this.executor = executor;
     }
 
     /**
@@ -71,7 +74,7 @@ public abstract class RoutableRequestHandler implements RequestHandler {
         } else {
             response = redirectRequest(request, targetNode);
         }
-        session.sendResponse(response.external());
+        session.sendResponse(response.raw());
     }
 
     /**
@@ -83,7 +86,7 @@ public abstract class RoutableRequestHandler implements RequestHandler {
      */
     protected final ServiceResponse redirectRequest(Request request, Cluster.Node target) {
         try {
-            return redirectRequestAsync(request, target).get();
+            return redirectRequestAsync(request, target, executor).get();
         } catch (CancellationException | ExecutionException e) {
             String errorText = "Proxy error: " + e.getMessage();
             LOG.debug(errorText, e);
@@ -104,14 +107,17 @@ public abstract class RoutableRequestHandler implements RequestHandler {
      * Asynchronously redirects the request to the specified host.
      *
      * @param request request to redirect
-     * @param target  target node to redirect request
+     * @param target target node to redirect request
+     * @param executor executor for response post-processing
      * @return response
      */
-    protected final CompletableFuture<ServiceResponse> redirectRequestAsync(Request request, Cluster.Node target) {
+    protected final CompletableFuture<ServiceResponse> redirectRequestAsync(
+            Request request, Cluster.Node target, Executor executor
+    ) {
         HttpRequest mappedRequest = HttpUtils.mapRequest(request);
         return target.getClient()
                 .sendAsync(mappedRequest, ServiceResponseBodySubscriber.INSTANCE)
-                .thenApply(HttpResponse::body);
+                .thenApplyAsync(HttpResponse::body, executor);
     }
 
     protected final byte[] extractBytes(ByteBuffer buffer) {

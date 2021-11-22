@@ -13,13 +13,18 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
-import java.util.concurrent.ForkJoinTask;
-import java.util.concurrent.RecursiveTask;
+import java.util.Map;
+import java.util.SortedMap;
+import java.util.TreeMap;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executor;
 
 public abstract class ReplicableRequestHandler extends RoutableRequestHandler implements RequestHandler {
 
@@ -28,21 +33,21 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
     public static final String RESPONSE_NOT_ENOUGH_REPLICAS = "504 Not Enough Replicas";
 
     private final Cluster.ReplicasHolder replicasHolder;
-    private final ReplicasPollResultsHandler pollResultsHandler;
+    private final Executor executor;
 
     public ReplicableRequestHandler(
             Cluster.Node self, HashRouter<Cluster.Node> router,
-            Cluster.ReplicasHolder replicasHolder
+            Cluster.ReplicasHolder replicasHolder, Executor executor
     ) {
-        super(self, router);
+        super(self, router, executor);
         this.replicasHolder = replicasHolder;
-        this.pollResultsHandler = new ReplicasPollResultsHandler();
+        this.executor = executor;
     }
 
     @Override
     public void handleRequest(Request request, HttpSession session) throws IOException {
         if (request.getHeader(HEADER_HANDLE_LOCALLY) != null) {
-            session.sendResponse(handleLocally(request).internal());
+            session.sendResponse(handleLocally(request).timestamped());
             return;
         }
 
@@ -53,8 +58,8 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
         Cluster.Node targetNode = getTargetNode(request);
         List<Cluster.Node> replicas = replicasHolder.getBunch(targetNode, from);
 
-        Response response = new ReplicasPollRecursiveTask(ask, replicas, request).invoke();
-        session.sendResponse(response);
+        ServiceResponse serviceResponse = mergePollResults(makePoll(ask, replicas, request), ask);
+        session.sendResponse(serviceResponse.raw());
     }
 
     private int[] parseAskFromParameter(@Nullable String param) {
@@ -97,135 +102,91 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
     }
 
     @Nonnull
-    private ServiceResponse handleRemotely(@Nonnull Request request, @Nonnull Cluster.Node target) {
-        return redirectRequest(request, target);
+    private CompletableFuture<ServiceResponse> handleLocallyAsync(
+            @Nonnull Request request, @Nonnull Executor executor
+    ) {
+        return CompletableFuture.supplyAsync(() -> handleLocally(request), executor);
     }
 
-    private final class ReplicasPollRecursiveTask extends RecursiveTask<Response> {
+    @Nonnull
+    private CompletableFuture<ServiceResponse> handleRemotelyAsync(
+            @Nonnull Cluster.Node target, @Nonnull Request request, @Nonnull Executor executor
+    ) {
+        return redirectRequestAsync(request, target, executor);
+    }
 
-        private final boolean master;
+    /**
+     * Sends requests to the specified nodes and returns the <code>ask</code> fastest responses,
+     * or < <code>ask</code>, if requests failed.
+     *
+     * @param ask      number of answers
+     * @param replicas target nodes for poll
+     * @param request  original request
+     * @return see the description
+     */
+    private Collection<ServiceResponse> makePoll(int ask, List<Cluster.Node> replicas, Request request) {
+        request.addHeader(HEADER_HANDLE_LOCALLY_TRUE);
 
-        private final int ask;
-        private final List<Cluster.Node> from;
-        private final Request request;
-
-        public ReplicasPollRecursiveTask(
-                int ask, List<Cluster.Node> from, Request request
-        ) {
-            super();
-            this.master = true;
-            this.ask = ask;
-            this.from = from;
-            this.request = request;
-        }
-
-        private ReplicasPollRecursiveTask(Cluster.Node from, Request request) {
-            super();
-            this.master = false;
-            this.ask = 1;
-            this.from = Collections.singletonList(from);
-            this.request = request;
-        }
-
-        @Override
-        protected Response compute() {
-            if (master) {
-                return master();
-            } else {
-                return slave();
-            }
-        }
-
-        private Response master() {
-            request.addHeader(HEADER_HANDLE_LOCALLY_TRUE);
-
-            List<ForkJoinTask<Response>> futures = new ArrayList<>(from.size());
-            for (Cluster.Node node : from) {
-                var task = new ReplicasPollRecursiveTask(node, request);
-                futures.add(task.fork());
-            }
-
-            return parseFutures(futures);
-        }
-
-        private Response slave() {
-            Cluster.Node target = from.get(0);
+        Map<Cluster.Node, CompletableFuture<ServiceResponse>> futures = new HashMap<>(replicas.size());
+        for (var target : replicas) {
             if (target == self) {
-                return handleLocally(request);
+                futures.put(target, handleLocallyAsync(request, executor));
             } else {
-                return handleRemotely(request, target);
+                futures.put(target, handleRemotelyAsync(target, request, executor));
             }
         }
 
-        private Response parseFutures(Collection<ForkJoinTask<Response>> futures) {
-            List<Response> results = new ArrayList<>();
-            while (true) {
-                Iterator<ForkJoinTask<Response>> iterator = futures.iterator();
-                while (iterator.hasNext()) {
-                    ForkJoinTask<Response> future = iterator.next();
-                    if (future.isDone() || results.size() < ask) {
-                        iterator.remove();
-                    } else {
-                        continue;
-                    }
+        SortedMap<Cluster.Node, ServiceResponse> results = new TreeMap<>(Comparator.comparing(Cluster.Node::getKey));
+        while (true) {
+            Iterator<Cluster.Node> iterator = futures.keySet().iterator();
+            while (iterator.hasNext()) {
+                Cluster.Node node = iterator.next();
+                CompletableFuture<ServiceResponse> future = futures.get(node);
 
-                    Response response = future.join();
-                    if (response != null && isCorrect(response)) {
-                        results.add(response);
-                    }
-                }
-
-                if (results.size() >= ask || futures.isEmpty()) {
-                    return pollResultsHandler.handle(results, ask);
-                }
-
-                // Here we might wait others and make repair if needed.
-            }
-        }
-
-        private boolean isCorrect(@Nonnull Response response) {
-            int status = response.getStatus();
-            return status < 500;
-        }
-    }
-
-    private static final class ReplicasPollResultsHandler {
-
-        public ReplicasPollResultsHandler() {
-            // No need.
-        }
-
-        public Response handle(List<Response> responses, int ask) {
-            int answers = responses.size();
-            if (answers < ask) {
-                return new Response(RESPONSE_NOT_ENOUGH_REPLICAS, Response.EMPTY);
-            } else {
-                return findMostRecent(responses);
-            }
-        }
-
-        private Response findMostRecent(List<Response> responses) {
-            Response mostRecentResponse = responses.get(0);
-            long mostRecentTimestamp = -1;
-
-            for (Response response : responses) {
-                String timestampHeader = response.getHeader(ServiceResponse.HEADER_TIMESTAMP);
-                if (timestampHeader == null) {
+                if (future.isDone()) {
+                    iterator.remove();
+                } else {
                     continue;
                 }
 
-                long timestamp;
+                final ServiceResponse response;
                 try {
-                    timestamp = Long.parseLong(timestampHeader, 2, timestampHeader.length(), 10);
-                } catch (IndexOutOfBoundsException | NumberFormatException e) {
-                    timestamp = -1;
+                    response = future.get();
+                } catch (ExecutionException | InterruptedException ignored) {
+                    continue;
                 }
-                if (timestamp > mostRecentTimestamp) {
-                    mostRecentResponse = response;
-                    mostRecentTimestamp = timestamp;
+
+                if (response != null && isCorrect(response)) {
+                    results.put(node, response);
                 }
             }
-            return mostRecentResponse;
+
+            if (results.size() >= ask || futures.isEmpty()) {
+                return results.values();
+            }
+
+            // Here we might wait others and make repair if needed.
+        }
+    }
+
+    private boolean isCorrect(@Nonnull ServiceResponse serviceResponse) {
+        int status = serviceResponse.raw().getStatus();
+        return status < 500;
+    }
+
+    /**
+     * Combines multiple responses into one according to the latest time criterion.
+     * If none of the answers are relevant, the first in the list will be returned.
+     *
+     * @param responses ordered responses to merge
+     * @param ask       minimal success answers count
+     * @return one merged response
+     */
+    private ServiceResponse mergePollResults(Collection<ServiceResponse> responses, int ask) {
+        if (responses.size() < ask) {
+            return ServiceResponse.of(new Response(RESPONSE_NOT_ENOUGH_REPLICAS, Response.EMPTY));
+        } else {
+            return Collections.max(responses, Comparator.comparingLong(o -> o.timestamp));
         }
     }
 }

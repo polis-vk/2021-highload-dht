@@ -16,13 +16,11 @@
 
 package ru.mail.polis;
 
-import one.nio.net.ConnectionString;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.DAOConfig;
 import ru.mail.polis.lsm.DAOFactory;
-import ru.mail.polis.service.HttpUtils;
 import ru.mail.polis.service.Service;
 import ru.mail.polis.service.ServiceFactory;
 import ru.mail.polis.sharding.ConsistentHashRouter;
@@ -40,7 +38,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.StringJoiner;
-import java.util.concurrent.Executors;
 
 /**
  * Starts 3-node storage cluster and waits for shutdown.
@@ -93,14 +90,12 @@ public final class Cluster {
     public static class Node implements ru.mail.polis.sharding.Node {
         public final String ip;
         public final int port;
-        private final ConnectionString connectionString;
+        private final HttpClient httpClient;
 
-        private volatile HttpClient httpClient;
-
-        public Node(ConnectionString connectionString) {
-            this.connectionString = connectionString;
-            this.ip = connectionString.getHost();
-            this.port = connectionString.getPort();
+        public Node(String host, int port, HttpClient httpClient) {
+            this.ip =  host;
+            this.port = port;
+            this.httpClient = httpClient;
         }
 
         @Override
@@ -109,7 +104,7 @@ public final class Cluster {
         }
 
         public Node init() {
-            httpClient = HttpUtils.createClient(Executors.newFixedThreadPool(4)); // FIXME
+            //httpClient = HttpUtils.createClient(Executors.newFixedThreadPool(4)); // FIXME
             return this;
         }
 

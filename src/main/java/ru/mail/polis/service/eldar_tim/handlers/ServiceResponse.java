@@ -9,27 +9,21 @@ public final class ServiceResponse {
     public static final String HEADER_TIMESTAMP = "Service-Data-Timestamp";
 
     private final Response response;
-    private final long timestamp;
+    public final long timestamp;
 
     private ServiceResponse(@Nonnull Response response, long timestamp) {
         this.response = response;
         this.timestamp = timestamp;
     }
 
-    /**
-     * @return response for internal targets
-     */
-    public Response internal() {
+    public Response timestamped() {
         if (timestamp > 0) {
             response.addHeader(HEADER_TIMESTAMP + ": " + timestamp);
         }
         return response;
     }
 
-    /**
-     * @return response for external targets
-     */
-    public Response external() {
+    public Response raw() {
         return response;
     }
 

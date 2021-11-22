@@ -12,15 +12,17 @@ import javax.annotation.Nullable;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
+import java.util.concurrent.Executor;
 
 public class EntityRequestHandler extends RequestHandler {
 
     private final DAO dao;
 
     public EntityRequestHandler(
-            Cluster.Node self, HashRouter<Cluster.Node> router, Cluster.ReplicasHolder replicasHolder,
+            Cluster.Node self, HashRouter<Cluster.Node> router,
+            Cluster.ReplicasHolder replicasHolder, Executor executor,
             DAO dao) {
-        super(self, router, replicasHolder);
+        super(self, router, replicasHolder, executor);
         this.dao = dao;
     }
 

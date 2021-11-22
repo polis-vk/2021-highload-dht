@@ -4,8 +4,9 @@ import one.nio.net.Session;
 import ru.mail.polis.service.exceptions.ServerRuntimeException;
 
 import java.io.IOException;
+import java.util.concurrent.Executor;
 
-public interface ServiceExecutor {
+public interface ServiceExecutor extends Executor {
     void execute(Session session, ExceptionHandler handler, ServiceRunnable runnable);
 
     void run(Session session, ExceptionHandler handler, ServiceRunnable runnable);

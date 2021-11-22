@@ -7,6 +7,7 @@ import ru.mail.polis.service.exceptions.ClientBadRequestException;
 import ru.mail.polis.service.exceptions.ServerRuntimeException;
 import ru.mail.polis.service.exceptions.ServiceOverloadException;
 
+import javax.annotation.Nonnull;
 import java.io.IOException;
 import java.util.NoSuchElementException;
 import java.util.concurrent.ExecutorService;
@@ -32,6 +33,11 @@ public class LimitedServiceExecutor implements ServiceExecutor {
         this.queueLimit = queueLimit;
         this.delegate = new ForkJoinPool(defaultWorkers,
                 getThreadFactory(threadName, defaultWorkers), null, true);
+    }
+
+    @Override
+    public void execute(@Nonnull Runnable command) {
+        delegate.execute(command);
     }
 
     @Override
