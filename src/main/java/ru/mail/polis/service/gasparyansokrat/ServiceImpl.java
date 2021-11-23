@@ -11,7 +11,6 @@ import ru.mail.polis.service.Service;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
 import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -22,7 +21,7 @@ public class ServiceImpl extends HttpServer implements Service {
     private final ThreadPoolExecutor executor;
     private final ClusterService clusterService;
 
-    public static final byte[] BAD_REQUEST = "Bad request".getBytes(StandardCharsets.UTF_8);
+    public static final String BAD_REQUEST = "Bad request";
 
     /**
      * some doc.
@@ -73,7 +72,7 @@ public class ServiceImpl extends HttpServer implements Service {
             RequestParameters params = new RequestParameters(request, clusterService);
             clusterService.handleRequest(session, params);
         } catch (IOException e) {
-            throw new UncheckedIOException("Bad request", e);
+            throw new UncheckedIOException(BAD_REQUEST, e);
         }
     }
 
@@ -85,7 +84,7 @@ public class ServiceImpl extends HttpServer implements Service {
             RequestParameters params = new RequestParameters(request, clusterService);
             return clusterService.internalRequest(request, params.getId());
         } catch (IOException e) {
-            throw new UncheckedIOException("Bad request", e);
+            throw new UncheckedIOException(BAD_REQUEST, e);
         }
     }
 

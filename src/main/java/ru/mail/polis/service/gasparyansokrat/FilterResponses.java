@@ -19,7 +19,7 @@ import java.util.concurrent.atomic.AtomicReference;
 final class FilterResponses {
 
     private static final Logger LOG = LoggerFactory.getLogger(FilterResponses.class);
-    private static final String errorMessage = "Can't send response to client: {}";
+    private static final String ERROR_MESSAGE = "Can't send response to client: {}";
 
     private static final int DISCARD = -1000;
 
@@ -129,7 +129,7 @@ final class FilterResponses {
                 respSize.set(DISCARD);
                 return true;
             } catch (IOException e) {
-                LOG.error(errorMessage, e.getMessage());
+                LOG.error(ERROR_MESSAGE, e.getMessage());
             }
         }
         return false;
@@ -144,7 +144,7 @@ final class FilterResponses {
                 respSize.set(DISCARD);
                 return true;
             } catch (IOException e) {
-                LOG.error(errorMessage, e.getMessage());
+                LOG.error(ERROR_MESSAGE, e.getMessage());
             }
         }
         return false;
@@ -156,7 +156,7 @@ final class FilterResponses {
                 size.set(DISCARD);
                 session.sendResponse(new Response(ClusterService.BAD_REPLICAS, Response.EMPTY));
             } catch (IOException e) {
-                LOG.error(errorMessage, e.getMessage());
+                LOG.error(ERROR_MESSAGE, e.getMessage());
             }
         }
     }
