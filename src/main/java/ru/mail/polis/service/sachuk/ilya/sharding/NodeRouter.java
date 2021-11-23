@@ -113,7 +113,6 @@ public class NodeRouter {
         builder = timestampHeaderFromResponse == null ? builder : builder.setHeader(timestampHeader, timestampHeaderFromResponse);
         builder = builder.header("coordinator", "true");
 
-//
         switch (request.getMethod()) {
             case Request.METHOD_GET:
                 builder.GET();
@@ -124,8 +123,6 @@ public class NodeRouter {
             case Request.METHOD_DELETE:
                 builder.DELETE();
                 break;
-            default:
-
         }
 
         return builder.build();
