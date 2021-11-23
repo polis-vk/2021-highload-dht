@@ -91,7 +91,7 @@ public abstract class RoutableRequestHandler implements RequestHandler {
      * @return response
      */
     protected final ServiceResponse redirectRequest(Request request, Cluster.Node target) {
-        return redirectRequestAsync(request, target, workers).join();
+        return redirectRequestAsync(request, target).join();
     }
 
     /**
@@ -99,24 +99,20 @@ public abstract class RoutableRequestHandler implements RequestHandler {
      *
      * @param request request to redirect
      * @param target  target node to redirect request
-     * @param workers executor for response post-processing
      * @return response
      */
-    protected final CompletableFuture<ServiceResponse> redirectRequestAsync(
-            Request request, Cluster.Node target, Executor workers
-    ) {
+    protected final CompletableFuture<ServiceResponse> redirectRequestAsync(Request request, Cluster.Node target) {
         HttpRequest mappedRequest = HttpUtils.mapRequest(request, target);
         CompletableFuture<ServiceResponse> result = new CompletableFuture<>();
         httpClient.sendAsync(mappedRequest, ServiceResponseBodySubscriber.INSTANCE)
-                .thenApply(HttpResponse::body)
+                .thenApplyAsync(HttpResponse::body, workers)
                 .whenComplete((response, t) -> {
                     if (response != null) {
                         result.complete(response);
                     } else {
-                        LOG.debug("Remote connection error", t);
-                        var answer = new Response(Response.INTERNAL_ERROR,
-                                t.getMessage().getBytes(StandardCharsets.UTF_8));
-                        result.complete(ServiceResponse.of(answer));
+                        LOG.debug("Proxy error: {}", t.getMessage());
+                        var r = new Response(Response.INTERNAL_ERROR, t.getMessage().getBytes(StandardCharsets.UTF_8));
+                        result.complete(ServiceResponse.of(r));
                     }
                 });
         return result;

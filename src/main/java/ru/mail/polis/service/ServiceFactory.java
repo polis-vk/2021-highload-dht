@@ -95,7 +95,7 @@ public final class ServiceFactory {
         HashRouter<Cluster.Node> hashRouter = new ConsistentHashRouter<>(clusterNodes, 30);
 
         ServiceExecutor workers = new LimitedServiceExecutor("worker", WORKERS_NUMBER, TASKS_LIMIT);
-        Executor proxies = Executors.newFixedThreadPool(WORKERS_NUMBER * topology.size());
+        Executor proxies = Executors.newWorkStealingPool(WORKERS_NUMBER);
 
         return new HttpServerImpl(dao, currentNode, replicasHolder, hashRouter, workers, proxies);
     }

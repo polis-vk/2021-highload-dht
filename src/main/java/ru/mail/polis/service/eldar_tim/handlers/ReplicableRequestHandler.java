@@ -67,7 +67,7 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
                     } else {
                         HttpUtils.sendError(LOG, session, Response.INTERNAL_ERROR, t.getMessage());
                     }
-                }, workers); // TODO: network thread or workers?
+                }, proxies);
     }
 
     private int[] parseAckFromParameter(@Nullable String param) {
@@ -110,15 +110,10 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
     }
 
     @Nonnull
-    private CompletableFuture<ServiceResponse> handleLocallyAsync(@Nonnull Request request) {
-        return CompletableFuture.supplyAsync(() -> handleLocally(request), workers);
-    }
-
-    @Nonnull
     private CompletableFuture<ServiceResponse> handleRemotelyAsync(
             @Nonnull Cluster.Node target, @Nonnull Request request
     ) {
-        return redirectRequestAsync(request, target, workers);
+        return redirectRequestAsync(request, target);
     }
 
     private CompletableFuture<ServiceResponse> pollReplicas(
@@ -127,26 +122,33 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
         request.addHeader(HEADER_HANDLE_LOCALLY_TRUE);
 
         PollHandler handler = new PollHandler(ack, replicas.size());
+        CompletableFuture<ServiceResponse> localHandler = null;
+
         for (var target : replicas) {
             final CompletableFuture<ServiceResponse> future;
             if (target == self) {
-                future = handleLocallyAsync(request);
+                future = localHandler = new CompletableFuture<>();
             } else {
                 future = handleRemotelyAsync(target, request);
             }
-            future.thenAccept(handler::parse);
+            future.whenComplete(handler::parse);
         }
+
+        if (localHandler != null) {
+            localHandler.complete(handleLocally(request));
+        }
+
         return handler.result;
     }
 
-    private static class PollHandler {
+    private static final class PollHandler {
 
         private final int ack;
         private final int from;
         private final CompletableFuture<ServiceResponse> result;
 
-        private final Queue<ServiceResponse> successResponses = new ConcurrentLinkedQueue<>();
-        private final Queue<ServiceResponse> badResponses = new ConcurrentLinkedQueue<>();
+        private final Queue<ServiceResponse> succeedResponses = new ConcurrentLinkedQueue<>();
+        private final Queue<ServiceResponse> failedResponses = new ConcurrentLinkedQueue<>();
         private final AtomicBoolean parsingRequest = new AtomicBoolean();
 
         public PollHandler(int ack, int from) {
@@ -155,22 +157,22 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
             this.result = new CompletableFuture<>();
         }
 
-        public void parse(ServiceResponse response) {
+        public void parse(@Nullable ServiceResponse response, @Nullable Throwable t) {
             if (response != null && isCorrect(response)) {
-                successResponses.add(response);
+                succeedResponses.add(response);
             } else {
-                badResponses.add(response);
+                failedResponses.add(response);
             }
 
             if (requestProcessing()) {
-                ServiceResponse merged = mergePollResults(successResponses, ack);
+                ServiceResponse merged = mergePollResults(succeedResponses, ack);
                 result.complete(merged);
             }
         }
 
         private boolean requestProcessing() {
-            int successSize = successResponses.size();
-            int totalSize = successSize + badResponses.size();
+            int successSize = succeedResponses.size();
+            int totalSize = successSize + failedResponses.size();
             return (successSize >= ack || totalSize >= from)
                     && parsingRequest.compareAndSet(false, true);
         }
