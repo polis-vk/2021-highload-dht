@@ -8,6 +8,8 @@ import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.Record;
 
 import java.io.IOException;
+import java.net.HttpURLConnection;
+import java.net.http.HttpResponse;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
@@ -52,6 +54,7 @@ public class ServiceDAO {
      * some doc.
      */
     public Response handleRequest(final String id, final Request request) throws IOException {
+
         try {
             switch (request.getMethod()) {
                 case Request.METHOD_GET:
@@ -68,22 +71,26 @@ public class ServiceDAO {
         }
     }
 
-    public CompletableFuture<Response> asyncHandleRequest(final String id, final Request request) {
+    public CompletableFuture<HttpResponse<byte[]>> asyncHandleRequest(final String id,
+                                                                      final RequestParameters params) {
         return CompletableFuture.supplyAsync(() -> {
             try {
-                switch (request.getMethod()) {
+                switch (params.getHttpMethod()) {
                     case Request.METHOD_GET:
-                        return get(id);
+                        final Response getResponse = get(id);
+                        return CustomHttpResponse.dummyResponse(getResponse.getStatus(), getResponse.getBody());
                     case Request.METHOD_PUT:
-                        return put(id, request.getBody());
+                        final Response putResponse = put(id, params.getBodyRequest());
+                        return CustomHttpResponse.dummyResponse(putResponse.getStatus(), putResponse.getBody());
                     case Request.METHOD_DELETE:
-                        return delete(id);
+                        final Response delResponse = delete(id);
+                        return CustomHttpResponse.dummyResponse(delResponse.getStatus(), delResponse.getBody());
                     default:
-                        return new Response(Response.METHOD_NOT_ALLOWED, ServiceImpl.BAD_REQUEST);
+                        return CustomHttpResponse.dummyResponse(HttpURLConnection.HTTP_BAD_METHOD, new byte[0]);
                 }
             } catch (IOException e) {
                 LOG.error("Error access DAO {}", e.getMessage());
-                return new Response(Response.GATEWAY_TIMEOUT, ServiceImpl.BAD_REQUEST);
+                return CustomHttpResponse.dummyResponse(HttpURLConnection.HTTP_GATEWAY_TIMEOUT, ServiceImpl.BAD_REQUEST);
             }
         });
 

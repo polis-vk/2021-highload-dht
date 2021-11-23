@@ -14,7 +14,7 @@ final class HttpConfigFactory {
         accConf.port = servConfig.port;
         accConf.address = servConfig.address;
         accConf.reusePort = true;
-        accConf.threads = servConfig.poolSize;
+        accConf.threads = servConfig.poolSize / 2;
         HttpServerConfig config = new HttpServerConfig();
         config.acceptors = new AcceptorConfig[]{accConf};
         return config;

@@ -1,5 +1,6 @@
 package ru.mail.polis.service.gasparyansokrat;
 
+import one.nio.http.HttpSession;
 import one.nio.http.Request;
 import one.nio.http.Response;
 import org.slf4j.Logger;
@@ -8,95 +9,93 @@ import ru.mail.polis.lsm.Record;
 
 import java.io.IOException;
 import java.net.HttpURLConnection;
+import java.net.http.HttpResponse;
 import java.nio.ByteBuffer;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 
 final class FilterResponses {
 
     private static final Logger LOG = LoggerFactory.getLogger(FilterResponses.class);
 
+    private static final int DISCARD = -1000;
+
     private FilterResponses() {
 
     }
 
-    public static Response validResponse(final Request request,
-                                         final List<CompletableFuture<Response>> responses,
-                                         final int requireAck) throws IOException {
-        switch (request.getMethod()) {
+    public static void validResponse(final RequestParameters params,
+                                     final HttpSession session,
+                                     final List<CompletableFuture<HttpResponse<byte[]>>> responses) {
+        switch (params.getHttpMethod()) {
             case Request.METHOD_GET:
-                return filterGetResponse(responses, requireAck);
+                filterGetResponse(responses, session, params.getAck());
+                break;
             case Request.METHOD_PUT:
-                return filterPutAndDeleteResponse(responses, HttpURLConnection.HTTP_CREATED, requireAck);
+                filterPutAndDeleteResponse(responses, session, HttpURLConnection.HTTP_CREATED, params.getAck());
+                break;
             case Request.METHOD_DELETE:
-                return filterPutAndDeleteResponse(responses, HttpURLConnection.HTTP_ACCEPTED, requireAck);
+                filterPutAndDeleteResponse(responses, session, HttpURLConnection.HTTP_ACCEPTED, params.getAck());
+                break;
             default:
-                throw new IOException("Not allowed method");
+                LOG.error("Not allowed method {}", params.getHttpMethod());
+                break;
         }
     }
 
-    private static Response filterGetResponse(final List<CompletableFuture<Response>> responses,
-                                              final int requireAck) {
-        int ack = 0;
-        Record freshEntry = null;
-        for (final CompletableFuture<Response> response : responses) {
-            final Response tmpResponse = takeHttpResponse(response);
-            if (tmpResponse == null) {
-                continue;
-            }
-            if (tmpResponse.getStatus() == HttpURLConnection.HTTP_OK ||
-                    tmpResponse.getStatus() == HttpURLConnection.HTTP_NOT_FOUND) {
-                ack += 1;
-                if (!ResponseIsEmpty(tmpResponse)) {
-                    freshEntry = getHttpEntry(tmpResponse, freshEntry);
+    private static void filterGetResponse(final List<CompletableFuture<HttpResponse<byte[]>>> responses,
+                                          final HttpSession session,
+                                          final int requireAck) {
+        final AtomicReference<Record> freshEntry = new AtomicReference<>(null);
+        final AtomicInteger ack = new AtomicInteger(0);
+        final AtomicInteger respSize = new AtomicInteger(0);
+        for (final CompletableFuture<HttpResponse<byte[]>> response : responses) {
+            response.whenComplete((tmpResponse, ex) -> {
+                if (tmpResponse.statusCode() == HttpURLConnection.HTTP_OK ||
+                        tmpResponse.statusCode() == HttpURLConnection.HTTP_NOT_FOUND) {
+                    final int localAck = ack.addAndGet(1);
+                    if (tmpResponse.body().length != 0) {
+                        freshEntry.set(getHttpEntry(tmpResponse, freshEntry.get()));
+                    }
+                    if (readyGetResponse(localAck, requireAck, freshEntry.get(), session, respSize)) {
+                        return;
+                    }
                 }
-            }
-            Response readyResponse = checkAckResponse(ack, requireAck, freshEntry);
-            if (readyResponse != null) {
-                return readyResponse;
-            }
-        }
-
-        return new Response(ClusterService.BAD_REPLICAS, Response.EMPTY);
-    }
-
-    private static Response filterPutAndDeleteResponse(final List<CompletableFuture<Response>> responses,
-                                                       final int status,
-                                                       final int requireAck) {
-        int ack = 0;
-        for (final CompletableFuture<Response> response : responses) {
-            final Response tmpResponse = takeHttpResponse(response);
-            if (tmpResponse == null) {
-                continue;
-            }
-            if (tmpResponse.getStatus() == status) {
-                ack += 1;
-            }
-            if (ack >= requireAck) {
-                return tmpResponse;
-            }
-        }
-
-        return new Response(ClusterService.BAD_REPLICAS, Response.EMPTY);
-    }
-
-    private static boolean ResponseIsEmpty(final Response response) {
-        return response.getBody().length == 0;
-    }
-    
-    private static Response takeHttpResponse(final CompletableFuture<Response> response) {
-        try {
-            return response.get();
-        } catch (InterruptedException | ExecutionException e) {
-            LOG.error("Error response from node {}", e.getMessage());
-            return null;
+                checkBadReplicas(respSize, responses.size(), session);
+            }).exceptionally(ex -> {
+                checkBadReplicas(respSize, responses.size(), session);
+                return null;
+            });
         }
     }
 
-    private static Record getHttpEntry(final Response response, final Record freshEntry) {
-        Record record = Record.direct(Record.DUMMY, ByteBuffer.wrap(response.getBody()));
+    private static void filterPutAndDeleteResponse(final List<CompletableFuture<HttpResponse<byte[]>>> responses,
+                                                   final HttpSession session,
+                                                   final int status,
+                                                   final int requireAck) {
+        final AtomicInteger ack = new AtomicInteger(0);
+        final AtomicInteger respSize = new AtomicInteger(0);
+        for (final CompletableFuture<HttpResponse<byte[]>> response : responses) {
+            response.whenComplete((tmpResponse, ex) -> {
+                if (tmpResponse.statusCode() == status) {
+                    if (checkPutDelResponse(ack, requireAck, session, tmpResponse, respSize)) {
+                        return;
+                    }
+                }
+                checkBadReplicas(respSize, responses.size(), session);
+            }).exceptionally(ex -> {
+                checkBadReplicas(respSize, responses.size(), session);
+                return null;
+            });
+        }
+    }
+
+    private static Record getHttpEntry(final HttpResponse<byte[]> response,
+                                       final Record freshEntry) {
+        final Record record = Record.direct(Record.DUMMY, ByteBuffer.wrap(response.body()));
         if (freshEntry == null) {
             return record;
         }
@@ -107,16 +106,63 @@ final class FilterResponses {
         }
     }
 
-    private static Response checkAckResponse(final int ack, final int requireAck, final Record entry) {
-        if (ack >= requireAck) {
-            if (entry != null && !entry.isTombstone()) {
-                return new Response(Response.OK, entry.getBytesValue());
-            } else {
-                return new Response(Response.NOT_FOUND, Response.EMPTY);
-            }
-        } else {
-            return null;
+    public static String code2Str(final int statusCode) {
+        switch (statusCode) {
+            case HttpURLConnection.HTTP_CREATED:
+                return Response.CREATED;
+            case HttpURLConnection.HTTP_ACCEPTED:
+                return Response.ACCEPTED;
+            default:
+                return Response.BAD_GATEWAY;
         }
     }
 
+    private static boolean readyGetResponse(final int ack, final int requireAck,
+                                            final Record entry, final HttpSession session,
+                                            final AtomicInteger respSize) {
+        if (ack == requireAck) {
+            try {
+                if (entry != null && !entry.isTombstone()) {
+                    session.sendResponse(new Response(Response.OK, entry.getBytesValue()));
+                } else {
+                    session.sendResponse(new Response(Response.NOT_FOUND, Response.EMPTY));
+                }
+            } catch (IOException e) {
+                LOG.error("Can't send response to client: {}", e.getMessage());
+            } finally {
+                respSize.set(DISCARD);
+                return true;
+            }
+        } else {
+            return false;
+        }
+    }
+
+    private static boolean checkPutDelResponse(final AtomicInteger ack, final int requireAck,
+                                            final HttpSession session, final HttpResponse<byte[]> response,
+                                            final AtomicInteger respSize) {
+        if (ack.addAndGet(1) == requireAck) {
+            try {
+                session.sendResponse(new Response(code2Str(response.statusCode()), response.body()));
+            } catch (IOException e) {
+                LOG.error("Can't send response to client: {}", e.getMessage());
+            } finally {
+                respSize.set(DISCARD);
+                return true;
+            }
+        } else {
+            return false;
+        }
+    }
+
+    private static void checkBadReplicas(AtomicInteger size, final int responsesSize, final HttpSession session) {
+        if (size.addAndGet(1) == responsesSize) {
+            try {
+                size.set(DISCARD);
+                session.sendResponse(new Response(ClusterService.BAD_REPLICAS, Response.EMPTY));
+            } catch (IOException e) {
+                LOG.error("Can't send response to client: {}", e.getMessage());
+            }
+        }
+    }
 }

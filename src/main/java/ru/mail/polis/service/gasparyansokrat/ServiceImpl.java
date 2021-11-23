@@ -12,9 +12,6 @@ import ru.mail.polis.service.Service;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
-import java.util.HashMap;
-import java.util.Iterator;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
@@ -51,8 +48,7 @@ public class ServiceImpl extends HttpServer implements Service {
                         session.sendResponse(status());
                         break;
                     case "/v0/entity":
-                        resp = handleEntity(request);
-                        session.sendResponse(resp);
+                        handleEntity(request, session);
                         break;
                     case "/internal/cluster/entity":
                         resp = internalRequest(request);
@@ -64,35 +60,18 @@ public class ServiceImpl extends HttpServer implements Service {
                         break;
                 }
             } catch (IOException e) {
-                LOG.error(e.getMessage());
+                LOG.error("Error in handle entity {}", e.getMessage());
             }
         });
-    }
-
-    private Map<String, String> parseParameters(final Request request) {
-        Map<String, String> parameters = new HashMap<>();
-        String id = getParamRequest(request, "id");
-        parameters.put("id", id);
-        String ackFrom = getParamRequest(request, "replicas");
-        if (ackFrom.isEmpty()) {
-            parameters.put("ack", String.valueOf(clusterService.getQuorumCluster()));
-            parameters.put("from", String.valueOf(clusterService.getClusterSize()));
-        } else {
-            String[] ackfrom = ackFrom.split("/");
-            parameters.put("ack", ackfrom[0]);
-            parameters.put("from", ackfrom[1]);
-        }
-
-        return parameters;
     }
 
     /**
      * some doc.
      */
-    public Response handleEntity(final Request request) throws IOException {
+    public void handleEntity(final Request request, final HttpSession session) throws IOException {
         try {
-            Map<String, String> params = parseParameters(request);
-            return clusterService.handleRequest(request, params);
+            RequestParameters params = new RequestParameters(request, clusterService);
+            clusterService.handleRequest(session, params);
         } catch (IOException e) {
             throw new UncheckedIOException("Bad request", e);
         }
@@ -103,15 +82,11 @@ public class ServiceImpl extends HttpServer implements Service {
      */
     public Response internalRequest(final Request request) throws IOException {
         try {
-            String id = getParamRequest(request, "id");
-            return clusterService.internalRequest(request, id);
+            RequestParameters params = new RequestParameters(request, clusterService);
+            return clusterService.internalRequest(request, params.getId());
         } catch (IOException e) {
             throw new UncheckedIOException("Bad request", e);
         }
     }
 
-    private String getParamRequest(final Request request, final String nameParam) {
-        Iterator<String> params = request.getParameters(nameParam);
-        return params.hasNext() ? params.next().substring(1) : "";
-    }
 }

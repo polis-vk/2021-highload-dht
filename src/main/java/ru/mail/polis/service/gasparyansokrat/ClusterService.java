@@ -1,20 +1,21 @@
 package ru.mail.polis.service.gasparyansokrat;
 
-import one.nio.http.HttpClient;
+import one.nio.http.HttpSession;
 import one.nio.http.Request;
 import one.nio.http.Response;
-import one.nio.net.ConnectionString;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.Record;
 
 import java.io.IOException;
+import java.net.http.HttpClient;
 import java.nio.ByteBuffer;
 import java.sql.Timestamp;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class ClusterService {
 
@@ -23,49 +24,54 @@ public class ClusterService {
     private final int topologySize;
     private final int quorumCluster;
 
-    private static final float QUORUM_MAJORITY = 0.66f;
+    final ExecutorService futurePool;
+
     public static final String BAD_REPLICAS = "504 Not Enough Replicas";
 
     ClusterService(final DAO dao, final Set<String> topology, final ServiceConfig servConf) {
         this.clusterNodes = new ConsistentHashImpl(topology);
         this.topologySize = topology.size();
+        this.futurePool = Executors.newFixedThreadPool(servConf.poolSize / 2);
         Map<String, HttpClient> clusterServers = buildTopology(servConf, topology);
         this.replicationService = new ReplicationService(dao, servConf.fullAddress, clusterServers);
-        this.quorumCluster = Math.round(QUORUM_MAJORITY * topologySize);
+        this.quorumCluster = topologySize / 2 + 1;
     }
 
     private Map<String, HttpClient> buildTopology(final ServiceConfig servConf, final Set<String> topology) {
         Map<String, HttpClient> clusterServers = new HashMap<>();
         for (final String node : topology) {
             if (!node.equals(servConf.fullAddress)) {
-                clusterServers.put(node, new HttpClient(new ConnectionString(node)));
+                clusterServers.put(node, HttpClient.newBuilder()
+                                                    .executor(futurePool)
+                                                    .build());
             }
         }
         return clusterServers;
     }
 
-    public Response handleRequest(final Request request, final Map<String, String> params) throws IOException {
-        if (params.get("id").isEmpty()) {
-            return badRequest();
+    public void handleRequest(final HttpSession session,
+                              final RequestParameters params) throws IOException {
+        if (params.getId().isEmpty()) {
+            session.sendResponse(badRequest());
+            return;
         }
-        final int ack = Integer.parseInt(params.get("ack"));
-        final int from = Integer.parseInt(params.get("from"));
-        if (!validParameter(ack, from)) {
-            return badRequest();
+        if (!validParameter(params.getAck(), params.getFrom())) {
+            session.sendResponse(badRequest());
+            return;
         }
-        if (request.getMethod() == Request.METHOD_PUT) {
-            addTimeStamp(request);
+        if (params.getHttpMethod() == Request.METHOD_PUT) {
+            addTimeStamp(params);
         }
 
-        final List<String> nodes = clusterNodes.getNodes(params.get("id"), from);
+        final List<String> nodes = clusterNodes.getNodes(params.getId(), params.getFrom());
 
-        return replicationService.handleRequest(request, ack, params.get("id"), nodes);
+        replicationService.handleRequest(params, session, nodes);
     }
 
-    private void addTimeStamp(Request request) {
+    private void addTimeStamp(RequestParameters params) {
         Timestamp time = new Timestamp(System.currentTimeMillis());
-        Record record = Record.of(Record.DUMMY, ByteBuffer.wrap(request.getBody()), time);
-        request.setBody(record.getRawBytes());
+        Record record = Record.of(Record.DUMMY, ByteBuffer.wrap(params.getBodyRequest()), time);
+        params.setBodyRequest(record.getRawBytes());
     }
 
     public int getClusterSize() {
@@ -95,18 +101,12 @@ public class ClusterService {
         return replicationService.directRequest(id, request);
     }
 
-    private Response badRequest() {
+    public static Response badRequest() {
         return new Response(Response.BAD_REQUEST, Response.EMPTY);
     }
 
-    private Response badGateway() {
+    public static Response badGateway() {
         return new Response(Response.BAD_GATEWAY, Response.EMPTY);
-    }
-
-    public static CompletableFuture<Response> asyncBadMethod() {
-        return CompletableFuture.supplyAsync(() ->
-                new Response(Response.METHOD_NOT_ALLOWED, ServiceImpl.BAD_REQUEST)
-        );
     }
 
     private boolean validParameter(final int ack, final int from) {

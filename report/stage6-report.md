@@ -2,92 +2,92 @@
 ## Автор: Гаспарян Сократ
 
 ### Результаты нагрузочного тестирования с асинхронными узлами кластера
-<b>Запуск wrk PUT запросы на 128 соединений в 2 потока с rate 10000 запросов в секундну - 1 минута:</b>
+<b>Запуск wrk PUT запросы на 64 соединений в 2 потока с rate 5000 запросов в секундну - 1 минута:</b>
 <b>Узел с портом 8080</b>
 ```
 Running 1m test @ http://localhost:8080
-  2 threads and 128 connections
-  Thread calibration: mean lat.: 14.096ms, rate sampling interval: 77ms
-  Thread calibration: mean lat.: 12.402ms, rate sampling interval: 64ms
+  2 threads and 64 connections
+  Thread calibration: mean lat.: 10.830ms, rate sampling interval: 54ms
+  Thread calibration: mean lat.: 12.523ms, rate sampling interval: 56ms
   Thread Stats   Avg      Stdev     Max   +/- Stdev
-    Latency     9.85ms   11.99ms 112.19ms   83.25%
-    Req/Sec     5.05k     1.14k    8.66k    68.00%
+    Latency    37.13ms   73.61ms 407.81ms   90.73%
+    Req/Sec     2.53k   793.14     5.02k    65.89%
   Latency Distribution (HdrHistogram - Recorded Latency)
- 50.000%    3.18ms
- 75.000%   15.56ms
- 90.000%   28.45ms
- 99.000%   47.84ms
- 99.900%   66.43ms
- 99.990%   86.65ms
- 99.999%  108.99ms
-100.000%  112.25ms
+ 50.000%   10.90ms
+ 75.000%   28.25ms
+ 90.000%   92.35ms
+ 99.000%  334.33ms
+ 99.900%  372.99ms
+ 99.990%  393.47ms
+ 99.999%  405.25ms
+100.000%  408.06ms
 ...
-#[Mean    =        9.851, StdDeviation   =       11.993]
-#[Max     =      112.192, Total count    =       496948]
+#[Mean    =       37.128, StdDeviation   =       73.612]
+#[Max     =      407.808, Total count    =       249490]
 #[Buckets =           27, SubBuckets     =         2048]
 ----------------------------------------------------------
-  598476 requests in 1.00m, 38.40MB read
-Requests/sec:   9974.43
-Transfer/sec:    655.34KB
+  297310 requests in 1.00m, 19.00MB read
+Requests/sec:   4955.20
+Transfer/sec:    324.22KB
 ```
 
 <b>Узел с портом 8081</b>
 ```
 Running 1m test @ http://localhost:8081
-  2 threads and 128 connections
-  Thread calibration: mean lat.: 11.040ms, rate sampling interval: 58ms
-  Thread calibration: mean lat.: 16.579ms, rate sampling interval: 75ms
+  2 threads and 64 connections
+  Thread calibration: mean lat.: 11.286ms, rate sampling interval: 60ms
+  Thread calibration: mean lat.: 12.889ms, rate sampling interval: 61ms
   Thread Stats   Avg      Stdev     Max   +/- Stdev
-    Latency    12.84ms   14.71ms 142.90ms   86.71%
-    Req/Sec     5.05k     1.22k   10.46k    68.96%
+    Latency    28.14ms   55.46ms 379.90ms   92.25%
+    Req/Sec     2.52k   768.24     5.80k    66.12%
   Latency Distribution (HdrHistogram - Recorded Latency)
- 50.000%    7.38ms
- 75.000%   19.10ms
- 90.000%   30.75ms
- 99.000%   62.53ms
- 99.900%  125.57ms
- 99.990%  131.29ms
- 99.999%  137.32ms
-100.000%  142.03ms
+ 50.000%    9.43ms
+ 75.000%   26.35ms
+ 90.000%   47.13ms
+ 99.000%  280.06ms
+ 99.900%  348.16ms
+ 99.990%  364.80ms
+ 99.999%  374.78ms
+100.000%  380.16ms
 ...
-#[Mean    =       12.844, StdDeviation   =       14.707]
-#[Max     =      142.904, Total count    =       496606]
+#[Mean    =       28.145, StdDeviation   =       55.462]
+#[Max     =      379.904, Total count    =       249164]
 #[Buckets =           27, SubBuckets     =         2048]
 ----------------------------------------------------------
-  594024 requests in 1.00m, 51.45MB read
-Requests/sec:   9900.26
-Transfer/sec:      0.86MB
+  297297 requests in 1.00m, 19.00MB read
+Requests/sec:   4954.28
+Transfer/sec:    324.16KB
 ```
 
 <b>Узел с портом 8082</b>
 ```
 Running 1m test @ http://localhost:8082
-  2 threads and 128 connections
-  Thread calibration: mean lat.: 11.068ms, rate sampling interval: 57ms
-  Thread calibration: mean lat.: 14.706ms, rate sampling interval: 69ms
+  2 threads and 64 connections
+  Thread calibration: mean lat.: 8.436ms, rate sampling interval: 53ms
+  Thread calibration: mean lat.: 8.719ms, rate sampling interval: 54ms
   Thread Stats   Avg      Stdev     Max   +/- Stdev
-    Latency    12.11ms   12.64ms 115.26ms   83.59%
-    Req/Sec     5.06k     1.26k    9.46k    68.78%
+    Latency    26.26ms   65.80ms 468.99ms   93.02%
+    Req/Sec     2.53k   740.33     5.44k    67.12%
   Latency Distribution (HdrHistogram - Recorded Latency)
- 50.000%    6.50ms
- 75.000%   18.59ms
- 90.000%   31.10ms
- 99.000%   52.74ms
- 99.900%   72.83ms
- 99.990%   87.68ms
- 99.999%  106.24ms
-100.000%  115.33ms
+ 50.000%    2.77ms
+ 75.000%   21.22ms
+ 90.000%   40.00ms
+ 99.000%  393.47ms
+ 99.900%  441.60ms
+ 99.990%  457.73ms
+ 99.999%  468.48ms
+100.000%  469.25ms
 ...
-#[Mean    =       12.108, StdDeviation   =       12.645]
-#[Max     =      115.264, Total count    =       496818]
+#[Mean    =       26.257, StdDeviation   =       65.799]
+#[Max     =      468.992, Total count    =       249275]
 #[Buckets =           27, SubBuckets     =         2048]
 ----------------------------------------------------------
-  594272 requests in 1.00m, 51.52MB read
-Requests/sec:   9904.33
-Transfer/sec:      0.86MB
+  299626 requests in 1.00m, 19.14MB read
+Requests/sec:   4993.76
+Transfer/sec:    326.74KB
 ```
 
-<b>Профилирование с помощью async-profiler в течение 20 секунд. FlameGraph для cpu, alloc, lock:</b>
+<b>Профилирование с помощью async-profiler в течение 30 секунд. FlameGraph для cpu, alloc, lock:</b>
 
 <a href=./resource/profile-html/stage6/stage6-put-cpu.html>PUT запросы CPU</a>
 
@@ -97,95 +97,95 @@ Transfer/sec:      0.86MB
 
 
 <b>Вывод по результатам:</b>
-Как видно из отчета wrk реализация для  PUT запросов показывает результаты хуже, чем было до асинхронного опроса узлов кластера. Из данных профилировщика видно, что множество системных вызововов приходится на обработку потоков. Блокировки в данной реализации связаны только с блокирующей очередью в пуле потоков, никаких других блокировок не происходит.  
+Как видно из отчета wrk реализация для  PUT запросов показывает результаты значительно хуже, чем было до асинхронного опроса узлов кластера. Из данных профилировщика видно, что множество вызововов приходится на обработку потоков. Блокировки в данной реализации связаны только с работой в пуле потоков, никаких блокировок в пользовательском коде не происходит.  
 
 
-<b>Запуск wrk GET запросы на 128 соединений в 2 потока с rate 10000 запросов в секундну - 1 минута:</b>
+<b>Запуск wrk GET запросы на 64 соединений в 2 потока с rate 5000 запросов в секундну - 1 минута:</b>
 <b>Узел с портом 8080</b>
 ```
 Running 1m test @ http://localhost:8080
-  2 threads and 128 connections
-  Thread calibration: mean lat.: 8.698ms, rate sampling interval: 53ms
-  Thread calibration: mean lat.: 8.440ms, rate sampling interval: 50ms
+  2 threads and 64 connections
+  Thread calibration: mean lat.: 377.238ms, rate sampling interval: 1829ms
+  Thread calibration: mean lat.: 379.367ms, rate sampling interval: 1841ms
   Thread Stats   Avg      Stdev     Max   +/- Stdev
-    Latency     8.08ms   10.24ms  59.65ms   82.16%
-    Req/Sec     5.07k     1.25k    9.84k    68.14%
+    Latency     5.06ms    6.41ms  36.90ms   83.35%
+    Req/Sec     2.50k    16.06     2.54k    72.22%
   Latency Distribution (HdrHistogram - Recorded Latency)
- 50.000%    2.21ms
- 75.000%   12.86ms
- 90.000%   25.14ms
- 99.000%   39.01ms
- 99.900%   47.87ms
- 99.990%   55.39ms
- 99.999%   58.78ms
-100.000%   59.68ms
+ 50.000%    2.05ms
+ 75.000%    4.66ms
+ 90.000%   15.89ms
+ 99.000%   26.14ms
+ 99.900%   30.91ms
+ 99.990%   34.14ms
+ 99.999%   35.78ms
+100.000%   36.93ms
 ...
-#[Mean    =        8.077, StdDeviation   =       10.245]
-#[Max     =       59.648, Total count    =       496885]
+#[Mean    =        5.058, StdDeviation   =        6.408]
+#[Max     =       36.896, Total count    =       249265]
 #[Buckets =           27, SubBuckets     =         2048]
 ----------------------------------------------------------
-  598476 requests in 1.00m, 42.00MB read
-Requests/sec:   9974.56
-Transfer/sec:    716.88KB
+  299589 requests in 1.00m, 20.91MB read
+Requests/sec:   4993.13
+Transfer/sec:    356.89KB
 ```
 
 <b>Узел с портом 8081</b>
 ```
 Running 1m test @ http://localhost:8081
-  2 threads and 128 connections
-  Thread calibration: mean lat.: 8.371ms, rate sampling interval: 43ms
-  Thread calibration: mean lat.: 7.890ms, rate sampling interval: 41ms
+  2 threads and 64 connections
+  Thread calibration: mean lat.: 3.222ms, rate sampling interval: 12ms
+  Thread calibration: mean lat.: 3.247ms, rate sampling interval: 12ms
   Thread Stats   Avg      Stdev     Max   +/- Stdev
-    Latency     8.07ms    9.27ms  51.30ms   81.75%
-    Req/Sec     5.07k     1.24k    8.19k    65.94%
+    Latency     4.94ms    6.44ms  41.22ms   84.01%
+    Req/Sec     2.62k   827.78     7.64k    79.33%
   Latency Distribution (HdrHistogram - Recorded Latency)
- 50.000%    2.61ms
- 75.000%   13.05ms
- 90.000%   23.61ms
- 99.000%   34.43ms
- 99.900%   40.29ms
- 99.990%   44.99ms
- 99.999%   49.25ms
-100.000%   51.33ms
+ 50.000%    1.97ms
+ 75.000%    4.13ms
+ 90.000%   15.81ms
+ 99.000%   26.33ms
+ 99.900%   32.24ms
+ 99.990%   36.38ms
+ 99.999%   39.04ms
+100.000%   41.25ms
 ...
-#[Mean    =        8.072, StdDeviation   =        9.267]
-#[Max     =       51.296, Total count    =       496918]
+#[Mean    =        4.938, StdDeviation   =        6.438]
+#[Max     =       41.216, Total count    =       249207]
 #[Buckets =           27, SubBuckets     =         2048]
 ----------------------------------------------------------
-  598475 requests in 1.00m, 42.00MB read
-Requests/sec:   9974.38
-Transfer/sec:    716.86KB
+  299631 requests in 1.00m, 20.91MB read
+Requests/sec:   4993.96
+Transfer/sec:    356.95KB
 ```
 
 <b>Узел с портом 8082</b>
 ```
 Running 1m test @ http://localhost:8082
-  2 threads and 128 connections
-  Thread calibration: mean lat.: 8.399ms, rate sampling interval: 46ms
-  Thread calibration: mean lat.: 12.584ms, rate sampling interval: 58ms
+  2 threads and 64 connections
+  Thread calibration: mean lat.: 3.999ms, rate sampling interval: 24ms
+  Thread calibration: mean lat.: 3.990ms, rate sampling interval: 25ms
   Thread Stats   Avg      Stdev     Max   +/- Stdev
-    Latency    11.27ms   10.33ms  61.02ms   78.88%
-    Req/Sec     5.07k     1.25k    8.61k    66.81%
+    Latency     4.33ms    5.93ms  38.05ms   85.74%
+    Req/Sec     2.55k   610.16     5.35k    80.52%
   Latency Distribution (HdrHistogram - Recorded Latency)
- 50.000%    6.95ms
- 75.000%   17.39ms
- 90.000%   27.36ms
- 99.000%   41.31ms
- 99.900%   49.34ms
- 99.990%   55.17ms
- 99.999%   60.38ms
-100.000%   61.06ms
+ 50.000%    1.88ms
+ 75.000%    2.85ms
+ 90.000%   14.57ms
+ 99.000%   25.25ms
+ 99.900%   29.92ms
+ 99.990%   33.69ms
+ 99.999%   37.38ms
+100.000%   38.08ms
 ...
-#[Mean    =       11.271, StdDeviation   =       10.332]
-#[Max     =       61.024, Total count    =       496857]
+#[Mean    =        4.332, StdDeviation   =        5.932]
+#[Max     =       38.048, Total count    =       249133]
 #[Buckets =           27, SubBuckets     =         2048]
 ----------------------------------------------------------
-  594252 requests in 1.00m, 41.71MB read
-Requests/sec:   9902.29
-Transfer/sec:    711.65KB
+  299562 requests in 1.00m, 20.91MB read
+Requests/sec:   4992.49
+Transfer/sec:    356.84KB
 ```
 
-<b>Профилирование с помощью async-profiler в течение 20 секунд. FlameGraph для cpu, alloc, lock:</b>
+<b>Профилирование с помощью async-profiler в течение 30 секунд. FlameGraph для cpu, alloc, lock:</b>
 
 <a href=./resource/profile-html/stage6/stage6-get-cpu.html>GET запросы CPU</a>
 
@@ -195,9 +195,9 @@ Transfer/sec:    711.65KB
 
 
 <b>Вывод по результатам:</b>
-Как видно из отчета wrk реализация для GET запросов показывает результаты такие же, как и до асинхронного опроса узлов кластера. Из данных профилировщика видно, что множество системных вызововов приходится на обработку поиска данных в хранилище DAO и на обработку потоков в пуле. Блокировки в данной реализации связаны только с блокирующей очередью в пуле потоков, никаких других блокировок не происходит.  
+Как видно из отчета wrk реализация для GET запросов показывает результаты такие же, как и до асинхронного опроса узлов кластера. Из данных профилировщика видно, что множество вызововов приходится на обработку поиска данных в хранилище DAO и на обработку потоков в пуле. Блокировки в данной реализации связаны только с работой в пуле потоков, никаких блокировок в пользовательском коде не происходит.  
 
 
 
 <h4>Общий вывод и оптимизации:</h4>
-Из отчетов wrk и async-profiler видно, что добавление асинхронного опроса узлов кластера, не изменило или ухудшила некоторые показатели, скорее всего это связано с тем, что системе не хватает производительности для обслуживания такого количества потоков. Большая часть вызовов связано с работой с потоками и блокирующими очередями в пуле потоков. В качестве оптимизации можно предложить опрос CompletableFuture на готовность выполнения потока с помощью метода isDone и, если, метод указывает, что поток ещё выполняет работу, то можно опросить следующий Future, выполняя это действие циклично. В итоговой реалзации не использовался HttpClient из java.net.http.HttpClient, так как при его использований сильно проседает производительносить. Результаты wrk показывают до 17 секунд по 99.999 персентилю, скорее всего это связано с тем, что HttpClient не держит соединение с узлами, а устанавливает его по факту в HttpRequest, тем самым тратится время на установление соединение при каждом запросе. Результаты замера выполнения метода ReplicationService.handleRequest для обычного синхронного клиента java.one.nio.HttpClient 0-1 мс, а для асинхронного java.net.http.HttpClient 1-21 мс.
+Из отчетов wrk и async-profiler видно, что добавление асинхронного опроса узлов кластера, для PUT запросов сильно ухудшило производительность. Одной из причин является одновременное включение записи на HDD(вызов flush) на всех узлах. Результаты замеров времени показывают, что пиковое время обработки сетевого запроса к узлу составляет 66.4 мс, пиковое время обработки узлом самого запроса (от другого узла) составляет 49.7 мс. Скачки понижения времени выполнения запроса были замечены, именно при выполнений на всех узлах метода flush. Нагрузочное тестирование производилось на ПК с 4 потоками(2 физическими ядрами). Так как, три узла начинают выполнять запись на диск, 3 из 4 потоков заняты, и следовательно все остальные приходящие запросы просто складываются в очередь, на обработку которой уходит всего 1 поток. В итоге, происходит накопление запросов у сервера one-nio, также у пользовательской серверной реализации(метод handleRequest) и очереди с java.net.http.HttpClient для внутренних запросов. Для GET запросов результаты остались такими же, как и до асинхронных узлов. В качестве оптимизации, стоит убрать асинхронных клиентов - узлов, либо обеспечить большое количество аппаратных ресурсов, далее, если оставить асинхронных клиентов, то можно ограничить выполнение метода flush, используя 1 поток для всех узлов, как разделяемый ресурс.
