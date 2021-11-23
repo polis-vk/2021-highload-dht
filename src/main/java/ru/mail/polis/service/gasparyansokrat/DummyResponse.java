@@ -8,9 +8,9 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.Optional;
 
-final class DummyHttpResponse {
+final class DummyResponse {
 
-    private DummyHttpResponse() {
+    private DummyResponse() {
 
     }
 

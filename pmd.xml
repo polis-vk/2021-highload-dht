@@ -27,7 +27,7 @@
             <property name="interfacePattern" value="[A-Z][a-zA-Z0-9]*"/>
             <property name="enumPattern" value="[A-Z][a-zA-Z0-9]*"/>
             <property name="annotationPattern" value="[A-Z][a-zA-Z0-9]*"/>
-            <!-- property name="utilityClassPattern" value="[A-Z][a-zA-Z0-9]+(s|Utils?|Helper|Constants|Factory)"/-->
+            <property name="utilityClassPattern" value="[A-Z][a-zA-Z0-9]+(s|Utils?|Helper|Constants|Factory)"/>
         </properties>
     </rule>
     <rule ref="category/java/design.xml">

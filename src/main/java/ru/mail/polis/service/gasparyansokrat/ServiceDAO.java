@@ -78,19 +78,19 @@ public class ServiceDAO {
                 switch (params.getHttpMethod()) {
                     case Request.METHOD_GET:
                         final Response getResponse = get(id);
-                        return DummyHttpResponse.buildResponse(getResponse.getStatus(), getResponse.getBody());
+                        return DummyResponse.buildResponse(getResponse.getStatus(), getResponse.getBody());
                     case Request.METHOD_PUT:
                         final Response putResponse = put(id, params.getBodyRequest());
-                        return DummyHttpResponse.buildResponse(putResponse.getStatus(), putResponse.getBody());
+                        return DummyResponse.buildResponse(putResponse.getStatus(), putResponse.getBody());
                     case Request.METHOD_DELETE:
                         final Response delResponse = delete(id);
-                        return DummyHttpResponse.buildResponse(delResponse.getStatus(), delResponse.getBody());
+                        return DummyResponse.buildResponse(delResponse.getStatus(), delResponse.getBody());
                     default:
-                        return DummyHttpResponse.buildResponse(HttpURLConnection.HTTP_BAD_METHOD, new byte[0]);
+                        return DummyResponse.buildResponse(HttpURLConnection.HTTP_BAD_METHOD, new byte[0]);
                 }
             } catch (IOException e) {
                 LOG.error("Error access DAO {}", e.getMessage());
-                return DummyHttpResponse.buildResponse(HttpURLConnection.HTTP_GATEWAY_TIMEOUT,
+                return DummyResponse.buildResponse(HttpURLConnection.HTTP_GATEWAY_TIMEOUT,
                                                         ServiceImpl.BAD_REQUEST.getBytes(StandardCharsets.UTF_8));
             }
         });
