@@ -31,14 +31,16 @@ public abstract class RoutableRequestHandler implements RequestHandler {
     private final HashRouter<Cluster.Node> router;
     protected final HttpClient httpClient;
     protected final Executor workers;
+    protected final Executor proxies;
 
     public RoutableRequestHandler(
             Cluster.Node self, HashRouter<Cluster.Node> router,
-            HttpClient httpClient, Executor workers) {
+            HttpClient httpClient, Executor workers, Executor proxies) {
         this.self = self;
         this.router = router;
         this.httpClient = httpClient;
         this.workers = workers;
+        this.proxies = proxies;
     }
 
     /**

@@ -47,9 +47,6 @@ public final class ServiceFactory {
     /** Лимит очереди запросов, после превышения которого последующие будут отвергнуты. */
     private static final int TASKS_LIMIT = WORKERS_NUMBER * 2;
 
-    /** Число потоков обработки сетевых IO. Будет умножено на размер кластера. */
-    private static final int NET_IO_NUMBER = WORKERS_NUMBER;
-
     /** Число репликаций для каждого узла, включая сам узел. Минимальное значение = 1. */
     private static final int REPLICAS_NUMBER = 3;
 
@@ -98,9 +95,9 @@ public final class ServiceFactory {
         HashRouter<Cluster.Node> hashRouter = new ConsistentHashRouter<>(clusterNodes, 30);
 
         ServiceExecutor workers = new LimitedServiceExecutor("worker", WORKERS_NUMBER, TASKS_LIMIT);
-        Executor ioWorkers = Executors.newFixedThreadPool(NET_IO_NUMBER);
+        Executor proxies = Executors.newFixedThreadPool(WORKERS_NUMBER * topology.size());
 
-        return new HttpServerImpl(dao, currentNode, replicasHolder, hashRouter, workers, ioWorkers);
+        return new HttpServerImpl(dao, currentNode, replicasHolder, hashRouter, workers, proxies);
     }
 
     private static Set<Cluster.Node> buildClusterNodes(Set<String> topologyRaw) {

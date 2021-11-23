@@ -18,7 +18,7 @@ import java.util.concurrent.Executor;
 
 public class HttpUtils {
 
-    private static final String[] localHeaders = new String[] {
+    private static final String[] localHeaders = new String[]{
             ServiceResponse.HEADER_TIMESTAMP,
             ReplicableRequestHandler.HEADER_HANDLE_LOCALLY
     };
@@ -36,15 +36,17 @@ public class HttpUtils {
     public static HttpRequest mapRequest(Request request, Cluster.Node target) {
         final HttpRequest.BodyPublisher bodyPublisher;
         byte[] body = request.getBody();
-        if (body != null && body.length != 0) {
+        if (body != null && body.length > 0) {
             bodyPublisher = HttpRequest.BodyPublishers.ofByteArray(body);
         } else {
             bodyPublisher = HttpRequest.BodyPublishers.noBody();
         }
 
         HttpRequest.Builder builder = HttpRequest.newBuilder()
+                .version(HttpClient.Version.HTTP_1_1)
                 .uri(URI.create(target.uri + request.getURI()))
-                .method(request.getMethodName(), bodyPublisher);
+                .method(request.getMethodName(), bodyPublisher)
+                .timeout(Duration.ofSeconds(3));
 
         for (var header : localHeaders) {
             String headerValue = request.getHeader(header);

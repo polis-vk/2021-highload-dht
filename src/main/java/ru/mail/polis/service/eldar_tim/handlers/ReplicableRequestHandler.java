@@ -40,9 +40,9 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
 
     public ReplicableRequestHandler(
             Cluster.Node self, HashRouter<Cluster.Node> router,
-            Cluster.ReplicasHolder replicasHolder, HttpClient httpClient, Executor workers
+            Cluster.ReplicasHolder replicasHolder, HttpClient httpClient, Executor workers, Executor proxies
     ) {
-        super(self, router, httpClient, workers);
+        super(self, router, httpClient, workers, proxies);
         this.replicasHolder = replicasHolder;
     }
 
@@ -61,11 +61,13 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
         List<Cluster.Node> replicas = replicasHolder.getBunch(targetNode, from);
 
         pollReplicas(ack, replicas, request)
-                .thenAccept(response -> HttpUtils.sendResponse(LOG, session, response.raw()))
-                .exceptionally(t -> {
-                    HttpUtils.sendError(LOG, session, Response.INTERNAL_ERROR, t.getMessage());
-                    return null;
-                }); // TODO: network thread or workers?
+                .whenCompleteAsync((response, t) -> {
+                    if (response != null) {
+                        HttpUtils.sendResponse(LOG, session, response.raw());
+                    } else {
+                        HttpUtils.sendError(LOG, session, Response.INTERNAL_ERROR, t.getMessage());
+                    }
+                }, workers); // TODO: network thread or workers?
     }
 
     private int[] parseAckFromParameter(@Nullable String param) {

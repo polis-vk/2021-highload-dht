@@ -15,9 +15,9 @@ public class StatusRequestHandler extends RequestHandler {
 
     public StatusRequestHandler(
             Cluster.Node self, HashRouter<Cluster.Node> router,
-            Cluster.ReplicasHolder replicasHolder, HttpClient httpClient, Executor workers
+            Cluster.ReplicasHolder replicasHolder, HttpClient httpClient, Executor workers, Executor proxies
     ) {
-        super(self, router, replicasHolder, httpClient, workers);
+        super(self, router, replicasHolder, httpClient, workers, proxies);
     }
 
     @Nullable

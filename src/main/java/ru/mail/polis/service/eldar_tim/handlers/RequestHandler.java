@@ -17,9 +17,9 @@ public abstract class RequestHandler extends ReplicableRequestHandler {
 
     public RequestHandler(
             Cluster.Node self, HashRouter<Cluster.Node> router,
-            Cluster.ReplicasHolder replicasHolder, HttpClient httpClient, Executor workers
+            Cluster.ReplicasHolder replicasHolder, HttpClient httpClient, Executor workers, Executor proxies
     ) {
-        super(self, router, replicasHolder, httpClient, workers);
+        super(self, router, replicasHolder, httpClient, workers, proxies);
     }
 
     @Nonnull

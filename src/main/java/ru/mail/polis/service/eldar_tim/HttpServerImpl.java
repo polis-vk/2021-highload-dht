@@ -38,6 +38,7 @@ public class HttpServerImpl extends HttpServer implements Service {
     private final Cluster.ReplicasHolder replicasHolder;
     private final HashRouter<Cluster.Node> router;
     private final ServiceExecutor workers;
+    private final Executor proxies;
 
     private final HttpClient httpClient;
 
@@ -47,7 +48,7 @@ public class HttpServerImpl extends HttpServer implements Service {
     public HttpServerImpl(
             DAO dao, Cluster.Node self,
             Cluster.ReplicasHolder replicasHolder, HashRouter<Cluster.Node> router,
-            ServiceExecutor workers, Executor ioWorkers
+            ServiceExecutor workers, Executor proxies
     ) throws IOException {
         super(buildHttpServerConfig(self.port));
         this.dao = dao;
@@ -55,11 +56,12 @@ public class HttpServerImpl extends HttpServer implements Service {
         this.replicasHolder = replicasHolder;
         this.router = router;
         this.workers = workers;
+        this.proxies = proxies;
 
-        httpClient = HttpUtils.createClient(ioWorkers);
+        httpClient = HttpUtils.createClient(proxies);
 
         pathMapper = new PathMapper();
-        statusHandler = new StatusRequestHandler(self, router, replicasHolder, httpClient, workers);
+        statusHandler = new StatusRequestHandler(self, router, replicasHolder, httpClient, workers, proxies);
         mapPaths();
 
         LOG.info("{}: server is running now", self.getKey());
@@ -81,7 +83,7 @@ public class HttpServerImpl extends HttpServer implements Service {
 
         pathMapper.add("/v0/entity",
                 new int[]{Request.METHOD_GET, Request.METHOD_PUT, Request.METHOD_DELETE},
-                new EntityRequestHandler(self, router, replicasHolder, httpClient, workers, dao));
+                new EntityRequestHandler(self, router, replicasHolder, httpClient, workers, proxies, dao));
     }
 
     @Override
