@@ -131,7 +131,7 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
             } else {
                 future = handleRemotelyAsync(target, request);
             }
-            future.whenComplete(handler::parse);
+            future.whenComplete((r, t) -> handler.parse(r));
         }
 
         if (localHandler != null) {
@@ -157,7 +157,7 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
             this.result = new CompletableFuture<>();
         }
 
-        public void parse(@Nullable ServiceResponse response, @Nullable Throwable t) {
+        public void parse(@Nullable ServiceResponse response) {
             if (response != null && isCorrect(response)) {
                 succeedResponses.add(response);
             } else {

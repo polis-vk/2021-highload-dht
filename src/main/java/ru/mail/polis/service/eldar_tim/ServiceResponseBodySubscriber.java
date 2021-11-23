@@ -37,7 +37,7 @@ public final class ServiceResponseBodySubscriber implements HttpResponse.BodyHan
         long timestamp;
         try {
             timestamp = Long.parseLong(timestampHeader, 0, timestampHeader.length(), 10);
-        } catch (NullPointerException | IndexOutOfBoundsException | NumberFormatException e) {
+        } catch (IndexOutOfBoundsException | NumberFormatException e) {
             timestamp = -1;
         }
         return timestamp;

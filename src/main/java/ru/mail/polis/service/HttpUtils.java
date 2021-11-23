@@ -16,12 +16,16 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.concurrent.Executor;
 
-public class HttpUtils {
-
-    private static final String[] localHeaders = new String[]{
+public final class HttpUtils {
+    
+    private static final String[] LOCAL_HEADERS = {
             ServiceResponse.HEADER_TIMESTAMP,
             ReplicableRequestHandler.HEADER_HANDLE_LOCALLY
     };
+
+    private HttpUtils() {
+        // No need.
+    }
 
     public static HttpClient createClient(Executor executor) {
         return HttpClient.newBuilder()
@@ -48,7 +52,7 @@ public class HttpUtils {
                 .method(request.getMethodName(), bodyPublisher)
                 .timeout(Duration.ofSeconds(3));
 
-        for (var header : localHeaders) {
+        for (var header : LOCAL_HEADERS) {
             String headerValue = request.getHeader(header);
             if (headerValue != null) {
                 builder.setHeader(header, headerValue.substring(2));

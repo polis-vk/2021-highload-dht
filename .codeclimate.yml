@@ -71,7 +71,7 @@ checks:
       threshold: 15 # We are Russian hackers!
   similar-code:
     config:
-      threshold: 60 # Sometimes it is not so similar
+      threshold: 70 # Sometimes it is not so similar
   identical-code:
     config:
       threshold: 60 # Nope, not a duplicate
