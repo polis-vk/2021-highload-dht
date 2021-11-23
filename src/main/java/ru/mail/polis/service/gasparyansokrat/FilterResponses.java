@@ -16,10 +16,10 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
-
 final class FilterResponses {
 
     private static final Logger LOG = LoggerFactory.getLogger(FilterResponses.class);
+    private static final String errorMessage = "Can't send response to client: {}";
 
     private static final int DISCARD = -1000;
 
@@ -54,8 +54,8 @@ final class FilterResponses {
         final AtomicInteger respSize = new AtomicInteger(0);
         for (final CompletableFuture<HttpResponse<byte[]>> response : responses) {
             response.whenComplete((tmpResponse, ex) -> {
-                if (tmpResponse.statusCode() == HttpURLConnection.HTTP_OK ||
-                        tmpResponse.statusCode() == HttpURLConnection.HTTP_NOT_FOUND) {
+                if (tmpResponse.statusCode() == HttpURLConnection.HTTP_OK
+                        || tmpResponse.statusCode() == HttpURLConnection.HTTP_NOT_FOUND) {
                     final int localAck = ack.addAndGet(1);
                     if (tmpResponse.body().length != 0) {
                         freshEntry.set(getHttpEntry(tmpResponse, freshEntry.get()));
@@ -80,10 +80,9 @@ final class FilterResponses {
         final AtomicInteger respSize = new AtomicInteger(0);
         for (final CompletableFuture<HttpResponse<byte[]>> response : responses) {
             response.whenComplete((tmpResponse, ex) -> {
-                if (tmpResponse.statusCode() == status) {
-                    if (checkPutDelResponse(ack, requireAck, session, tmpResponse, respSize)) {
+                if (tmpResponse.statusCode() == status
+                        && checkPutDelResponse(ack, requireAck, session, tmpResponse, respSize)) {
                         return;
-                    }
                 }
                 checkBadReplicas(respSize, responses.size(), session);
             }).exceptionally(ex -> {
@@ -122,20 +121,18 @@ final class FilterResponses {
                                             final AtomicInteger respSize) {
         if (ack == requireAck) {
             try {
-                if (entry != null && !entry.isTombstone()) {
-                    session.sendResponse(new Response(Response.OK, entry.getBytesValue()));
-                } else {
+                if (entry == null || entry.isTombstone()) {
                     session.sendResponse(new Response(Response.NOT_FOUND, Response.EMPTY));
+                } else {
+                    session.sendResponse(new Response(Response.OK, entry.getBytesValue()));
                 }
-            } catch (IOException e) {
-                LOG.error("Can't send response to client: {}", e.getMessage());
-            } finally {
                 respSize.set(DISCARD);
                 return true;
+            } catch (IOException e) {
+                LOG.error(errorMessage, e.getMessage());
             }
-        } else {
-            return false;
         }
+        return false;
     }
 
     private static boolean checkPutDelResponse(final AtomicInteger ack, final int requireAck,
@@ -144,15 +141,13 @@ final class FilterResponses {
         if (ack.addAndGet(1) == requireAck) {
             try {
                 session.sendResponse(new Response(code2Str(response.statusCode()), response.body()));
-            } catch (IOException e) {
-                LOG.error("Can't send response to client: {}", e.getMessage());
-            } finally {
                 respSize.set(DISCARD);
                 return true;
+            } catch (IOException e) {
+                LOG.error(errorMessage, e.getMessage());
             }
-        } else {
-            return false;
         }
+        return false;
     }
 
     private static void checkBadReplicas(AtomicInteger size, final int responsesSize, final HttpSession session) {
@@ -161,7 +156,7 @@ final class FilterResponses {
                 size.set(DISCARD);
                 session.sendResponse(new Response(ClusterService.BAD_REPLICAS, Response.EMPTY));
             } catch (IOException e) {
-                LOG.error("Can't send response to client: {}", e.getMessage());
+                LOG.error(errorMessage, e.getMessage());
             }
         }
     }

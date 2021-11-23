@@ -22,7 +22,7 @@ public class ServiceImpl extends HttpServer implements Service {
     private final ThreadPoolExecutor executor;
     private final ClusterService clusterService;
 
-    public static byte[] BAD_REQUEST = "Bad request".getBytes(StandardCharsets.UTF_8);
+    public static final byte[] BAD_REQUEST = "Bad request".getBytes(StandardCharsets.UTF_8);
 
     /**
      * some doc.

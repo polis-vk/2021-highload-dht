@@ -2,6 +2,7 @@ package ru.mail.polis.service.gasparyansokrat;
 
 import one.nio.http.Request;
 
+import java.util.Arrays;
 import java.util.Iterator;
 
 public class RequestParameters {
@@ -73,10 +74,10 @@ public class RequestParameters {
     }
 
     public byte[] getBodyRequest() {
-        return bodyRequest;
+        return Arrays.copyOf(bodyRequest, bodyRequest.length);
     }
 
     public void setBodyRequest(byte[] bodyRequest) {
-        this.bodyRequest = bodyRequest;
+        this.bodyRequest = Arrays.copyOf(bodyRequest, bodyRequest.length);
     }
 }

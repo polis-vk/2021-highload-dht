@@ -1,7 +1,5 @@
 package ru.mail.polis.service.gasparyansokrat;
 
-import one.nio.util.Hash;
-
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Iterator;
@@ -59,9 +57,4 @@ public class ConsistentHashImpl implements ConsistentHash {
         return nodes;
     }
 
-    private int applyMultipleHash(final String key) {
-        Integer hashValue = Hash.murmur3(key);
-        hashValue = hashValue.hashCode();
-        return hashFunc.hash(hashValue.toString().getBytes(StandardCharsets.UTF_8));
-    }
 }

@@ -8,13 +8,13 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.Optional;
 
-final class CustomHttpResponse {
+final class dummyHttpResponse {
 
-    private CustomHttpResponse() {
+    private dummyHttpResponse() {
 
     }
 
-    public static HttpResponse<byte[]> dummyResponse(final int statusCode, final byte[] body) {
+    public static HttpResponse<byte[]> buildResponse(final int statusCode, final byte[] body) {
         return new HttpResponse<>() {
             @Override
             public int statusCode() {

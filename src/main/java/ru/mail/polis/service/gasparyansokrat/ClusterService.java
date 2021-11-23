@@ -24,7 +24,7 @@ public class ClusterService {
     private final int topologySize;
     private final int quorumCluster;
 
-    final ExecutorService futurePool;
+    private final ExecutorService futurePool;
 
     public static final String BAD_REPLICAS = "504 Not Enough Replicas";
 
