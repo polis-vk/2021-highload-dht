@@ -48,7 +48,7 @@ public final class NodeManager implements Closeable {
             HttpClient client = HttpClient.newBuilder()
                     .version(HttpClient.Version.HTTP_1_1)
                     .connectTimeout(Duration.ofSeconds(3))
-                    .executor(coordinatorExecutor)
+//                    .executor(coordinatorExecutor)
                     .build();
             clients.put(endpoint, client);
         }

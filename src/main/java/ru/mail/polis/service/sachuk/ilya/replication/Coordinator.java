@@ -1,7 +1,9 @@
 package ru.mail.polis.service.sachuk.ilya.replication;
 
+import one.nio.http.HttpSession;
 import one.nio.http.Request;
 import one.nio.http.Response;
+import one.nio.net.Session;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.Utils;
@@ -15,11 +17,14 @@ import ru.mail.polis.service.sachuk.ilya.sharding.NodeRouter;
 import ru.mail.polis.service.sachuk.ilya.sharding.VNode;
 
 import java.io.Closeable;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class Coordinator implements Closeable {
 
@@ -38,7 +43,7 @@ public class Coordinator implements Closeable {
         this.node = node;
     }
 
-    public Response handle(ReplicationInfo replicationInfo, String id, Request request) {
+    public void handle(ReplicationInfo replicationInfo, String id, Request request, HttpSession session) {
 
         ByteBuffer key = Utils.wrap(id);
 
@@ -47,65 +52,98 @@ public class Coordinator implements Closeable {
             logger.info("COORDINATOR NODE IS: " + node.port);
         }
 
-        List<Response> responses = getResponses(replicationInfo, id, request);
-
-        Response finalResponse = getFinalResponse(request, key, responses, replicationInfo);
+        sendRequest(replicationInfo, id, request, key, session);
 
         if (logger.isInfoEnabled()) {
-            logger.info("FINAL RESPONSE:" + finalResponse.getStatus());
+//            logger.info("FINAL RESPONSE:" + finalResponse.getStatus());
         }
 
-        return finalResponse;
     }
 
-    private List<Response> getResponses(ReplicationInfo replicationInfo, String id, Request request) {
-        List<Response> responses = new ArrayList<>();
-        List<CompletableFuture<Response>> futures = getFutures(replicationInfo, id, request);
+//    private List<Response> getResponses(ReplicationInfo replicationInfo, String id, Request request, ByteBuffer key) {
+//        List<Response> responses = new ArrayList<>();
+//
+//        int counter = 0;
+//        for (CompletableFuture<Response> future : futures) {
+//            try {
+//                if (counter >= replicationInfo.ask) {
+//                    break;
+//                }
+//
+//                Response response = future.get();
+//
+//                counter++;
+//                responses.add(response);
+//            } catch (InterruptedException e) {
+//                Thread.currentThread().interrupt();
+//                throw new IllegalStateException(e);
+//            } catch (ExecutionException e) {
+//                throw new IllegalStateException(e);
+//            }
+//        }
+//
+//        return responses;
+//    }
 
-        int counter = 0;
-        for (CompletableFuture<Response> future : futures) {
-            try {
-                if (counter >= replicationInfo.ask) {
-                    break;
-                }
-
-                Response response = future.get();
-
-                int status = response.getStatus();
-                if (status == 504 || status == 405 || status == 503) {
-                    continue;
-                }
-
-                counter++;
-                responses.add(response);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new IllegalStateException(e);
-            } catch (ExecutionException e) {
-                throw new IllegalStateException(e);
-            }
-        }
-
-        return responses;
-    }
-
-    private List<CompletableFuture<Response>> getFutures(ReplicationInfo replicationInfo, String id, Request request) {
-        List<CompletableFuture<Response>> futures = new ArrayList<>();
+    private void sendRequest(ReplicationInfo replicationInfo, String id, Request request, ByteBuffer key, HttpSession session) {
         Integer hash = null;
         List<Integer> currentPorts = new ArrayList<>();
+        List<Response> executedResponses = new ArrayList<>();
+        AtomicInteger counter = new AtomicInteger(0);
+        AtomicBoolean sendToExecute = new AtomicBoolean(false);
+
+        AtomicInteger ackCount = new AtomicInteger(replicationInfo.ask);
 
         for (int i = 0; i < replicationInfo.from; i++) {
             Pair<Integer, VNode> pair = nodeManager.getNearVNodeWithGreaterHash(id, hash, currentPorts);
             hash = pair.key;
             VNode vnode = pair.value;
             currentPorts.add(pair.value.getPhysicalNode().port);
+            logger.info("counter for : " + i);
 
-            futures.add(chooseHandler(id, request, vnode)
-//                    coordinatorExecutor.submit(() -> chooseHandler(id, request, vnode))
-            );
+            int cc = i;
+
+            chooseHandler(id, request, vnode)
+                    .thenAccept(response -> {
+                        if (sendToExecute.get()) {
+                            return;
+                        }
+
+                        logger.info("in thenAccept and counter is " + cc);
+                        int status = response.getStatus();
+                        logger.info("status " + status);
+                        if (status == 504 || status == 405 || status == 503) {
+                            logger.info("from is " + replicationInfo.from + " and curr ack = " + ackCount.get());
+                            if (replicationInfo.from == cc + 1 || ackCount.get() > 0) {
+                                try {
+                                    session.sendResponse(new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY));
+                                } catch (IOException e) {
+                                    e.printStackTrace();
+                                }
+                            }
+                            logger.info("in return and counter is " + cc);
+
+                            return;
+                        }
+
+                        executedResponses.add(response);
+                        counter.incrementAndGet();
+                        ackCount.decrementAndGet();
+
+                        if (counter.get() >= replicationInfo.ask) {
+                            sendToExecute.set(true);
+                            Response finalResponse = getFinalResponse(request, key, executedResponses, replicationInfo);
+                            try {
+                                session.sendResponse(finalResponse);
+                            } catch (IOException e) {
+                                e.printStackTrace();
+                            }
+                        }
+
+                    });
+
+            logger.info("after future and counter is " + cc);
         }
-
-        return futures;
     }
 
     private Response getFinalResponseForGet(Record newestRecord) {
@@ -217,7 +255,8 @@ public class Coordinator implements Closeable {
             if (logger.isInfoEnabled()) {
                 logger.info("HANDLE BY CURRENT NODE: port :" + vnode.getPhysicalNode().port);
             }
-            response = CompletableFuture.supplyAsync(() -> entityRequestHandler.handle(request, id));
+//            response = CompletableFuture.supplyAsync(() -> entityRequestHandler.handle(request, id));
+            response = CompletableFuture.completedFuture(entityRequestHandler.handle(request, id));
         } else {
             if (logger.isInfoEnabled()) {
                 logger.info("HANDLE BY OTHER NODE: port :" + vnode.getPhysicalNode().port);
