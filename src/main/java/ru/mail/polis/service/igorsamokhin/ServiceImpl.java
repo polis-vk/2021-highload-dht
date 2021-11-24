@@ -18,6 +18,7 @@ import ru.mail.polis.service.Service;
 import javax.annotation.Nullable;
 
 import java.io.IOException;
+import java.net.URISyntaxException;
 import java.nio.ByteBuffer;
 import java.util.Iterator;
 import java.util.List;
@@ -34,7 +35,7 @@ public class ServiceImpl extends HttpServer implements Service {
     private final Logger logger = LoggerFactory.getLogger(ServiceImpl.class);
 
     public static final String BAD_ID_RESPONSE = "Bad id";
-    public static final int MAXIMUM_POOL_SIZE = 16;
+    public static final int MAXIMUM_POOL_SIZE = 8;
     public static final int KEEP_ALIVE_TIME = 10;
 
     private final DAO dao;
@@ -43,17 +44,12 @@ public class ServiceImpl extends HttpServer implements Service {
     private final ThreadPoolExecutor executor = new ThreadPoolExecutor(MAXIMUM_POOL_SIZE,
             MAXIMUM_POOL_SIZE, KEEP_ALIVE_TIME, TimeUnit.MINUTES, new LinkedBlockingQueue<>());
 
-    private final ProxyResponse proxyClients;
+    private final ProxyClient proxyClients;
 
-    public ServiceImpl(int port, DAO dao, Set<String> topology) throws IOException {
-        this(port, dao, topology, 3);
-    }
-
-    public ServiceImpl(int port, DAO dao, Set<String> topology, int replicationFactor) throws IOException {
+    public ServiceImpl(int port, DAO dao, Set<String> topology) throws URISyntaxException, IOException {
         super(from(port));
         this.dao = dao;
-        this.proxyClients = new ProxyResponse(MAXIMUM_POOL_SIZE,
-                MAXIMUM_POOL_SIZE * replicationFactor, KEEP_ALIVE_TIME, TimeUnit.SECONDS, topology, port);
+        this.proxyClients = new ProxyClient(MAXIMUM_POOL_SIZE, topology, port);
     }
 
     private static HttpServerConfig from(int port) {
@@ -70,9 +66,10 @@ public class ServiceImpl extends HttpServer implements Service {
     @Override
     public void handleRequest(Request request, HttpSession session) throws IOException {
         if (!isWorking) {
-            sendResponse(session, UtilResponses.serviceUnavailableResponse());
+            sendResponse(session, Utils.serviceUnavailableResponse());
             return;
         }
+
         super.handleRequest(request, session);
     }
 
@@ -138,7 +135,7 @@ public class ServiceImpl extends HttpServer implements Service {
                     throw new Exception("Wrong params");
                 }
             } catch (Exception e) {
-                sendResponse(session, UtilResponses.badRequest());
+                sendResponse(session, Utils.badRequest());
                 return;
             }
             task(session, request, id, ack, from);
@@ -154,8 +151,8 @@ public class ServiceImpl extends HttpServer implements Service {
         try {
             List<Integer> nodeIds = proxyClients.getNodeId(id);
             if (nodeIds.isEmpty()) {
-                response = UtilResponses.badRequest(BAD_ID_RESPONSE);
-            } else if (request.getHeader(ProxyResponse.PROXY_HEADER) != null) {
+                response = Utils.badRequest(BAD_ID_RESPONSE);
+            } else if (request.getHeader(Utils.PROXY_HEADER_ONE_NIO) != null) {
                 response = handleEntity(request, id, true);
             } else if ((nodeIds.size() == 1) && proxyClients.isMe(nodeIds.get(0))) {
                 response = handleEntity(request, id, false);
@@ -165,10 +162,10 @@ public class ServiceImpl extends HttpServer implements Service {
             }
         } catch (RuntimeException e) {
             logger.error("Something wrong in task. ack: {}, from: {}", ack, from, e);
-            response = UtilResponses.serviceUnavailableResponse();
+            response = Utils.serviceUnavailableResponse();
         } catch (Exception e) {
             logger.error("Exception in entity handling. Request:\n{} ", request, e);
-            response = UtilResponses.serviceUnavailableResponse();
+            response = Utils.serviceUnavailableResponse();
         }
         sendResponse(session, response);
     }
@@ -177,7 +174,7 @@ public class ServiceImpl extends HttpServer implements Service {
     public void handleDefault(
             final Request request,
             final HttpSession session) throws IOException {
-        session.sendResponse(UtilResponses.badRequest());
+        session.sendResponse(Utils.badRequest());
     }
 
     private Response get(@Param(value = "id", required = true) String id, boolean proxyRequest) {
@@ -186,7 +183,7 @@ public class ServiceImpl extends HttpServer implements Service {
 
         Iterator<Record> range = dao.range(fromKey, toKey, proxyRequest);
         if (!range.hasNext()) {
-            return UtilResponses.notFoundResponse();
+            return Utils.notFoundResponse();
         }
 
         Record record = range.next();
@@ -205,7 +202,7 @@ public class ServiceImpl extends HttpServer implements Service {
             Response ok = Response.ok(responseBody);
 
             if (record.isTombstone()) {
-                ok.addHeader(ProxyResponse.TOMBSTONE_HEADER);
+                ok.addHeader(Utils.TOMBSTONE_HEADER_ONE_NIO);
             }
             return ok;
         } else {
@@ -217,7 +214,7 @@ public class ServiceImpl extends HttpServer implements Service {
     private Response put(@Param(value = "id", required = true) String id, Request request) {
         Record record = Record.of(wrapString(id), ByteBuffer.wrap(request.getBody()), timeStamp());
         dao.upsert(record);
-        return UtilResponses.createdResponse();
+        return Utils.createdResponse();
     }
 
     private long timeStamp() {
@@ -228,7 +225,7 @@ public class ServiceImpl extends HttpServer implements Service {
         ByteBuffer key = wrapString(id);
         dao.upsert(Record.tombstone(key, timeStamp()));
 
-        return UtilResponses.acceptedResponse();
+        return Utils.acceptedResponse();
     }
 
     private ByteBuffer wrapString(String string) {
@@ -254,7 +251,7 @@ public class ServiceImpl extends HttpServer implements Service {
                 response = delete(id);
                 break;
             default:
-                response = UtilResponses.badRequest();
+                response = Utils.badRequest();
                 break;
         }
         return response;

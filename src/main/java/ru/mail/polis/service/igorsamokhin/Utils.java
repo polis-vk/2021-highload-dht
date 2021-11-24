@@ -2,8 +2,13 @@ package ru.mail.polis.service.igorsamokhin;
 
 import one.nio.http.Response;
 
-public final class UtilResponses {
-    private UtilResponses() {
+public final class Utils {
+    public static final String TOMBSTONE_HEADER = "Tombstone";
+    public static final String PROXY_HEADER = "Proxy";
+    public static final String TOMBSTONE_HEADER_ONE_NIO = TOMBSTONE_HEADER + ": ";
+    public static final String PROXY_HEADER_ONE_NIO = PROXY_HEADER + ": ";
+
+    private Utils() {
     }
 
     public static Response emptyResponse(String resultCode) {
