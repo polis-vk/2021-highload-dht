@@ -141,7 +141,6 @@ final class FilterResponses {
         if (ack.addAndGet(1) == requireAck) {
             try {
                 session.sendResponse(new Response(code2Str(response.statusCode()), response.body()));
-                respSize.set(DISCARD);
                 return true;
             } catch (IOException e) {
                 LOG.error(ERROR_MESSAGE, e.getMessage());
@@ -153,7 +152,6 @@ final class FilterResponses {
     private static void checkBadReplicas(AtomicInteger size, final int responsesSize, final HttpSession session) {
         if (size.addAndGet(1) == responsesSize) {
             try {
-                size.set(DISCARD);
                 session.sendResponse(new Response(ClusterService.BAD_REPLICAS, Response.EMPTY));
             } catch (IOException e) {
                 LOG.error(ERROR_MESSAGE, e.getMessage());
