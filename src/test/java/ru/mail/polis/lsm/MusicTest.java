@@ -70,7 +70,8 @@ class MusicTest {
     private void assertRangeSize(String suffix, int count) {
         Iterator<Record> range = dao.range(
                 wrap(suffix + DELIMITER),
-                wrap(suffix + DELIMITER_FOR_SUFFIX)
+                wrap(suffix + DELIMITER_FOR_SUFFIX),
+                false
         );
 
         int size = 0;

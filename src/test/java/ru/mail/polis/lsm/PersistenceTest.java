@@ -42,7 +42,7 @@ class PersistenceTest {
         }
 
         try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
-            Iterator<Record> range = dao.range(null, null);
+            Iterator<Record> range = dao.range(null, null, false);
             assertTrue(range.hasNext());
 
             Record record = range.next();
@@ -56,7 +56,7 @@ class PersistenceTest {
         Files.createDirectory(data);
 
         try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
-            assertFalse(dao.range(null, null).hasNext());
+            assertFalse(dao.range(null, null, false).hasNext());
         }
     }
 
@@ -69,7 +69,7 @@ class PersistenceTest {
         // Create dao and fill data
         try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
             dao.upsert(Record.of(key, value, System.currentTimeMillis()));
-            Iterator<Record> range = dao.range(null, null);
+            Iterator<Record> range = dao.range(null, null, false);
 
             assertTrue(range.hasNext());
             assertEquals(value, range.next().getValue());
@@ -77,7 +77,7 @@ class PersistenceTest {
 
         // Load data and check
         try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
-            Iterator<Record> range = dao.range(null, null);
+            Iterator<Record> range = dao.range(null, null, false);
             assertTrue(range.hasNext());
             assertEquals(value, range.next().getValue());
 
@@ -87,9 +87,9 @@ class PersistenceTest {
 
         // Load and check not found
         try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
-            Iterator<Record> range = dao.range(null, null);
+            Iterator<Record> range = dao.range(null, null, false);
 
-            assertTrue(range.next().isTombstone());
+            assertFalse(range.hasNext());
         }
     }
 
@@ -103,21 +103,21 @@ class PersistenceTest {
         try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
             dao.upsert(Record.of(key, value, System.currentTimeMillis()));
 
-            Iterator<Record> range = dao.range(null, null);
+            Iterator<Record> range = dao.range(null, null, false);
             assertTrue(range.hasNext());
             assertEquals(value, range.next().getValue());
         }
 
         // Reopen
         try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
-            Iterator<Record> range = dao.range(null, null);
+            Iterator<Record> range = dao.range(null, null, false);
             assertTrue(range.hasNext());
             assertEquals(value, range.next().getValue());
 
             // Replace
             dao.upsert(Record.of(key, value2, System.currentTimeMillis()));
 
-            Iterator<Record> range2 = dao.range(null, null);
+            Iterator<Record> range2 = dao.range(null, null, false);
             assertTrue(range2.hasNext());
             assertEquals(value2, range2.next().getValue());
         }
@@ -125,7 +125,7 @@ class PersistenceTest {
         // Reopen
         try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
             // Last value should win
-            Iterator<Record> range2 = dao.range(null, null);
+            Iterator<Record> range2 = dao.range(null, null, false);
             assertTrue(range2.hasNext());
             assertEquals(value2, range2.next().getValue());
         }
@@ -140,12 +140,12 @@ class PersistenceTest {
             ByteBuffer value = value(i);
             try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
                 dao.upsert(Record.of(key, value, System.currentTimeMillis()));
-                assertEquals(value, dao.range(key, null).next().getValue());
+                assertEquals(value, dao.range(key, null, false).next().getValue());
             }
 
             // Check
             try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
-                assertEquals(value, dao.range(key, null).next().getValue());
+                assertEquals(value, dao.range(key, null, false).next().getValue());
             }
         }
     }
@@ -162,7 +162,7 @@ class PersistenceTest {
 
         // Check
         try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
-            Iterator<Record> range = dao.range(null, null);
+            Iterator<Record> range = dao.range(null, null, false);
 
             for (int i = 0; i < recordsCount; i++) {
                 verifyNext(suffix, range, i);
@@ -190,9 +190,7 @@ class PersistenceTest {
                 ByteBuffer keyFrom = keyWithSuffix(i * searchStep, suffix);
                 ByteBuffer keyTo = keyWithSuffix(i * searchStep + searchStep, suffix);
 
-//                System.out.println(i);
-
-                Iterator<Record> range = dao.range(keyFrom, keyTo);
+                Iterator<Record> range = dao.range(keyFrom, keyTo, false);
                 for (int j = 0; j < searchStep; j++) {
                     verifyNext(suffix, range, i * searchStep + j);
                 }

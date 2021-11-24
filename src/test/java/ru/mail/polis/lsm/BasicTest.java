@@ -18,7 +18,6 @@ package ru.mail.polis.lsm;
 
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -31,7 +30,6 @@ import java.util.Map;
 import java.util.TreeMap;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
-import static org.junit.jupiter.api.Assertions.assertTrue;
 import static ru.mail.polis.lsm.Utils.*;
 
 class BasicTest {
@@ -51,7 +49,7 @@ class BasicTest {
     @Test
     void empty() {
         ByteBuffer notExistedKey = ByteBuffer.wrap("NOT_EXISTED_KEY".getBytes(StandardCharsets.UTF_8));
-        Iterator<Record> shouldBeEmpty = dao.range(notExistedKey, null);
+        Iterator<Record> shouldBeEmpty = dao.range(notExistedKey, null, false);
 
         assertFalse(shouldBeEmpty.hasNext());
     }
@@ -91,7 +89,7 @@ class BasicTest {
 
         map.forEach((k, v) -> dao.upsert(Record.of(k, v, System.currentTimeMillis())));
 
-        Iterator<Record> range = dao.range(key(5), null);
+        Iterator<Record> range = dao.range(key(5), null, false);
         assertEquals(range, new TreeMap<>(generateMap(5, 10)).entrySet());
     }
 
@@ -101,7 +99,7 @@ class BasicTest {
 
         map.forEach((k, v) -> dao.upsert(Record.of(k, v, System.currentTimeMillis())));
 
-        Iterator<Record> range = dao.range(key(9), null);
+        Iterator<Record> range = dao.range(key(9), null, false);
         assertEquals(range, new TreeMap<>(generateMap(9, 10)).entrySet());
     }
 
@@ -152,7 +150,6 @@ class BasicTest {
         assertDaoEquals(dao, map);
     }
 
-    @Disabled
     @Test
     void remove() {
         Map<ByteBuffer, ByteBuffer> map = generateMap(0, 10);
@@ -169,8 +166,7 @@ class BasicTest {
     void removeAbsent() {
         dao.upsert(Record.tombstone(wrap("NOT_EXISTED_KEY"), System.currentTimeMillis()));
 
-        assertTrue(dao.range(null, null).hasNext());
-        assertTrue(dao.range(null, null).next().isTombstone());
+        assertFalse(dao.range(null, null, false).hasNext());
     }
 
 }

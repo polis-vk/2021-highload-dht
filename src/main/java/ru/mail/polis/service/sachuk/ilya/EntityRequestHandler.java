@@ -40,7 +40,7 @@ public class EntityRequestHandler {
 
         ByteBuffer fromKey = Utils.stringToBytebuffer(id);
 
-        Iterator<Record> range = dao.range(fromKey, DAO.nextKey(fromKey));
+        Iterator<Record> range = dao.range(fromKey, DAO.nextKey(fromKey), true);
 
         if (range.hasNext()) {
             Record record = range.next();

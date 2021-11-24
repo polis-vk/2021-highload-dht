@@ -8,6 +8,7 @@ import ru.mail.polis.lsm.DAOConfig;
 import ru.mail.polis.lsm.Record;
 import ru.mail.polis.lsm.sachuk.ilya.iterators.MergeIterator;
 import ru.mail.polis.lsm.sachuk.ilya.iterators.PeekingIterator;
+import ru.mail.polis.lsm.sachuk.ilya.iterators.TombstoneFilteringIterator;
 
 import javax.annotation.Nullable;
 import javax.annotation.concurrent.GuardedBy;
@@ -58,7 +59,7 @@ public class DaoImpl implements DAO {
     }
 
     @Override
-    public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
+    public Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey, boolean withTombstones) {
         Storage storage = this.memoryStorage;
 
         checkIsClosedAndThrowIllegalException();
@@ -72,10 +73,11 @@ public class DaoImpl implements DAO {
                 new PeekingIterator<>(tmpMemoryRange)
         );
 
-        return mergeTwo(
-                new PeekingIterator<>(ssTableRanges),
-                new PeekingIterator<>(memory)
-        );
+        Iterator<Record> merged = mergeTwo(new PeekingIterator<>(ssTableRanges), new PeekingIterator<>(memory));
+
+        return withTombstones
+                ? merged
+                : new TombstoneFilteringIterator(merged);
     }
 
     @Override

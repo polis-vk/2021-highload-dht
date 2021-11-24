@@ -41,7 +41,7 @@ public class AdvancedTest {
 
             map.forEach((k, v) -> dao.upsert(Record.of(k, v, System.currentTimeMillis())));
 
-            iterator = dao.range(null, null);
+            iterator = dao.range(null, null, false);
         }
 
         assertEquals(iterator, new TreeMap<>(map).entrySet());

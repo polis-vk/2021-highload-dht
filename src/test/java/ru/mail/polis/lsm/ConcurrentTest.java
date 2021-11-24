@@ -70,7 +70,7 @@ class ConcurrentTest {
             Future<?> future = executor.submit(() -> {
                 dao.upsert(record);
                 Optional<Record> found = StreamSupport.stream(
-                        Spliterators.spliteratorUnknownSize(dao.range(null, null), Spliterator.ORDERED),
+                        Spliterators.spliteratorUnknownSize(dao.range(null, null, false), Spliterator.ORDERED),
                         false
                 ).filter(r -> r.getKey().equals(record.getKey())).findAny();
 

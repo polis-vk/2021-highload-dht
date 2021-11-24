@@ -25,7 +25,7 @@ import java.util.Iterator;
  * Minimal database API.
  */
 public interface DAO extends Closeable {
-    Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey);
+    Iterator<Record> range(@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey, boolean withTombstones);
 
     void upsert(Record record);
 
