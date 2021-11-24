@@ -77,6 +77,7 @@ public class NodeRouter {
                 break;
             default:
                 resultCode = Response.GATEWAY_TIMEOUT;
+                break;
         }
 
         return resultCode;
