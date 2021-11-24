@@ -133,21 +133,22 @@ public class Coordinator implements Closeable {
     private Response getFinalResponse(Request request, ByteBuffer key, List<Response> responses,
                                       ReplicationInfo replicationInfo) {
 
-        List<Record> records = new ArrayList<>();
-
         Response finalResponse;
         if (responses.size() < replicationInfo.ask) {
             return new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY);
         }
 
         if (request.getMethod() == Request.METHOD_GET) {
+            Record recordToReturn = null;
             for (Response response : responses) {
                 Record recordFromResponse = getRecordFromResponse(response, key);
-                records.add(recordFromResponse);
+
+                recordToReturn = getNewestRecord(recordToReturn, recordFromResponse);
             }
 
-            Record newestRecord = getNewestRecord(records);
-            finalResponse = getFinalResponseForGet(newestRecord);
+            finalResponse = recordToReturn == null
+                    ? new Response(Response.GATEWAY_TIMEOUT)
+                    : getFinalResponseForGet(recordToReturn);
 
         } else if (request.getMethod() == Request.METHOD_DELETE) {
             finalResponse = new Response(Response.ACCEPTED, Response.EMPTY);
@@ -159,6 +160,31 @@ public class Coordinator implements Closeable {
         }
 
         return finalResponse;
+    }
+
+    private Record getNewestRecord(Record recordToReturn, Record recordFromResponse) {
+        if (recordToReturn == null) {
+            return recordFromResponse;
+        }
+
+        if (recordFromResponse.getTimestamp() > recordToReturn.getTimestamp()) {
+            return recordFromResponse;
+        }
+
+        if (recordFromResponse.getTimestamp() == recordToReturn.getTimestamp()) {
+            if (recordFromResponse.isTombstone()) {
+                return recordFromResponse;
+            }
+
+            if (!recordFromResponse.isTombstone() && !recordToReturn.isTombstone()) {
+                int compare = recordFromResponse.getValue().compareTo(recordToReturn.getValue());
+
+                if (compare > 0) {
+                    return recordFromResponse;
+                }
+            }
+        }
+        return recordToReturn;
     }
 
     private Record getRecordFromResponse(Response response, ByteBuffer key) {
@@ -180,42 +206,6 @@ public class Coordinator implements Closeable {
                 );
             }
         }
-    }
-
-    private Record getNewestRecord(List<Record> records) {
-        records.sort((o1, o2) -> {
-            Long timestamp1 = o1.getTimestamp();
-            Long timestamp2 = o2.getTimestamp();
-
-            int compare = timestamp2.compareTo(timestamp1);
-
-            if (compare != 0) {
-                return compare;
-            }
-
-            if (o1.getValue() == null && o2.getValue() == null) {
-                return 1;
-            }
-
-            if (o1.getValue() == null) {
-                return -1;
-            }
-            if (o2.getValue() == null) {
-                return 1;
-            }
-
-            if (o1.getValue().remaining() == 0) {
-                return -1;
-            }
-
-            if (o2.getValue().remaining() == 0) {
-                return 1;
-            }
-
-            return o2.getValue().compareTo(o1.getValue());
-        });
-
-        return records.get(0);
     }
 
     private Response chooseHandler(String id, Request request, VNode vnode) {
