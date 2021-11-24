@@ -158,7 +158,8 @@ public class ServiceImpl extends HttpServer implements Service {
                 response = handleEntity(request, id, false);
             } else {
                 Callable<Response> thisNodeHandler = () -> handleEntity(request, id, true);
-                response = proxyClients.proxy(request, nodeIds, ack, from, thisNodeHandler);
+                proxyClients.proxy(session, request, nodeIds, ack, from, thisNodeHandler);
+                return;
             }
         } catch (RuntimeException e) {
             logger.error("Something wrong in task. ack: {}, from: {}", ack, from, e);

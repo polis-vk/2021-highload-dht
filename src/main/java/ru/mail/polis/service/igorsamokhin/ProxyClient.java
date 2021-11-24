@@ -1,5 +1,6 @@
 package ru.mail.polis.service.igorsamokhin;
 
+import one.nio.http.HttpSession;
 import one.nio.http.Request;
 import one.nio.http.Response;
 import org.slf4j.Logger;
@@ -25,6 +26,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Function;
 
 public class ProxyClient {
     private static final Logger LOGGER = LoggerFactory.getLogger(ProxyClient.class);
@@ -60,8 +62,9 @@ public class ProxyClient {
         }
     }
 
-    public Response proxy(Request request, List<Integer> ids, int ack, int from,
-                          Callable<Response> thisNodeHandler) {
+    @SuppressWarnings("FutureReturnValueIgnored") //I have all checks inside
+    public void proxy(HttpSession session, Request request, List<Integer> ids, int ack, int from,
+                      Callable<Response> thisNodeHandler) {
         request.addHeader(Utils.PROXY_HEADER_ONE_NIO);
 
         CopyOnWriteArrayList<Response> responses = new CopyOnWriteArrayList<>(new ArrayList<>(from));
@@ -88,18 +91,24 @@ public class ProxyClient {
             });
         }
 
-        Response result;
-        try {
-            if (Boolean.TRUE.equals(doneFlag.get(2, TimeUnit.SECONDS))) {
-                result = mergeSuccessfulResponses(request, responses);
-            } else {
-                result = Utils.responseWithMessage("504", "Not Enough Replicas");
+        doneFlag.thenApply(sendResponse(session, request, responses));
+    }
+
+    private Function<Boolean, Object> sendResponse(HttpSession session,
+                                                   Request request,
+                                                   CopyOnWriteArrayList<Response> responses) {
+        return r -> {
+            try {
+                if (Boolean.TRUE.equals(r)) {
+                    session.sendResponse(mergeSuccessfulResponses(request, responses));
+                } else {
+                    session.sendResponse(Utils.responseWithMessage("504", "Not Enough Replicas"));
+                }
+            } catch (Exception e) {
+                LOGGER.info("Something wrong on waiting proxied responses", e);
             }
-        } catch (Exception e) {
-            LOGGER.info("Something wrong on waiting proxied responses", e);
-            result = Utils.serviceUnavailableResponse();
-        }
-        return result;
+            return null;
+        };
     }
 
     private ResponseFuture askHttpClient(Request request,
