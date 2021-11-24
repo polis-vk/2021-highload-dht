@@ -44,23 +44,22 @@ public class Coordinator {
 
     public void handle(ReplicationInfo replicationInfo, String id, Request request, HttpSession session) {
 
-        ByteBuffer key = Utils.wrap(id);
-
         if (logger.isInfoEnabled()) {
             logger.info("in block IS coordinator");
             logger.info("COORDINATOR NODE IS: " + node.port);
         }
 
-        sendRequest(replicationInfo, id, request, key, session);
+        sendRequest(replicationInfo, id, request, session);
     }
 
-    private void sendRequest(ReplicationInfo replicationInfo, String id, Request request,
-                             ByteBuffer key, HttpSession session) {
+    private void sendRequest(ReplicationInfo replicationInfo, String id, Request request, HttpSession session) {
+        ByteBuffer key = Utils.wrap(id);
+
         Integer hash = null;
         List<Integer> currentPorts = new ArrayList<>();
         List<Response> executedResponses = new CopyOnWriteArrayList<>();
         AtomicInteger counter = new AtomicInteger(0);
-        AtomicBoolean alreadyExecuted = new AtomicBoolean(false);
+        AtomicBoolean alreadyExecuted = new AtomicBoolean();
 
         AtomicInteger ackCount = new AtomicInteger(replicationInfo.ask);
 
@@ -84,7 +83,10 @@ public class Coordinator {
 
                         return response;
                     }).whenCompleteAsync((response, throwable) -> {
-                        if (throwable != null || response.getStatus() == 504) {
+                        if (alreadyExecuted.get()) {
+                            return;
+                        }
+                        if (throwable != null || counter.get() == replicationInfo.from && ackCount.get() > 0) {
                             sendResponse(session,
                                     alreadyExecuted,
                                     new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY)
