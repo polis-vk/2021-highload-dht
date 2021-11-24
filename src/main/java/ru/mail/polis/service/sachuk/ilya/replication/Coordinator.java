@@ -73,7 +73,8 @@ public class Coordinator {
                     .thenApplyAsync(response -> {
                         int status = response.getStatus();
 
-                        if (status == 504 || status == 405 || status == 503) {
+                        if (checkForNotGoodStatus(status)) {
+                            counter.incrementAndGet();
                             return new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY);
                         }
 
@@ -83,10 +84,7 @@ public class Coordinator {
 
                         return response;
                     }).whenCompleteAsync((response, throwable) -> {
-                        if (alreadyExecuted.get()) {
-                            return;
-                        }
-                        if (throwable != null || counter.get() == replicationInfo.from && ackCount.get() > 0) {
+                        if (throwable != null || (counter.get() == replicationInfo.from && ackCount.get() > 0)) {
                             sendResponse(session,
                                     alreadyExecuted,
                                     new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY)
@@ -98,6 +96,10 @@ public class Coordinator {
                         }
                     });
         }
+    }
+
+    private boolean checkForNotGoodStatus(int status) {
+        return status == 504 || status == 405 || status == 503;
     }
 
     private void sendResponse(HttpSession session, AtomicBoolean alreadyExecuted, Response response) {
