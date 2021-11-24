@@ -81,7 +81,7 @@ final class FilterResponses {
         for (final CompletableFuture<HttpResponse<byte[]>> response : responses) {
             response.whenComplete((tmpResponse, ex) -> {
                 if (tmpResponse.statusCode() == status
-                        && checkPutDelResponse(ack, requireAck, session, tmpResponse, respSize)) {
+                        && checkPutDelResponse(ack, requireAck, session, tmpResponse)) {
                         return;
                 }
                 checkBadReplicas(respSize, responses.size(), session);
@@ -136,8 +136,7 @@ final class FilterResponses {
     }
 
     private static boolean checkPutDelResponse(final AtomicInteger ack, final int requireAck,
-                                            final HttpSession session, final HttpResponse<byte[]> response,
-                                            final AtomicInteger respSize) {
+                                            final HttpSession session, final HttpResponse<byte[]> response) {
         if (ack.addAndGet(1) == requireAck) {
             try {
                 session.sendResponse(new Response(code2Str(response.statusCode()), response.body()));
