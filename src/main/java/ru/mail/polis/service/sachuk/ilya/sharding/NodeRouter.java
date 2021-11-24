@@ -2,8 +2,6 @@ package ru.mail.polis.service.sachuk.ilya.sharding;
 
 import one.nio.http.Request;
 import one.nio.http.Response;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import ru.mail.polis.service.sachuk.ilya.ResponseUtils;
 
 import java.net.URI;
@@ -16,7 +14,6 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 public class NodeRouter {
-    private final Logger logger = LoggerFactory.getLogger(NodeRouter.class);
     private final NodeManager nodeManager;
     private static final String LOCALHOST = "http://localhost:";
 
@@ -87,8 +84,6 @@ public class NodeRouter {
         String timestampHeader = ResponseUtils.TIMESTAMP_HEADER;
         timestampHeader = timestampHeader.trim();
         timestampHeader = timestampHeader.substring(0, timestampHeader.length() - 1);
-
-        logger.info(timestampHeader);
 
         String timestampHeaderFromResponse = request.getHeader(ResponseUtils.TIMESTAMP_HEADER);
 

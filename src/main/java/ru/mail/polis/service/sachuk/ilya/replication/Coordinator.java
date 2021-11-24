@@ -1,5 +1,6 @@
 package ru.mail.polis.service.sachuk.ilya.replication;
 
+import one.nio.http.HttpSession;
 import one.nio.http.Request;
 import one.nio.http.Response;
 import org.slf4j.Logger;
@@ -14,11 +15,15 @@ import ru.mail.polis.service.sachuk.ilya.sharding.NodeManager;
 import ru.mail.polis.service.sachuk.ilya.sharding.NodeRouter;
 import ru.mail.polis.service.sachuk.ilya.sharding.VNode;
 
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.ExecutionException;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class Coordinator {
 
@@ -37,7 +42,7 @@ public class Coordinator {
         this.node = node;
     }
 
-    public Response handle(ReplicationInfo replicationInfo, String id, Request request) {
+    public void handle(ReplicationInfo replicationInfo, String id, Request request, HttpSession session) {
 
         ByteBuffer key = Utils.wrap(id);
 
@@ -46,52 +51,17 @@ public class Coordinator {
             logger.info("COORDINATOR NODE IS: " + node.port);
         }
 
-        List<Response> responses = getResponses(replicationInfo, id, request);
-
-        Response finalResponse = getFinalResponse(request, key, responses, replicationInfo);
-
-        if (logger.isInfoEnabled()) {
-            logger.info("FINAL RESPONSE:" + finalResponse.getStatus());
-        }
-
-        return finalResponse;
+        sendRequest(replicationInfo, id, request, key, session);
     }
 
-    private List<Response> getResponses(ReplicationInfo replicationInfo, String id, Request request) {
-        List<Response> responses = new ArrayList<>();
-        List<CompletableFuture<Response>> futures = getFutures(replicationInfo, id, request);
-
-        int counter = 0;
-        for (CompletableFuture<Response> future : futures) {
-            try {
-                if (counter >= replicationInfo.ask) {
-                    break;
-                }
-
-                Response response = future.get();
-
-                int status = response.getStatus();
-                if (status == 504 || status == 405 || status == 503) {
-                    continue;
-                }
-
-                counter++;
-                responses.add(response);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                throw new IllegalStateException(e);
-            } catch (ExecutionException e) {
-                throw new IllegalStateException(e);
-            }
-        }
-
-        return responses;
-    }
-
-    private List<CompletableFuture<Response>> getFutures(ReplicationInfo replicationInfo, String id, Request request) {
-        List<CompletableFuture<Response>> futures = new ArrayList<>();
+    private void sendRequest(ReplicationInfo replicationInfo, String id, Request request, ByteBuffer key, HttpSession session) {
         Integer hash = null;
         List<Integer> currentPorts = new ArrayList<>();
+        List<Response> executedResponses = new CopyOnWriteArrayList<>();
+        AtomicInteger counter = new AtomicInteger(0);
+        AtomicBoolean alreadyExecuted = new AtomicBoolean(false);
+
+        AtomicInteger ackCount = new AtomicInteger(replicationInfo.ask);
 
         for (int i = 0; i < replicationInfo.from; i++) {
             Pair<Integer, VNode> pair = nodeManager.getNearVNodeWithGreaterHash(id, hash, currentPorts);
@@ -99,10 +69,44 @@ public class Coordinator {
             VNode vnode = pair.value;
             currentPorts.add(pair.value.getPhysicalNode().port);
 
-            futures.add(chooseHandler(id, request, vnode));
-        }
+            chooseHandler(id, request, vnode)
+                    .thenApplyAsync(response -> {
+                        int status = response.getStatus();
 
-        return futures;
+                        if (status == 504 || status == 405 || status == 503) {
+                            return new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY);
+                        }
+
+                        executedResponses.add(response);
+                        counter.incrementAndGet();
+                        ackCount.decrementAndGet();
+
+                        return response;
+                    }).whenCompleteAsync((response, throwable) -> {
+                        if (throwable != null || response.getStatus() == 504) {
+                            sendResponse(session, alreadyExecuted, new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY));
+                        }
+                        if (counter.get() == replicationInfo.from || ackCount.get() == 0) {
+                            Response finalResponse = getFinalResponse(request, key, executedResponses, replicationInfo);
+                            sendResponse(session, alreadyExecuted, finalResponse);
+                        }
+                    });
+        }
+    }
+
+    private void sendResponse(HttpSession session, AtomicBoolean alreadyExecuted, Response response) {
+        try {
+            if (!alreadyExecuted.get()) {
+                synchronized (Coordinator.class) {
+                    if (!alreadyExecuted.get()) {
+                        alreadyExecuted.set(true);
+                        session.sendResponse(response);
+                    }
+                }
+            }
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
+        }
     }
 
     private Response getFinalResponseForGet(Record newestRecord) {
@@ -152,27 +156,6 @@ public class Coordinator {
         return finalResponse;
     }
 
-    private Record getRecordFromResponse(Response response, ByteBuffer key) {
-        String timestampFromResponse = response.getHeader(ResponseUtils.TIMESTAMP_HEADER);
-        String tombstoneHeader = response.getHeader(ResponseUtils.TOMBSTONE_HEADER);
-
-        ByteBuffer value = ByteBuffer.wrap(response.getBody());
-
-        if (timestampFromResponse == null) {
-            return Record.of(key, value, 0L);
-        } else {
-            if (tombstoneHeader == null) {
-                return Record.of(key,
-                        value,
-                        Long.parseLong(timestampFromResponse));
-            } else {
-                return Record.tombstone(key,
-                        Long.parseLong(timestampFromResponse)
-                );
-            }
-        }
-    }
-
     private Record getNewestRecord(Record recordToReturn, Record recordFromResponse) {
         if (recordToReturn == null) {
             return recordFromResponse;
@@ -198,13 +181,34 @@ public class Coordinator {
         return recordToReturn;
     }
 
+    private Record getRecordFromResponse(Response response, ByteBuffer key) {
+        String timestampFromResponse = response.getHeader(ResponseUtils.TIMESTAMP_HEADER);
+        String tombstoneHeader = response.getHeader(ResponseUtils.TOMBSTONE_HEADER);
+
+        ByteBuffer value = ByteBuffer.wrap(response.getBody());
+
+        if (timestampFromResponse == null) {
+            return Record.of(key, value, 0L);
+        } else {
+            if (tombstoneHeader == null) {
+                return Record.of(key,
+                        value,
+                        Long.parseLong(timestampFromResponse));
+            } else {
+                return Record.tombstone(key,
+                        Long.parseLong(timestampFromResponse)
+                );
+            }
+        }
+    }
+
     private CompletableFuture<Response> chooseHandler(String id, Request request, VNode vnode) {
         CompletableFuture<Response> response;
         if (vnode.getPhysicalNode().port == node.port) {
             if (logger.isInfoEnabled()) {
                 logger.info("HANDLE BY CURRENT NODE: port :" + vnode.getPhysicalNode().port);
             }
-            response = CompletableFuture.supplyAsync(() -> entityRequestHandler.handle(request, id));
+            response = CompletableFuture.completedFuture(entityRequestHandler.handle(request, id));
         } else {
             if (logger.isInfoEnabled()) {
                 logger.info("HANDLE BY OTHER NODE: port :" + vnode.getPhysicalNode().port);

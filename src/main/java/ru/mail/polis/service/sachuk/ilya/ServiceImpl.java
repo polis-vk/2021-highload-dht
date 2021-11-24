@@ -65,13 +65,17 @@ public class ServiceImpl extends HttpServer implements Service {
         return httpServerConfig;
     }
 
-    private Response entityRequest(Request request, String id, ReplicationInfo replicationInfo) {
+    private void entityRequest(Request request, String id, ReplicationInfo replicationInfo, HttpSession session) {
+        Response response = null;
         if (id == null || id.isBlank()) {
-            return new Response(Response.BAD_REQUEST, Response.EMPTY);
-        }
+            response = new Response(Response.BAD_REQUEST, Response.EMPTY);
 
-        for (String header : request.getHeaders()) {
-            logger.info(header);
+            try {
+                session.sendResponse(response);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+            return;
         }
 
         boolean isCoordinator = false;
@@ -83,12 +87,22 @@ public class ServiceImpl extends HttpServer implements Service {
 
         if (isCoordinator) {
             logger.info("in block is coordinator");
-            return coordinator.handle(replicationInfo, id, request);
+            coordinator.handle(replicationInfo, id, request, session);
         } else {
             if (logger.isInfoEnabled()) {
                 logger.info("in block from coordinator");
             }
-            return entityRequestHandler.handle(request, id);
+            response = entityRequestHandler.handle(request, id);
+        }
+
+        if (response == null) {
+            return;
+        }
+
+        try {
+            session.sendResponse(response);
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 
@@ -130,8 +144,8 @@ public class ServiceImpl extends HttpServer implements Service {
                             break;
                         }
 
-                        response = entityRequest(request, id, replicationInfo);
-                        break;
+                        entityRequest(request, id, replicationInfo, session);
+                        return;
                     case STATUS_PATH:
                         response = status();
                         break;
