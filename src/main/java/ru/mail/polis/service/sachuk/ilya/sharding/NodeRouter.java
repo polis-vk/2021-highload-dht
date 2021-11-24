@@ -39,7 +39,6 @@ public class NodeRouter {
     private Response httpResponseToResponse(HttpResponse<byte[]> httpResponse) {
         Response response = new Response(getResultCode(httpResponse.statusCode()), httpResponse.body());
 
-
         Map<String, List<String>> map = httpResponse.headers().map();
 
         map.forEach((k, v) -> {
@@ -56,7 +55,6 @@ public class NodeRouter {
     }
 
     private String getResultCode(int statusCode) {
-
         String resultCode;
         switch (statusCode) {
             case 200:
@@ -86,14 +84,7 @@ public class NodeRouter {
 
     public HttpRequest getHttpRequest(Request request, int port) {
 
-        String timestampHeaderFromResponse = request.getHeader(ResponseUtils.TIMESTAMP_HEADER);
-
         URI uri = URI.create(LOCALHOST + port + request.getURI());
-
-        HttpRequest.Builder builder = HttpRequest.newBuilder()
-                .uri(uri)
-                .version(HttpClient.Version.HTTP_1_1)
-                .timeout(Duration.ofSeconds(3));
 
         String timestampHeader = ResponseUtils.TIMESTAMP_HEADER;
         timestampHeader = timestampHeader.trim();
@@ -101,7 +92,17 @@ public class NodeRouter {
 
         logger.info(timestampHeader);
 
-        builder = timestampHeaderFromResponse == null ? builder : builder.setHeader(timestampHeader, timestampHeaderFromResponse);
+        String timestampHeaderFromResponse = request.getHeader(ResponseUtils.TIMESTAMP_HEADER);
+
+        HttpRequest.Builder builder = HttpRequest.newBuilder()
+                .uri(uri)
+                .version(HttpClient.Version.HTTP_1_1)
+                .timeout(Duration.ofSeconds(3));
+
+        builder = timestampHeaderFromResponse == null
+                ? builder
+                : builder.setHeader(timestampHeader, timestampHeaderFromResponse);
+
         builder = builder.header("coordinator", "true");
 
         switch (request.getMethod()) {

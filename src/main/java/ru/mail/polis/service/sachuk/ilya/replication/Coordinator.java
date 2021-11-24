@@ -14,14 +14,13 @@ import ru.mail.polis.service.sachuk.ilya.sharding.NodeManager;
 import ru.mail.polis.service.sachuk.ilya.sharding.NodeRouter;
 import ru.mail.polis.service.sachuk.ilya.sharding.VNode;
 
-import java.io.Closeable;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutionException;
 
-public class Coordinator implements Closeable {
+public class Coordinator {
 
     private final Logger logger = LoggerFactory.getLogger(Coordinator.class);
 
@@ -100,9 +99,7 @@ public class Coordinator implements Closeable {
             VNode vnode = pair.value;
             currentPorts.add(pair.value.getPhysicalNode().port);
 
-            futures.add(chooseHandler(id, request, vnode)
-//                    coordinatorExecutor.submit(() -> chooseHandler(id, request, vnode))
-            );
+            futures.add(chooseHandler(id, request, vnode));
         }
 
         return futures;
@@ -226,10 +223,5 @@ public class Coordinator implements Closeable {
         }
 
         return response;
-    }
-
-    @Override
-    public void close() {
-//        ThreadUtils.awaitForShutdown(coordinatorExecutor);
     }
 }

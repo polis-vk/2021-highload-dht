@@ -153,7 +153,6 @@ public class ServiceImpl extends HttpServer implements Service {
         if (logger.isInfoEnabled()) {
             logger.info("Service with node:" + node.port + " is closed");
         }
-        coordinator.close();
         nodeManager.close();
     }
 }
