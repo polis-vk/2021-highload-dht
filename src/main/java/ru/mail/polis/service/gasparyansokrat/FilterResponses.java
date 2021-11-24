@@ -58,7 +58,7 @@ final class FilterResponses {
                         || tmpResponse.statusCode() == HttpURLConnection.HTTP_NOT_FOUND) {
                     final int localAck = ack.addAndGet(1);
                     if (tmpResponse.body().length != 0) {
-                        freshEntry.set(getHttpEntry(tmpResponse, freshEntry.get()));
+                        freshEntry.updateAndGet((val) -> getHttpEntry(tmpResponse, val));
                     }
                     if (readyGetResponse(localAck, requireAck, freshEntry.get(), session, respSize)) {
                         return;
