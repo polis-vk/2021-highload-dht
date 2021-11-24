@@ -54,7 +54,8 @@ public class Coordinator {
         sendRequest(replicationInfo, id, request, key, session);
     }
 
-    private void sendRequest(ReplicationInfo replicationInfo, String id, Request request, ByteBuffer key, HttpSession session) {
+    private void sendRequest(ReplicationInfo replicationInfo, String id, Request request,
+                             ByteBuffer key, HttpSession session) {
         Integer hash = null;
         List<Integer> currentPorts = new ArrayList<>();
         List<Response> executedResponses = new CopyOnWriteArrayList<>();
@@ -84,7 +85,10 @@ public class Coordinator {
                         return response;
                     }).whenCompleteAsync((response, throwable) -> {
                         if (throwable != null || response.getStatus() == 504) {
-                            sendResponse(session, alreadyExecuted, new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY));
+                            sendResponse(session,
+                                    alreadyExecuted,
+                                    new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY)
+                            );
                         }
                         if (counter.get() == replicationInfo.from || ackCount.get() == 0) {
                             Response finalResponse = getFinalResponse(request, key, executedResponses, replicationInfo);
