@@ -65,24 +65,14 @@ public class ServiceImpl extends HttpServer implements Service {
         return httpServerConfig;
     }
 
-    private void entityRequest(Request request, String id, ReplicationInfo replicationInfo, HttpSession session) {
-        Response response = null;
+    private Response entityRequest(Request request, String id, ReplicationInfo replicationInfo) {
         if (id == null || id.isBlank()) {
-            response = new Response(Response.BAD_REQUEST, Response.EMPTY);
-
-            try {
-                session.sendResponse(response);
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-            return;
+            return new Response(Response.BAD_REQUEST, Response.EMPTY);
         }
 
         for (String header : request.getHeaders()) {
             logger.info(header);
         }
-
-        logger.info("CURR METHOD FROM SERVICE " + request.getMethodName());
 
         boolean isCoordinator = false;
         String timestamp = request.getHeader(ResponseUtils.TIMESTAMP_HEADER);
@@ -91,27 +81,14 @@ public class ServiceImpl extends HttpServer implements Service {
             request.addHeader(ResponseUtils.TIMESTAMP_HEADER + System.currentTimeMillis());
         }
 
-        logger.info("Timestamp header from service: " + timestamp);
-
         if (isCoordinator) {
             logger.info("in block is coordinator");
-            coordinator.handle(replicationInfo, id, request, session);
+            return coordinator.handle(replicationInfo, id, request);
         } else {
             if (logger.isInfoEnabled()) {
                 logger.info("in block from coordinator");
             }
-            response = entityRequestHandler.handle(request, id);
-        }
-
-
-        if (response == null) {
-            return;
-        }
-
-        try {
-            session.sendResponse(response);
-        } catch (IOException e) {
-            e.printStackTrace();
+            return entityRequestHandler.handle(request, id);
         }
     }
 
@@ -153,8 +130,8 @@ public class ServiceImpl extends HttpServer implements Service {
                             break;
                         }
 
-                        entityRequest(request, id, replicationInfo, session);
-                        return;
+                        response = entityRequest(request, id, replicationInfo);
+                        break;
                     case STATUS_PATH:
                         response = status();
                         break;

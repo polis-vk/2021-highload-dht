@@ -16,9 +16,9 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 
 public class NodeRouter {
-    private Logger logger = LoggerFactory.getLogger(NodeRouter.class);
+    private final Logger logger = LoggerFactory.getLogger(NodeRouter.class);
     private final NodeManager nodeManager;
-    private static String schema = "http://localhost:";
+    private static final String LOCALHOST = "http://localhost:";
 
     public NodeRouter(NodeManager nodeManager) {
         this.nodeManager = nodeManager;
@@ -40,7 +40,6 @@ public class NodeRouter {
         Response response = new Response(getResultCode(httpResponse.statusCode()), httpResponse.body());
 
 
-        logger.info("body: " + httpResponse.body().length);
         Map<String, List<String>> map = httpResponse.headers().map();
 
         map.forEach((k, v) -> {
@@ -52,13 +51,11 @@ public class NodeRouter {
         return response;
     }
 
-    //FIXME
     private void addHeaderToResponse(Response response, String header, String values) {
         response.addHeader(header + ": " + values);
     }
 
     private String getResultCode(int statusCode) {
-        logger.info("status code is :" + statusCode);
 
         String resultCode;
         switch (statusCode) {
@@ -84,20 +81,14 @@ public class NodeRouter {
                 resultCode = Response.GATEWAY_TIMEOUT;
         }
 
-        logger.info("result code after switch: " + resultCode);
-
         return resultCode;
     }
 
     public HttpRequest getHttpRequest(Request request, int port) {
 
-        logger.info("URI :" + request.getURI());
         String timestampHeaderFromResponse = request.getHeader(ResponseUtils.TIMESTAMP_HEADER);
 
-        logger.info("Timestamp header: " + timestampHeaderFromResponse);
-
-        URI uri = URI.create(schema + port + request.getURI());
-        logger.info(uri.toString());
+        URI uri = URI.create(LOCALHOST + port + request.getURI());
 
         HttpRequest.Builder builder = HttpRequest.newBuilder()
                 .uri(uri)
@@ -123,6 +114,8 @@ public class NodeRouter {
             case Request.METHOD_DELETE:
                 builder.DELETE();
                 break;
+            default:
+                throw new IllegalStateException("No such method");
         }
 
         return builder.build();

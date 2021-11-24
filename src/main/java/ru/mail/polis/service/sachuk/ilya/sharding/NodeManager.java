@@ -22,7 +22,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public final class NodeManager implements Closeable {
-    private Logger logger = LoggerFactory.getLogger(NodeManager.class);
+    private final Logger logger = LoggerFactory.getLogger(NodeManager.class);
     private final NavigableMap<Integer, VNode> circle = new TreeMap<>();
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
     private final NavigableMap<String, HttpClient> clients;
@@ -48,7 +48,7 @@ public final class NodeManager implements Closeable {
             HttpClient client = HttpClient.newBuilder()
                     .version(HttpClient.Version.HTTP_1_1)
                     .connectTimeout(Duration.ofSeconds(3))
-//                    .executor(coordinatorExecutor)
+                    .executor(coordinatorExecutor)
                     .build();
             clients.put(endpoint, client);
         }
