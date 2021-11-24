@@ -21,8 +21,6 @@ final class FilterResponses {
     private static final Logger LOG = LoggerFactory.getLogger(FilterResponses.class);
     private static final String ERROR_MESSAGE = "Can't send response to client: {}";
 
-    private static final int DISCARD = -1000;
-
     private FilterResponses() {
 
     }
