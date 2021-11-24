@@ -83,9 +83,6 @@ public class NodeRouter {
     }
 
     public HttpRequest getHttpRequest(Request request, int port) {
-
-        URI uri = URI.create(LOCALHOST + port + request.getURI());
-
         String timestampHeader = ResponseUtils.TIMESTAMP_HEADER;
         timestampHeader = timestampHeader.trim();
         timestampHeader = timestampHeader.substring(0, timestampHeader.length() - 1);
@@ -95,7 +92,7 @@ public class NodeRouter {
         String timestampHeaderFromResponse = request.getHeader(ResponseUtils.TIMESTAMP_HEADER);
 
         HttpRequest.Builder builder = HttpRequest.newBuilder()
-                .uri(uri)
+                .uri(URI.create(LOCALHOST + port + request.getURI()))
                 .version(HttpClient.Version.HTTP_1_1)
                 .timeout(Duration.ofSeconds(3));
 
