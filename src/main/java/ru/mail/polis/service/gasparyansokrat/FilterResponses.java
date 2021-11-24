@@ -60,7 +60,7 @@ final class FilterResponses {
                     if (tmpResponse.body().length != 0) {
                         freshEntry.updateAndGet((val) -> getHttpEntry(tmpResponse, val));
                     }
-                    if (readyGetResponse(localAck, requireAck, freshEntry.get(), session, respSize)) {
+                    if (readyGetResponse(localAck, requireAck, freshEntry.get(), session)) {
                         return;
                     }
                 }
@@ -117,8 +117,7 @@ final class FilterResponses {
     }
 
     private static boolean readyGetResponse(final int ack, final int requireAck,
-                                            final Record entry, final HttpSession session,
-                                            final AtomicInteger respSize) {
+                                            final Record entry, final HttpSession session) {
         if (ack == requireAck) {
             try {
                 if (entry == null || entry.isTombstone()) {
@@ -126,7 +125,6 @@ final class FilterResponses {
                 } else {
                     session.sendResponse(new Response(Response.OK, entry.getBytesValue()));
                 }
-                respSize.set(DISCARD);
                 return true;
             } catch (IOException e) {
                 LOG.error(ERROR_MESSAGE, e.getMessage());
