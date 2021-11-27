@@ -12,9 +12,9 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.Cluster;
 import ru.mail.polis.lsm.DAO;
-import ru.mail.polis.service.HttpUtils;
 import ru.mail.polis.service.Service;
 import ru.mail.polis.service.eldar_tim.handlers.EntityRequestHandler;
+import ru.mail.polis.service.eldar_tim.handlers.HandlerContext;
 import ru.mail.polis.service.eldar_tim.handlers.RequestHandler;
 import ru.mail.polis.service.eldar_tim.handlers.StatusRequestHandler;
 import ru.mail.polis.service.exceptions.ServerRuntimeException;
@@ -23,7 +23,6 @@ import ru.mail.polis.sharding.HashRouter;
 
 import java.io.IOException;
 import java.net.http.HttpClient;
-import java.util.concurrent.Executor;
 
 /**
  * Service implementation for 2021-highload-dht.
@@ -35,12 +34,8 @@ public class HttpServerImpl extends HttpServer implements Service {
 
     private final DAO dao;
     private final Cluster.Node self;
-    private final Cluster.ReplicasHolder replicasHolder;
-    private final HashRouter<Cluster.Node> router;
     private final ServiceExecutor workers;
-    private final Executor proxies;
-
-    private final HttpClient httpClient;
+    private final ServiceExecutor proxies;
 
     private final PathMapper pathMapper;
     private final one.nio.http.RequestHandler statusHandler;
@@ -48,21 +43,20 @@ public class HttpServerImpl extends HttpServer implements Service {
     public HttpServerImpl(
             DAO dao, Cluster.Node self,
             Cluster.ReplicasHolder replicasHolder, HashRouter<Cluster.Node> router,
-            ServiceExecutor workers, Executor proxies
+            ServiceExecutor workers, ServiceExecutor proxies
     ) throws IOException {
         super(buildHttpServerConfig(self.port));
         this.dao = dao;
         this.self = self;
-        this.replicasHolder = replicasHolder;
-        this.router = router;
         this.workers = workers;
         this.proxies = proxies;
 
-        httpClient = HttpUtils.createClient(proxies);
+        HttpClient httpClient = HttpUtils.createClient(proxies);
+        HandlerContext context = new HandlerContext(self, router, replicasHolder, httpClient, workers, proxies);
 
         pathMapper = new PathMapper();
-        statusHandler = new StatusRequestHandler(self, router, replicasHolder, httpClient, workers, proxies);
-        mapPaths();
+        statusHandler = new StatusRequestHandler(context);
+        mapPaths(context);
 
         LOG.info("{}: server is running now", self.getKey());
     }
@@ -78,18 +72,19 @@ public class HttpServerImpl extends HttpServer implements Service {
         return httpServerConfig;
     }
 
-    private void mapPaths() {
+    private void mapPaths(HandlerContext context) {
         pathMapper.add("/v0/status", new int[]{Request.METHOD_GET}, statusHandler);
 
         pathMapper.add("/v0/entity",
                 new int[]{Request.METHOD_GET, Request.METHOD_PUT, Request.METHOD_DELETE},
-                new EntityRequestHandler(self, router, replicasHolder, httpClient, workers, proxies, dao));
+                new EntityRequestHandler(context, dao));
     }
 
     @Override
     public synchronized void stop() {
         super.stop();
         workers.awaitAndShutdown();
+        proxies.awaitAndShutdown();
 
         LOG.info("{}: server has been stopped", self.getKey());
     }
@@ -111,31 +106,18 @@ public class HttpServerImpl extends HttpServer implements Service {
     @Override
     public void handleDefault(Request request, HttpSession session) {
         Response response = new Response(Response.BAD_REQUEST, Response.EMPTY);
-        sendResponse(response, session);
+        HttpUtils.sendResponse(LOG, session, response);
     }
 
     private void exceptionHandler(Session session, ServerRuntimeException e) {
-        sendError(e.description(), e.httpCode(), (HttpSession) session, e);
-    }
+        String description = e.description();
+        String httpCode = e.httpCode();
 
-    private void sendResponse(Response response, HttpSession session) {
-        try {
-            session.sendResponse(response);
-        } catch (IOException ex) {
-            LOG.error("Unable to send response", ex);
-        }
-    }
-
-    private void sendError(String description, String httpCode, HttpSession session, Exception e) {
         if (e != ServiceOverloadException.INSTANCE) {
             LOG.warn("Error: {}", description, e); // Влияет на результаты профилирования
         }
 
-        try {
-            String code = httpCode == null ? Response.INTERNAL_ERROR : httpCode;
-            session.sendError(code, description);
-        } catch (IOException ex) {
-            LOG.error("Unable to send error: {} {}", description, e.getMessage(), ex);
-        }
+        String code = httpCode == null ? Response.INTERNAL_ERROR : httpCode;
+        HttpUtils.sendError(LOG, (HttpSession) session, code, description);
     }
 }

@@ -32,8 +32,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.Executor;
-import java.util.concurrent.Executors;
 
 /**
  * Constructs {@link Service} instances.
@@ -45,7 +43,7 @@ public final class ServiceFactory {
     /** Число рабочих потоков. */
     private static final int WORKERS_NUMBER = Runtime.getRuntime().availableProcessors();
     /** Лимит очереди запросов, после превышения которого последующие будут отвергнуты. */
-    private static final int TASKS_LIMIT = WORKERS_NUMBER * 2;
+    private static final int TASKS_LIMIT = WORKERS_NUMBER;
 
     /** Число репликаций для каждого узла, включая сам узел. Минимальное значение = 1. */
     private static final int REPLICAS_NUMBER = 3;
@@ -94,8 +92,10 @@ public final class ServiceFactory {
         Cluster.Node currentNode = findClusterNode(port, clusterNodes);
         HashRouter<Cluster.Node> hashRouter = new ConsistentHashRouter<>(clusterNodes, 30);
 
-        ServiceExecutor workers = new LimitedServiceExecutor("worker", WORKERS_NUMBER, TASKS_LIMIT);
-        Executor proxies = Executors.newWorkStealingPool(WORKERS_NUMBER);
+        ServiceExecutor workers = new LimitedServiceExecutor(TASKS_LIMIT,
+                LimitedServiceExecutor.createFixedThreadPool("worker", WORKERS_NUMBER));
+        ServiceExecutor proxies = new LimitedServiceExecutor(TASKS_LIMIT,
+                LimitedServiceExecutor.createForkJoinPool("proxy", WORKERS_NUMBER));
 
         return new HttpServerImpl(dao, currentNode, replicasHolder, hashRouter, workers, proxies);
     }

@@ -7,7 +7,8 @@ import one.nio.http.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.Cluster;
-import ru.mail.polis.service.HttpUtils;
+import ru.mail.polis.service.eldar_tim.HttpUtils;
+import ru.mail.polis.service.eldar_tim.ServiceExecutor;
 import ru.mail.polis.service.eldar_tim.ServiceResponse;
 import ru.mail.polis.service.eldar_tim.ServiceResponseBodySubscriber;
 import ru.mail.polis.sharding.HashRouter;
@@ -21,7 +22,6 @@ import java.net.http.HttpResponse;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.Executor;
 
 public abstract class RoutableRequestHandler implements RequestHandler {
 
@@ -30,17 +30,15 @@ public abstract class RoutableRequestHandler implements RequestHandler {
     protected final Cluster.Node self;
     private final HashRouter<Cluster.Node> router;
     protected final HttpClient httpClient;
-    protected final Executor workers;
-    protected final Executor proxies;
+    protected final ServiceExecutor workers;
+    protected final ServiceExecutor proxies;
 
-    public RoutableRequestHandler(
-            Cluster.Node self, HashRouter<Cluster.Node> router,
-            HttpClient httpClient, Executor workers, Executor proxies) {
-        this.self = self;
-        this.router = router;
-        this.httpClient = httpClient;
-        this.workers = workers;
-        this.proxies = proxies;
+    public RoutableRequestHandler(HandlerContext context) {
+        this.self = context.self;
+        this.router = context.router;
+        this.httpClient = context.httpClient;
+        this.workers = context.workers;
+        this.proxies = context.proxies;
     }
 
     /**
@@ -99,7 +97,7 @@ public abstract class RoutableRequestHandler implements RequestHandler {
      *
      * @param request request to redirect
      * @param target  target node to redirect request
-     * @return response
+     * @return response future, which is always not finish exceptionally
      */
     protected final CompletableFuture<ServiceResponse> redirectRequestAsync(Request request, Cluster.Node target) {
         HttpRequest mappedRequest = HttpUtils.mapRequest(request, target);

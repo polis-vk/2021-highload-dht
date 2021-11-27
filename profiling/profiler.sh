@@ -17,7 +17,7 @@ if [[ -z "$SERVER_PID" ]]; then
 fi
 SERVER_PID=$(printf "$SERVER_PID" | cut -d " " -f1)
 
-CMD="async-profiler -d 135 -e $1 -f "output/$OUTPUT.html" "$SERVER_PID""
+CMD="async-profiler -d 65 -e $1 -f "output/$OUTPUT.html" "$SERVER_PID""
 
 echo -e "$ $CMD\n"
 eval $CMD

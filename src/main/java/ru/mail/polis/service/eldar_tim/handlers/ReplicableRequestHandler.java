@@ -7,16 +7,15 @@ import one.nio.http.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.Cluster;
-import ru.mail.polis.service.HttpUtils;
+import ru.mail.polis.service.eldar_tim.HttpUtils;
 import ru.mail.polis.service.eldar_tim.ServiceResponse;
 import ru.mail.polis.service.exceptions.ClientBadRequestException;
 import ru.mail.polis.service.exceptions.ServerRuntimeException;
-import ru.mail.polis.sharding.HashRouter;
+import ru.mail.polis.service.exceptions.ServiceOverloadException;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
-import java.net.http.HttpClient;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
 import java.util.Collections;
@@ -25,7 +24,6 @@ import java.util.List;
 import java.util.Queue;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
-import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public abstract class ReplicableRequestHandler extends RoutableRequestHandler implements RequestHandler {
@@ -38,12 +36,9 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
 
     private final Cluster.ReplicasHolder replicasHolder;
 
-    public ReplicableRequestHandler(
-            Cluster.Node self, HashRouter<Cluster.Node> router,
-            Cluster.ReplicasHolder replicasHolder, HttpClient httpClient, Executor workers, Executor proxies
-    ) {
-        super(self, router, httpClient, workers, proxies);
-        this.replicasHolder = replicasHolder;
+    public ReplicableRequestHandler(HandlerContext context) {
+        super(context);
+        this.replicasHolder = context.replicasHolder;
     }
 
     @Override
@@ -67,7 +62,7 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
                     } else {
                         HttpUtils.sendError(LOG, session, Response.INTERNAL_ERROR, t.getMessage());
                     }
-                }, proxies);
+                }, workers);
     }
 
     private int[] parseAckFromParameter(@Nullable String param) {
@@ -119,6 +114,11 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
     private CompletableFuture<ServiceResponse> pollReplicas(
             int ack, List<Cluster.Node> replicas, Request request
     ) {
+        int replicasNum = replicas.contains(self) ? replicas.size() - 1 : replicas.size();
+        if (!proxies.externalRequestExecute(replicasNum)) {
+            throw ServiceOverloadException.INSTANCE;
+        }
+
         request.addHeader(HEADER_HANDLE_LOCALLY_TRUE);
 
         PollHandler handler = new PollHandler(ack, replicas.size());
@@ -130,6 +130,7 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
                 future = localHandler = new CompletableFuture<>();
             } else {
                 future = handleRemotelyAsync(target, request);
+                future.whenComplete((r, t) -> proxies.externalMarkExecuted());
             }
             future.whenComplete((r, t) -> handler.parse(r));
         }

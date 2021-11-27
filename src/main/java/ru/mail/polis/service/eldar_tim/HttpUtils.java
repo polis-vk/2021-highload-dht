@@ -1,11 +1,10 @@
-package ru.mail.polis.service;
+package ru.mail.polis.service.eldar_tim;
 
 import one.nio.http.HttpSession;
 import one.nio.http.Request;
 import one.nio.http.Response;
 import org.slf4j.Logger;
 import ru.mail.polis.Cluster;
-import ru.mail.polis.service.eldar_tim.ServiceResponse;
 import ru.mail.polis.service.eldar_tim.handlers.ReplicableRequestHandler;
 
 import java.io.IOException;
@@ -17,11 +16,13 @@ import java.time.Duration;
 import java.util.concurrent.Executor;
 
 public final class HttpUtils {
-    
+
     private static final String[] LOCAL_HEADERS = {
             ServiceResponse.HEADER_TIMESTAMP,
             ReplicableRequestHandler.HEADER_HANDLE_LOCALLY
     };
+
+    private static final HttpRequest.BodyPublisher NO_BODY = HttpRequest.BodyPublishers.noBody();
 
     private HttpUtils() {
         // No need.
@@ -38,12 +39,10 @@ public final class HttpUtils {
     }
 
     public static HttpRequest mapRequest(Request request, Cluster.Node target) {
-        final HttpRequest.BodyPublisher bodyPublisher;
+        HttpRequest.BodyPublisher bodyPublisher = NO_BODY;
         byte[] body = request.getBody();
         if (body != null && body.length > 0) {
             bodyPublisher = HttpRequest.BodyPublishers.ofByteArray(body);
-        } else {
-            bodyPublisher = HttpRequest.BodyPublishers.noBody();
         }
 
         HttpRequest.Builder builder = HttpRequest.newBuilder()
@@ -62,11 +61,7 @@ public final class HttpUtils {
         return builder.build();
     }
 
-    public static Response mapResponse(HttpResponse<byte[]> response) {
-        return new Response(String.valueOf(response.statusCode()), response.body());
-    }
-
-    public static Response mapResponseInfo(HttpResponse.ResponseInfo responseInfo, byte[] body) {
+    public static Response mapResponse(HttpResponse.ResponseInfo responseInfo, byte[] body) {
         return new Response(String.valueOf(responseInfo.statusCode()), body);
     }
 
@@ -82,7 +77,7 @@ public final class HttpUtils {
         try {
             session.sendError(code, message);
         } catch (IOException e) {
-            log.debug("Unable to send error", e);
+            log.debug("Unable to send error: {}", message, e);
         }
     }
 }
