@@ -42,11 +42,16 @@ public final class ServiceFactory {
 
     /** Число рабочих потоков. */
     private static final int WORKERS_NUMBER = Runtime.getRuntime().availableProcessors();
-    /** Лимит очереди запросов, после превышения которого последующие будут отвергнуты. */
+    /** Лимит очереди исполнителя рабочих потоков. */
     private static final int TASKS_LIMIT = WORKERS_NUMBER;
 
     /** Число репликаций для каждого узла, включая сам узел. Минимальное значение = 1. */
     private static final int REPLICAS_NUMBER = 3;
+
+    /** Число проксирующих потоков. */
+    private static final int PROXIES_NUMBER = WORKERS_NUMBER;
+    /** Лимит очереди исполнителя проксирующих потоков. */
+    private static final int PROXIES_LIMIT = Math.max(PROXIES_NUMBER, REPLICAS_NUMBER);
 
     private static final Map<Integer, Set<Cluster.Node>> TOPOLOGIES = new ConcurrentHashMap<>();
     private static final Map<Integer, Cluster.ReplicasHolder> REPLICAS = new ConcurrentHashMap<>();
@@ -94,8 +99,8 @@ public final class ServiceFactory {
 
         ServiceExecutor workers = new LimitedServiceExecutor(TASKS_LIMIT,
                 LimitedServiceExecutor.createFixedThreadPool("worker", WORKERS_NUMBER));
-        ServiceExecutor proxies = new LimitedServiceExecutor(TASKS_LIMIT,
-                LimitedServiceExecutor.createFixedThreadPool("proxy", WORKERS_NUMBER));
+        ServiceExecutor proxies = new LimitedServiceExecutor(PROXIES_LIMIT,
+                LimitedServiceExecutor.createForkJoinPool("proxy", PROXIES_NUMBER));
 
         return new HttpServerImpl(dao, currentNode, replicasHolder, hashRouter, workers, proxies);
     }
