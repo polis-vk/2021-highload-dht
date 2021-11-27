@@ -84,6 +84,23 @@ public class LimitedServiceExecutor implements ServiceExecutor {
     }
 
     @Override
+    public boolean externalRequestExecute(int tasksNum) {
+        int v;
+        do {
+            v = queueSize.get();
+            if (v + tasksNum > queueLimit) {
+                return false;
+            }
+        } while (!queueSize.compareAndSet(v, v + tasksNum));
+        return true;
+    }
+
+    @Override
+    public void externalMarkExecuted() {
+        queueSize.decrementAndGet();
+    }
+
+    @Override
     public void awaitAndShutdown() {
         try {
             delegate.shutdown();
@@ -97,21 +114,6 @@ public class LimitedServiceExecutor implements ServiceExecutor {
             LOG.error("Error: executor can't shutdown on its own", e);
             Thread.currentThread().interrupt();
         }
-    }
-
-    public boolean externalRequestExecute(int tasksNum) {
-        int v;
-        do {
-            v = queueSize.get();
-            if (v + tasksNum > queueLimit) {
-                return false;
-            }
-        } while (!queueSize.compareAndSet(v, v + tasksNum));
-        return true;
-    }
-
-    public void externalMarkExecuted() {
-        queueSize.decrementAndGet();
     }
 
     private boolean requestExecute() {

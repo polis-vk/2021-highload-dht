@@ -22,7 +22,7 @@ public final class HttpUtils {
             ReplicableRequestHandler.HEADER_HANDLE_LOCALLY
     };
 
-    private static final HttpRequest.BodyPublisher noBodyPublisher = HttpRequest.BodyPublishers.noBody();
+    private static final HttpRequest.BodyPublisher NO_BODY = HttpRequest.BodyPublishers.noBody();
 
     private HttpUtils() {
         // No need.
@@ -39,7 +39,7 @@ public final class HttpUtils {
     }
 
     public static HttpRequest mapRequest(Request request, Cluster.Node target) {
-        HttpRequest.BodyPublisher bodyPublisher = noBodyPublisher;
+        HttpRequest.BodyPublisher bodyPublisher = NO_BODY;
         byte[] body = request.getBody();
         if (body != null && body.length > 0) {
             bodyPublisher = HttpRequest.BodyPublishers.ofByteArray(body);

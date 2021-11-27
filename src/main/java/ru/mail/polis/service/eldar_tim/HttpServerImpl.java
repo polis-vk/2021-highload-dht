@@ -14,6 +14,7 @@ import ru.mail.polis.Cluster;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.service.Service;
 import ru.mail.polis.service.eldar_tim.handlers.EntityRequestHandler;
+import ru.mail.polis.service.eldar_tim.handlers.HandlerContext;
 import ru.mail.polis.service.eldar_tim.handlers.RequestHandler;
 import ru.mail.polis.service.eldar_tim.handlers.StatusRequestHandler;
 import ru.mail.polis.service.exceptions.ServerRuntimeException;
@@ -33,12 +34,8 @@ public class HttpServerImpl extends HttpServer implements Service {
 
     private final DAO dao;
     private final Cluster.Node self;
-    private final Cluster.ReplicasHolder replicasHolder;
-    private final HashRouter<Cluster.Node> router;
     private final ServiceExecutor workers;
     private final ServiceExecutor proxies;
-
-    private final HttpClient httpClient;
 
     private final PathMapper pathMapper;
     private final one.nio.http.RequestHandler statusHandler;
@@ -51,16 +48,15 @@ public class HttpServerImpl extends HttpServer implements Service {
         super(buildHttpServerConfig(self.port));
         this.dao = dao;
         this.self = self;
-        this.replicasHolder = replicasHolder;
-        this.router = router;
         this.workers = workers;
         this.proxies = proxies;
 
-        httpClient = HttpUtils.createClient(proxies);
+        HttpClient httpClient = HttpUtils.createClient(proxies);
+        HandlerContext context = new HandlerContext(self, router, replicasHolder, httpClient, workers, proxies);
 
         pathMapper = new PathMapper();
-        statusHandler = new StatusRequestHandler(self, router, replicasHolder, httpClient, workers, proxies);
-        mapPaths();
+        statusHandler = new StatusRequestHandler(context);
+        mapPaths(context);
 
         LOG.info("{}: server is running now", self.getKey());
     }
@@ -76,12 +72,12 @@ public class HttpServerImpl extends HttpServer implements Service {
         return httpServerConfig;
     }
 
-    private void mapPaths() {
+    private void mapPaths(HandlerContext context) {
         pathMapper.add("/v0/status", new int[]{Request.METHOD_GET}, statusHandler);
 
         pathMapper.add("/v0/entity",
                 new int[]{Request.METHOD_GET, Request.METHOD_PUT, Request.METHOD_DELETE},
-                new EntityRequestHandler(self, router, replicasHolder, httpClient, workers, proxies, dao));
+                new EntityRequestHandler(context, dao));
     }
 
     @Override
