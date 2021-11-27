@@ -1,7 +1,5 @@
 package ru.mail.polis.service.eldar_tim;
 
-import ru.mail.polis.service.HttpUtils;
-
 import javax.annotation.Nullable;
 import java.net.http.HttpResponse;
 import java.util.Optional;
@@ -26,7 +24,7 @@ public final class ServiceResponseBodySubscriber implements HttpResponse.BodyHan
 
         return HttpResponse.BodySubscribers.mapping(
                 HttpResponse.BodySubscribers.ofByteArray(),
-                body -> ServiceResponse.of(HttpUtils.mapResponseInfo(responseInfo, body), timestamp));
+                body -> ServiceResponse.of(HttpUtils.mapResponse(responseInfo, body), timestamp));
     }
 
     private long parseTimestampHeader(@Nullable String timestampHeader) {

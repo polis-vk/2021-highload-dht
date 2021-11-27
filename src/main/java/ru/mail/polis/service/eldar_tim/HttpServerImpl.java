@@ -12,7 +12,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.Cluster;
 import ru.mail.polis.lsm.DAO;
-import ru.mail.polis.service.HttpUtils;
 import ru.mail.polis.service.Service;
 import ru.mail.polis.service.eldar_tim.handlers.EntityRequestHandler;
 import ru.mail.polis.service.eldar_tim.handlers.RequestHandler;
@@ -111,31 +110,18 @@ public class HttpServerImpl extends HttpServer implements Service {
     @Override
     public void handleDefault(Request request, HttpSession session) {
         Response response = new Response(Response.BAD_REQUEST, Response.EMPTY);
-        sendResponse(response, session);
+        HttpUtils.sendResponse(LOG, session, response);
     }
 
     private void exceptionHandler(Session session, ServerRuntimeException e) {
-        sendError(e.description(), e.httpCode(), (HttpSession) session, e);
-    }
+        String description = e.description();
+        String httpCode = e.httpCode();
 
-    private void sendResponse(Response response, HttpSession session) {
-        try {
-            session.sendResponse(response);
-        } catch (IOException ex) {
-            LOG.error("Unable to send response", ex);
-        }
-    }
-
-    private void sendError(String description, String httpCode, HttpSession session, Exception e) {
         if (e != ServiceOverloadException.INSTANCE) {
             LOG.warn("Error: {}", description, e); // Влияет на результаты профилирования
         }
 
-        try {
-            String code = httpCode == null ? Response.INTERNAL_ERROR : httpCode;
-            session.sendError(code, description);
-        } catch (IOException ex) {
-            LOG.error("Unable to send error: {} {}", description, e.getMessage(), ex);
-        }
+        String code = httpCode == null ? Response.INTERNAL_ERROR : httpCode;
+        HttpUtils.sendError(LOG, (HttpSession) session, code, description);
     }
 }
