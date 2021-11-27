@@ -22,7 +22,6 @@ import ru.mail.polis.sharding.HashRouter;
 
 import java.io.IOException;
 import java.net.http.HttpClient;
-import java.util.concurrent.Executor;
 
 /**
  * Service implementation for 2021-highload-dht.
@@ -37,7 +36,7 @@ public class HttpServerImpl extends HttpServer implements Service {
     private final Cluster.ReplicasHolder replicasHolder;
     private final HashRouter<Cluster.Node> router;
     private final ServiceExecutor workers;
-    private final Executor proxies;
+    private final ServiceExecutor proxies;
 
     private final HttpClient httpClient;
 
@@ -47,7 +46,7 @@ public class HttpServerImpl extends HttpServer implements Service {
     public HttpServerImpl(
             DAO dao, Cluster.Node self,
             Cluster.ReplicasHolder replicasHolder, HashRouter<Cluster.Node> router,
-            ServiceExecutor workers, Executor proxies
+            ServiceExecutor workers, ServiceExecutor proxies
     ) throws IOException {
         super(buildHttpServerConfig(self.port));
         this.dao = dao;
@@ -89,6 +88,7 @@ public class HttpServerImpl extends HttpServer implements Service {
     public synchronized void stop() {
         super.stop();
         workers.awaitAndShutdown();
+        proxies.awaitAndShutdown();
 
         LOG.info("{}: server has been stopped", self.getKey());
     }

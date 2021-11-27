@@ -60,7 +60,7 @@ public final class HttpUtils {
 
         return builder.build();
     }
-    
+
     public static Response mapResponse(HttpResponse.ResponseInfo responseInfo, byte[] body) {
         return new Response(String.valueOf(responseInfo.statusCode()), body);
     }

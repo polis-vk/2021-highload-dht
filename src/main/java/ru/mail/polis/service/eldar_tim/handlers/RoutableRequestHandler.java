@@ -99,7 +99,7 @@ public abstract class RoutableRequestHandler implements RequestHandler {
      *
      * @param request request to redirect
      * @param target  target node to redirect request
-     * @return response
+     * @return response future, which is always not finish exceptionally
      */
     protected final CompletableFuture<ServiceResponse> redirectRequestAsync(Request request, Cluster.Node target) {
         HttpRequest mappedRequest = HttpUtils.mapRequest(request, target);

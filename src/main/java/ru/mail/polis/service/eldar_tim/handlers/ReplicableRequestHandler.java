@@ -8,9 +8,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.Cluster;
 import ru.mail.polis.service.eldar_tim.HttpUtils;
+import ru.mail.polis.service.eldar_tim.LimitedServiceExecutor;
 import ru.mail.polis.service.eldar_tim.ServiceResponse;
 import ru.mail.polis.service.exceptions.ClientBadRequestException;
 import ru.mail.polis.service.exceptions.ServerRuntimeException;
+import ru.mail.polis.service.exceptions.ServiceOverloadException;
 import ru.mail.polis.sharding.HashRouter;
 
 import javax.annotation.Nonnull;
@@ -67,7 +69,7 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
                     } else {
                         HttpUtils.sendError(LOG, session, Response.INTERNAL_ERROR, t.getMessage());
                     }
-                }, proxies);
+                }, workers);
     }
 
     private int[] parseAckFromParameter(@Nullable String param) {
@@ -119,6 +121,11 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
     private CompletableFuture<ServiceResponse> pollReplicas(
             int ack, List<Cluster.Node> replicas, Request request
     ) {
+        int count = replicas.contains(self) ? replicas.size() - 1 : replicas.size();
+        if (!((LimitedServiceExecutor) proxies).externalRequestExecute(count)) {
+            throw ServiceOverloadException.INSTANCE;
+        }
+
         request.addHeader(HEADER_HANDLE_LOCALLY_TRUE);
 
         PollHandler handler = new PollHandler(ack, replicas.size());
@@ -130,6 +137,7 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
                 future = localHandler = new CompletableFuture<>();
             } else {
                 future = handleRemotelyAsync(target, request);
+                future.whenComplete((r, t) -> ((LimitedServiceExecutor) proxies).externalMarkExecuted());
             }
             future.whenComplete((r, t) -> handler.parse(r));
         }
