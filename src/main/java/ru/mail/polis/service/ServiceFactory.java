@@ -51,7 +51,7 @@ public final class ServiceFactory {
     /** Число проксирующих потоков. */
     private static final int PROXIES_NUMBER = WORKERS_NUMBER;
     /** Лимит очереди исполнителя проксирующих потоков. */
-    private static final int PROXIES_LIMIT = Math.max(PROXIES_NUMBER, REPLICAS_NUMBER);
+    private static final int PROXIES_LIMIT = Math.max(PROXIES_NUMBER, REPLICAS_NUMBER * 3);
 
     private static final Map<Integer, Set<Cluster.Node>> TOPOLOGIES = new ConcurrentHashMap<>();
     private static final Map<Integer, Cluster.ReplicasHolder> REPLICAS = new ConcurrentHashMap<>();
