@@ -17,13 +17,14 @@
 package ru.mail.polis.service;
 
 import ru.mail.polis.lsm.DAO;
+import ru.mail.polis.service.avightclav.ServiceServer;
 
 import java.io.IOException;
 import java.util.Objects;
 import java.util.Set;
 
 /**
- * Constructs {@link Service} instances.
+ * Constructs {@link ru.mail.polis.service.ServiceServer} instances.
  *
  * @author Vadim Tsesko
  */
@@ -42,7 +43,7 @@ public final class ServiceFactory {
      * @param topology a list of all cluster endpoints {@code http://<host>:<port>} (including this one)
      * @return a storage instance
      */
-    public static Service create(
+    public static ru.mail.polis.service.ServiceServer create(
             final int port,
             final DAO dao,
             final Set<String> topology) throws IOException {
@@ -60,6 +61,6 @@ public final class ServiceFactory {
             throw new IllegalArgumentException("Empty cluster");
         }
 
-        throw new UnsupportedOperationException("Implement me!");
+        return new ServiceServer(port, dao, topology);
     }
 }

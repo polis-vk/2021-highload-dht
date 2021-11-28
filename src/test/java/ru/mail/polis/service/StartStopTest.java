@@ -43,7 +43,7 @@ import java.util.concurrent.TimeUnit;
 import static org.junit.jupiter.api.Assertions.*;
 
 /**
- * Basic init/deinit test for {@link Service} implementation.
+ * Basic init/deinit test for {@link ServiceServer} implementation.
  *
  * @author Vadim Tsesko
  */
@@ -54,7 +54,7 @@ class StartStopTest extends TestBase {
     private int port;
     private Path data;
     private DAO dao;
-    private Service kvService;
+    private ServiceServer kvService;
     private HttpClient client;
 
     private static void assertNotFinishesIn(final Executable executable)
