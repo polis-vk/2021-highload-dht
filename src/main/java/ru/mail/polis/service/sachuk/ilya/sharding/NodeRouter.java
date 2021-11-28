@@ -12,23 +12,31 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.ForkJoinPool;
 
 public class NodeRouter {
     private final NodeManager nodeManager;
-    private static final String LOCALHOST = "http://localhost:";
+    private final HttpClient httpClient;
+//    private final ExecutorService coordinatorExecutor = new ThreadPoolExecutor(8, 8,
+//            0L,
+//            TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(2000));
+
+    private final ExecutorService executor = new ForkJoinPool(16);
 
     public NodeRouter(NodeManager nodeManager) {
         this.nodeManager = nodeManager;
+
+        this.httpClient = HttpClient.newBuilder()
+                .version(HttpClient.Version.HTTP_1_1)
+                .connectTimeout(Duration.ofSeconds(3))
+                .executor(executor)
+                .build();
     }
 
     public CompletableFuture<Response> routeToNode(VNode vnode, Request request) {
-        String host = Node.HOST;
-        int port = vnode.getPhysicalNode().port;
-
-        HttpClient httpClient = nodeManager.getHttpClient(host + port);
-
         return httpClient
-                .sendAsync(getHttpRequest(request, port), HttpResponse.BodyHandlers.ofByteArray())
+                .sendAsync(getHttpRequest(request, vnode.getPhysicalNode()), HttpResponse.BodyHandlers.ofByteArray())
                 .thenApplyAsync(this::httpResponseToResponse)
                 .exceptionally(t -> new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY));
     }
@@ -80,7 +88,7 @@ public class NodeRouter {
         return resultCode;
     }
 
-    public HttpRequest getHttpRequest(Request request, int port) {
+    public HttpRequest getHttpRequest(Request request, Node node) {
         String timestampHeader = ResponseUtils.TIMESTAMP_HEADER;
         timestampHeader = timestampHeader.trim();
         timestampHeader = timestampHeader.substring(0, timestampHeader.length() - 1);
@@ -88,7 +96,7 @@ public class NodeRouter {
         String timestampHeaderFromResponse = request.getHeader(ResponseUtils.TIMESTAMP_HEADER);
 
         HttpRequest.Builder builder = HttpRequest.newBuilder()
-                .uri(URI.create(LOCALHOST + port + request.getURI()))
+                .uri(URI.create(node.connectionString + request.getURI()))
                 .version(HttpClient.Version.HTTP_1_1)
                 .timeout(Duration.ofSeconds(3));
 
