@@ -43,11 +43,8 @@ public class Coordinator {
     }
 
     public void handle(ReplicationInfo replicationInfo, String id, Request request, HttpSession session) {
-
-        if (logger.isInfoEnabled()) {
-            logger.info("in block IS coordinator");
-            logger.info("COORDINATOR NODE IS: " + node.port);
-        }
+        logger.info("in block IS coordinator");
+        logger.info("COORDINATOR NODE IS: " + node.port);
 
         sendRequest(replicationInfo, id, request, session);
     }
@@ -213,14 +210,10 @@ public class Coordinator {
     private CompletableFuture<Response> chooseHandler(String id, Request request, VNode vnode) {
         CompletableFuture<Response> response;
         if (vnode.getPhysicalNode().port == node.port) {
-            if (logger.isInfoEnabled()) {
-                logger.info("HANDLE BY CURRENT NODE: port :" + vnode.getPhysicalNode().port);
-            }
+            logger.info("HANDLE BY CURRENT NODE: port :" + vnode.getPhysicalNode().port);
             response = CompletableFuture.completedFuture(entityRequestHandler.handle(request, id));
         } else {
-            if (logger.isInfoEnabled()) {
-                logger.info("HANDLE BY OTHER NODE: port :" + vnode.getPhysicalNode().port);
-            }
+            logger.info("HANDLE BY OTHER NODE: port :" + vnode.getPhysicalNode().port);
             response = nodeRouter.routeToNode(vnode, request);
         }
 
