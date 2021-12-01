@@ -1,7 +1,6 @@
 package ru.mail.polis.service.shabinsky_dmitry;
 
 import one.nio.http.*;
-import one.nio.net.ConnectionString;
 import one.nio.pool.PoolException;
 import one.nio.server.AcceptorConfig;
 import one.nio.util.Hash;
@@ -15,54 +14,63 @@ import ru.mail.polis.service.Service;
 import java.io.IOException;
 import java.io.InterruptedIOException;
 import java.net.HttpURLConnection;
-import java.net.InetAddress;
-import java.net.UnknownHostException;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
 import java.nio.ByteBuffer;
+import java.time.Duration;
 import java.util.*;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ForkJoinPool;
 
 public class BasicService extends HttpServer implements Service {
 
-    public static final String INTERNAL_REQUEST_HEADER = "X-Internal-Request: MySecretKey";
-    public static final String TIMESTAMP_HEADER = "X-Entity-Timestamp: ";
+    public static final String INTERNAL_REQUEST_HEADER = "X-Internal-Request";
+    public static final String INTERNAL_REQUEST_HEADER_VALUE = "MySecretKey";
+    public static final String INTERNAL_REQUEST_CHECK = INTERNAL_REQUEST_HEADER + ": " + INTERNAL_REQUEST_HEADER_VALUE;
+    public static final String TIMESTAMP_HEADER = "X-Entity-Timestamp";
+    public static final String TIMESTAMP_HEADER_FOR_READ = TIMESTAMP_HEADER + ": ";
 
     private static final int TIMEOUT = 1000;  // TODO config
     private static final Logger log = LoggerFactory.getLogger(BasicService.class); // TODO use lookup
     private final DAO dao;
     private final Executor executor;
     private final List<String> topology;
-    private final Map<String, HttpClient> clients;
+    private final String self;
+
+    private final Executor httpExecutor = new ForkJoinPool(16);
+    private final HttpClient client;
 
     public BasicService(int port, DAO dao, Set<String> topology) throws IOException {
         super(from(port));
         this.dao = dao;
         this.executor = Executors.newFixedThreadPool(16);
         this.topology = new ArrayList<>(topology);
-        this.clients = extractSelfFromInterface(port, topology);
+        this.self = extractSelf(port, topology);
         Collections.sort(this.topology);
+
+        client = HttpClient.newBuilder()
+            .executor(httpExecutor)
+            .connectTimeout(Duration.ofSeconds(1))
+            .version(HttpClient.Version.HTTP_1_1)
+            .build();
     }
 
-    private static Map<String, HttpClient> extractSelfFromInterface(int port, Set<String> topology) throws UnknownHostException {
-        // own addresses
-        Map<String, HttpClient> clients = new HashMap<>();
-        List<InetAddress> allMe = Arrays.asList(InetAddress.getAllByName(null));
-
-        for (String node : topology) {
-            ConnectionString connection = new ConnectionString(node);
-
-            List<InetAddress> nodeAddresses = new ArrayList<>(Arrays.asList(
-                InetAddress.getAllByName(connection.getHost()))
-            ); // TODO optimize
-            nodeAddresses.retainAll(allMe);
-
-            if (nodeAddresses.isEmpty() || connection.getPort() != port) {
-                HttpClient client = new HttpClient(connection);
-                client.setReadTimeout(TIMEOUT);
-                clients.put(node, client);
+    private String extractSelf(int selfPort, Set<String> topology) {
+        for (String option : topology) {
+            try {
+                int port = new URI(option).getPort();
+                if (port == selfPort) {
+                    return option;
+                }
+            } catch (URISyntaxException e) {
+                throw new IllegalArgumentException("Wrong url", e);
             }
         }
-        return clients;
+        throw new IllegalArgumentException("Unknown port " + port);
     }
 
     private static HttpServerConfig from(int port) {
@@ -80,13 +88,11 @@ public class BasicService extends HttpServer implements Service {
         return Response.ok("I'm OK");
     }
 
-    private Response mergeForExpectedCode(List<Response> responses, int expectedCode, int ackCount, String answer) {
+    private Response mergeForExpectedCode(List<RemoteData> responses, int expectedCode, int ackCount, String answer) {
         log.info("ackCount: {}", ackCount);
 
-        for (Response response : responses) {
-            if (response.getStatus() != expectedCode) {
-                log.info("wrongStatus: {}", response.getHeader(INTERNAL_REQUEST_HEADER));
-                // TODO some metrics?
+        for (RemoteData response : responses) {
+            if (response.status != expectedCode) {
                 continue;
             }
 
@@ -100,16 +106,16 @@ public class BasicService extends HttpServer implements Service {
         return new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY);
     }
 
-    private Response selectBetterValue(Response previous, Response candidate) {
-        if (previous == null || previous.getBody() == null) {
+    private RemoteData selectBetterValue(RemoteData previous, RemoteData candidate) {
+        if (previous == null || previous.data == null) {
             return candidate;
         }
 
-        if (candidate.getBody() == null) {
+        if (candidate.data == null) {
             return previous;
         }
 
-        return Arrays.compare(previous.getBody(), candidate.getBody()) > 0
+        return Arrays.compare(previous.data, candidate.data) > 0
             ? candidate
             : previous;
     }
@@ -121,20 +127,20 @@ public class BasicService extends HttpServer implements Service {
     }
 
     private long extractTimestamp(Request request) {
-        String header = request.getHeader(TIMESTAMP_HEADER);
+        String header = request.getHeader(TIMESTAMP_HEADER_FOR_READ);
         return header == null ? Long.MIN_VALUE : Long.parseLong(header);
     }
 
-    private Response mergeForTimestamp(List<Response> responses, int ackCount) {
-        Response best = null;
+    private Response mergeForTimestamp(List<RemoteData> responses, int ackCount) {
+        RemoteData best = null;
         long bestTimestamp = Long.MIN_VALUE;
-        for (Response response : responses) {
-            switch (response.getStatus()) {
+        for (RemoteData response : responses) {
+            switch (response.status) {
                 case HttpURLConnection.HTTP_OK:
                 case HttpURLConnection.HTTP_NOT_FOUND:
                     ackCount--;
 
-                    long candidateTimestamp = extractTimestamp(response);
+                    long candidateTimestamp = response.timestamp;
                     log.info("timestamp merge {}/{}", bestTimestamp, candidateTimestamp);
                     if (candidateTimestamp == bestTimestamp) {
                         best = selectBetterValue(best, response);
@@ -151,7 +157,7 @@ public class BasicService extends HttpServer implements Service {
             return new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY);
         }
 
-        return best;
+        return toResponse(best);
     }
 
     @Path("/v0/entity")
@@ -209,24 +215,21 @@ public class BasicService extends HttpServer implements Service {
     @Override
     public synchronized void stop() {
         super.stop();
-        for (HttpClient client : clients.values()) {
-            client.close();
-        }
     }
 
-    private Response delete(String id, long tombstone) {
+    private RemoteData delete(String id, long tombstone) {
         ByteBuffer key = ByteBuffer.wrap(Utf8.toBytes(id));
         Record record = Record.tombstone(key, tombstone);
         dao.upsert(record);
-        return new Response(Response.ACCEPTED, Response.EMPTY);
+        return new RemoteData(202, Response.EMPTY, null);
     }
 
-    private Response put(String id, byte[] body, long tombstone) {
+    private RemoteData put(String id, byte[] body, long tombstone) {
         ByteBuffer key = ByteBuffer.wrap(Utf8.toBytes(id));
         ByteBuffer value = ByteBuffer.wrap(body);
         Record record = Record.of(key, value, tombstone);
         dao.upsert(record);
-        return new Response(Response.CREATED, Response.EMPTY);
+        return new RemoteData(201, Response.EMPTY, null);
     }
 
     private static byte[] extractBytes(ByteBuffer buffer) {
@@ -235,25 +238,24 @@ public class BasicService extends HttpServer implements Service {
         return result;
     }
 
-    private Response okForGet(Record record) {
-        Response response;
+    private RemoteData okForGet(Record record) {
         if (record.isTombstone()) {
-            response = new Response(Response.NOT_FOUND, Response.EMPTY);
-        } else {
-            response = new Response(Response.OK, extractBytes(record.getValue()));
+            return new RemoteData(404, null, record.getTimestamp());
         }
 
-        response.addHeader(TIMESTAMP_HEADER + record.getTimestamp());
-        return response;
+        return new RemoteData(
+            200,
+            extractBytes(record.getValue()),
+            record.getTimestamp());
     }
 
-    private Response get(String id) {
+    private RemoteData get(String id) {
         ByteBuffer key = ByteBuffer.wrap(Utf8.toBytes(id));
         Iterator<Record> range = dao.range(key, DAO.nextKey(key), true);
         if (range.hasNext()) {
             return okForGet(range.next());
         } else {
-            return new Response(Response.NOT_FOUND, Response.EMPTY);
+            return new RemoteData(404, null, null);
         }
     }
 
@@ -263,8 +265,7 @@ public class BasicService extends HttpServer implements Service {
         for (String option : topology) {
             int hash = Hash.murmur3(option + id);
 
-            HttpClient client = clients.get(option);
-            Node node = new Node(hash, client);
+            Node node = new Node(hash, option.equals(self) ? null : option);
             nodes.add(node);
 
             if (nodes.size() > nodeCount) {
@@ -281,7 +282,7 @@ public class BasicService extends HttpServer implements Service {
             try {
                 result = context.isCoordinator
                     ? collectResponses(context)
-                    : invokeLocalRequest(context);
+                    : toInternalResponse(invokeLocalRequest(context));
             } catch (Exception e) {
                 log.error("Unexpected exception during method call {}", context.operation, e);
                 sendResponse(session, new Response(Response.INTERNAL_ERROR, Utf8.toBytes("Something wrong")));
@@ -292,7 +293,61 @@ public class BasicService extends HttpServer implements Service {
         });
     }
 
-    private Response invokeLocalRequest(Context context) {
+
+    private RemoteData invokeRemoteRequest(Context context, Node node) throws HttpException, IOException, PoolException, InterruptedException {
+        URI uri = URI.create(node.uri + "/v0/entity?id=" + context.id);
+
+        switch (context.operation) {
+            case GET:
+                HttpRequest get = HttpRequest.newBuilder(uri)
+                    .GET()
+                    .timeout(Duration.ofMillis(TIMEOUT))
+                    .header(INTERNAL_REQUEST_HEADER, INTERNAL_REQUEST_HEADER_VALUE)
+                    .build();
+                HttpResponse<byte[]> getResponse = client.send(get, HttpResponse.BodyHandlers.ofByteArray());
+
+                String timeGet = getResponse.headers().firstValue(TIMESTAMP_HEADER).orElse(null);
+
+                return new RemoteData(
+                    getResponse.statusCode(),
+                    getResponse.body(),
+                    timeGet == null ? null : Long.valueOf(timeGet));
+            case UPSERT:
+                HttpRequest put = HttpRequest.newBuilder(uri)
+                    .PUT(HttpRequest.BodyPublishers.ofByteArray(context.payload))
+                    .timeout(Duration.ofMillis(TIMEOUT))
+                    .header(INTERNAL_REQUEST_HEADER, INTERNAL_REQUEST_HEADER_VALUE)
+                    .header(TIMESTAMP_HEADER, String.valueOf(context.timestamp))
+                    .build();
+                HttpResponse<byte[]> upsertResponse = client.send(put, HttpResponse.BodyHandlers.ofByteArray());
+
+                String timeUpsert = upsertResponse.headers().firstValue(TIMESTAMP_HEADER).orElse(null);
+
+                return new RemoteData(
+                    upsertResponse.statusCode(),
+                    upsertResponse.body(),
+                    timeUpsert == null ? null : Long.valueOf(timeUpsert));
+            case DELETE:
+                HttpRequest delete = HttpRequest.newBuilder(uri)
+                    .DELETE()
+                    .timeout(Duration.ofMillis(TIMEOUT))
+                    .header(INTERNAL_REQUEST_HEADER, INTERNAL_REQUEST_HEADER_VALUE)
+                    .header(TIMESTAMP_HEADER, String.valueOf(context.timestamp))
+                    .build();
+                HttpResponse<byte[]> deleteResponse = client.send(delete, HttpResponse.BodyHandlers.ofByteArray());
+
+                String timeDelete = deleteResponse.headers().firstValue(TIMESTAMP_HEADER).orElse(null);
+
+                return new RemoteData(
+                    deleteResponse.statusCode(),
+                    deleteResponse.body(),
+                    timeDelete == null ? null : Long.valueOf(timeDelete));
+            default:
+                throw new UnsupportedOperationException("Unsupported operation " + context.operation);
+        }
+    }
+
+    private RemoteData invokeLocalRequest(Context context) {
         switch (context.operation) {
             case GET:
                 return get(context.id);
@@ -305,39 +360,17 @@ public class BasicService extends HttpServer implements Service {
         }
     }
 
-    private Response invokeRemoteRequest(Context context, Node node) throws HttpException, IOException, PoolException, InterruptedException {
-        switch (context.operation) {
-            case GET:
-                return node.client.get(
-                    context.uri,
-                    INTERNAL_REQUEST_HEADER);
-            case UPSERT:
-                return node.client.put(
-                    context.uri,
-                    context.payload,
-                    INTERNAL_REQUEST_HEADER,
-                    TIMESTAMP_HEADER + context.timestamp);
-            case DELETE:
-                return node.client.delete(
-                    context.uri,
-                    INTERNAL_REQUEST_HEADER,
-                    TIMESTAMP_HEADER + context.timestamp);
-            default:
-                throw new UnsupportedOperationException("Unsupported operation " + context.operation);
-        }
-    }
-
     private Response collectResponses(Context context) throws InterruptedIOException {
         List<Node> nodes = collectNodesForKey(context.id, context.replicas.from);
-        List<Response> responses = new ArrayList<>();
+        List<RemoteData> responses = new ArrayList<>();
 
         for (Node node : nodes) {
             if (node.isLocaleNode()) {
-                Response localResult = invokeLocalRequest(context);
+                RemoteData localResult = invokeLocalRequest(context);
                 responses.add(localResult);
             } else {
                 try {
-                    Response remoteResult = invokeRemoteRequest(context, node);
+                    RemoteData remoteResult = invokeRemoteRequest(context, node);
                     responses.add(remoteResult);
                 } catch (HttpException | IOException | PoolException e) {
                     log.warn("Exception during node communication", e);
@@ -349,7 +382,7 @@ public class BasicService extends HttpServer implements Service {
         return merge(context, responses);
     }
 
-    private Response merge(Context context, List<Response> responses) {
+    private Response merge(Context context, List<RemoteData> responses) {
         switch (context.operation) {
             case GET:
                 return mergeForTimestamp(responses, context.replicas.ack);
@@ -372,25 +405,57 @@ public class BasicService extends HttpServer implements Service {
         }
     }
 
-    private void sendResponse(HttpSession session, Response call) {
+    private String statusToString(int status) {
+        switch (status) {
+            case 200:
+                return Response.OK;
+            case 201:
+                return Response.CREATED;
+            case 202:
+                return Response.ACCEPTED;
+            case 400:
+                return Response.BAD_REQUEST;
+            case 404:
+                return Response.NOT_FOUND;
+            case 500:
+                return Response.INTERNAL_ERROR;
+            case 504:
+                return Response.GATEWAY_TIMEOUT;
+        }
+        throw new IllegalArgumentException("Unknown status " + status);
+    }
+
+    private void sendResponse(HttpSession session, Response response) {
         try {
-            session.sendResponse(call);
+            session.sendResponse(response);
         } catch (IOException e) {
             log.info("Can't send response", e);
         }
     }
 
+    private Response toResponse(RemoteData data) {
+        return new Response(
+            statusToString(data.status),
+            data.data == null ? Response.EMPTY : data.data);
+    }
+
+    private Response toInternalResponse(RemoteData data) {
+        Response response = toResponse(data);
+        response.addHeader(TIMESTAMP_HEADER + ": " + data.timestamp);
+        return response;
+    }
+
     private static class Node {
         final int hash;
-        final HttpClient client;
+        final String uri;
 
-        Node(int hash, HttpClient client) {
+        Node(int hash, String uri) {
             this.hash = hash;
-            this.client = client;
+            this.uri = uri;
         }
 
         boolean isLocaleNode() {
-            return client == null;
+            return uri == null;
         }
     }
 
@@ -407,7 +472,7 @@ public class BasicService extends HttpServer implements Service {
 
         Context(Request request, String id, String replicas) {
             this.id = id;
-            this.isCoordinator = !"".equals(request.getHeader(INTERNAL_REQUEST_HEADER));
+            this.isCoordinator = !"".equals(request.getHeader(INTERNAL_REQUEST_CHECK));
             this.timestamp = isCoordinator
                 ? System.currentTimeMillis()
                 : extractTimestamp(request);
@@ -431,6 +496,18 @@ public class BasicService extends HttpServer implements Service {
                 default:
                     throw new UnsupportedOperationException("Method " + request.getMethod() + " is not supported");
             }
+        }
+    }
+
+    private static class RemoteData {
+        final int status;
+        final byte[] data;
+        final Long timestamp;
+
+        public RemoteData(int status, byte[] data, Long timestamp) {
+            this.status = status;
+            this.data = data;
+            this.timestamp = timestamp;
         }
     }
 
