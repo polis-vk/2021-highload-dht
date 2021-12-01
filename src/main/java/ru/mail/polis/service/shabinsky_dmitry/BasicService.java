@@ -140,7 +140,10 @@ public class BasicService extends HttpServer implements Service {
                 case HttpURLConnection.HTTP_NOT_FOUND:
                     ackCount--;
 
-                    long candidateTimestamp = response.timestamp;
+                    long candidateTimestamp = response.timestamp == null
+                        ? Long.MIN_VALUE
+                        : response.timestamp;
+
                     log.info("timestamp merge {}/{}", bestTimestamp, candidateTimestamp);
                     if (candidateTimestamp == bestTimestamp) {
                         best = selectBetterValue(best, response);
@@ -303,15 +306,21 @@ public class BasicService extends HttpServer implements Service {
                     .GET()
                     .timeout(Duration.ofMillis(TIMEOUT))
                     .header(INTERNAL_REQUEST_HEADER, INTERNAL_REQUEST_HEADER_VALUE)
+                    .header(TIMESTAMP_HEADER, String.valueOf(context.timestamp))
                     .build();
                 HttpResponse<byte[]> getResponse = client.send(get, HttpResponse.BodyHandlers.ofByteArray());
 
                 String timeGet = getResponse.headers().firstValue(TIMESTAMP_HEADER).orElse(null);
 
+                Long result = null;
+                if (!Objects.equals(timeGet, "null")) {
+                    result = Long.valueOf(timeGet);
+                }
+
                 return new RemoteData(
                     getResponse.statusCode(),
                     getResponse.body(),
-                    timeGet == null ? null : Long.valueOf(timeGet));
+                    result);
             case UPSERT:
                 HttpRequest put = HttpRequest.newBuilder(uri)
                     .PUT(HttpRequest.BodyPublishers.ofByteArray(context.payload))
@@ -326,7 +335,7 @@ public class BasicService extends HttpServer implements Service {
                 return new RemoteData(
                     upsertResponse.statusCode(),
                     upsertResponse.body(),
-                    timeUpsert == null ? null : Long.valueOf(timeUpsert));
+                    null);
             case DELETE:
                 HttpRequest delete = HttpRequest.newBuilder(uri)
                     .DELETE()
@@ -341,7 +350,7 @@ public class BasicService extends HttpServer implements Service {
                 return new RemoteData(
                     deleteResponse.statusCode(),
                     deleteResponse.body(),
-                    timeDelete == null ? null : Long.valueOf(timeDelete));
+                    null);
             default:
                 throw new UnsupportedOperationException("Unsupported operation " + context.operation);
         }
@@ -413,14 +422,8 @@ public class BasicService extends HttpServer implements Service {
                 return Response.CREATED;
             case 202:
                 return Response.ACCEPTED;
-            case 400:
-                return Response.BAD_REQUEST;
             case 404:
                 return Response.NOT_FOUND;
-            case 500:
-                return Response.INTERNAL_ERROR;
-            case 504:
-                return Response.GATEWAY_TIMEOUT;
         }
         throw new IllegalArgumentException("Unknown status " + status);
     }
