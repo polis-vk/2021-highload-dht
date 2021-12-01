@@ -66,7 +66,7 @@ class ConcurrentTest {
         for (int i = 0; i < TASKS_COUNT; i++) {
             ByteBuffer key = ByteBuffer.wrap(("key" + i).getBytes(StandardCharsets.UTF_8));
             ByteBuffer value = ByteBuffer.wrap(("value" + i).getBytes(StandardCharsets.UTF_8));
-            Record record = Record.of(key, value);
+            Record record = Record.of(key, value, 0);
             Future<?> future = executor.submit(() -> {
                 dao.upsert(record);
                 Optional<Record> found = StreamSupport.stream(

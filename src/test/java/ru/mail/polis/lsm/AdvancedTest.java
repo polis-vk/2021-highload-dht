@@ -40,9 +40,9 @@ public class AdvancedTest {
         Map<ByteBuffer, ByteBuffer> map = generateMap(0, 1000);
 
         try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
-            dao.upsert(Record.of(key(1), value(1)));
+            dao.upsert(Record.of(key(1), value(1), 0));
 
-            map.forEach((k, v) -> dao.upsert(Record.of(k, v)));
+            map.forEach((k, v) -> dao.upsert(Record.of(k, v, 0)));
 
             iterator = dao.range(null, null);
         }

@@ -117,7 +117,11 @@ abstract class ClusterTestBase extends TestBase {
     abstract int getClusterSize();
 
     void waitForVersionAdvancement() throws Exception {
-        Thread.sleep(10);
+        long sc = System.currentTimeMillis();
+        while (System.currentTimeMillis() == sc) {
+            //noinspection BusyWait
+            Thread.sleep(1);
+        }
     }
 
 

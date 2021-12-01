@@ -65,7 +65,7 @@ class BasicTest {
                 "NEW_KEY", "NEW_VALUE"
         );
 
-        map.forEach((k, v) -> dao.upsert(Record.of(k, v)));
+        map.forEach((k, v) -> dao.upsert(Record.of(k, v, 0)));
 
         assertDaoEquals(dao, map);
     }
@@ -74,7 +74,7 @@ class BasicTest {
     void insertSome() {
         Map<ByteBuffer, ByteBuffer> map = generateMap(0, 10);
 
-        map.forEach((k, v) -> dao.upsert(Record.of(k, v)));
+        map.forEach((k, v) -> dao.upsert(Record.of(k, v, 0)));
 
         assertDaoEquals(dao, map);
     }
@@ -83,7 +83,7 @@ class BasicTest {
     void insertMany() {
         Map<ByteBuffer, ByteBuffer> map = generateMap(0, 1000);
 
-        map.forEach((k, v) -> dao.upsert(Record.of(k, v)));
+        map.forEach((k, v) -> dao.upsert(Record.of(k, v, 0)));
 
         assertDaoEquals(dao, map);
     }
@@ -92,7 +92,7 @@ class BasicTest {
     void middleScan() {
         Map<ByteBuffer, ByteBuffer> map = generateMap(0, 10);
 
-        map.forEach((k, v) -> dao.upsert(Record.of(k, v)));
+        map.forEach((k, v) -> dao.upsert(Record.of(k, v, 0)));
 
         Iterator<Record> range = dao.range(key(5), null);
         assertEquals(range, new TreeMap<>(generateMap(5, 10)).entrySet());
@@ -102,7 +102,7 @@ class BasicTest {
     void rightScan() {
         Map<ByteBuffer, ByteBuffer> map = generateMap(0, 10);
 
-        map.forEach((k, v) -> dao.upsert(Record.of(k, v)));
+        map.forEach((k, v) -> dao.upsert(Record.of(k, v, 0)));
 
         Iterator<Record> range = dao.range(key(9), null);
         assertEquals(range, new TreeMap<>(generateMap(9, 10)).entrySet());
@@ -114,7 +114,7 @@ class BasicTest {
                 "", "VALUE"
         );
 
-        map.forEach((k, v) -> dao.upsert(Record.of(k, v)));
+        map.forEach((k, v) -> dao.upsert(Record.of(k, v, 0)));
 
         assertDaoEquals(dao, map);
     }
@@ -125,7 +125,7 @@ class BasicTest {
                 "KEY", ""
         );
 
-        map.forEach((k, v) -> dao.upsert(Record.of(k, v)));
+        map.forEach((k, v) -> dao.upsert(Record.of(k, v, 0)));
 
         assertDaoEquals(dao, map);
     }
@@ -134,8 +134,8 @@ class BasicTest {
     void upsert() {
         Map<ByteBuffer, ByteBuffer> map = generateMap(0, 10);
 
-        map.forEach((k, v) -> dao.upsert(Record.of(k, v)));
-        map.forEach((k, v) -> dao.upsert(Record.of(k, v)));
+        map.forEach((k, v) -> dao.upsert(Record.of(k, v, 0)));
+        map.forEach((k, v) -> dao.upsert(Record.of(k, v, 0)));
 
         assertDaoEquals(dao, map);
     }
@@ -144,13 +144,13 @@ class BasicTest {
     void upsertDifferent() {
         Map<ByteBuffer, ByteBuffer> map = generateMap(0, 10);
 
-        map.forEach((k, v) -> dao.upsert(Record.of(k, v)));
+        map.forEach((k, v) -> dao.upsert(Record.of(k, v, 0)));
 
         ByteBuffer upsertKey = key(5);
         ByteBuffer upsertValue = wrap("VALUE_CHANGED");
 
         map.put(upsertKey, upsertValue);
-        dao.upsert(Record.of(upsertKey, upsertValue));
+        dao.upsert(Record.of(upsertKey, upsertValue, 0));
 
         assertDaoEquals(dao, map);
     }
@@ -159,17 +159,17 @@ class BasicTest {
     void remove() {
         Map<ByteBuffer, ByteBuffer> map = generateMap(0, 10);
 
-        map.forEach((k, v) -> dao.upsert(Record.of(k, v)));
+        map.forEach((k, v) -> dao.upsert(Record.of(k, v, 0)));
 
-        dao.upsert(Record.of(wrap("KEY_TO_REMOVE"), wrap("VALUE_TO_REMOVE")));
-        dao.upsert(Record.tombstone(wrap("KEY_TO_REMOVE")));
+        dao.upsert(Record.of(wrap("KEY_TO_REMOVE"), wrap("VALUE_TO_REMOVE"), 0));
+        dao.upsert(Record.tombstone(wrap("KEY_TO_REMOVE"), 0));
 
         assertDaoEquals(dao, map);
     }
 
     @Test
     void removeAbsent() {
-        dao.upsert(Record.tombstone(wrap("NOT_EXISTED_KEY")));
+        dao.upsert(Record.tombstone(wrap("NOT_EXISTED_KEY"), 0));
 
         assertFalse(dao.range(null, null).hasNext());
     }

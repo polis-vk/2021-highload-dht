@@ -16,6 +16,7 @@
 
 package ru.mail.polis.service;
 
+import one.nio.http.Response;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
@@ -156,7 +157,8 @@ class TwoNodeTest extends ClusterTestBase {
 
                 // Insert
                 final byte[] value = randomValue();
-                assertEquals(201, upsert((node + 1) % getClusterSize(), key, value, 1, 2).getStatus());
+                Response response = upsert((node + 1) % getClusterSize(), key, value, 1, 2);
+                assertEquals(201, response.getStatus());
 
                 // Start node 1
                 createAndStart(node);

@@ -116,8 +116,8 @@ class MusicTest {
     private static Record record(String track, int duration) {
         return Record.of(
                 wrap(track),
-                duration(duration)
-        );
+                duration(duration),
+                0);
     }
 
     private static ByteBuffer duration(int seconds) {

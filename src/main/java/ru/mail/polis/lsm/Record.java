@@ -23,87 +23,44 @@ import java.nio.ByteBuffer;
 public class Record {
 
     private final ByteBuffer key;
-    private final Value value;
+    private final ByteBuffer value;
+    private final long timestamp;
 
-    public static class Value {
-        private final ByteBuffer value;
-        private final long timestamp;
-
-        public Value(@Nullable ByteBuffer value, long timestamp) {
-            this.value = value == null ? null : value.asReadOnlyBuffer();
-            this.timestamp = timestamp;
-        }
-
-        public Value(@Nullable ByteBuffer value) {
-            this.value = value == null ? null : value.asReadOnlyBuffer();
-            this.timestamp = System.currentTimeMillis();
-        }
-
-        public Value(Value value) {
-            this.value = value.value == null ? null : value.value.asReadOnlyBuffer();
-            this.timestamp = value.timestamp;
-        }
-
-        public static Value ofTombstone(long timestamp) {
-            return new Value(null, timestamp);
-        }
-
-        public static Value ofTombstone() {
-            return new Value(null, System.currentTimeMillis());
-        }
-
-        public boolean isTombstone() {
-            return value == null;
-        }
-
-        public ByteBuffer get() {
-            return value == null ? null : value.asReadOnlyBuffer();
-        }
-
-        public long timestamp() {
-            return timestamp;
-        }
-
-        public int size() {
-            return value == null ? 0 : value.remaining();
-        }
-    }
-
-    Record(ByteBuffer key, ByteBuffer value) {
+    Record(ByteBuffer key, @Nullable ByteBuffer value, long timestamp) {
         this.key = key.asReadOnlyBuffer();
-        this.value = new Value(value, System.currentTimeMillis());
+        this.value = value == null ? null : value.asReadOnlyBuffer();
+        this.timestamp = timestamp;
     }
 
-    Record(ByteBuffer key, Value value) {
-        this.key = key.asReadOnlyBuffer();
-        this.value = value;
+    public static Record of(ByteBuffer key, ByteBuffer value, long timestamp) {
+        return new Record(key, value, timestamp);
     }
 
-    public static Record of(ByteBuffer key, Value value) {
-        return new Record(key.asReadOnlyBuffer(), value);
-    }
-
-    public static Record of(ByteBuffer key, ByteBuffer value) {
-        return new Record(key.asReadOnlyBuffer(), new Value(value));
-    }
-
-    public static Record tombstone(ByteBuffer key) {
-        return new Record(key, Value.ofTombstone());
-    }
-
-    public boolean isTombstone() {
-        return value.isTombstone();
+    public static Record tombstone(ByteBuffer key, long timestamp) {
+        return new Record(key, null, timestamp);
     }
 
     public ByteBuffer getKey() {
         return key.asReadOnlyBuffer();
     }
 
-    public Value getValue() {
-        return value;
+    public ByteBuffer getValue() {
+        return value == null ? null : value.asReadOnlyBuffer();
+    }
+
+    public boolean isTombstone() {
+        return value == null;
     }
 
     public int getKeySize() {
         return key.remaining();
+    }
+
+    public int getValueSize() {
+        return value == null ? 0 : value.remaining();
+    }
+
+    public long getTimestamp() {
+        return timestamp;
     }
 }

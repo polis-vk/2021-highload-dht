@@ -46,7 +46,7 @@ class PersistenceTest {
     @Test
     void fs(@TempDir Path data) throws IOException {
         try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
-            dao.upsert(Record.of(key(1), value(1)));
+            dao.upsert(Record.of(key(1), value(1), 0));
         }
 
         try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
@@ -55,7 +55,7 @@ class PersistenceTest {
 
             Record record = range.next();
             assertEquals(key(1), record.getKey());
-            assertEquals(value(1), record.getValue().get());
+            assertEquals(value(1), record.getValue());
         }
 
         recursiveDelete(data);
@@ -76,21 +76,21 @@ class PersistenceTest {
 
         // Create dao and fill data
         try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
-            dao.upsert(Record.of(key, value));
+            dao.upsert(Record.of(key, value, 0));
             Iterator<Record> range = dao.range(null, null);
 
             assertTrue(range.hasNext());
-            assertEquals(value, range.next().getValue().get());
+            assertEquals(value, range.next().getValue());
         }
 
         // Load data and check
         try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
             Iterator<Record> range = dao.range(null, null);
             assertTrue(range.hasNext());
-            assertEquals(value, range.next().getValue().get());
+            assertEquals(value, range.next().getValue());
 
             // Remove data and flush
-            dao.upsert(Record.tombstone(key));
+            dao.upsert(Record.tombstone(key, 0));
         }
 
         // Load and check not found
@@ -109,25 +109,25 @@ class PersistenceTest {
 
         // Initial insert
         try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
-            dao.upsert(Record.of(key, value));
+            dao.upsert(Record.of(key, value, 0));
 
             Iterator<Record> range = dao.range(null, null);
             assertTrue(range.hasNext());
-            assertEquals(value, range.next().getValue().get());
+            assertEquals(value, range.next().getValue());
         }
 
         // Reopen
         try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
             Iterator<Record> range = dao.range(null, null);
             assertTrue(range.hasNext());
-            assertEquals(value, range.next().getValue().get());
+            assertEquals(value, range.next().getValue());
 
             // Replace
-            dao.upsert(Record.of(key, value2));
+            dao.upsert(Record.of(key, value2, 0));
 
             Iterator<Record> range2 = dao.range(null, null);
             assertTrue(range2.hasNext());
-            assertEquals(value2, range2.next().getValue().get());
+            assertEquals(value2, range2.next().getValue());
         }
 
         // Reopen
@@ -135,7 +135,7 @@ class PersistenceTest {
             // Last value should win
             Iterator<Record> range2 = dao.range(null, null);
             assertTrue(range2.hasNext());
-            assertEquals(value2, range2.next().getValue().get());
+            assertEquals(value2, range2.next().getValue());
         }
     }
 
@@ -147,13 +147,13 @@ class PersistenceTest {
         for (int i = 0; i < overwrites; i++) {
             ByteBuffer value = value(i);
             try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
-                dao.upsert(Record.of(key, value));
-                assertEquals(value, dao.range(key, null).next().getValue().get());
+                dao.upsert(Record.of(key, value, 0));
+                assertEquals(value, dao.range(key, null).next().getValue());
             }
 
             // Check
             try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
-                assertEquals(value, dao.range(key, null).next().getValue().get());
+                assertEquals(value, dao.range(key, null).next().getValue());
             }
         }
     }
@@ -161,7 +161,6 @@ class PersistenceTest {
     @Disabled
     @Test
     void hugeRecords(@TempDir Path data) throws IOException {
-        DAOConfig config = new DAOConfig(data, DAOConfig.LARGE_MEMORY_LIMIT, DAOConfig.LARGE_MAX_TABLES);
         // Reference value
         int size = 1024 * 1024;
         byte[] suffix = sizeBasedRandomData(size);
@@ -170,7 +169,7 @@ class PersistenceTest {
         prepareHugeDao(data, recordsCount, suffix);
 
         // Check
-        try (DAO dao = TestDaoWrapper.create(config)) {
+        try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
             Iterator<Record> range = dao.range(null, null);
 
             for (int i = 0; i < recordsCount; i++) {
@@ -181,10 +180,9 @@ class PersistenceTest {
         }
     }
 
-    @Disabled
+    @Disabled("it is too much for async flushing")
     @Test
     void hugeRecordsSearch(@TempDir Path data) throws IOException {
-        DAOConfig config = new DAOConfig(data, DAOConfig.LARGE_MEMORY_LIMIT, DAOConfig.LARGE_MAX_TABLES);
         // Reference value
         int size = 1024 * 1024;
         byte[] suffix = sizeBasedRandomData(size);
@@ -193,7 +191,7 @@ class PersistenceTest {
         prepareHugeDao(data, recordsCount, suffix);
 
         // Check
-        try (DAO dao = TestDaoWrapper.create(config)) {
+        try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
             int searchStep = 4;
 
             for (int i = 0; i < recordsCount / searchStep; i++) {
@@ -212,12 +210,13 @@ class PersistenceTest {
     @Test
     void burnAndCompact(@TempDir Path data) throws IOException {
         DAOConfig config = new DAOConfig(data, DAOConfig.DEFAULT_MEMORY_LIMIT, Integer.MAX_VALUE);
+
         Map<ByteBuffer, ByteBuffer> map = Utils.generateMap(0, 1);
 
         int overwrites = 100;
         for (int i = 0; i < overwrites; i++) {
             try (DAO dao = TestDaoWrapper.create(config)) {
-                map.forEach((k, v) -> dao.upsert(Record.of(k, v)));
+                map.forEach((k, v) -> dao.upsert(Record.of(k, v, 0)));
             }
 
             // Check
@@ -228,7 +227,7 @@ class PersistenceTest {
 
         int beforeCompactSize = getDirSize(data);
 
-        try (DAO dao = TestDaoWrapper.create(config)) {
+        try (DAO dao = TestDaoWrapper.create(new DAOConfig(data))) {
             dao.compact();
             assertDaoEquals(dao, map);
         }
@@ -247,7 +246,7 @@ class PersistenceTest {
 
         Files.walkFileTree(data, new SimpleFileVisitor<>() {
             @Override
-            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) {
+            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
                 size[0] += (int) attrs.size();
                 return FileVisitResult.CONTINUE;
             }
@@ -263,16 +262,16 @@ class PersistenceTest {
         Record next = range.next();
 
         assertEquals(key, next.getKey());
-        assertEquals(value, next.getValue().get());
+        assertEquals(value, next.getValue());
     }
 
     private void prepareHugeDao(@TempDir Path data, int recordsCount, byte[] suffix) throws IOException {
-        try (DAO dao = TestDaoWrapper.create(new DAOConfig(data, DAOConfig.LARGE_MEMORY_LIMIT, DAOConfig.LARGE_MAX_TABLES))) {
+        try (DAO dao = TestDaoWrapper.create(new DAOConfig(data, DAOConfig.DEFAULT_MEMORY_LIMIT, Integer.MAX_VALUE))) {
             for (int i = 0; i < recordsCount; i++) {
                 ByteBuffer key = keyWithSuffix(i, suffix);
                 ByteBuffer value = valueWithSuffix(i, suffix);
 
-                dao.upsert(Record.of(key, value));
+                dao.upsert(Record.of(key, value, 0));
             }
         }
     }
