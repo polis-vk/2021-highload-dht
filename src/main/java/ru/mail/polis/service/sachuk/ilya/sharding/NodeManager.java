@@ -24,7 +24,6 @@ public final class NodeManager implements Closeable {
     public NodeManager(Set<String> topology, VNodeConfig vnodeConfig) {
         this.vnodeConfig = vnodeConfig;
 
-
         for (String endpoint : topology) {
             ConnectionString connectionString = new ConnectionString(endpoint);
             logger.info(connectionString.toString());
