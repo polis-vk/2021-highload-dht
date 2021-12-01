@@ -44,7 +44,7 @@ public class ServiceImpl extends HttpServer implements Service {
         this.entityRequestHandler = new EntityRequestHandler(dao);
         this.node = new Node("http", "localhost", port, "http://localhost:" + port);
         this.nodeManager = new NodeManager(topology, new VNodeConfig());
-        NodeRouter nodeRouter = new NodeRouter(nodeManager);
+        NodeRouter nodeRouter = new NodeRouter();
 
         this.coordinator = new Coordinator(nodeManager, nodeRouter, entityRequestHandler, node);
 

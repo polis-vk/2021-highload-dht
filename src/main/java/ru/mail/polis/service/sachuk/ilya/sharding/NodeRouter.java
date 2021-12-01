@@ -16,16 +16,11 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.ForkJoinPool;
 
 public class NodeRouter {
-    private final NodeManager nodeManager;
     private final HttpClient httpClient;
-//    private final ExecutorService coordinatorExecutor = new ThreadPoolExecutor(8, 8,
-//            0L,
-//            TimeUnit.MILLISECONDS, new LinkedBlockingQueue<>(2000));
 
     private final ExecutorService executor = new ForkJoinPool(16);
 
-    public NodeRouter(NodeManager nodeManager) {
-        this.nodeManager = nodeManager;
+    public NodeRouter() {
 
         this.httpClient = HttpClient.newBuilder()
                 .version(HttpClient.Version.HTTP_1_1)
@@ -35,6 +30,7 @@ public class NodeRouter {
     }
 
     public CompletableFuture<Response> routeToNode(VNode vnode, Request request) {
+
         return httpClient
                 .sendAsync(getHttpRequest(request, vnode.getPhysicalNode()), HttpResponse.BodyHandlers.ofByteArray())
                 .thenApplyAsync(this::httpResponseToResponse)

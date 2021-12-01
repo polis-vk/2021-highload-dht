@@ -58,8 +58,6 @@ public class Coordinator {
         AtomicInteger counter = new AtomicInteger(0);
         AtomicBoolean alreadyExecuted = new AtomicBoolean();
 
-        AtomicInteger ackCount = new AtomicInteger(replicationInfo.ask);
-
         for (int i = 0; i < replicationInfo.from; i++) {
             Pair<Integer, VNode> pair = nodeManager.getNearVNodeWithGreaterHash(id, hash, currentPorts);
             hash = pair.key;
@@ -70,25 +68,17 @@ public class Coordinator {
                     .thenApplyAsync(response -> {
                         int status = response.getStatus();
 
-                        if (checkForNotGoodStatus(status)) {
-                            counter.incrementAndGet();
-                            return new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY);
+                        if (!checkForNotGoodStatus(status)) {
+                            executedResponses.add(response);
                         }
-
-                        executedResponses.add(response);
                         counter.incrementAndGet();
-                        ackCount.decrementAndGet();
 
                         return response;
                     }).whenCompleteAsync((response, throwable) -> {
-                        if (throwable != null || (counter.get() == replicationInfo.from && ackCount.get() > 0)) {
-                            sendResponse(session,
-                                    alreadyExecuted,
-                                    new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY)
-                            );
-                        }
-                        if (counter.get() == replicationInfo.from || ackCount.get() == 0) {
-                            Response finalResponse = getFinalResponse(request, key, executedResponses, replicationInfo);
+                        logger.info("list size " + executedResponses.size());
+                        if (executedResponses.size() >= replicationInfo.ask || counter.get() == replicationInfo.from) {
+                            List<Response> list = new ArrayList<>(executedResponses);
+                            Response finalResponse = getFinalResponse(request, key, list, replicationInfo);
                             sendResponse(session, alreadyExecuted, finalResponse);
                         }
                     });
