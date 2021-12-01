@@ -114,7 +114,7 @@ public class BasicService extends HttpServer implements Service {
         int ackCount,
         String answer
     ) {
-        return responses.thenApply(list -> {
+        return responses.thenApplyAsync(list -> {
             AtomicReference<Response> answerResponse = new AtomicReference<>(
                 new Response(Response.GATEWAY_TIMEOUT, Response.EMPTY));
             AtomicInteger askingCount = new AtomicInteger(ackCount);
@@ -132,14 +132,14 @@ public class BasicService extends HttpServer implements Service {
 
             LOG.info("ackCountRemaining: {}", askingCount.get());
             return answerResponse.get();
-        });
+        }, httpExecutor);
     }
 
     private CompletableFuture<Response> mergeForTimestamp(
         CompletableFuture<List<RemoteData>> responses,
         int ackCount
     ) {
-        return responses.thenApply(list -> {
+        return responses.thenApplyAsync(list -> {
             AtomicReference<RemoteData> best = new AtomicReference<>(null);
             AtomicLong bestTimestamp = new AtomicLong(Long.MIN_VALUE);
             AtomicInteger askingCount = new AtomicInteger(ackCount);
@@ -171,7 +171,7 @@ public class BasicService extends HttpServer implements Service {
             }
 
             return toResponse(best.get());
-        });
+        }, httpExecutor);
     }
 
     @SuppressWarnings("FutureReturnValueIgnored")
