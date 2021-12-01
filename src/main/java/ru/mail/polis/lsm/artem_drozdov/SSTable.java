@@ -251,15 +251,6 @@ public class SSTable implements Closeable {
         channel.write(tmp);
     }
 
-    private static void writeLong(long value, WritableByteChannel channel, ByteBuffer tmp) throws IOException {
-        tmp.position(0);
-        tmp.putLong(value);
-        tmp.position(0);
-        tmp.limit(Long.BYTES);
-
-        channel.write(tmp);
-    }
-
     private static void rename(Path file, Path tmpFile) throws IOException {
         Files.deleteIfExists(file);
         Files.move(tmpFile, file, StandardCopyOption.ATOMIC_MOVE);
