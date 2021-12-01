@@ -36,7 +36,7 @@ public class BasicService extends HttpServer implements Service {
     public static final String TIMESTAMP_HEADER_FOR_READ = TIMESTAMP_HEADER + ": ";
 
     private static final int TIMEOUT = 1000;
-    private static final Logger log = LoggerFactory.getLogger(BasicService.class);
+    private static final Logger LOG = LoggerFactory.getLogger(BasicService.class);
     private final DAO dao;
     private final Executor executor;
     private final List<String> topology;
@@ -130,7 +130,7 @@ public class BasicService extends HttpServer implements Service {
                 }
             }
 
-            log.info("ackCountRemaining: {}", askingCount.get());
+            LOG.info("ackCountRemaining: {}", askingCount.get());
             return answerResponse.get();
         });
     }
@@ -145,7 +145,7 @@ public class BasicService extends HttpServer implements Service {
             AtomicInteger askingCount = new AtomicInteger(ackCount);
 
             for (RemoteData response : list) {
-                log.info("Resp: {}", response);
+                LOG.info("Resp: {}", response);
                 switch (response.status) {
                     case HttpURLConnection.HTTP_OK:
                     case HttpURLConnection.HTTP_NOT_FOUND:
@@ -210,7 +210,7 @@ public class BasicService extends HttpServer implements Service {
         HttpSession session,
         Request request,
         @Param(value = "id", required = true) String id,
-        @Param(value = "replicas") String replicas
+        @Param("replicas") String replicas
     ) {
         if (id.isEmpty()) {
             sendResponse(session, new Response(Response.BAD_REQUEST, Utf8.toBytes("Id is empty")));
@@ -221,11 +221,11 @@ public class BasicService extends HttpServer implements Service {
         try {
             context = new Context(request, id, replicas);
         } catch (UnsupportedOperationException e) {
-            log.warn("Wrong method", e);
+            LOG.warn("Wrong method", e);
             sendResponse(session, new Response(Response.METHOD_NOT_ALLOWED, Utf8.toBytes("Wrong method")));
             return;
         } catch (IllegalArgumentException e) {
-            log.warn("Wrong arguments", e);
+            LOG.warn("Wrong arguments", e);
             sendResponse(session, new Response(Response.BAD_REQUEST, Utf8.toBytes("Wrong arguments")));
             return;
         }
@@ -331,7 +331,7 @@ public class BasicService extends HttpServer implements Service {
                     ? collectResponses(context)
                     : CompletableFuture.supplyAsync(() -> toInternalResponse(invokeLocalRequest(context)), httpExecutor);
             } catch (Exception e) {
-                log.error("Unexpected exception during method call {}", context.operation, e);
+                LOG.error("Unexpected exception during method call {}", context.operation, e);
                 sendResponse(session, new Response(Response.INTERNAL_ERROR, Utf8.toBytes("Something wrong")));
                 return;
             }
@@ -424,9 +424,9 @@ public class BasicService extends HttpServer implements Service {
                     CompletableFuture<RemoteData> remoteResult = invokeRemoteRequest(context, node);
                     responses.add(remoteResult);
                 } catch (HttpException | IOException | PoolException e) {
-                    log.warn("Exception during node communication", e);
+                    LOG.warn("Exception during node communication", e);
                 } catch (InterruptedException e) {
-                    throw new InterruptedIOException();
+                    throw new InterruptedIOException(e.getMessage());
                 }
             }
         }
@@ -478,7 +478,7 @@ public class BasicService extends HttpServer implements Service {
         try {
             session.sendResponse(response);
         } catch (IOException e) {
-            log.info("Can't send response", e);
+            LOG.info("Can't send response", e);
         }
     }
 
@@ -488,17 +488,17 @@ public class BasicService extends HttpServer implements Service {
                 try {
                     session.sendResponse(r);
                 } catch (IOException e) {
-                    log.info("Can't send response", e);
+                    LOG.info("Can't send response", e);
                 }
             } else {
                 try {
                     session.sendError(Response.INTERNAL_ERROR, t.getMessage());
                 } catch (IOException e) {
-                    log.info("Can't send error", e);
+                    LOG.info("Can't send error", e);
                 }
             }
         }).isCancelled()) {
-            log.info("Can't send response !!!");
+            LOG.info("Can't send response !!!");
         }
     }
 
@@ -515,8 +515,8 @@ public class BasicService extends HttpServer implements Service {
     }
 
     private static class Node {
-        final int hash;
-        final String uri;
+        final public int hash;
+        final public String uri;
 
         Node(int hash, String uri) {
             this.hash = hash;
@@ -530,14 +530,14 @@ public class BasicService extends HttpServer implements Service {
 
     private class Context {
 
-        final String id;
-        final boolean isCoordinator;
-        final long timestamp;
+        final public String id;
+        final public boolean isCoordinator;
+        final public long timestamp;
         final public byte[] payload;
-        final Operation operation;
-        final String uri;
+        final public Operation operation;
+        final public String uri;
 
-        final Replicas replicas;
+        final public Replicas replicas;
 
         Context(Request request, String id, String replicas) {
             this.id = id;
@@ -569,9 +569,9 @@ public class BasicService extends HttpServer implements Service {
     }
 
     private static class RemoteData {
-        final int status;
-        final byte[] data;
-        final Long timestamp;
+        final public int status;
+        final public byte[] data;
+        final public Long timestamp;
 
         public RemoteData(int status, byte[] data, Long timestamp) {
             this.status = status;
@@ -581,8 +581,8 @@ public class BasicService extends HttpServer implements Service {
     }
 
     private static class Replicas {
-        final int ack;
-        final int from;
+        final public int ack;
+        final public int from;
 
         Replicas(int ack, int from) {
             this.ack = ack;
