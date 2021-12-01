@@ -23,7 +23,7 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
@@ -41,7 +41,7 @@ public class ProxyClient {
                        Set<String> topology,
                        int me) throws URISyntaxException {
         this.topology = new String[topology.size()];
-        this.executor = Executors.newFixedThreadPool(corePoolSize);
+        this.executor = new ForkJoinPool(corePoolSize);
 
         this.client = HttpClient.newBuilder()
                 .version(HttpClient.Version.HTTP_1_1)

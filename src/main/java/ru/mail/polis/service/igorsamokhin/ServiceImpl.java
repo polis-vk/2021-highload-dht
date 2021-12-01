@@ -25,8 +25,7 @@ import java.util.List;
 import java.util.Set;
 import java.util.StringTokenizer;
 import java.util.concurrent.Callable;
-import java.util.concurrent.LinkedBlockingQueue;
-import java.util.concurrent.ThreadPoolExecutor;
+import java.util.concurrent.ForkJoinPool;
 import java.util.concurrent.TimeUnit;
 
 public class ServiceImpl extends HttpServer implements Service {
@@ -35,14 +34,12 @@ public class ServiceImpl extends HttpServer implements Service {
     private final Logger logger = LoggerFactory.getLogger(ServiceImpl.class);
 
     public static final String BAD_ID_RESPONSE = "Bad id";
-    public static final int MAXIMUM_POOL_SIZE = 8;
-    public static final int KEEP_ALIVE_TIME = 10;
+    public static final int MAXIMUM_POOL_SIZE = 4;
 
     private final DAO dao;
     private boolean isWorking; //false by default
 
-    private final ThreadPoolExecutor executor = new ThreadPoolExecutor(MAXIMUM_POOL_SIZE,
-            MAXIMUM_POOL_SIZE, KEEP_ALIVE_TIME, TimeUnit.MINUTES, new LinkedBlockingQueue<>());
+    private final ForkJoinPool executor = new ForkJoinPool(MAXIMUM_POOL_SIZE);
 
     private final ProxyClient proxyClients;
 
@@ -59,6 +56,7 @@ public class ServiceImpl extends HttpServer implements Service {
         acceptor.reusePort = true;
 
         config.acceptors = new AcceptorConfig[]{acceptor};
+        config.selectors = 1;
 
         return config;
     }

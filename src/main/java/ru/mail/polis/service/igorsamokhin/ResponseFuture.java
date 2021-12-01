@@ -35,17 +35,17 @@ public class ResponseFuture {
             return;
         }
 
-        this.future.thenApply(r -> {
-                    Response tmp = response;
-                    task.run(tmp == null ? responseFrom(r) : tmp);
-                    return r;
-                })
-                .exceptionally(ex -> {
-                    logger.error("Something went wrong on handling task", ex);
-                    response = Utils.serviceUnavailableResponse();
-                    task.run(response);
-                    return null;
-                });
+        this.future = this.future.whenComplete((r, ex) -> {
+            if (ex == null) {
+                Response tmp = response;
+                task.run(tmp == null ? responseFrom(r) : tmp);
+                return;
+            }
+
+            logger.error("Something went wrong on handling task", ex);
+            response = Utils.serviceUnavailableResponse();
+            task.run(response);
+        });
 
         startLever.completeAsync(() -> null, executor);
     }

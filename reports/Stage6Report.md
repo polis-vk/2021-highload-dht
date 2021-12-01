@@ -114,4 +114,132 @@ wrk -c 64 -t 16 -d5m -R 4500 -L -s scripts/get.lua http://localhost:8080
 100.000%  517.63ms
 ```
 3. В графах блокировок также виднеются только блокировки на SelectorManager, но судя по всему это внутренний инструмент HttpClient'а и это его стандартное поведение. Хотя, нельзя отрицать факт, что я неправильно использую CompletableFuture.
-4
+
+---
+
+После лекции еще раз провел профилировку с параметром -t в профайлере. (Жирным выделены изменения между замерами по отношению к предыдущему варианту). В wrk стрелял только put-запросами, с R=4500. Профилировал только cpu 
+
+2. thenAsync + exceptionally + newFixedThreadPool(16) в ProxyClients [cpu-graph](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin-content/graphs/stage6/test.html)
+```text
+ 50.000%    1.96ms
+ 75.000%    2.58ms
+ 90.000%    3.78ms
+ 99.000%    8.06ms
+ 99.900%   14.47ms
+ 99.990%   19.31ms
+ 99.999%   20.25ms
+100.000%   20.25ms
+```
+
+2. **whenComplete** + newFixedThreadPool(16) в ProxyClients [cpu-graph](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin-content/graphs/stage6/test2.html)
+```text
+ 50.000%    2.12ms
+ 75.000%    2.95ms
+ 90.000%    5.05ms
+ 99.000%  108.61ms
+ 99.900%  199.42ms
+ 99.990%  241.41ms
+ 99.999%  263.68ms
+100.000%  273.41ms
+```
+
+Где-то здесь я заметил очень много потоков селекторов. Есть ощущение, что одного потока должно хватить (раньше было по количеству доступных процессоров).
+
+3. whenComplete + newFixedThreadPool(16) в ProxyClients + **selectors = 1** [cpu-graph](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin-content/graphs/stage6/test3.html)
+```text
+ 50.000%    2.29ms
+ 75.000%    3.25ms
+ 90.000%    5.12ms
+ 99.000%   32.19ms
+ 99.900%  190.46ms
+ 99.990%  252.80ms
+ 99.999%  274.94ms
+100.000%  296.96ms
+```
+Сильно ничего не поменялось, но кажется, что сильный скачок сдвинулся на девятку
+
+4. whenComplete + **newFixedThreadPool(4)** в ProxyClients (есть ощущение, что 16 потоков не нужно, поскольку они не блокируются. Вообще, наверное должно хватить количества == кворуму) + selectors = 1
+```text
+ 50.000%    1.94ms
+ 75.000%    2.51ms
+ 90.000%    3.70ms
+ 99.000%   49.79ms
+ 99.900%  197.50ms
+ 99.990%  236.41ms
+ 99.999%  262.65ms
+100.000%  280.58ms
+```
+
+5. whenComplete + **ForkJoinPool(4)** в ProxyClients  + selectors = 1 [cpu-graph](https://htmlpreview.github.io/?https://github.com/IgorSamohin/2021-highload-dht/blob/igor-samokhin-content/graphs/stage6/test4.html)
+
+```text
+ 50.000%    1.87ms
+ 75.000%    2.40ms
+ 90.000%    3.28ms
+ 99.000%   12.73ms
+ 99.900%   62.97ms
+ 99.990%   88.83ms
+ 99.999%   99.07ms
+100.000%  114.05ms
+```
+
+Неплохо, но в рамках "погрешности". Проверю, что будет, если в сервере тоже ForkJoinPool использовать
+
+6. whenComplete + ForkJoinPool(4) в ProxyClients  + selectors = 1 + **ForkJoinPool(16) в ServiceImpl** 
+
+```text
+ 50.000%    2.13ms
+ 75.000%    3.32ms
+ 90.000%    6.46ms
+ 99.000%   49.31ms
+ 99.900%  146.56ms
+ 99.990%  188.93ms
+ 99.999%  223.74ms
+100.000%  247.68ms
+```
+
+7.  whenComplete + ForkJoinPool(4) в ProxyClients  + selectors = 1 + ForkJoinPool(**4**) в ServiceImpl
+```text
+ 50.000%    1.73ms
+ 75.000%    2.17ms
+ 90.000%    2.78ms
+ 99.000%   10.15ms
+ 99.900%   40.10ms
+ 99.990%   82.94ms
+ 99.999%   98.94ms
+100.000%  112.96ms
+```
+
+Получается ForkJoinPool на 4 потока в ServiceImpl практически не отличается от ThreadPoolExecutor на 16 потоков (пункт 5). Попробую уменьшить количество потоков до 4
+
+8. whenComplete + ForkJoinPool(4) в ProxyClients  + selectors = 1 + **ThreadPoolExecutor(4)** в ServiceImpl
+```text
+ 50.000%    1.71ms
+ 75.000%    2.13ms
+ 90.000%    2.62ms
+ 99.000%    5.08ms
+ 99.900%   35.01ms
+ 99.990%  100.42ms
+ 99.999%  124.35ms
+100.000%  141.70ms
+```
+
+Все в рамках небольшого отклонения. Но все же в ForkJoinPool(4) нет сильных скачков, поэтому предположу, что в перспективе он будет лучше из-за work stealing'a, поэтому оставлю его
+
+9. **thenAsync + exceptionally** + ForkJoinPool(4) в ProxyClients  + selectors = 1 + ForkJoinPool(4) в ServiceImpl
+
+```text
+ 50.000%    1.73ms
+ 75.000%    2.16ms
+ 90.000%    2.71ms
+ 99.000%   11.31ms
+ 99.900%  126.33ms
+ 99.990%  166.01ms
+ 99.999%  197.76ms
+100.000%  220.80ms
+```
+Контрольный выстрел в thenAsync показал, что он хуже whenComplete, поэтому оставляю второй вариант.
+
+
+* Во всех новых графах видно наличие ForkJoinPool.commonPool'а. Это может говорить о том, что в какие-то future я не передаю executor и там по дефолту используется этот пул, но меня это вроде бы не сильно должно расстраивать.
+
