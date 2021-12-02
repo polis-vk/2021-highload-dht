@@ -48,7 +48,7 @@ public class ServiceImpl extends HttpServer implements Service {
 
         this.coordinator = new Coordinator(nodeManager, nodeRouter, entityRequestHandler, node);
 
-        logger.info("Node with port " + port + " is started");
+        logger.info("Node with port {} is started", port);
     }
 
     private static HttpServerConfig configFrom(int port) {
@@ -65,7 +65,7 @@ public class ServiceImpl extends HttpServer implements Service {
 
     private void entityRequest(Request request, String id, ReplicationInfo replicationInfo, HttpSession session) {
         Response response = null;
-        if (id == null || id.isBlank()) {
+        if (id == null || id.isEmpty()) {
             response = new Response(Response.BAD_REQUEST, Response.EMPTY);
 
             try {
@@ -160,7 +160,7 @@ public class ServiceImpl extends HttpServer implements Service {
     public synchronized void stop() {
         super.stop();
 
-        logger.info("Service with node:" + node.port + " is closed");
+        logger.info("Service with node: {} is closed", node.port);
         nodeManager.close();
     }
 }

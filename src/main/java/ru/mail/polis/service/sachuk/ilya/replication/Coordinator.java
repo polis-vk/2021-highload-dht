@@ -44,7 +44,7 @@ public class Coordinator {
 
     public void handle(ReplicationInfo replicationInfo, String id, Request request, HttpSession session) {
         logger.info("in block IS coordinator");
-        logger.info("COORDINATOR NODE IS: " + node.port);
+        logger.info("COORDINATOR NODE IS: {}", node.port);
 
         sendRequest(replicationInfo, id, request, session);
     }
@@ -75,7 +75,7 @@ public class Coordinator {
 
                         return response;
                     }).whenCompleteAsync((response, throwable) -> {
-                        logger.info("list size " + executedResponses.size());
+                        logger.info("list size {}", executedResponses.size());
                         if (executedResponses.size() >= replicationInfo.ask || counter.get() == replicationInfo.from) {
                             List<Response> list = new ArrayList<>(executedResponses);
                             Response finalResponse = getFinalResponse(request, key, list, replicationInfo);
@@ -200,10 +200,10 @@ public class Coordinator {
     private CompletableFuture<Response> chooseHandler(String id, Request request, VNode vnode) {
         CompletableFuture<Response> response;
         if (vnode.getPhysicalNode().port == node.port) {
-            logger.info("HANDLE BY CURRENT NODE: port :" + vnode.getPhysicalNode().port);
+            logger.info("HANDLE BY CURRENT NODE: port : {}", vnode.getPhysicalNode().port);
             response = CompletableFuture.completedFuture(entityRequestHandler.handle(request, id));
         } else {
-            logger.info("HANDLE BY OTHER NODE: port :" + vnode.getPhysicalNode().port);
+            logger.info("HANDLE BY OTHER NODE: port : {}", vnode.getPhysicalNode().port);
             response = nodeRouter.routeToNode(vnode, request);
         }
 
