@@ -10,9 +10,9 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.Optional;
 
-final class WrapperHttpResponse {
+final class WrapperHttpResponses {
 
-    private WrapperHttpResponse() {
+    private WrapperHttpResponses() {
 
     }
 

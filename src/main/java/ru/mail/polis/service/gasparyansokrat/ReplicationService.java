@@ -85,7 +85,7 @@ public class ReplicationService {
         for (String node : nodes) {
             if (node.equals(selfNode)) {
                 CompletableFuture<HttpResponse<byte[]>> future = CompletableFuture.completedFuture(
-                    WrapperHttpResponse.buildResponse(serviceDAO.handleRequest(params))
+                    WrapperHttpResponses.buildResponse(serviceDAO.handleRequest(params))
                 );
                 responses.add(future);
             } else {
