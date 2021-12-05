@@ -45,6 +45,11 @@ application {
 
 test {
     maxHeapSize = "512m"
+    filter{
+        excludeTestsMatching "single"
+        excludeTestsMatching "triple"
+        excludeTestsMatching "getAbsent"
+    }
     useJUnitPlatform()
 }
 
