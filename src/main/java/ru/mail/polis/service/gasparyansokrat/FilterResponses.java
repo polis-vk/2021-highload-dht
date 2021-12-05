@@ -95,8 +95,7 @@ final class FilterResponses {
         final Record record = Record.direct(Record.DUMMY, ByteBuffer.wrap(response.body()));
         if (freshEntry == null) {
             return record;
-        }
-        if (record.getTimestamp().after(freshEntry.getTimestamp())) {
+        } else if (record.getTimestamp().after(freshEntry.getTimestamp())) {
             return record;
         } else {
             return freshEntry;

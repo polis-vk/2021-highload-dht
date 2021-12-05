@@ -12,11 +12,9 @@ import ru.mail.polis.service.Service;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.nio.charset.StandardCharsets;
 import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
-import java.util.function.Supplier;
 
 public class ServiceImpl extends HttpServer implements Service {
 
@@ -93,7 +91,7 @@ public class ServiceImpl extends HttpServer implements Service {
     public Response internalRequest(final Request request) throws IOException {
         try {
             RequestParameters params = new RequestParameters(request, clusterService);
-            return clusterService.internalRequest(request, params.getStartKey());
+            return clusterService.internalRequest(request, params);
         } catch (IOException e) {
             throw new UncheckedIOException(BAD_REQUEST, e);
         }

@@ -96,8 +96,8 @@ public class ClusterService {
         return quorumCluster;
     }
 
-    public Response internalRequest(final Request request, final String id) throws IOException {
-        if (id.isEmpty()) {
+    public Response internalRequest(final Request request, final RequestParameters params) throws IOException {
+        if (params.getStartKey().isEmpty()) {
             return badRequest();
         }
         final String host = request.getHost();
@@ -112,7 +112,7 @@ public class ClusterService {
         if (!validHost) {
             return badGateway();
         }
-        return replicationService.directRequest(id, request);
+        return replicationService.directRequest(params);
     }
 
     public static Response badRequest() {
