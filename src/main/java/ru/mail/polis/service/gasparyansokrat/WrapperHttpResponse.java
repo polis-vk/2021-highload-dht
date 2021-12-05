@@ -1,5 +1,7 @@
 package ru.mail.polis.service.gasparyansokrat;
 
+import one.nio.http.Response;
+
 import javax.net.ssl.SSLSession;
 import java.net.URI;
 import java.net.http.HttpClient;
@@ -8,10 +10,14 @@ import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.util.Optional;
 
-final class DummyResponses {
+final class WrapperHttpResponse {
 
-    private DummyResponses() {
+    private WrapperHttpResponse() {
 
+    }
+
+    public static HttpResponse<byte[]> buildResponse(final Response response) {
+        return buildResponse(response.getStatus(), response.getBody());
     }
 
     public static HttpResponse<byte[]> buildResponse(final int statusCode, final byte[] body) {

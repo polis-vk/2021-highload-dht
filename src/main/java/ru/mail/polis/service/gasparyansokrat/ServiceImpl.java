@@ -82,7 +82,7 @@ public class ServiceImpl extends HttpServer implements Service {
     public Response internalRequest(final Request request) throws IOException {
         try {
             RequestParameters params = new RequestParameters(request, clusterService);
-            return clusterService.internalRequest(request, params.getId());
+            return clusterService.internalRequest(request, params);
         } catch (IOException e) {
             throw new UncheckedIOException(BAD_REQUEST, e);
         }

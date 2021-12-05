@@ -2,23 +2,17 @@ package ru.mail.polis.service.gasparyansokrat;
 
 import one.nio.http.Request;
 import one.nio.http.Response;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.Record;
 
 import java.io.IOException;
-import java.net.HttpURLConnection;
-import java.net.http.HttpResponse;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
-import java.util.concurrent.CompletableFuture;
 
 public class ServiceDAO {
 
     private final DAO refDao;
-    private static final Logger LOG = LoggerFactory.getLogger(ServiceDAO.class);
 
     ServiceDAO(DAO dao) {
         this.refDao = dao;
@@ -53,47 +47,21 @@ public class ServiceDAO {
     /**
      * some doc.
      */
-    public Response handleRequest(final String id, final Request request) throws IOException {
+    public Response handleRequest(final RequestParameters params) throws IOException {
 
         try {
-            switch (request.getMethod()) {
+            switch (params.getHttpMethod()) {
                 case Request.METHOD_GET:
-                    return get(id);
+                    return get(params.getId());
                 case Request.METHOD_PUT:
-                    return put(id, request.getBody());
+                    return put(params.getId(), params.getBodyRequest());
                 case Request.METHOD_DELETE:
-                    return delete(id);
+                    return delete(params.getId());
                 default:
                     return new Response(Response.METHOD_NOT_ALLOWED, "Bad request".getBytes(StandardCharsets.UTF_8));
             }
         } catch (IOException e) {
             throw new IOException("Error access DAO", e);
         }
-    }
-
-    public CompletableFuture<HttpResponse<byte[]>> asyncHandleRequest(final String id,
-                                                                      final RequestParameters params) {
-        return CompletableFuture.supplyAsync(() -> {
-            try {
-                switch (params.getHttpMethod()) {
-                    case Request.METHOD_GET:
-                        final Response getResponse = get(id);
-                        return DummyResponses.buildResponse(getResponse.getStatus(), getResponse.getBody());
-                    case Request.METHOD_PUT:
-                        final Response putResponse = put(id, params.getBodyRequest());
-                        return DummyResponses.buildResponse(putResponse.getStatus(), putResponse.getBody());
-                    case Request.METHOD_DELETE:
-                        final Response delResponse = delete(id);
-                        return DummyResponses.buildResponse(delResponse.getStatus(), delResponse.getBody());
-                    default:
-                        return DummyResponses.buildResponse(HttpURLConnection.HTTP_BAD_METHOD, new byte[0]);
-                }
-            } catch (IOException e) {
-                LOG.error("Error access DAO {}", e.getMessage());
-                return DummyResponses.buildResponse(HttpURLConnection.HTTP_GATEWAY_TIMEOUT,
-                                                        ServiceImpl.BAD_REQUEST.getBytes(StandardCharsets.UTF_8));
-            }
-        });
-
     }
 }
