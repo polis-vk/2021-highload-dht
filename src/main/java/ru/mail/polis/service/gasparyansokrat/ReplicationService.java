@@ -84,9 +84,9 @@ public class ReplicationService {
         List<CompletableFuture<HttpResponse<byte[]>>> responses = new ArrayList<>();
         for (String node : nodes) {
             if (node.equals(selfNode)) {
-                responses.add(serviceDAO.asyncHandleRequest(params.getId(), params));
+                responses.add(serviceDAO.asyncHandleRequest(params.getStartKey(), params));
             } else {
-                responses.add(externalRequest(params.getId(), params, node));
+                responses.add(externalRequest(params.getStartKey(), params, node));
             }
         }
 
@@ -95,6 +95,10 @@ public class ReplicationService {
 
     public Response directRequest(final String id, final Request request) throws IOException {
         return serviceDAO.handleRequest(id, request);
+    }
+
+    public DataTransferChunk getRangeRequest(final String startKey, final String endKey) {
+        return DataTransferChunk.build(serviceDAO.getRange(startKey, endKey));
     }
 
 }

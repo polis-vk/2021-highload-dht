@@ -9,7 +9,10 @@ import ru.mail.polis.lsm.Record;
 import java.io.IOException;
 import java.net.http.HttpClient;
 import java.nio.ByteBuffer;
+import java.nio.CharBuffer;
+import java.nio.charset.StandardCharsets;
 import java.sql.Timestamp;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -51,11 +54,7 @@ public class ClusterService {
 
     public void handleRequest(final HttpSession session,
                               final RequestParameters params) throws IOException {
-        if (params.getId().isEmpty()) {
-            session.sendResponse(badRequest());
-            return;
-        }
-        if (!validParameter(params.getAck(), params.getFrom())) {
+        if (params.getStartKey().isEmpty() || !validParameter(params.getAck(), params.getFrom())) {
             session.sendResponse(badRequest());
             return;
         }
@@ -63,9 +62,24 @@ public class ClusterService {
             addTimeStamp(params);
         }
 
-        final List<String> nodes = clusterNodes.getNodes(params.getId(), params.getFrom());
-
+        final List<String> nodes = clusterNodes.getNodes(params.getStartKey(), params.getFrom());
         replicationService.handleRequest(params, session, nodes);
+    }
+
+    public void handleRangeRequest(final HttpSession session,
+                                   final RequestParameters params) throws IOException {
+        final String startKey = params.getStartKey();
+        if (startKey.isEmpty()) {
+            session.sendResponse(badRequest());
+            return;
+        }
+        final String endKey = params.getEndKey();
+        DataTransferChunk rangeData = replicationService.getRangeRequest(startKey, endKey);
+        StreamHttpSession streamHttpSession = (StreamHttpSession) session;
+        Response response = new Response(Response.OK);
+        response.addHeader("Transfer-Encoding: chunked");
+
+        streamHttpSession.sendResponseSupplier(response, () -> rangeData.getChunk());
     }
 
     private void addTimeStamp(RequestParameters params) {

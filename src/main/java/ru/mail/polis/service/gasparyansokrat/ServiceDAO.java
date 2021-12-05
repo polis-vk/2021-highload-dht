@@ -35,6 +35,13 @@ public class ServiceDAO {
         }
     }
 
+    protected Iterator<Record> getRange(final String startKey, final String endKey) {
+        ByteBuffer start = ByteBuffer.wrap(startKey.getBytes(StandardCharsets.UTF_8));
+        ByteBuffer end = endKey.isEmpty() ? null : ByteBuffer.wrap(endKey.getBytes(StandardCharsets.UTF_8));
+        Iterator<Record> rangeIt = refDao.range(start, end);
+        return rangeIt;
+    }
+
     protected Response put(final String id, final byte[] data) {
         ByteBuffer key = ByteBuffer.wrap(id.getBytes(StandardCharsets.UTF_8));
         ByteBuffer payload = ByteBuffer.wrap(data);

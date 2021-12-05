@@ -4,6 +4,7 @@ import one.nio.http.HttpServer;
 import one.nio.http.HttpSession;
 import one.nio.http.Request;
 import one.nio.http.Response;
+import one.nio.net.Socket;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.lsm.DAO;
@@ -11,9 +12,11 @@ import ru.mail.polis.service.Service;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
+import java.util.function.Supplier;
 
 public class ServiceImpl extends HttpServer implements Service {
 
@@ -30,6 +33,11 @@ public class ServiceImpl extends HttpServer implements Service {
         super(HttpConfigFactory.buildHttpConfig(servConf));
         this.executor = (ThreadPoolExecutor) Executors.newFixedThreadPool(servConf.poolSize);
         this.clusterService = new ClusterService(dao, topology, servConf);
+    }
+
+    @Override
+    public HttpSession createSession(Socket socket) {
+        return new StreamHttpSession(socket, this);
     }
 
     public Response status() {
@@ -49,6 +57,9 @@ public class ServiceImpl extends HttpServer implements Service {
                     case "/v0/entity":
                         handleEntity(request, session);
                         break;
+                    case "/v0/entities":
+                        handleRangeRequest(request, session);
+                        break;
                     case "/internal/cluster/entity":
                         resp = internalRequest(request);
                         session.sendResponse(resp);
@@ -59,7 +70,7 @@ public class ServiceImpl extends HttpServer implements Service {
                         break;
                 }
             } catch (IOException e) {
-                LOG.error("Error in handle entity {}", e.getMessage());
+                LOG.error("Error in handle entities response {}", e.getMessage());
             }
         });
     }
@@ -82,7 +93,17 @@ public class ServiceImpl extends HttpServer implements Service {
     public Response internalRequest(final Request request) throws IOException {
         try {
             RequestParameters params = new RequestParameters(request, clusterService);
-            return clusterService.internalRequest(request, params.getId());
+            return clusterService.internalRequest(request, params.getStartKey());
+        } catch (IOException e) {
+            throw new UncheckedIOException(BAD_REQUEST, e);
+        }
+    }
+
+    private void handleRangeRequest(final Request request,
+                                    final HttpSession session) {
+        try {
+            RequestParameters params = new RequestParameters(request, clusterService);
+            clusterService.handleRangeRequest(session, params);
         } catch (IOException e) {
             throw new UncheckedIOException(BAD_REQUEST, e);
         }

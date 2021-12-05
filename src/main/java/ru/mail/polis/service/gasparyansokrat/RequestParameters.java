@@ -7,33 +7,24 @@ import java.util.Iterator;
 
 public class RequestParameters {
 
-    private int httpMethod;
+    private final int httpMethod;
     private int ack;
     private int from;
-    private String id;
+    private final String startKey;
+    private final String endKey;
     private byte[] bodyRequest;
 
     public RequestParameters(final Request request, final ClusterService clusterService) {
         this.httpMethod = request.getMethod();
-        this.id = getParamRequest(request, "id");
-        String ackFrom = getParamRequest(request, "replicas");
-        if (ackFrom.isEmpty()) {
-            this.ack = clusterService.getQuorumCluster();
-            this.from = clusterService.getClusterSize();
+        final String tmpKey = getParamRequest(request, "start");
+        if (tmpKey.isEmpty()) {
+            this.startKey = getParamRequest(request, "id");
         } else {
-            String[] ackfrom = ackFrom.split("/");
-            this.ack = Integer.parseInt(ackfrom[0]);
-            this.from = Integer.parseInt(ackfrom[1]);
+            this.startKey = tmpKey;
         }
+        this.endKey = getParamRequest(request, "end");
+        parseAckFrom(request, clusterService);
         this.bodyRequest = request.getBody();
-    }
-
-    public RequestParameters(final int ack, final int from,
-                             final String id, final int httpMethod) {
-        this.httpMethod = httpMethod;
-        this.ack = ack;
-        this.from = from;
-        this.id = id;
     }
 
     public int getAck() {
@@ -44,20 +35,12 @@ public class RequestParameters {
         return from;
     }
 
-    public String getId() {
-        return id;
+    public String getStartKey() {
+        return startKey;
     }
 
-    public void setAck(final int ack) {
-        this.ack = ack;
-    }
-
-    public void setFrom(final int from) {
-        this.from = from;
-    }
-
-    public void setId(final String id) {
-        this.id = id;
+    public String getEndKey() {
+        return endKey;
     }
 
     private String getParamRequest(final Request request, final String nameParam) {
@@ -69,15 +52,23 @@ public class RequestParameters {
         return httpMethod;
     }
 
-    public void setHttpMethod(int method) {
-        this.httpMethod = method;
-    }
-
     public byte[] getBodyRequest() {
         return Arrays.copyOf(bodyRequest, bodyRequest.length);
     }
 
     public void setBodyRequest(byte[] bodyRequest) {
         this.bodyRequest = Arrays.copyOf(bodyRequest, bodyRequest.length);
+    }
+
+    private void parseAckFrom(final Request request, final ClusterService clusterService) {
+        String ackFrom = getParamRequest(request, "replicas");
+        if (ackFrom.isEmpty()) {
+            this.ack = clusterService.getQuorumCluster();
+            this.from = clusterService.getClusterSize();
+        } else {
+            String[] ackfrom = ackFrom.split("/");
+            this.ack = Integer.parseInt(ackfrom[0]);
+            this.from = Integer.parseInt(ackfrom[1]);
+        }
     }
 }
