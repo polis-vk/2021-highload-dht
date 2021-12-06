@@ -39,6 +39,10 @@
         <exclude name="TooManyMethods"/>
         <exclude name="GodClass"/>
     </rule>
+    <rule ref="category/java/errorprone.xml">
+        <exclude name="ReturnEmptyArrayRatherThanNull"/>
+        <exclude name="ReturnEmptyCollectionRatherThanNull"/>
+    </rule>
     <rule ref="category/java/design.xml/CyclomaticComplexity">
         <properties>
             <property name="classReportLevel" value="80"/>
@@ -58,9 +62,6 @@
     <rule ref="category/java/performance.xml">
         <exclude name="AvoidInstantiatingObjectsInLoops"/>
         <exclude name="AvoidUsingShortType"/>
-    </rule>
-    <rule ref="category/java/errorprone.xml">
-        <exclude name="ReturnEmptyArrayRatherThanNull"/>
     </rule>
     <rule ref="category/java/security.xml"/>
 
