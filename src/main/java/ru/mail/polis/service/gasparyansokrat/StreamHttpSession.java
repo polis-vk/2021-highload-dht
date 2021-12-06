@@ -40,7 +40,7 @@ public class StreamHttpSession extends HttpSession {
         if (dataSupplier != null) {
             while (queueHead == null) {
                 byte[] data = dataSupplier.get();
-                if (data == null) {
+                if (data.length == 0) {
                     super.scheduleClose();
                     return;
                 }

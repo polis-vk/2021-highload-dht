@@ -36,7 +36,7 @@ final class DataTransferChunk {
 
     public byte[] getChunk() {
         if (isEnd) {
-            return null;
+            return new byte[0];
         }
         CharBuffer chunk;
         if (current.hasNext()) {
