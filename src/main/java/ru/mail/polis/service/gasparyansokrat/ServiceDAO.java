@@ -2,8 +2,6 @@ package ru.mail.polis.service.gasparyansokrat;
 
 import one.nio.http.Request;
 import one.nio.http.Response;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.Record;
 
@@ -15,7 +13,6 @@ import java.util.Iterator;
 public class ServiceDAO {
 
     private final DAO refDao;
-    private static final Logger LOG = LoggerFactory.getLogger(ServiceDAO.class);
 
     ServiceDAO(DAO dao) {
         this.refDao = dao;
@@ -35,8 +32,7 @@ public class ServiceDAO {
     protected Iterator<Record> getRange(final String startKey, final String endKey) {
         ByteBuffer start = ByteBuffer.wrap(startKey.getBytes(StandardCharsets.UTF_8));
         ByteBuffer end = endKey.isEmpty() ? null : ByteBuffer.wrap(endKey.getBytes(StandardCharsets.UTF_8));
-        Iterator<Record> rangeIt = refDao.range(start, end);
-        return rangeIt;
+        return refDao.range(start, end);
     }
 
     protected Response put(final String id, final byte[] data) {

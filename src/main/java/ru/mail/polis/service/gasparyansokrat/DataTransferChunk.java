@@ -5,10 +5,9 @@ import ru.mail.polis.lsm.Record;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.Iterator;
 
-public class DataTransferChunk {
+final class DataTransferChunk {
 
     private final Iterator<Record> data;
     private Iterator<Record> current;
@@ -16,8 +15,7 @@ public class DataTransferChunk {
 
     public static final String ENDS = "0\r\n\r\n";
 
-
-    private DataTransferChunk (final Iterator<Record> data) {
+    private DataTransferChunk(final Iterator<Record> data) {
         this.data = data;
         this.current = data;
         this.isEnd = false;
@@ -60,7 +58,7 @@ public class DataTransferChunk {
         final String key = StandardCharsets.UTF_8.decode(record.getKey()).toString();
         final String value = StandardCharsets.UTF_8.decode(record.getValue()).toString();
         final String chunkSize = Integer.toHexString(key.length() + value.length() + 1);
-        final int totalSize = chunkSize.length() + key.length() + value.length() + 5*Byte.BYTES;
+        final int totalSize = chunkSize.length() + key.length() + value.length() + 5 * Byte.BYTES;
         CharBuffer tmpChunk = CharBuffer.allocate(totalSize);
         tmpChunk.put(chunkSize);
         tmpChunk.put("\r\n");

@@ -59,6 +59,9 @@
         <exclude name="AvoidInstantiatingObjectsInLoops"/>
         <exclude name="AvoidUsingShortType"/>
     </rule>
+    <rule ref="category/java/errorprone.xml">
+        <exclude name="ReturnEmptyArrayRatherThanNull"/>
+    </rule>
     <rule ref="category/java/security.xml"/>
 
 </ruleset>

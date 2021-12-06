@@ -38,7 +38,7 @@ public class StreamHttpSession extends HttpSession {
 
     private void processChain() throws IOException {
         if (dataSupplier != null) {
-            while(queueHead == null) {
+            while (queueHead == null) {
                 byte[] data = dataSupplier.get();
                 if (data == null) {
                     super.scheduleClose();
