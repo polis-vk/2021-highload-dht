@@ -56,7 +56,7 @@ public class LimitedServiceExecutor implements ServiceExecutor {
 
     @Override
     public void execute(Session session, ExceptionHandler handler, ServiceRunnable runnable) {
-        if (!requestExecute()) {
+        if (!reserveQueue(1)) {
             handler.handleException(session, ServiceOverloadException.INSTANCE);
             return;
         }
@@ -84,19 +84,21 @@ public class LimitedServiceExecutor implements ServiceExecutor {
     }
 
     @Override
-    public boolean externalRequestExecute(int tasksNum) {
-        int v;
+    public boolean reserveQueue(int tasksNum) {
+        int v1;
+        int v2;
         do {
-            v = queueSize.get();
-            if (v + tasksNum > queueLimit) {
+            v1 = queueSize.get();
+            v2 = v1 + tasksNum;
+            if (v2 > queueLimit) {
                 return false;
             }
-        } while (!queueSize.compareAndSet(v, v + tasksNum));
+        } while (!queueSize.compareAndSet(v1, v2));
         return true;
     }
 
     @Override
-    public void externalMarkExecuted() {
+    public void releaseQueueOnce() {
         queueSize.decrementAndGet();
     }
 
@@ -114,17 +116,6 @@ public class LimitedServiceExecutor implements ServiceExecutor {
             LOG.error("Error: executor can't shutdown on its own", e);
             Thread.currentThread().interrupt();
         }
-    }
-
-    private boolean requestExecute() {
-        int v;
-        do {
-            v = queueSize.get();
-            if (v > queueLimit) {
-                return false;
-            }
-        } while (!queueSize.compareAndSet(v, v + 1));
-        return true;
     }
 
     private static ForkJoinPool.ForkJoinWorkerThreadFactory createForkJoinThreadFactory(

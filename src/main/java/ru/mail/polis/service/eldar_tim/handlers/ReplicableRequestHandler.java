@@ -115,7 +115,7 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
             int ack, List<Cluster.Node> replicas, Request request
     ) {
         int replicasNum = replicas.contains(self) ? replicas.size() - 1 : replicas.size();
-        if (!proxies.externalRequestExecute(replicasNum)) {
+        if (!proxies.reserveQueue(replicasNum)) {
             throw ServiceOverloadException.INSTANCE;
         }
 
@@ -130,7 +130,7 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
                 future = localHandler = new CompletableFuture<>();
             } else {
                 future = handleRemotelyAsync(target, request);
-                future.whenComplete((r, t) -> proxies.externalMarkExecuted());
+                future.whenComplete((r, t) -> proxies.releaseQueueOnce());
             }
             future.whenComplete((r, t) -> handler.parse(r));
         }

@@ -11,9 +11,9 @@ public interface ServiceExecutor extends Executor {
 
     void run(Session session, ExceptionHandler handler, ServiceRunnable runnable);
 
-    boolean externalRequestExecute(int tasksNum);
+    boolean reserveQueue(int tasksNum);
 
-    void externalMarkExecuted();
+    void releaseQueueOnce();
 
     void awaitAndShutdown();
 
