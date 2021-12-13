@@ -1,7 +1,5 @@
 package ru.mail.polis.lsm.artem_drozdov;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.DAOConfig;
 import ru.mail.polis.lsm.Record;
@@ -11,17 +9,19 @@ import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.List;
 import java.util.Collections;
+import java.util.Iterator;
+import java.util.List;
 import java.util.NavigableMap;
 import java.util.NoSuchElementException;
-import java.util.Iterator;
 import java.util.SortedMap;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicInteger;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class LsmDAO implements DAO {
 
@@ -52,13 +52,13 @@ public class LsmDAO implements DAO {
     @Override
     public void upsert(Record record) {
         int actualMemoryConsumption = memoryConsumption.addAndGet(sizeOf(record));
-        if(actualMemoryConsumption > config.memoryLimit){
+        if (actualMemoryConsumption > config.memoryLimit){
             //logger.info("Going to flush...{}",actualMemoryConsumption);
             synchronized (this){
-                if(memoryConsumption.get() > config.memoryLimit){
+                if(memoryConsumption.get() > config.memoryLimit) {
                     int oldMemoryConsumption = memoryConsumption.getAndSet(sizeOf(record));
-                    flushCompletable = CompletableFuture.runAsync(() ->{
-                        try{
+                    flushCompletable = CompletableFuture.runAsync(() -> {
+                        try {
                             //logger.info("Flush started..");
                             storage = storage.prepareFlush();
                             SSTable ssTable = flush();
@@ -74,7 +74,7 @@ public class LsmDAO implements DAO {
                         }
                     }, flushExecutor);
                     awaitTaskComplete();
-                } else{
+                } else {
                     logger.info("Concurrent flush...");
                 }
             }
@@ -82,7 +82,7 @@ public class LsmDAO implements DAO {
         storage.currentStorage.put(record.getKey(),record);
     }
 
-    private boolean needCompact(){
+    private boolean needCompact() {
         return storage.tables.size() > config.maxTables;
     }
 
@@ -95,7 +95,7 @@ public class LsmDAO implements DAO {
         });
     }
 
-    private void performCompact(){
+    private void performCompact() {
         try {
             if (!needCompact()) {
                 return;
@@ -113,13 +113,13 @@ public class LsmDAO implements DAO {
             logger.error("Can't compact...", e);
         }
     }
-    private void awaitTaskComplete(){
-        if (flushCompletable == null){
+    private void awaitTaskComplete() {
+        if (flushCompletable == null) {
             return;
         }
-        try{
+        try {
             flushCompletable.get();
-        } catch (InterruptedException | ExecutionException e ){
+        } catch (InterruptedException | ExecutionException e ) {
             Thread.currentThread().interrupt();
             logger.error("Can't wait future complete execution....",e);
         }
@@ -151,7 +151,7 @@ public class LsmDAO implements DAO {
         return merge(iterators);
     }
 
-    private SortedMap<ByteBuffer, Record> map(NavigableMap<ByteBuffer,Record>storage,@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
+    private SortedMap<ByteBuffer, Record> map(NavigableMap<ByteBuffer,Record> storage,@Nullable ByteBuffer fromKey, @Nullable ByteBuffer toKey) {
         if (fromKey == null && toKey == null) {
             return storage;
         }
