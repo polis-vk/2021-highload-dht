@@ -52,7 +52,7 @@ public class SSTable implements Closeable {
                 FileChannel fileChannel = openForWrite(tmpFileName);
                 FileChannel indexChannel = openForWrite(tmpIndexName)
         ) {
-            ByteBuffer size = ByteBuffer.allocate(Integer.BYTES + MAX_BUFFER_SIZE );
+            ByteBuffer size = ByteBuffer.allocate(Integer.BYTES + MAX_BUFFER_SIZE);
             while (records.hasNext()) {
                 long position = fileChannel.position();
                 if (position > Integer.MAX_VALUE) {
