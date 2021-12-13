@@ -10,7 +10,7 @@ import java.util.concurrent.TimeUnit;
 public final class ThreadPoolExecutorUtil {
     public final Logger logger = LoggerFactory.getLogger(ThreadPoolExecutorUtil.class);
     public final int corePoolSize;
-    public static final int maximumPool = 4;
+    public static final int pool = 4;
     public final long keepAliveTime;
     public final int capacity;
     public final ThreadPoolExecutor threadPoolExecutor;
@@ -24,7 +24,7 @@ public final class ThreadPoolExecutorUtil {
         this.corePoolSize = corePoolSize;
         this.keepAliveTime = keepAliveTime;
         BlockingQueue<Runnable> blockingQueue = new ArrayBlockingQueue<>(this.capacity);
-        threadPoolExecutor = new ThreadPoolExecutor(this.corePoolSize, this.maximumPoolSize, 
+        threadPoolExecutor = new ThreadPoolExecutor(this.corePoolSize, this.pool, 
                                                     this.keepAliveTime, TimeUnit.NANOSECONDS, 
                                                     blockingQueue);
         threadPoolExecutor.prestartAllCoreThreads();
