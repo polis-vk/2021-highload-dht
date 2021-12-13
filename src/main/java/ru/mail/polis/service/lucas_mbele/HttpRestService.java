@@ -1,11 +1,11 @@
 package ru.mail.polis.service.lucas_mbele;
 
-import one.nio.http.HttpServer;
-import one.nio.http.Param;
-import one.nio.http.HttpSession;
-import one.nio.http.HttpClient;
-import one.nio.http.HttpServerConfig;
 import one.nio.http.HttpException;
+import one.nio.http.HttpClient;
+import one.nio.http.HttpServer;
+import one.nio.http.HttpServerConfig;
+import one.nio.http.HttpSession;
+import one.nio.http.Param;
 import one.nio.http.Request;
 import one.nio.http.Response;
 import one.nio.net.ConnectionString;
@@ -21,18 +21,17 @@ import java.io.UncheckedIOException;
 import java.net.MalformedURLException;
 import java.net.URL;
 import java.nio.ByteBuffer;
-import java.util.Set;
-import java.util.Map;
-import java.util.LinkedHashMap;
-import java.util.Iterator;
 import java.nio.charset.StandardCharsets;
+import java.util.Iterator;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 
 
 public class HttpRestService extends HttpServer implements Service {
-
-    private final Logger LOGGER = LoggerFactory.getLogger(HttpRestService.class);
+    private final Logger logger = LoggerFactory.getLogger(HttpRestService.class);
     private final DAO dao;
     private final ThreadPoolExecutor threadPoolExecutorUtil;
     private final NodesClusterService nodesClusterService;
@@ -167,20 +166,20 @@ public class HttpRestService extends HttpServer implements Service {
             }
         }
 
-        public Response handleRequest( String key, Request request) {
-            String ResponsibleNode = rendezvousHashing.getResponsibleNode(key);
+        public Response handleRequest(String key, Request request) {
+            String responsibleNode = rendezvousHashing.getResponsibleNode(key);
             Response response;
-            if (!currentNode.equals(ResponsibleNode)) {
+            if (!currentNode.equals(responsibleNode)) {
                 response = Response.ok(Response.EMPTY);
                 final String uri = "/v0/entity?id=";
                 int inquiredMethod = request.getMethod();
                 try {
                     if (inquiredMethod == Request.METHOD_PUT) {
-                        response = nodesMap.get(ResponsibleNode).put(uri + key, request.getBody());
-                    } else if(inquiredMethod == Request.METHOD_GET) {
-                        response = nodesMap.get(ResponsibleNode).get(uri + key);
-                    } else if(inquiredMethod == Request.METHOD_DELETE) {
-                        response = nodesMap.get(ResponsibleNode).delete(uri + key);
+                        response = nodesMap.get(responsibleNode).put(uri + key, request.getBody());
+                    } else if (inquiredMethod == Request.METHOD_GET) {
+                        response = nodesMap.get(responsibleNode).get(uri + key);
+                    } else if (inquiredMethod == Request.METHOD_DELETE) {
+                        response = nodesMap.get(responsibleNode).delete(uri + key);
                     } else {
                         response = new Response(Response.METHOD_NOT_ALLOWED,
                                 "Method not allowed".getBytes(StandardCharsets.UTF_8));
@@ -188,7 +187,7 @@ public class HttpRestService extends HttpServer implements Service {
                 } catch (InterruptedException | PoolException | IOException | HttpException e) {
                     logger.error(e.getLocalizedMessage());
                 }
-            } else{
+            } else {
                 response = HttpRestService.this.entity(request,key);
             }
             return response;
