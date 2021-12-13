@@ -23,7 +23,6 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
-
 public class LsmDAO implements DAO {
 
     @SuppressWarnings({"FieldCanBeLocal", "unused"})
@@ -55,7 +54,7 @@ public class LsmDAO implements DAO {
         int actualMemoryConsumption = memoryConsumption.addAndGet(sizeOf(record));
         if (actualMemoryConsumption > config.memoryLimit) {
             synchronized (this) {
-                if(memoryConsumption.get() > config.memoryLimit) {
+                if (memoryConsumption.get() > config.memoryLimit) {
                     int oldMemoryConsumption = memoryConsumption.getAndSet(sizeOf(record));
                     flushCompletable = CompletableFuture.runAsync(() -> {
                         try {
