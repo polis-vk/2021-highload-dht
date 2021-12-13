@@ -8,13 +8,13 @@ import java.util.List;
 import java.util.NavigableMap;
 import java.util.concurrent.ConcurrentSkipListMap;
 
-public class Storage {
+public final class Storage {
     final NavigableMap<ByteBuffer, Record> currentStorage;
     final NavigableMap<ByteBuffer, Record> tmpStorage;
     final List<SSTable> tables;
 
     private Storage(NavigableMap<ByteBuffer,Record> currentStorage,NavigableMap<ByteBuffer,Record> tmpStorage,
-                                    List<SSTable> ssTableList){
+                                    List<SSTable> ssTableList) {
         this.currentStorage = currentStorage;
         this.tmpStorage = tmpStorage;
         this.tables = ssTableList;
