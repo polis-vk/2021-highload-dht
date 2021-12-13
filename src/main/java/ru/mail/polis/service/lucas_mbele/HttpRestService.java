@@ -29,7 +29,6 @@ import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ThreadPoolExecutor;
 
-
 public class HttpRestService extends HttpServer implements Service {
     private final Logger logger = LoggerFactory.getLogger(HttpRestService.class);
     private final DAO dao;
@@ -39,8 +38,8 @@ public class HttpRestService extends HttpServer implements Service {
     public HttpRestService(final int port, final DAO dao, final Set<String> topology) throws IOException {
         super(serviceConfig(port));
         this.dao = dao;
-        this.threadPoolExecutorUtil = (ThreadPoolExecutor) Executors.newFixedThreadPool
-            (Runtime.getRuntime().availableProcessors());
+        this.threadPoolExecutorUtil = (ThreadPoolExecutor) Executors.
+            newFixedThreadPool(Runtime.getRuntime().availableProcessors());
         this.nodesClusterService = new NodesClusterService(topology, port);
     }
 
