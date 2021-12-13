@@ -28,6 +28,7 @@ public class DAOConfig {
     public DAOConfig(Path dir) {
         this(dir, DEFAULT_MEMORY_LIMIT);
     }
+    
     public DAOConfig(Path dir, int memoryLimit) {
         this(dir, memoryLimit, DEFAULT_MAX_TABLES);
     }
