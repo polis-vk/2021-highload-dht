@@ -2,15 +2,15 @@ package ru.mail.polis.service.lucas_mbele;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 public final class ThreadPoolExecutorUtil {
     private final Logger logger = LoggerFactory.getLogger(ThreadPoolExecutorUtil.class);
     private final int corePoolSize;
-    private final static int maximumPoolSize = 4;
+    private static final int maximumPoolSize = 4;
     private final long keepAliveTime;
     private final int capacity;
     private final ThreadPoolExecutor threadPoolExecutor;
