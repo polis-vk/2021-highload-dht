@@ -2,17 +2,18 @@ package ru.mail.polis.service.lucas_mbele;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import java.util.concurrent.BlockingQueue
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
-public class ThreadPoolExecutorUtil {
-    private Logger logger = LoggerFactory.getLogger(ThreadPoolExecutorUtil.class);
+public final class ThreadPoolExecutorUtil {
+    private final Logger logger = LoggerFactory.getLogger(ThreadPoolExecutorUtil.class);
     private final int corePoolSize;
-    private final int maximumPoolSize = 4;
+    private final static int maximumPoolSize = 4;
     private final long keepAliveTime;
     private final int capacity;
-    private ThreadPoolExecutor threadPoolExecutor;
+    private final ThreadPoolExecutor threadPoolExecutor;
     
     public static ThreadPoolExecutorUtil init() {
         return new ThreadPoolExecutorUtil(2,Long.MAX_VALUE,100);
@@ -22,7 +23,7 @@ public class ThreadPoolExecutorUtil {
         this.capacity = capacity;
         this.corePoolSize = corePoolSize;
         this.keepAliveTime = keepAliveTime;
-        BlockingQueue<Runnable> blockingQueue =  new ArrayBlockingQueue<>(this.capacity);
+        BlockingQueue<Runnable> blockingQueue = new ArrayBlockingQueue<>(this.capacity);
         threadPoolExecutor = new ThreadPoolExecutor(this.corePoolSize, this.maximumPoolSize, 
                                                     this.keepAliveTime, TimeUnit.NANOSECONDS, 
                                                     blockingQueue);
