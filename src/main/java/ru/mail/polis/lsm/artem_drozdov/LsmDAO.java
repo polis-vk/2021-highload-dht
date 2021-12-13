@@ -97,14 +97,8 @@ public class LsmDAO implements DAO {
             if (!needCompact()) {
                 return;
             }
-            SSTable compactTable;
-            try {
-                compactTable = SSTable.compact(config.dir, range(null, null));
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
+            SSTable compactTable = SSTable.compact(config.dir, range(null, null));           
             storage = storage.afterCompaction(compactTable);
-            //logger.info("Compact finished...");
         } catch (Exception e) {
             logger.error("Can't compact...", e);
         }
