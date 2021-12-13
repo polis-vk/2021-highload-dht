@@ -151,7 +151,7 @@ public class HttpRestService extends HttpServer implements Service {
             buildTopology(topology);
         }
 
-        public void buildTopology(Set<String> topology) {
+        public final void buildTopology(Set<String> topology) {
             for (String node : topology) {
                 try {
                     URL url = new URL(node);
