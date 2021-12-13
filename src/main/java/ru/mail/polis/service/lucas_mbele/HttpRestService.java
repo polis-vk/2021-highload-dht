@@ -1,7 +1,7 @@
 package ru.mail.polis.service.lucas_mbele;
 
-import one.nio.http.HttpException;
 import one.nio.http.HttpClient;
+import one.nio.http.HttpException;
 import one.nio.http.HttpServer;
 import one.nio.http.HttpServerConfig;
 import one.nio.http.HttpSession;
@@ -39,7 +39,8 @@ public class HttpRestService extends HttpServer implements Service {
     public HttpRestService(final int port, final DAO dao, final Set<String> topology) throws IOException {
         super(serviceConfig(port));
         this.dao = dao;
-        this.threadPoolExecutorUtil = (ThreadPoolExecutor) Executors.newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+        this.threadPoolExecutorUtil = (ThreadPoolExecutor) Executors.newFixedThreadPool
+            (Runtime.getRuntime().availableProcessors());
         this.nodesClusterService = new NodesClusterService(topology, port);
     }
 
@@ -97,7 +98,7 @@ public class HttpRestService extends HttpServer implements Service {
                         break;
                 }
             } catch (IOException e) {
-                LOGGER.error(e.getLocalizedMessage());
+                logger.error(e.getLocalizedMessage());
             }
         });
     }
