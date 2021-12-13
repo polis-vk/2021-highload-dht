@@ -148,10 +148,10 @@ public class HttpRestService extends HttpServer implements Service {
             this.port = port;
             this.rendezvousHashing = new RendezvousHashingImpl(topology);
             nodesMap = new LinkedHashMap<>();
-            init(topology);
+            buildTopology(topology);
         }
 
-        public void init(Set<String> topology) {
+        public void buildTopology(Set<String> topology) {
             for (String node : topology) {
                 try {
                     URL url = new URL(node);
