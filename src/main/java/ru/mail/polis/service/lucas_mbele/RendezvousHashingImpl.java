@@ -23,7 +23,7 @@ public class RendezvousHashingImpl implements RendezvousHashing {
         int score;
         for (String node : topology) {
             String nodeKey = key + node;
-            score =  hashFunction.hash32(nodeKey.getBytes(StandardCharsets.UTF_8),key.length());
+            score = hashFunction.hash32(nodeKey.getBytes(StandardCharsets.UTF_8),key.length());
             if (score > maxValue) {
                 responsibleNode = node;
                 maxValue = score;
