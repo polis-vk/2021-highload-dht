@@ -38,8 +38,8 @@ public class HttpRestService extends HttpServer implements Service {
     public HttpRestService(final int port, final DAO dao, final Set<String> topology) throws IOException {
         super(serviceConfig(port));
         this.dao = dao;
-        this.threadPoolExecutorUtil = (ThreadPoolExecutor) Executors.
-            newFixedThreadPool(Runtime.getRuntime().availableProcessors());
+        this.threadPoolExecutorUtil = (ThreadPoolExecutor) Executors
+            .newFixedThreadPool(Runtime.getRuntime().availableProcessors());
         this.nodesClusterService = new NodesClusterService(topology, port);
     }
 
@@ -137,14 +137,14 @@ public class HttpRestService extends HttpServer implements Service {
         return new Response(Response.ACCEPTED, Response.EMPTY);
     }
 
-    class NodesClusterService {
+   public class NodesClusterService {
         private final Logger logger = LoggerFactory.getLogger(NodesClusterService.class);
         private final RendezvousHashingImpl rendezvousHashing;
         private final Map<String, HttpClient> nodesMap;
         private String currentNode;
         private final int port;
 
-        public NodesClusterService(final Set<String> topology, int port) {
+        NodesClusterService(final Set<String> topology, int port) {
             this.port = port;
             this.rendezvousHashing = new RendezvousHashingImpl(topology);
             nodesMap = new LinkedHashMap<>();
@@ -169,7 +169,9 @@ public class HttpRestService extends HttpServer implements Service {
         public Response handleRequest(String key, Request request) {
             String responsibleNode = rendezvousHashing.getResponsibleNode(key);
             Response response;
-            if (!currentNode.equals(responsibleNode)) {
+            if (currentNode.equals(responsibleNode)) {
+                response = HttpRestService.this.entity(request,key);
+            } else {
                 response = Response.ok(Response.EMPTY);
                 final String uri = "/v0/entity?id=";
                 int inquiredMethod = request.getMethod();
@@ -187,8 +189,6 @@ public class HttpRestService extends HttpServer implements Service {
                 } catch (InterruptedException | PoolException | IOException | HttpException e) {
                     logger.error(e.getLocalizedMessage());
                 }
-            } else {
-                response = HttpRestService.this.entity(request,key);
             }
             return response;
         }
