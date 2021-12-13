@@ -8,12 +8,12 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 public final class ThreadPoolExecutorUtil {
-    private final Logger logger = LoggerFactory.getLogger(ThreadPoolExecutorUtil.class);
-    private final int corePoolSize;
-    private static final int maximumPoolSize = 4;
-    private final long keepAliveTime;
-    private final int capacity;
-    private final ThreadPoolExecutor threadPoolExecutor;
+    public final Logger logger = LoggerFactory.getLogger(ThreadPoolExecutorUtil.class);
+    public final int corePoolSize;
+    public static final int maximumPool = 4;
+    public final long keepAliveTime;
+    public final int capacity;
+    public final ThreadPoolExecutor threadPoolExecutor;
     
     public static ThreadPoolExecutorUtil init() {
         return new ThreadPoolExecutorUtil(2,Long.MAX_VALUE,100);
