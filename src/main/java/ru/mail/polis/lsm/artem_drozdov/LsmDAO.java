@@ -27,7 +27,7 @@ public class LsmDAO implements DAO {
 
     @SuppressWarnings({"FieldCanBeLocal", "unused"})
     private final DAOConfig config;
-    private final Logger LOGGER = LoggerFactory.getLogger(LsmDAO.class);
+    private final Logger LOG = LoggerFactory.getLogger(LsmDAO.class);
     private final AtomicInteger memoryConsumption = new AtomicInteger();
     private final ExecutorService flushExecutor = Executors.newSingleThreadExecutor();
     private final ExecutorService compactExecutor = Executors.newSingleThreadExecutor();
@@ -72,7 +72,7 @@ public class LsmDAO implements DAO {
                     }, flushExecutor);
                     awaitTaskComplete();
                 } else {
-                    LOGGER.info("Concurrent flush...");
+                    LOG.info("Concurrent flush...");
                 }
             }
         }
@@ -100,7 +100,7 @@ public class LsmDAO implements DAO {
             SSTable compactTable = SSTable.compact(config.dir, range(null, null));           
             storage = storage.afterCompaction(compactTable);
         } catch (Exception e) {
-            LOGGER.error("Can't compact...", e);
+            LOG.error("Can't compact...", e);
         }
     }
     
@@ -112,7 +112,7 @@ public class LsmDAO implements DAO {
             flushCompletable.get();
         } catch (InterruptedException | ExecutionException e) {
             Thread.currentThread().interrupt();
-            LOGGER.error("Can't wait future complete execution....",e);
+            LOG.error("Can't wait future complete execution....",e);
         }
     }
 
