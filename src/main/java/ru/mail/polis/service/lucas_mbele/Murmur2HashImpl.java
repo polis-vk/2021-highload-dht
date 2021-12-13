@@ -1,10 +1,9 @@
 package ru.mail.polis.service.lucas_mbele;
 
-public class Murmur2HashImpl implements Murmur2Hash 
-{
+public class Murmur2HashImpl implements Murmur2Hash {
 
     public static final int UNSIGNED_MASK = 0xff;
-    public Murmur2HashImpl(){
+    public Murmur2HashImpl() {
 
     }
     @Override
@@ -29,11 +28,9 @@ public class Murmur2HashImpl implements Murmur2Hash
             k = k * m;
             k ^= k >>> r;
             k = k * m;
-
             hash = hash * m;
             hash = hash ^ k;
         }
-
         // Handle the last few bytes of the input array
         int offset = length4 << 2;
         switch (length & 3) {
@@ -47,14 +44,14 @@ public class Murmur2HashImpl implements Murmur2Hash
                 hash ^= (data[offset] & UNSIGNED_MASK);
                 hash = hash * m;
                 break;
+            default:
+                hash = hash * m;
+                break;
         }
-
         hash ^= hash >>> 13;
         hash = hash * m;
         hash ^= hash >>> 15;
-
         return hash;
     }
-
 
 }
