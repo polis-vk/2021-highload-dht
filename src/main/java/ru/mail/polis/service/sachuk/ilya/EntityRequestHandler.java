@@ -97,4 +97,11 @@ public class EntityRequestHandler {
 
         return new Response(Response.CREATED, Response.EMPTY);
     }
+
+    public Iterator<Record> getEntitiesRange(String start, String end) {
+        ByteBuffer fromKey = Utils.stringToBytebuffer(start);
+        ByteBuffer toKey = end == null ? null : Utils.stringToBytebuffer(end);
+
+        return dao.range(fromKey, toKey);
+    }
 }

@@ -3,12 +3,15 @@ package ru.mail.polis.service.sachuk.ilya;
 import one.nio.http.HttpServer;
 import one.nio.http.HttpServerConfig;
 import one.nio.http.HttpSession;
+import one.nio.http.Param;
+import one.nio.http.Path;
 import one.nio.http.Request;
 import one.nio.http.Response;
 import one.nio.server.AcceptorConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.lsm.DAO;
+import ru.mail.polis.lsm.Record;
 import ru.mail.polis.service.Service;
 import ru.mail.polis.service.sachuk.ilya.replication.Coordinator;
 import ru.mail.polis.service.sachuk.ilya.replication.ReplicationInfo;
@@ -19,6 +22,7 @@ import ru.mail.polis.service.sachuk.ilya.sharding.VNodeConfig;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.util.Iterator;
 import java.util.Set;
 
 public class ServiceImpl extends HttpServer implements Service {
@@ -100,6 +104,17 @@ public class ServiceImpl extends HttpServer implements Service {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    //    /v0/entities?start=<ID>[&end=<ID>]
+    @Path("/v0/entities")
+    public void rangeEntities(@Param(value = "start", required = true) String start,
+                              @Param(value = "end") String end,
+                              HttpSession session
+    ) {
+        Iterator<Record> entityRange = entityRequestHandler.getEntitiesRange(start, end);
+
+
     }
 
     private Response status() {
