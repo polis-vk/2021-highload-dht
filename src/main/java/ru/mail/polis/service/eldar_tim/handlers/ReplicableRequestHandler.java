@@ -17,7 +17,6 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.Comparator;
@@ -115,18 +114,9 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
     private CompletableFuture<ServiceResponse> pollReplicas(
             int ack, List<Cluster.Node> replicas, Request request
     ) {
-        List<Cluster.Node> reserved = new ArrayList<>();
-        for (Cluster.Node replica : replicas) {
-            if (replica == self) {
-                continue;
-            }
-
-            if (!replica.httpExecutor.reserveQueue(1)) {
-                reserved.forEach(r -> replica.httpExecutor.releaseQueueOnce());
-                throw ServiceOverloadException.INSTANCE;
-            } else {
-                reserved.add(replica);
-            }
+        int replicasNum = replicas.contains(self) ? replicas.size() - 1 : replicas.size();
+        if (!proxies.reserveQueue(replicasNum)) {
+            throw ServiceOverloadException.INSTANCE;
         }
 
         request.addHeader(HEADER_HANDLE_LOCALLY_TRUE);
@@ -140,7 +130,7 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
                 future = localHandler = new CompletableFuture<>();
             } else {
                 future = handleRemotelyAsync(target, request);
-                future.whenComplete((r, t) -> target.httpExecutor.releaseQueueOnce());
+                future.whenComplete((r, t) -> proxies.releaseQueueOnce());
             }
             future.whenComplete((r, t) -> handler.parse(r));
         }

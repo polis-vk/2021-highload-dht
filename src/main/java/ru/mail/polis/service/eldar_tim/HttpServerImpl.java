@@ -41,14 +41,14 @@ public class HttpServerImpl extends HttpServer implements Service {
     public HttpServerImpl(
             DAO dao, Cluster.Node self,
             Cluster.ReplicasHolder replicasHolder, HashRouter<Cluster.Node> router,
-            ServiceExecutor workers
+            ServiceExecutor workers, ServiceExecutor proxies
     ) throws IOException {
         super(buildHttpServerConfig(self.port));
         this.dao = dao;
         this.self = self.init();
         this.workers = workers;
 
-        HandlerContext context = new HandlerContext(self, router, replicasHolder, workers);
+        var context = new HandlerContext(self, router, replicasHolder, workers, proxies);
 
         pathMapper = new PathMapper();
         statusHandler = new StatusRequestHandler(context);
