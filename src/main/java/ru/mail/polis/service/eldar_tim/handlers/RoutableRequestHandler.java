@@ -16,7 +16,6 @@ import ru.mail.polis.sharding.HashRouter;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
-import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.ByteBuffer;
@@ -29,16 +28,12 @@ public abstract class RoutableRequestHandler implements RequestHandler {
 
     protected final Cluster.Node self;
     private final HashRouter<Cluster.Node> router;
-    protected final HttpClient httpClient;
     protected final ServiceExecutor workers;
-    protected final ServiceExecutor proxies;
 
     public RoutableRequestHandler(HandlerContext context) {
         this.self = context.self;
         this.router = context.router;
-        this.httpClient = context.httpClient;
         this.workers = context.workers;
-        this.proxies = context.proxies;
     }
 
     /**
@@ -102,7 +97,7 @@ public abstract class RoutableRequestHandler implements RequestHandler {
     protected final CompletableFuture<ServiceResponse> redirectRequestAsync(Request request, Cluster.Node target) {
         HttpRequest mappedRequest = HttpUtils.mapRequest(request, target);
         CompletableFuture<ServiceResponse> result = new CompletableFuture<>();
-        httpClient.sendAsync(mappedRequest, ServiceResponseBodySubscriber.INSTANCE)
+        target.httpClient.sendAsync(mappedRequest, ServiceResponseBodySubscriber.INSTANCE)
                 .thenApplyAsync(HttpResponse::body, workers)
                 .whenComplete((response, t) -> {
                     if (response != null) {

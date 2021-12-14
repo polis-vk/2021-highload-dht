@@ -22,7 +22,6 @@ import ru.mail.polis.service.exceptions.ServiceOverloadException;
 import ru.mail.polis.sharding.HashRouter;
 
 import java.io.IOException;
-import java.net.http.HttpClient;
 
 /**
  * Service implementation for 2021-highload-dht.
@@ -35,7 +34,6 @@ public class HttpServerImpl extends HttpServer implements Service {
     private final DAO dao;
     private final Cluster.Node self;
     private final ServiceExecutor workers;
-    private final ServiceExecutor proxies;
 
     private final PathMapper pathMapper;
     private final one.nio.http.RequestHandler statusHandler;
@@ -43,16 +41,14 @@ public class HttpServerImpl extends HttpServer implements Service {
     public HttpServerImpl(
             DAO dao, Cluster.Node self,
             Cluster.ReplicasHolder replicasHolder, HashRouter<Cluster.Node> router,
-            ServiceExecutor workers, ServiceExecutor proxies
+            ServiceExecutor workers
     ) throws IOException {
         super(buildHttpServerConfig(self.port));
         this.dao = dao;
         this.self = self;
         this.workers = workers;
-        this.proxies = proxies;
 
-        HttpClient httpClient = HttpUtils.createClient(proxies);
-        HandlerContext context = new HandlerContext(self, router, replicasHolder, httpClient, workers, proxies);
+        HandlerContext context = new HandlerContext(self, router, replicasHolder, workers);
 
         pathMapper = new PathMapper();
         statusHandler = new StatusRequestHandler(context);
@@ -84,7 +80,7 @@ public class HttpServerImpl extends HttpServer implements Service {
     public synchronized void stop() {
         super.stop();
         workers.awaitAndShutdown();
-        proxies.awaitAndShutdown();
+        self.httpExecutorService.awaitAndShutdown();
 
         LOG.info("{}: server has been stopped", self.getKey());
     }

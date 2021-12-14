@@ -19,12 +19,14 @@ package ru.mail.polis.service;
 import ru.mail.polis.Cluster;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.service.eldar_tim.HttpServerImpl;
+import ru.mail.polis.service.eldar_tim.HttpUtils;
 import ru.mail.polis.service.eldar_tim.LimitedServiceExecutor;
 import ru.mail.polis.service.eldar_tim.ServiceExecutor;
 import ru.mail.polis.sharding.ConsistentHashRouter;
 import ru.mail.polis.sharding.HashRouter;
 
 import java.io.IOException;
+import java.net.http.HttpClient;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -51,7 +53,7 @@ public final class ServiceFactory {
     /** Число проксирующих потоков. */
     private static final int PROXIES_NUMBER = WORKERS_NUMBER;
     /** Лимит очереди исполнителя проксирующих потоков. */
-    private static final int PROXIES_LIMIT = Math.max(PROXIES_NUMBER, REPLICAS_NUMBER * 3);
+    private static final int PROXIES_LIMIT = Math.max(PROXIES_NUMBER * 25, REPLICAS_NUMBER * 3);
 
     private static final Map<Integer, Set<Cluster.Node>> TOPOLOGIES = new ConcurrentHashMap<>();
     private static final Map<Integer, Cluster.ReplicasHolder> REPLICAS = new ConcurrentHashMap<>();
@@ -99,16 +101,18 @@ public final class ServiceFactory {
 
         ServiceExecutor workers = new LimitedServiceExecutor(TASKS_LIMIT,
                 LimitedServiceExecutor.createFixedThreadPool("worker", WORKERS_NUMBER));
-        ServiceExecutor proxies = new LimitedServiceExecutor(PROXIES_LIMIT,
-                LimitedServiceExecutor.createForkJoinPool("proxy", PROXIES_NUMBER));
 
-        return new HttpServerImpl(dao, currentNode, replicasHolder, hashRouter, workers, proxies);
+        return new HttpServerImpl(dao, currentNode, replicasHolder, hashRouter, workers);
     }
 
     private static Set<Cluster.Node> buildClusterNodes(Set<String> topologyRaw) {
         Set<Cluster.Node> topology = new HashSet<>(topologyRaw.size());
         for (String endpoint : topologyRaw) {
-            Cluster.Node node = new Cluster.Node(endpoint);
+            ServiceExecutor proxies = new LimitedServiceExecutor(PROXIES_LIMIT,
+                    LimitedServiceExecutor.createFixedThreadPool("proxy", PROXIES_NUMBER));
+            HttpClient httpClient = HttpUtils.createClient(proxies);
+
+            Cluster.Node node = new Cluster.Node(endpoint, httpClient, proxies);
             topology.add(node);
         }
         return topology;

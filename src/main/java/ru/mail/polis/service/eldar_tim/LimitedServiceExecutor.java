@@ -45,8 +45,8 @@ public class LimitedServiceExecutor implements ServiceExecutor {
     @Override
     public void execute(@Nonnull Runnable command) {
         if (LOG.isDebugEnabled()) {
-            int size = queueSize.get();
-            if (size > queueLimit + 1) {
+            int size = queueSize.get() + 1;
+            if (size > queueLimit + 10) {
                 LOG.debug("Queue overflow: {} > {}", size, queueLimit);
             }
         }
