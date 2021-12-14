@@ -45,7 +45,7 @@ public class HttpServerImpl extends HttpServer implements Service {
     ) throws IOException {
         super(buildHttpServerConfig(self.port));
         this.dao = dao;
-        this.self = self;
+        this.self = self.init();
         this.workers = workers;
 
         HandlerContext context = new HandlerContext(self, router, replicasHolder, workers);
@@ -80,7 +80,7 @@ public class HttpServerImpl extends HttpServer implements Service {
     public synchronized void stop() {
         super.stop();
         workers.awaitAndShutdown();
-        self.httpExecutorService.awaitAndShutdown();
+        self.close();
 
         LOG.info("{}: server has been stopped", self.getKey());
     }

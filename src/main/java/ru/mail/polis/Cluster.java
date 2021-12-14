@@ -23,6 +23,7 @@ import ru.mail.polis.lsm.DAOConfig;
 import ru.mail.polis.lsm.DAOFactory;
 import ru.mail.polis.service.Service;
 import ru.mail.polis.service.ServiceFactory;
+import ru.mail.polis.service.eldar_tim.HttpUtils;
 import ru.mail.polis.service.eldar_tim.ServiceExecutor;
 import ru.mail.polis.sharding.ConsistentHashRouter;
 import ru.mail.polis.sharding.HashFunction;
@@ -92,13 +93,13 @@ public final class Cluster {
         public final String uri;
         public final String ip;
         public final int port;
-        public final HttpClient httpClient;
-        public final ServiceExecutor httpExecutorService;
+        public final ServiceExecutor httpExecutor;
 
-        public Node(String uri, HttpClient httpClient, ServiceExecutor httpExecutorService) {
+        private volatile HttpClient httpClient;
+        
+        public Node(String uri, ServiceExecutor httpExecutor) {
             this.uri = uri;
-            this.httpClient = httpClient;
-            this.httpExecutorService = httpExecutorService;
+            this.httpExecutor = httpExecutor;
 
             String[] hostPort = uri.replaceFirst(".*://", "").split(":");
             this.ip = hostPort[0];
@@ -108,6 +109,19 @@ public final class Cluster {
         @Override
         public String getKey() {
             return ip + ":" + port;
+        }
+
+        public Node init() {
+            httpClient = HttpUtils.createClient(httpExecutor);
+            return this;
+        }
+
+        public void close() {
+            httpClient = null;
+        }
+
+        public HttpClient getClient() {
+            return httpClient;
         }
     }
 

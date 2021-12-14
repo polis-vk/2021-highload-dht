@@ -121,8 +121,8 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
                 continue;
             }
 
-            if (!replica.httpExecutorService.reserveQueue(1)) {
-                reserved.forEach(r -> replica.httpExecutorService.releaseQueueOnce());
+            if (!replica.httpExecutor.reserveQueue(1)) {
+                reserved.forEach(r -> replica.httpExecutor.releaseQueueOnce());
                 throw ServiceOverloadException.INSTANCE;
             } else {
                 reserved.add(replica);
@@ -140,7 +140,7 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
                 future = localHandler = new CompletableFuture<>();
             } else {
                 future = handleRemotelyAsync(target, request);
-                future.whenComplete((r, t) -> target.httpExecutorService.releaseQueueOnce());
+                future.whenComplete((r, t) -> target.httpExecutor.releaseQueueOnce());
             }
             future.whenComplete((r, t) -> handler.parse(r));
         }
