@@ -16,6 +16,7 @@ import ru.mail.polis.sharding.HashRouter;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 import java.io.IOException;
+import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.ByteBuffer;
@@ -97,7 +98,15 @@ public abstract class RoutableRequestHandler implements RequestHandler {
     protected final CompletableFuture<ServiceResponse> redirectRequestAsync(Request request, Cluster.Node target) {
         HttpRequest mappedRequest = HttpUtils.mapRequest(request, target);
         CompletableFuture<ServiceResponse> result = new CompletableFuture<>();
-        target.httpClient.sendAsync(mappedRequest, ServiceResponseBodySubscriber.INSTANCE)
+
+        HttpClient httpClient = target.getClient();
+        if (httpClient == null) {
+            LOG.warn("Attempt to use unavailable service");
+            result.complete(ServiceResponse.of(new Response(Response.SERVICE_UNAVAILABLE)));
+            return result;
+        }
+
+        httpClient.sendAsync(mappedRequest, ServiceResponseBodySubscriber.INSTANCE)
                 .thenApplyAsync(HttpResponse::body, workers)
                 .whenComplete((response, t) -> {
                     if (response != null) {

@@ -19,14 +19,12 @@ package ru.mail.polis.service;
 import ru.mail.polis.Cluster;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.service.eldar_tim.HttpServerImpl;
-import ru.mail.polis.service.eldar_tim.HttpUtils;
 import ru.mail.polis.service.eldar_tim.LimitedServiceExecutor;
 import ru.mail.polis.service.eldar_tim.ServiceExecutor;
 import ru.mail.polis.sharding.ConsistentHashRouter;
 import ru.mail.polis.sharding.HashRouter;
 
 import java.io.IOException;
-import java.net.http.HttpClient;
 import java.util.Collection;
 import java.util.Comparator;
 import java.util.HashSet;
@@ -110,9 +108,8 @@ public final class ServiceFactory {
         for (String endpoint : topologyRaw) {
             ServiceExecutor proxies = new LimitedServiceExecutor(PROXIES_LIMIT,
                     LimitedServiceExecutor.createFixedThreadPool("proxy", PROXIES_NUMBER));
-            HttpClient httpClient = HttpUtils.createClient(proxies);
 
-            Cluster.Node node = new Cluster.Node(endpoint, httpClient, proxies);
+            Cluster.Node node = new Cluster.Node(endpoint, proxies);
             topology.add(node);
         }
         return topology;
