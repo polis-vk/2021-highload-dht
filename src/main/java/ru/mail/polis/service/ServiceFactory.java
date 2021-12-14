@@ -49,9 +49,9 @@ public final class ServiceFactory {
     private static final int REPLICAS_NUMBER = 3;
 
     /** Число проксирующих потоков. */
-    private static final int PROXIES_NUMBER = WORKERS_NUMBER;
+    private static final int PROXIES_NUMBER = WORKERS_NUMBER * (int) Math.ceil(REPLICAS_NUMBER / 2f);
     /** Лимит очереди исполнителя проксирующих потоков. */
-    private static final int PROXIES_LIMIT = Math.max(PROXIES_NUMBER * 25, REPLICAS_NUMBER * 3);
+    private static final int PROXIES_LIMIT = Math.max(PROXIES_NUMBER * REPLICAS_NUMBER, REPLICAS_NUMBER * 3);
 
     private static final Map<Integer, Set<Cluster.Node>> TOPOLOGIES = new ConcurrentHashMap<>();
     private static final Map<Integer, Cluster.ReplicasHolder> REPLICAS = new ConcurrentHashMap<>();
@@ -86,8 +86,13 @@ public final class ServiceFactory {
             throw new IllegalArgumentException("Empty cluster");
         }
 
+        ServiceExecutor proxies = new LimitedServiceExecutor(PROXIES_LIMIT,
+                LimitedServiceExecutor.createFixedThreadPool("proxy", PROXIES_NUMBER));
+        ServiceExecutor workers = new LimitedServiceExecutor(TASKS_LIMIT,
+                LimitedServiceExecutor.createFixedThreadPool("worker", WORKERS_NUMBER));
+
         Set<Cluster.Node> clusterNodes = TOPOLOGIES.computeIfAbsent(topology.hashCode(),
-                key -> buildClusterNodes(topology));
+                key -> buildClusterNodes(topology, proxies));
 
         Comparator<Cluster.Node> comparator = Comparator.comparing(Cluster.Node::getKey);
         Cluster.ReplicasHolder replicasHolder = REPLICAS.computeIfAbsent(topology.hashCode(),
@@ -97,18 +102,12 @@ public final class ServiceFactory {
         Cluster.Node currentNode = findClusterNode(port, clusterNodes);
         HashRouter<Cluster.Node> hashRouter = new ConsistentHashRouter<>(clusterNodes, 30);
 
-        ServiceExecutor workers = new LimitedServiceExecutor(TASKS_LIMIT,
-                LimitedServiceExecutor.createFixedThreadPool("worker", WORKERS_NUMBER));
-
-        return new HttpServerImpl(dao, currentNode, replicasHolder, hashRouter, workers);
+        return new HttpServerImpl(dao, currentNode, replicasHolder, hashRouter, workers, proxies);
     }
 
-    private static Set<Cluster.Node> buildClusterNodes(Set<String> topologyRaw) {
+    private static Set<Cluster.Node> buildClusterNodes(Set<String> topologyRaw, ServiceExecutor proxies) {
         Set<Cluster.Node> topology = new HashSet<>(topologyRaw.size());
         for (String endpoint : topologyRaw) {
-            ServiceExecutor proxies = new LimitedServiceExecutor(PROXIES_LIMIT,
-                    LimitedServiceExecutor.createFixedThreadPool("proxy", PROXIES_NUMBER));
-
             Cluster.Node node = new Cluster.Node(endpoint, proxies);
             topology.add(node);
         }

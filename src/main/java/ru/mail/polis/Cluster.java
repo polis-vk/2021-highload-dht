@@ -93,8 +93,8 @@ public final class Cluster {
         public final String uri;
         public final String ip;
         public final int port;
-        public final ServiceExecutor httpExecutor;
 
+        private final ServiceExecutor httpExecutor;
         private volatile HttpClient httpClient;
         
         public Node(String uri, ServiceExecutor httpExecutor) {
