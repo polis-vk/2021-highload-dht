@@ -7,7 +7,9 @@ import one.nio.http.Param;
 import one.nio.http.Path;
 import one.nio.http.Request;
 import one.nio.http.Response;
+import one.nio.net.Socket;
 import one.nio.server.AcceptorConfig;
+import one.nio.server.RejectedSessionException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.lsm.DAO;
@@ -30,6 +32,7 @@ public class ServiceImpl extends HttpServer implements Service {
 
     private static final String ENTITY_PATH = "/v0/entity";
     private static final String STATUS_PATH = "/v0/status";
+    private static final String ENTITIES_PATH = "/v0/entities";
 
     private final EntityRequestHandler entityRequestHandler;
     private final ConfiguredPoolExecutor requestPoolExecutor = new ConfiguredPoolExecutor(
@@ -106,15 +109,39 @@ public class ServiceImpl extends HttpServer implements Service {
         }
     }
 
+    @Override
+    public HttpSession createSession(Socket socket) throws RejectedSessionException {
+        return new ChunkedHttpSession(socket, this);
+    }
+
     //    /v0/entities?start=<ID>[&end=<ID>]
-    @Path("/v0/entities")
+//    @Path("/v0/entities")
     public void rangeEntities(@Param(value = "start", required = true) String start,
                               @Param(value = "end") String end,
                               HttpSession session
     ) {
+        if (start == null || start.isEmpty()) {
+            try {
+                session.sendResponse(new Response(Response.BAD_REQUEST, Response.EMPTY));
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
+            return;
+        }
+
+        logger.info("In ENTITIES");
+        Response response = new Response(Response.OK);
         Iterator<Record> entityRange = entityRequestHandler.getEntitiesRange(start, end);
 
+        ChunkedHttpSession chunkedHttpSession = (ChunkedHttpSession) session;
+        chunkedHttpSession.setRecordIterator(entityRange);
 
+        logger.info("AFTER SET ITERATOR");
+        try {
+            chunkedHttpSession.sendResponseWithRange(response, entityRange);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
     }
 
     private Response status() {
@@ -160,6 +187,13 @@ public class ServiceImpl extends HttpServer implements Service {
                     case STATUS_PATH:
                         response = status();
                         break;
+                    case ENTITIES_PATH:
+                        String start = request.getParameter("start=");
+                        String end = request.getParameter("end=");
+
+                        rangeEntities(start, end, session);
+
+                        return;
                     default:
                         handleDefault(request, session);
                         return;
