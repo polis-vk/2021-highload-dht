@@ -13,6 +13,7 @@ import org.slf4j.LoggerFactory;
 import ru.mail.polis.Cluster;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.service.Service;
+import ru.mail.polis.service.eldar_tim.handlers.EntitiesRequestHandler;
 import ru.mail.polis.service.eldar_tim.handlers.EntityRequestHandler;
 import ru.mail.polis.service.eldar_tim.handlers.HandlerContext;
 import ru.mail.polis.service.eldar_tim.handlers.RequestHandler;
@@ -69,11 +70,17 @@ public class HttpServerImpl extends HttpServer implements Service {
     }
 
     private void mapPaths(HandlerContext context) {
-        pathMapper.add("/v0/status", new int[]{Request.METHOD_GET}, statusHandler);
+        pathMapper.add("/v0/status",
+                new int[]{Request.METHOD_GET},
+                statusHandler);
 
         pathMapper.add("/v0/entity",
                 new int[]{Request.METHOD_GET, Request.METHOD_PUT, Request.METHOD_DELETE},
                 new EntityRequestHandler(context, dao));
+
+        pathMapper.add("/v0/entities",
+                new int[]{Request.METHOD_GET},
+                new EntitiesRequestHandler(context, dao));
     }
 
     @Override
