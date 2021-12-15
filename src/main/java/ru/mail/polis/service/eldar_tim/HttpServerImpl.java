@@ -95,7 +95,7 @@ public class HttpServerImpl extends HttpServer implements Service {
 
     @Override
     public void handleRequest(Request request, HttpSession session) {
-        BaseRequestHandler requestHandler = (BaseRequestHandler) pathMapper.find(request.getPath(), request.getMethod());
+        var requestHandler = (BaseRequestHandler) pathMapper.find(request.getPath(), request.getMethod());
 
         if (requestHandler == statusHandler) {
             workers.run(session, this::exceptionHandler, () -> requestHandler.handleRequest(request, session));
@@ -122,5 +122,10 @@ public class HttpServerImpl extends HttpServer implements Service {
 
         String code = httpCode == null ? Response.INTERNAL_ERROR : httpCode;
         HttpUtils.sendError(LOG, (HttpSession) session, code, description);
+    }
+
+    @Override
+    public HttpSession createSession(Socket socket) {
+        return new StreamingHttpSession(socket, this);
     }
 }

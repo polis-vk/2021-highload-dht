@@ -4,14 +4,14 @@ import one.nio.http.Response;
 
 import javax.annotation.Nonnull;
 
-public final class ServiceResponse {
+public class ServiceResponse {
 
     public static final String HEADER_TIMESTAMP = "Service-Data-Timestamp";
 
-    private final Response response;
+    protected final Response response;
     public final long timestamp;
 
-    private ServiceResponse(@Nonnull Response response, long timestamp) {
+    protected ServiceResponse(@Nonnull Response response, long timestamp) {
         this.response = response;
         this.timestamp = timestamp;
     }

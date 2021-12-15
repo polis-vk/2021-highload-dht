@@ -82,4 +82,10 @@ public class EntityRequestHandler extends ReplicableRequestHandler {
         String id = request.getParameter("id=");
         return (id == null || id.isEmpty()) ? null : id;
     }
+
+    private byte[] extractBytes(ByteBuffer buffer) {
+        final byte[] result = new byte[buffer.remaining()];
+        buffer.get(result);
+        return result;
+    }
 }
