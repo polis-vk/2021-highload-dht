@@ -37,9 +37,8 @@ public class EntitiesRequestHandler extends StreamingRequestHandler {
 
     private StreamingServiceResponse get(@Nonnull String start, @Nullable String end) {
         ByteBuffer keyStart = ByteBuffer.wrap(start.getBytes(StandardCharsets.UTF_8));
-        ByteBuffer keyEnd = end == null ? null : ByteBuffer.wrap(end.getBytes(StandardCharsets.UTF_8));
-
-        final Iterator<Record> iterator = dao.range(keyStart, keyEnd == null ? DAO.nextKey(keyStart) : keyEnd);
+        ByteBuffer keyEnd = end != null ? ByteBuffer.wrap(end.getBytes(StandardCharsets.UTF_8)) : DAO.nextKey(keyStart);
+        final Iterator<Record> iterator = dao.range(keyStart, keyEnd);
 
         return StreamingServiceResponse.of(new Response(Response.OK), () -> {
             Record next = iterator.hasNext() ? iterator.next() : null;

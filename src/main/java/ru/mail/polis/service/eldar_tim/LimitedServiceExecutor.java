@@ -18,7 +18,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 /**
- * Исполнитель задач с ограниченной очередью.
+ * Tasks executor with a limited queue.
  */
 public class LimitedServiceExecutor implements ServiceExecutor {
 
