@@ -14,7 +14,7 @@ public class RecordSupplier implements Supplier<byte[]> {
     }
 
     @Override
-    @SuppressWarnings("ReturnEmptyCollectionRatherThanNull")
+    @SuppressWarnings("PMD.ReturnEmptyArrayRatherThanNull")
     //method have to return null in this case because empty array and null are not the same
     public byte[] get() {
         if (!range.hasNext()) {
