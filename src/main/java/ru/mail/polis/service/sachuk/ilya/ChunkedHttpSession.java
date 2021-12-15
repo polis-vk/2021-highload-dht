@@ -89,9 +89,6 @@ public class ChunkedHttpSession extends HttpSession {
             if (!recordIterator.hasNext()) {
                 byte[] finalChunk = getFinalChunk();
                 write(finalChunk, 0, finalChunk.length);
-                server.incRequestsProcessed();
-//                super.scheduleClose();
-                handleRequest();
             }
 
         }
@@ -101,16 +98,6 @@ public class ChunkedHttpSession extends HttpSession {
         logger.info("after write last block");
     }
 
-    private void handleRequest() throws IOException {
-        if ((handling=pipeline.pollFirst()) != null ) {
-            if (handling == FIN) {
-                scheduleClose();
-            }
-             else {
-                 server.handleRequest(handling, this);
-            }
-        }
-    }
 
     @Override
     public synchronized void scheduleClose() {
@@ -126,7 +113,7 @@ public class ChunkedHttpSession extends HttpSession {
         String valueString = StandardCharsets.US_ASCII.decode(value).toString();
 
 
-        String union = keyString + "\n" + valueString;
+        String union = keyString + "\n" + valueString + "\r\n";
 
 //        int size = key.remaining() + NEW_LINE_STRING.length() + value.remaining();
 
