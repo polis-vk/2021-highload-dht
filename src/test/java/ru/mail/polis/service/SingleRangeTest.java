@@ -21,7 +21,6 @@ import one.nio.http.Response;
 import one.nio.net.ConnectionString;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import ru.mail.polis.FileUtils;
 import ru.mail.polis.TestBase;
@@ -43,7 +42,6 @@ import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
  *
  * @author Vadim Tsesko
  */
-@Disabled 
 class SingleRangeTest extends TestBase {
     private static final Duration TIMEOUT = Duration.ofMinutes(1);
     private static DAOConfig daoConfig;

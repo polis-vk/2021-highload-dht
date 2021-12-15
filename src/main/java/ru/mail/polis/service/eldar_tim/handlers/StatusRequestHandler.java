@@ -8,10 +8,6 @@ import javax.annotation.Nonnull;
 
 public class StatusRequestHandler implements BaseRequestHandler {
 
-    public StatusRequestHandler() {
-        // No need.
-    }
-
     @Nonnull
     @Override
     public ServiceResponse handleRequest(Request request) {

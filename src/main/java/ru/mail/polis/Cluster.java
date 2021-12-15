@@ -150,7 +150,9 @@ public final class Cluster {
                             joiner.add(n.getKey());
                         }
                     });
-                    LOG.info("Created replicas for node {}: {}", node.getKey(), joiner);
+
+                    LOG.info("Created replicas for node {}: {}",
+                            node.getKey(), joiner.length() > 0 ? joiner : "no replicas");
                 }
             }
         }

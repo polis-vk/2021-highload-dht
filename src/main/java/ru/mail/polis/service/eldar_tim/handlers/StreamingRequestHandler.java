@@ -4,6 +4,7 @@ import one.nio.http.HttpSession;
 import one.nio.http.Request;
 import one.nio.http.Response;
 import ru.mail.polis.service.eldar_tim.ServiceResponse;
+import ru.mail.polis.service.eldar_tim.StreamingChunk;
 import ru.mail.polis.service.eldar_tim.StreamingHttpSession;
 
 import javax.annotation.Nonnull;
@@ -14,6 +15,7 @@ import java.util.function.Supplier;
 public abstract class StreamingRequestHandler implements BaseRequestHandler {
 
     @Nonnull
+    @Override
     public abstract StreamingServiceResponse handleRequest(Request request);
 
     @Override
@@ -28,16 +30,16 @@ public abstract class StreamingRequestHandler implements BaseRequestHandler {
     }
 
     public static class StreamingServiceResponse extends ServiceResponse {
-        private final Supplier<byte[]> supplier;
+        private final Supplier<StreamingChunk> supplier;
 
         private StreamingServiceResponse(
-                @Nonnull Response response, long timestamp, @Nullable Supplier<byte[]> supplier
+                @Nonnull Response response, long timestamp, @Nullable Supplier<StreamingChunk> supplier
         ) {
             super(response, timestamp);
             this.supplier = supplier;
         }
 
-        public static StreamingServiceResponse of(@Nonnull Response response, Supplier<byte[]> supplier) {
+        public static StreamingServiceResponse of(@Nonnull Response response, Supplier<StreamingChunk> supplier) {
             return new StreamingServiceResponse(response, -1, supplier);
         }
 

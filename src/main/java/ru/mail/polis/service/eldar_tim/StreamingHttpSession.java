@@ -12,15 +12,15 @@ import java.util.function.Supplier;
  * Reference implementation of HttpSession with streaming support.
  */
 public class StreamingHttpSession extends HttpSession {
-    private Supplier<byte[]> supplier;
+    private Supplier<StreamingChunk> supplier;
 
     public StreamingHttpSession(Socket socket, HttpServer server) {
         super(socket, server);
     }
 
-    public void sendStreamingResponse(Response response, Supplier<byte[]> supplier) throws IOException {
+    public void sendStreamingResponse(Response response, Supplier<StreamingChunk> supplier) throws IOException {
         this.supplier = supplier;
-        response.setBody(supplier.get());
+        response.addHeader("Transfer-Encoding: chunked");
         sendResponse(response);
         processChain();
     }
@@ -39,24 +39,21 @@ public class StreamingHttpSession extends HttpSession {
     }
 
     private void processChain() throws IOException {
-        if (supplier == null) {
-            return;
-        }
+        if (supplier != null) {
+            while (queueHead == null) {
+                StreamingChunk chunk = supplier.get();
 
-        while (queueHead == null) {
-            byte[] bytes = supplier.get();
-            if (bytes == null) {
-//                String connection = handling.getHeader("Connection:");
-//                boolean keepAlive = handling.isHttp11()
-//                        ? !"close".equalsIgnoreCase(connection)
-//                        : "Keep-Alive".equalsIgnoreCase(connection);
-//                response.addHeader(keepAlive ? "Connection: Keep-Alive" : "Connection: close");
+                if (chunk == StreamingChunk.EMPTY) {
+                    byte[] bytes = StreamingChunk.EMPTY_BYTES;
+                    write(bytes, 0, bytes.length);
 
-                // TODO: support keep alive
-                super.scheduleClose();
-                return;
+                    super.scheduleClose();
+                    return;
+                } else {
+                    byte[] bytes = chunk.bytes();
+                    write(bytes, 0, bytes.length);
+                }
             }
-            write(bytes, 0, bytes.length);
         }
     }
 }
