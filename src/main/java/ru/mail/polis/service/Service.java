@@ -24,6 +24,9 @@ package ru.mail.polis.service;
  * <li>{@code GET /v0/status} -- returns {@code 200} or {@code 503}</li>
  * <li>{@code GET /v0/entity?id=<ID>} -- get data by {@code ID}.
  * Returns {@code 200} and data if found, {@code 404} if not found.</li>
+ * <li>{@code GET /v0/entities?start=<ID>[&end=<ID>]} -- get range of data between {@code from} (inclusive) and
+ * optional {@code to} (exclusive).
+ * Returns {@code 200} and HTTP chunked response with {@code <key>\n<value>} chunks.</li>
  * <li>{@code PUT /v0/entity?id=<ID>} -- upsert (create or replace) data by {@code ID}. Returns {@code 201}.</li>
  * <li>{@code DELETE /v0/entity?id=<ID>} -- remove data by {@code ID}. Returns {@code 202}.</li>
  * </ul>
