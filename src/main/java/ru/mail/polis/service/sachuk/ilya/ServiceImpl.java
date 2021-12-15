@@ -3,8 +3,6 @@ package ru.mail.polis.service.sachuk.ilya;
 import one.nio.http.HttpServer;
 import one.nio.http.HttpServerConfig;
 import one.nio.http.HttpSession;
-import one.nio.http.Param;
-import one.nio.http.Path;
 import one.nio.http.Request;
 import one.nio.http.Response;
 import one.nio.net.Socket;
@@ -114,17 +112,12 @@ public class ServiceImpl extends HttpServer implements Service {
         return new ChunkedHttpSession(socket, this);
     }
 
-    //    /v0/entities?start=<ID>[&end=<ID>]
-//    @Path("/v0/entities")
-    public void rangeEntities(@Param(value = "start", required = true) String start,
-                              @Param(value = "end") String end,
-                              HttpSession session
-    ) {
+    public void rangeEntities(String start, String end, HttpSession session) {
         if (start == null || start.isEmpty()) {
             try {
                 session.sendResponse(new Response(Response.BAD_REQUEST, Response.EMPTY));
             } catch (IOException e) {
-                e.printStackTrace();
+                throw new UncheckedIOException(e);
             }
             return;
         }
@@ -139,8 +132,8 @@ public class ServiceImpl extends HttpServer implements Service {
         logger.info("AFTER SET ITERATOR");
         try {
             chunkedHttpSession.sendResponseWithRange(response, entityRange);
-        } catch (Exception e) {
-            e.printStackTrace();
+        } catch (IOException e) {
+            throw new UncheckedIOException(e);
         }
     }
 
