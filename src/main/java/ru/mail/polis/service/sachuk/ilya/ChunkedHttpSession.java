@@ -92,6 +92,11 @@ public class ChunkedHttpSession extends HttpSession {
         String keyString = StandardCharsets.US_ASCII.decode(key).toString();
         String valueString = StandardCharsets.US_ASCII.decode(value).toString();
 
+        return getByteArrayOutputStream(newLineBytes, caretqueAndNewLineBytes, length, keyString, valueString);
+    }
+
+    private byte[] getByteArrayOutputStream(byte[] newLineBytes, byte[] caretqueAndNewLineBytes,
+                                            byte[] length, String keyString, String valueString) {
         ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
 
         byteArrayOutputStream.writeBytes(length);
@@ -100,7 +105,6 @@ public class ChunkedHttpSession extends HttpSession {
         byteArrayOutputStream.writeBytes(newLineBytes);
         byteArrayOutputStream.writeBytes(valueString.getBytes(StandardCharsets.US_ASCII));
         byteArrayOutputStream.writeBytes(caretqueAndNewLineBytes);
-
         return byteArrayOutputStream.toByteArray();
     }
 
