@@ -12,11 +12,11 @@ import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 
-public class EntityRequestHandler extends RequestHandler {
+public class EntityRequestHandler extends ReplicableRequestHandler {
 
     private final DAO dao;
 
-    public EntityRequestHandler(HandlerContext context, DAO dao) {
+    public EntityRequestHandler(Context context, DAO dao) {
         super(context);
         this.dao = dao;
     }
@@ -29,7 +29,7 @@ public class EntityRequestHandler extends RequestHandler {
 
     @Nonnull
     @Override
-    protected ServiceResponse handleRequest(Request request) {
+    public ServiceResponse handleRequest(Request request) {
         String id = parseId(request);
         if (id == null) {
             return ServiceResponse.of(new Response(Response.BAD_REQUEST, "Bad id".getBytes(StandardCharsets.UTF_8)));

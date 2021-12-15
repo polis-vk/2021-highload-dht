@@ -2,7 +2,6 @@ package ru.mail.polis.service.eldar_tim.handlers;
 
 import one.nio.http.HttpSession;
 import one.nio.http.Request;
-import one.nio.http.RequestHandler;
 import one.nio.http.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -19,11 +18,10 @@ import java.io.IOException;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
-import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 import java.util.concurrent.CompletableFuture;
 
-public abstract class RoutableRequestHandler implements RequestHandler {
+public abstract class RoutableRequestHandler implements BaseRequestHandler {
 
     private static final Logger LOG = LoggerFactory.getLogger(RoutableRequestHandler.class);
 
@@ -32,7 +30,7 @@ public abstract class RoutableRequestHandler implements RequestHandler {
     protected final ServiceExecutor workers;
     protected final ServiceExecutor proxies;
 
-    public RoutableRequestHandler(HandlerContext context) {
+    public RoutableRequestHandler(Context context) {
         this.self = context.self;
         this.router = context.router;
         this.workers = context.workers;
@@ -63,9 +61,6 @@ public abstract class RoutableRequestHandler implements RequestHandler {
 
         return router.route(key);
     }
-
-    @Nonnull
-    protected abstract ServiceResponse handleRequest(Request request);
 
     @Override
     public void handleRequest(Request request, HttpSession session) throws IOException {
@@ -122,9 +117,20 @@ public abstract class RoutableRequestHandler implements RequestHandler {
         return result;
     }
 
-    protected final byte[] extractBytes(ByteBuffer buffer) {
-        final byte[] result = new byte[buffer.remaining()];
-        buffer.get(result);
-        return result;
+    public static class Context {
+        public final Cluster.Node self;
+        public final HashRouter<Cluster.Node> router;
+        public final ServiceExecutor workers;
+        public final ServiceExecutor proxies;
+
+        public Context(
+                Cluster.Node self, HashRouter<Cluster.Node> router,
+                ServiceExecutor workers, ServiceExecutor proxies
+        ) {
+            this.self = self;
+            this.router = router;
+            this.workers = workers;
+            this.proxies = proxies;
+        }
     }
 }

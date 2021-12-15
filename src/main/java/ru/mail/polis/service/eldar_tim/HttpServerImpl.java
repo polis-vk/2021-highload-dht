@@ -7,16 +7,17 @@ import one.nio.http.PathMapper;
 import one.nio.http.Request;
 import one.nio.http.Response;
 import one.nio.net.Session;
+import one.nio.net.Socket;
 import one.nio.server.AcceptorConfig;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.Cluster;
 import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.service.Service;
+import ru.mail.polis.service.eldar_tim.handlers.BaseRequestHandler;
 import ru.mail.polis.service.eldar_tim.handlers.EntitiesRequestHandler;
 import ru.mail.polis.service.eldar_tim.handlers.EntityRequestHandler;
-import ru.mail.polis.service.eldar_tim.handlers.HandlerContext;
-import ru.mail.polis.service.eldar_tim.handlers.RequestHandler;
+import ru.mail.polis.service.eldar_tim.handlers.ReplicableRequestHandler;
 import ru.mail.polis.service.eldar_tim.handlers.StatusRequestHandler;
 import ru.mail.polis.service.exceptions.ServerRuntimeException;
 import ru.mail.polis.service.exceptions.ServiceOverloadException;
@@ -49,11 +50,11 @@ public class HttpServerImpl extends HttpServer implements Service {
         this.self = self.init();
         this.workers = workers;
 
-        var context = new HandlerContext(self, router, replicasHolder, workers, proxies);
+        var replicableContext = new ReplicableRequestHandler.Context(self, router, replicasHolder, workers, proxies);
 
         pathMapper = new PathMapper();
-        statusHandler = new StatusRequestHandler(context);
-        mapPaths(context);
+        statusHandler = new StatusRequestHandler();
+        mapPaths(replicableContext);
 
         LOG.info("{}: server is running now", self.getKey());
     }
@@ -69,18 +70,18 @@ public class HttpServerImpl extends HttpServer implements Service {
         return httpServerConfig;
     }
 
-    private void mapPaths(HandlerContext context) {
+    private void mapPaths(ReplicableRequestHandler.Context replicableContext) {
         pathMapper.add("/v0/status",
                 new int[]{Request.METHOD_GET},
                 statusHandler);
 
         pathMapper.add("/v0/entity",
                 new int[]{Request.METHOD_GET, Request.METHOD_PUT, Request.METHOD_DELETE},
-                new EntityRequestHandler(context, dao));
+                new EntityRequestHandler(replicableContext, dao));
 
         pathMapper.add("/v0/entities",
                 new int[]{Request.METHOD_GET},
-                new EntitiesRequestHandler(context, dao));
+                new EntitiesRequestHandler(dao));
     }
 
     @Override
@@ -94,10 +95,9 @@ public class HttpServerImpl extends HttpServer implements Service {
 
     @Override
     public void handleRequest(Request request, HttpSession session) {
-        RequestHandler requestHandler = (RequestHandler) pathMapper.find(request.getPath(), request.getMethod());
+        BaseRequestHandler requestHandler = (BaseRequestHandler) pathMapper.find(request.getPath(), request.getMethod());
 
         if (requestHandler == statusHandler) {
-            request.addHeader(RequestHandler.HEADER_HANDLE_LOCALLY_TRUE);
             workers.run(session, this::exceptionHandler, () -> requestHandler.handleRequest(request, session));
         } else if (requestHandler != null) {
             workers.execute(session, this::exceptionHandler, () -> requestHandler.handleRequest(request, session));

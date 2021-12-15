@@ -2,16 +2,17 @@ package ru.mail.polis.service.eldar_tim.handlers;
 
 import one.nio.http.HttpSession;
 import one.nio.http.Request;
-import one.nio.http.RequestHandler;
 import one.nio.http.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.Cluster;
 import ru.mail.polis.service.eldar_tim.HttpUtils;
+import ru.mail.polis.service.eldar_tim.ServiceExecutor;
 import ru.mail.polis.service.eldar_tim.ServiceResponse;
 import ru.mail.polis.service.exceptions.ClientBadRequestException;
 import ru.mail.polis.service.exceptions.ServerRuntimeException;
 import ru.mail.polis.service.exceptions.ServiceOverloadException;
+import ru.mail.polis.sharding.HashRouter;
 
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
@@ -26,7 +27,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-public abstract class ReplicableRequestHandler extends RoutableRequestHandler implements RequestHandler {
+public abstract class ReplicableRequestHandler extends RoutableRequestHandler implements BaseRequestHandler {
 
     private static final Logger LOG = LoggerFactory.getLogger(ReplicableRequestHandler.class);
 
@@ -36,7 +37,7 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
 
     private final Cluster.ReplicasHolder replicasHolder;
 
-    public ReplicableRequestHandler(HandlerContext context) {
+    public ReplicableRequestHandler(Context context) {
         super(context);
         this.replicasHolder = context.replicasHolder;
     }
@@ -197,6 +198,19 @@ public abstract class ReplicableRequestHandler extends RoutableRequestHandler im
             } else {
                 return Collections.max(success, Comparator.comparingLong(o -> o.timestamp));
             }
+        }
+    }
+
+    public static class Context extends RoutableRequestHandler.Context {
+        public final Cluster.ReplicasHolder replicasHolder;
+
+        public Context(
+                Cluster.Node self, HashRouter<Cluster.Node> router,
+                Cluster.ReplicasHolder replicasHolder,
+                ServiceExecutor workers, ServiceExecutor proxies
+        ) {
+            super(self, router, workers, proxies);
+            this.replicasHolder = replicasHolder;
         }
     }
 }

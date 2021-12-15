@@ -5,18 +5,11 @@ import one.nio.http.Response;
 import ru.mail.polis.service.eldar_tim.ServiceResponse;
 
 import javax.annotation.Nonnull;
-import javax.annotation.Nullable;
 
-public class StatusRequestHandler extends RequestHandler {
+public class StatusRequestHandler implements BaseRequestHandler {
 
-    public StatusRequestHandler(HandlerContext context) {
-        super(context);
-    }
-
-    @Nullable
-    @Override
-    protected String getRouteKey(Request request) {
-        return null;
+    public StatusRequestHandler() {
+        // No need.
     }
 
     @Nonnull
