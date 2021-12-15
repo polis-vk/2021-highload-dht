@@ -7,7 +7,9 @@ import one.nio.http.Param;
 import one.nio.http.Path;
 import one.nio.http.Request;
 import one.nio.http.Response;
+import one.nio.net.Socket;
 import one.nio.server.AcceptorConfig;
+import one.nio.util.ByteArrayBuilder;
 import one.nio.util.Utf8;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -20,6 +22,7 @@ import javax.annotation.Nullable;
 import java.io.IOException;
 import java.net.URISyntaxException;
 import java.nio.ByteBuffer;
+import java.nio.charset.StandardCharsets;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Set;
@@ -31,6 +34,7 @@ import java.util.concurrent.TimeUnit;
 public class ServiceImpl extends HttpServer implements Service {
     private static final String ENDPOINT_V0_STATUS = "/v0/status";
     private static final String ENDPOINT_V0_ENTITY = "/v0/entity";
+    private static final String ENDPOINT_V0_RANGE = "/v0/entities";
     private final Logger logger = LoggerFactory.getLogger(ServiceImpl.class);
 
     public static final String BAD_ID_RESPONSE = "Bad id";
@@ -71,6 +75,11 @@ public class ServiceImpl extends HttpServer implements Service {
         super.handleRequest(request, session);
     }
 
+    @Override
+    public HttpSession createSession(Socket socket) {
+        return new Session(socket, this);
+    }
+
     private void sendResponse(HttpSession session, @Nullable Response response) {
         try {
             session.sendResponse(response);
@@ -100,6 +109,48 @@ public class ServiceImpl extends HttpServer implements Service {
         }
 
         super.stop();
+    }
+
+    @Path(ENDPOINT_V0_RANGE)
+    public void range(HttpSession session,
+                      Request request,
+                      @Param(value = "start", required = true) String start,
+                      @Param("end") String end) {
+        executor.execute(() -> {
+            ByteBuffer startKey = ByteBuffer.wrap(start.getBytes(StandardCharsets.UTF_8));
+            if (start.isBlank()) {
+                sendResponse(session, Utils.badRequest(BAD_ID_RESPONSE));
+                return;
+            }
+
+            ByteBuffer endKey = null;
+            if (end != null) {
+                if (end.isBlank()) {
+                    sendResponse(session, Utils.badRequest(BAD_ID_RESPONSE));
+                    return;
+                }
+                endKey = ByteBuffer.wrap(end.getBytes(StandardCharsets.UTF_8));
+            }
+
+            Iterator<Record> range = dao.range(startKey, endKey);
+            try {
+                Response ok = new Response(Response.OK);
+                ok.addHeader("Transfer-Encoding: chunked");
+                ((Session) session).sendChunkedResponse(ok, () -> {
+                    if (!range.hasNext()) {
+                        return null;
+                    }
+                    Record next = range.next();
+                    ByteArrayBuilder builder = new ByteArrayBuilder(next.size());
+                    builder.append(extractBytes(next.getKey()))
+                            .append("\n")
+                            .append(extractBytes(next.getValue()));
+                    return builder.trim();
+                });
+            } catch (IOException e) {
+                logger.error("Can't send range response", e);
+            }
+        });
     }
 
     @Path(ENDPOINT_V0_STATUS)

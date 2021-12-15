@@ -29,6 +29,7 @@ import ru.mail.polis.lsm.DAOConfig;
 import ru.mail.polis.lsm.DAOFactory;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.Collections;
 import java.util.concurrent.TimeUnit;
@@ -63,7 +64,7 @@ class SingleRangeTest extends TestBase {
     private static byte[] chunkOf(
             final String key,
             final String value) {
-        return (key + '\n' + value).getBytes();
+        return (key + '\n' + value).getBytes(StandardCharsets.UTF_8);
     }
 
     @BeforeEach
@@ -130,7 +131,7 @@ class SingleRangeTest extends TestBase {
 
         assertTimeoutPreemptively(TIMEOUT, () -> {
             // Insert
-            assertEquals(201, upsert(key, value.getBytes()).getStatus());
+            assertEquals(201, upsert(key, value.getBytes(StandardCharsets.UTF_8)).getStatus());
 
             // Check
             final Response response = range(key, prefix + 2);
@@ -162,9 +163,9 @@ class SingleRangeTest extends TestBase {
 
         // Insert reversed
         assertTimeoutPreemptively(TIMEOUT, () -> {
-            assertEquals(201, upsert(prefix + 3, value3.getBytes()).getStatus());
-            assertEquals(201, upsert(prefix + 2, value2.getBytes()).getStatus());
-            assertEquals(201, upsert(prefix + 1, value1.getBytes()).getStatus());
+            assertEquals(201, upsert(prefix + 3, value3.getBytes(StandardCharsets.UTF_8)).getStatus());
+            assertEquals(201, upsert(prefix + 2, value2.getBytes(StandardCharsets.UTF_8)).getStatus());
+            assertEquals(201, upsert(prefix + 1, value1.getBytes(StandardCharsets.UTF_8)).getStatus());
         });
 
         // Check all
