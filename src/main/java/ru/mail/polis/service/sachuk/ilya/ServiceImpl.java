@@ -127,7 +127,6 @@ public class ServiceImpl extends HttpServer implements Service {
         Iterator<Record> entityRange = entityRequestHandler.getEntitiesRange(start, end);
 
         ChunkedHttpSession chunkedHttpSession = (ChunkedHttpSession) session;
-        chunkedHttpSession.setRecordIterator(entityRange);
 
         logger.info("AFTER SET ITERATOR");
         try {

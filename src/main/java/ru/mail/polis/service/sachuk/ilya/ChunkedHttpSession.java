@@ -26,16 +26,10 @@ public class ChunkedHttpSession extends HttpSession {
         super(socket, server);
     }
 
-
-    public void setRecordIterator(Iterator<Record> recordIterator) {
-        this.recordIterator = recordIterator;
-    }
-
     public void sendResponseWithRange(Response response, Iterator<Record> recordIterator) throws IOException {
         this.recordIterator = recordIterator;
 
         response.addHeader("Transfer-Encoding: chunked");
-        logger.info("before write response");
 
         sendResponse(response);
         logger.info("after writeREspose");
@@ -53,7 +47,6 @@ public class ChunkedHttpSession extends HttpSession {
     private void processChain() throws IOException {
         logger.info("in procces chain");
         if (recordIterator != null) {
-            int offset = 0;
             logger.info("before cycle");
             while (recordIterator.hasNext() && queueHead == null) {
                 Record record = recordIterator.next();
@@ -62,24 +55,19 @@ public class ChunkedHttpSession extends HttpSession {
 
                 write(bytes, 0, bytes.length);
 
-                offset += bytes.length;
-
-                logger.info("int while");
+                logger.info("in while");
             }
             logger.info("after while iterator");
 
-            if (!recordIterator.hasNext()) {
-                byte[] finalChunk = getFinalChunk();
-                write(finalChunk, 0, finalChunk.length);
-
-                scheduleClose();
-            }
-
         }
+
+        byte[] finalChunk = getFinalChunk();
+        write(finalChunk, 0, finalChunk.length);
+
+        scheduleClose();
 
         logger.info("after write last block");
     }
-
 
     @Override
     public synchronized void scheduleClose() {
@@ -92,13 +80,13 @@ public class ChunkedHttpSession extends HttpSession {
         byte[] newLineBytes = NEW_LINE_STRING.getBytes(StandardCharsets.US_ASCII);
         byte[] caretqueAndNewLineBytes = CARETQUE_AND_NEW_LINE_STRING.getBytes(StandardCharsets.US_ASCII);
 
-        byte[] length = Integer.toHexString(key.remaining() + newLineBytes.length + value.remaining()).getBytes(StandardCharsets.UTF_8);
+        byte[] length = Integer.toHexString(key.remaining() + newLineBytes.length + value.remaining())
+                .getBytes(StandardCharsets.UTF_8);
 
         logger.info("length : {}", length.length);
 
         String keyString = StandardCharsets.US_ASCII.decode(key).toString();
         String valueString = StandardCharsets.US_ASCII.decode(value).toString();
-
 
         ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
 
