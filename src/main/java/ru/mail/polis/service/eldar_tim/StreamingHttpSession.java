@@ -43,8 +43,8 @@ public class StreamingHttpSession extends HttpSession {
             while (queueHead == null) {
                 StreamingChunk chunk = supplier.get();
 
-                if (chunk == StreamingChunk.EMPTY) {
-                    byte[] bytes = StreamingChunk.EMPTY_BYTES;
+                if (chunk == StreamingChunk.EMPTY_INSTANCE) {
+                    byte[] bytes = StreamingChunk.EMPTY_INSTANCE_BYTES;
                     write(bytes, 0, bytes.length);
 
                     super.scheduleClose();

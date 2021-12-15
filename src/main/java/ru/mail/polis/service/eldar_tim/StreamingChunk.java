@@ -7,8 +7,8 @@ import java.nio.charset.StandardCharsets;
 
 public final class StreamingChunk {
 
-    public static final StreamingChunk EMPTY = new StreamingChunk(0);
-    public static final byte[] EMPTY_BYTES = EMPTY.bytes();
+    public static final StreamingChunk EMPTY_INSTANCE = new StreamingChunk(0);
+    public static final byte[] EMPTY_INSTANCE_BYTES = EMPTY_INSTANCE.bytes();
 
     private final byte[] delimiterBytes = "\r\n".getBytes(StandardCharsets.US_ASCII);
 
@@ -31,7 +31,7 @@ public final class StreamingChunk {
     }
 
     public static StreamingChunk empty() {
-        return EMPTY;
+        return EMPTY_INSTANCE;
     }
 
     public StreamingChunk append(ByteBuffer data, int length) {
