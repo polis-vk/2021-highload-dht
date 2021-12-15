@@ -9,8 +9,6 @@ import one.nio.http.Request;
 import one.nio.http.Response;
 import one.nio.net.Socket;
 import one.nio.server.AcceptorConfig;
-import one.nio.util.ByteArrayBuilder;
-import one.nio.util.Utf8;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.lsm.DAO;
@@ -35,16 +33,14 @@ public class ServiceImpl extends HttpServer implements Service {
     private static final String ENDPOINT_V0_STATUS = "/v0/status";
     private static final String ENDPOINT_V0_ENTITY = "/v0/entity";
     private static final String ENDPOINT_V0_RANGE = "/v0/entities";
-    private final Logger logger = LoggerFactory.getLogger(ServiceImpl.class);
-
     public static final String BAD_ID_RESPONSE = "Bad id";
     public static final int MAXIMUM_POOL_SIZE = 4;
+    private final Logger logger = LoggerFactory.getLogger(ServiceImpl.class);
 
     private final DAO dao;
     private boolean isWorking; //false by default
 
     private final ForkJoinPool executor = new ForkJoinPool(MAXIMUM_POOL_SIZE);
-
     private final ProxyClient proxyClients;
 
     public ServiceImpl(int port, DAO dao, Set<String> topology) throws URISyntaxException, IOException {
@@ -122,7 +118,6 @@ public class ServiceImpl extends HttpServer implements Service {
                 sendResponse(session, Utils.badRequest(BAD_ID_RESPONSE));
                 return;
             }
-
             ByteBuffer endKey = null;
             if (end != null) {
                 if (end.isBlank()) {
@@ -136,17 +131,7 @@ public class ServiceImpl extends HttpServer implements Service {
             try {
                 Response ok = new Response(Response.OK);
                 ok.addHeader("Transfer-Encoding: chunked");
-                ((Session) session).sendChunkedResponse(ok, () -> {
-                    if (!range.hasNext()) {
-                        return null;
-                    }
-                    Record next = range.next();
-                    ByteArrayBuilder builder = new ByteArrayBuilder(next.size());
-                    builder.append(extractBytes(next.getKey()))
-                            .append("\n")
-                            .append(extractBytes(next.getValue()));
-                    return builder.trim();
-                });
+                ((Session) session).sendChunkedResponse(ok, new RecordSupplier(range));
             } catch (IOException e) {
                 logger.error("Can't send range response", e);
             }
@@ -165,7 +150,7 @@ public class ServiceImpl extends HttpServer implements Service {
                        @Param("replicas") String replicas) {
         executor.execute(() -> {
             if (replicas == null) {
-                task(session, request, id, quorum(proxyClients.size()), proxyClients.size());
+                task(session, request, id, proxyClients.size() / 2 + 1, proxyClients.size());
                 return;
             }
 
@@ -189,10 +174,6 @@ public class ServiceImpl extends HttpServer implements Service {
             }
             task(session, request, id, ack, from);
         });
-    }
-
-    private int quorum(int n) {
-        return n / 2 + 1;
     }
 
     private void task(HttpSession session, Request request, String id, int ack, int from) {
@@ -228,7 +209,7 @@ public class ServiceImpl extends HttpServer implements Service {
     }
 
     private Response get(@Param(value = "id", required = true) String id, boolean proxyRequest) {
-        ByteBuffer fromKey = wrapString(id);
+        ByteBuffer fromKey = ByteBufferUtils.wrapString(id);
         ByteBuffer toKey = DAO.nextKey(fromKey);
 
         Iterator<Record> range = dao.range(fromKey, toKey, proxyRequest);
@@ -256,13 +237,13 @@ public class ServiceImpl extends HttpServer implements Service {
             }
             return ok;
         } else {
-            responseBody = extractBytes(record.getValue());
+            responseBody = ByteBufferUtils.extractBytes(record.getValue());
             return Response.ok(responseBody);
         }
     }
 
     private Response put(@Param(value = "id", required = true) String id, Request request) {
-        Record record = Record.of(wrapString(id), ByteBuffer.wrap(request.getBody()), timeStamp());
+        Record record = Record.of(ByteBufferUtils.wrapString(id), ByteBuffer.wrap(request.getBody()), timeStamp());
         dao.upsert(record);
         return Utils.createdResponse();
     }
@@ -272,20 +253,10 @@ public class ServiceImpl extends HttpServer implements Service {
     }
 
     private Response delete(@Param(value = "id", required = true) String id) {
-        ByteBuffer key = wrapString(id);
+        ByteBuffer key = ByteBufferUtils.wrapString(id);
         dao.upsert(Record.tombstone(key, timeStamp()));
 
         return Utils.acceptedResponse();
-    }
-
-    private ByteBuffer wrapString(String string) {
-        return ByteBuffer.wrap(Utf8.toBytes(string));
-    }
-
-    private static byte[] extractBytes(final ByteBuffer buffer) {
-        final byte[] result = new byte[buffer.remaining()];
-        buffer.get(result);
-        return result;
     }
 
     private Response handleEntity(Request request, String id, boolean includeTombstones) {
