@@ -12,7 +12,7 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
-import java.util.Iterator;
+import java.util.function.Supplier;
 
 public class ChunkedHttpSession extends HttpSession {
     private final Logger logger = LoggerFactory.getLogger(ChunkedHttpSession.class);
@@ -20,14 +20,14 @@ public class ChunkedHttpSession extends HttpSession {
     private static final String NEW_LINE_STRING = "\n";
     private static final String CARETQUE_AND_NEW_LINE_STRING = "\r\n";
 
-    private Iterator<Record> recordIterator;
+    private Supplier<Record> supplier;
 
     public ChunkedHttpSession(Socket socket, HttpServer server) {
         super(socket, server);
     }
 
-    public void sendResponseWithRange(Response response, Iterator<Record> recordIterator) throws IOException {
-        this.recordIterator = recordIterator;
+    public void sendResponseWithRange(Response response, Supplier<Record> supplier) throws IOException {
+        this.supplier = supplier;
 
         response.addHeader("Transfer-Encoding: chunked");
 
@@ -46,10 +46,14 @@ public class ChunkedHttpSession extends HttpSession {
 
     private void processChain() throws IOException {
         logger.info("in procces chain");
-        if (recordIterator != null) {
+        if (supplier != null) {
             logger.info("before cycle");
-            while (recordIterator.hasNext() && queueHead == null) {
-                Record record = recordIterator.next();
+            while (queueHead == null) {
+                Record record = supplier.get();
+
+                if (record == null) {
+                    break;
+                }
 
                 byte[] bytes = getChunk(record.getKey(), record.getValue());
 
@@ -71,7 +75,7 @@ public class ChunkedHttpSession extends HttpSession {
 
     @Override
     public synchronized void scheduleClose() {
-        if (recordIterator != null) {
+        if (supplier != null) {
             super.scheduleClose();
         }
     }

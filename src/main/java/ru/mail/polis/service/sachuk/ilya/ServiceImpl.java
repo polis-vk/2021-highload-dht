@@ -130,7 +130,10 @@ public class ServiceImpl extends HttpServer implements Service {
 
         logger.info("AFTER SET ITERATOR");
         try {
-            chunkedHttpSession.sendResponseWithRange(response, entityRange);
+            chunkedHttpSession.sendResponseWithRange(response, () -> entityRange.hasNext()
+                    ? entityRange.next()
+                    : null
+            );
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
