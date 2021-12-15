@@ -14,9 +14,10 @@ public class RecordSupplier implements Supplier<byte[]> {
     }
 
     @Override
+    @SuppressWarnings("ReturnEmptyCollectionRatherThanNull")
+    //method have to return null in this case because empty array and null are not the same
     public byte[] get() {
         if (!range.hasNext()) {
-            //method have to return null in this case because empty array and null are not the same
             return null;
         }
         Record next = range.next();
