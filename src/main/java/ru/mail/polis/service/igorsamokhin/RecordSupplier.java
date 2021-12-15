@@ -7,7 +7,6 @@ import java.util.Iterator;
 import java.util.function.Supplier;
 
 public class RecordSupplier implements Supplier<byte[]> {
-
     private final Iterator<Record> range;
 
     public RecordSupplier(Iterator<Record> range) {
@@ -17,6 +16,7 @@ public class RecordSupplier implements Supplier<byte[]> {
     @Override
     public byte[] get() {
         if (!range.hasNext()) {
+            //method have to return null in this case because empty array and null are not the same
             return null;
         }
         Record next = range.next();
