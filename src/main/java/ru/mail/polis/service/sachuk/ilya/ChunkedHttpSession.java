@@ -85,25 +85,25 @@ public class ChunkedHttpSession extends HttpSession {
         byte[] caretqueAndNewLineBytes = CARETQUE_AND_NEW_LINE_STRING.getBytes(StandardCharsets.US_ASCII);
 
         byte[] length = Integer.toHexString(key.remaining() + newLineBytes.length + value.remaining())
-                .getBytes(StandardCharsets.UTF_8);
+                .getBytes(StandardCharsets.US_ASCII);
 
         logger.info("length : {}", length.length);
 
-        String keyString = StandardCharsets.US_ASCII.decode(key).toString();
-        String valueString = StandardCharsets.US_ASCII.decode(value).toString();
+        byte[] keyBytes = StandardCharsets.US_ASCII.decode(key).toString().getBytes(StandardCharsets.US_ASCII);
+        byte[] valueBytes = StandardCharsets.US_ASCII.decode(value).toString().getBytes(StandardCharsets.US_ASCII);
 
-        return getByteArrayOutputStream(newLineBytes, caretqueAndNewLineBytes, length, keyString, valueString);
+        return getByteArrayOutputStream(newLineBytes, caretqueAndNewLineBytes, length, keyBytes, valueBytes);
     }
 
     private byte[] getByteArrayOutputStream(byte[] newLineBytes, byte[] caretqueAndNewLineBytes,
-                                            byte[] length, String keyString, String valueString) {
+                                            byte[] length, byte[] keyBytes, byte[] valueBytes) {
         ByteArrayOutputStream byteArrayOutputStream = new ByteArrayOutputStream();
 
         byteArrayOutputStream.writeBytes(length);
         byteArrayOutputStream.writeBytes(caretqueAndNewLineBytes);
-        byteArrayOutputStream.writeBytes(keyString.getBytes(StandardCharsets.US_ASCII));
+        byteArrayOutputStream.writeBytes(keyBytes);
         byteArrayOutputStream.writeBytes(newLineBytes);
-        byteArrayOutputStream.writeBytes(valueString.getBytes(StandardCharsets.US_ASCII));
+        byteArrayOutputStream.writeBytes(valueBytes);
         byteArrayOutputStream.writeBytes(caretqueAndNewLineBytes);
         return byteArrayOutputStream.toByteArray();
     }
