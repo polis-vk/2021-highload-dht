@@ -11,8 +11,10 @@ final class DataTransferChunk {
     private final Iterator<Record> data;
     private boolean isEnd;
 
-    public static final byte[] ENDS = "0\r\n\r\n".getBytes(StandardCharsets.UTF_8);
-    public static final byte[] NEXT_LINE = "\r\n".getBytes(StandardCharsets.UTF_8);
+    private static final byte[] ENDS = "0\r\n\r\n".getBytes(StandardCharsets.UTF_8);
+    private static final byte[] CHUNK_NEXT_LINE = "\r\n".getBytes(StandardCharsets.UTF_8);
+    private static final byte[] NEXT_LINE = "\n".getBytes(StandardCharsets.UTF_8);
+    private static final int chunkNextLineSize = 2 * CHUNK_NEXT_LINE.length + NEXT_LINE.length;
 
     private DataTransferChunk(final Iterator<Record> data) {
         this.data = data;
@@ -45,14 +47,14 @@ final class DataTransferChunk {
         final byte[] key = extractBytes(record.getKey());
         final byte[] value = extractBytes(record.getValue());
         final byte[] hexSize = Integer.toHexString(key.length + value.length + 1).getBytes(StandardCharsets.UTF_8);
-        final int totalSize = hexSize.length + key.length + value.length + 5 * Byte.BYTES;
+        final int totalSize = hexSize.length + key.length + value.length + chunkNextLineSize;
         ByteBuffer tmpChunk = ByteBuffer.allocate(totalSize);
         tmpChunk.put(hexSize);
-        tmpChunk.put(NEXT_LINE);
+        tmpChunk.put(CHUNK_NEXT_LINE);
         tmpChunk.put(key);
-        tmpChunk.put("\n".getBytes(StandardCharsets.UTF_8));
-        tmpChunk.put(value);
         tmpChunk.put(NEXT_LINE);
+        tmpChunk.put(value);
+        tmpChunk.put(CHUNK_NEXT_LINE);
         return tmpChunk.position(0);
     }
 
