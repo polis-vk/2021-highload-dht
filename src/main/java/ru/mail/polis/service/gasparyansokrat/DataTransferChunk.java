@@ -14,7 +14,7 @@ final class DataTransferChunk {
     private static final byte[] ENDS = "0\r\n\r\n".getBytes(StandardCharsets.UTF_8);
     private static final byte[] CHUNK_NEXT_LINE = "\r\n".getBytes(StandardCharsets.UTF_8);
     private static final byte[] NEXT_LINE = "\n".getBytes(StandardCharsets.UTF_8);
-    private static final int chunkNextLineSize = 2 * CHUNK_NEXT_LINE.length + NEXT_LINE.length;
+    private static final int ChunkNextLineSize = 2 * CHUNK_NEXT_LINE.length + NEXT_LINE.length;
 
     private DataTransferChunk(final Iterator<Record> data) {
         this.data = data;
@@ -47,7 +47,7 @@ final class DataTransferChunk {
         final byte[] key = extractBytes(record.getKey());
         final byte[] value = extractBytes(record.getValue());
         final byte[] hexSize = Integer.toHexString(key.length + value.length + 1).getBytes(StandardCharsets.UTF_8);
-        final int totalSize = hexSize.length + key.length + value.length + chunkNextLineSize;
+        final int totalSize = hexSize.length + key.length + value.length + ChunkNextLineSize;
         ByteBuffer tmpChunk = ByteBuffer.allocate(totalSize);
         tmpChunk.put(hexSize);
         tmpChunk.put(CHUNK_NEXT_LINE);
