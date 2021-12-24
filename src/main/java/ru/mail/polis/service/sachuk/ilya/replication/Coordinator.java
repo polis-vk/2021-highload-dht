@@ -26,13 +26,13 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public class Coordinator {
-
     private final Logger logger = LoggerFactory.getLogger(Coordinator.class);
 
     private final NodeManager nodeManager;
     private final NodeRouter nodeRouter;
     private final EntityRequestHandler entityRequestHandler;
     private final Node node;
+    private final Object object = new Object();
 
     public Coordinator(NodeManager nodeManager, NodeRouter nodeRouter, EntityRequestHandler entityRequestHandler,
                        Node node) {
@@ -79,6 +79,7 @@ public class Coordinator {
                         if (executedResponses.size() >= replicationInfo.ask || counter.get() == replicationInfo.from) {
                             List<Response> list = new ArrayList<>(executedResponses);
                             Response finalResponse = getFinalResponse(request, key, list, replicationInfo);
+
                             sendResponse(session, alreadyExecuted, finalResponse);
                         }
                     });
@@ -92,7 +93,7 @@ public class Coordinator {
     private void sendResponse(HttpSession session, AtomicBoolean alreadyExecuted, Response response) {
         try {
             if (!alreadyExecuted.get()) {
-                synchronized (Coordinator.class) {
+                synchronized (object) {
                     if (!alreadyExecuted.get()) {
                         alreadyExecuted.set(true);
                         session.sendResponse(response);
