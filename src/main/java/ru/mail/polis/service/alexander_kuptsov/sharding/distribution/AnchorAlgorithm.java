@@ -7,10 +7,10 @@ import java.util.*;
 public class AnchorAlgorithm extends DistributionHashAlgorithm<IHashAlgorithm> {
     private final Deque<Integer> removed;
 
-    private int[] A;
-    private int[] W;
-    private int[] L;
-    private int[] K;
+    private int[] a;
+    private int[] w;
+    private int[] l;
+    private int[] k;
 
     private int capacity;
     private int size;
@@ -43,18 +43,19 @@ public class AnchorAlgorithm extends DistributionHashAlgorithm<IHashAlgorithm> {
         }
         this.storage = new TreeMap<>();
 
-        this.A = new int[capacity];
-        this.W = new int[capacity];
-        this.L = new int[capacity];
-        this.K = new int[capacity];
+        this.a = new int[capacity];
+        this.w = new int[capacity];
+        this.l = new int[capacity];
+        this.k = new int[capacity];
 
         for (int i = 0; i < capacity; i++) {
-            L[i] = i;
-            W[i] = i;
-            K[i] = i;
+            l[i] = i;
+            w[i] = i;
+            k[i] = i;
         }
-        for (int i = capacity - 1; i >= size; i--)
-            A[i] = i;
+        for (int i = capacity - 1; i >= size; i--) {
+            a[i] = i;
+        }
 
         int bucket = 0;
         for (String server : topology) {
@@ -103,11 +104,11 @@ public class AnchorAlgorithm extends DistributionHashAlgorithm<IHashAlgorithm> {
         int k = Math.abs(getHashWithSeed(key, SEED));
         int b = k % capacity;
 
-        while (A[b] > 0) {
+        while (a[b] > 0) {
             k = Math.abs(getHashWithSeed(String.valueOf(k), b));
-            int h = k % A[b];
-            while (A[h] >= A[b]) {
-                h = K[h];
+            int h = k % a[b];
+            while (a[h] >= a[b]) {
+                h = this.k[h];
             }
             b = h;
         }
@@ -117,10 +118,10 @@ public class AnchorAlgorithm extends DistributionHashAlgorithm<IHashAlgorithm> {
 
     private int addBucket() {
         final int b = removed.isEmpty() ? size : removed.pop();
-        A[b] = 0;
-        L[W[size]] = size;
-        W[L[b]] = b;
-        K[b] = b;
+        a[b] = 0;
+        l[w[size]] = size;
+        w[l[b]] = b;
+        k[b] = b;
         size++;
         return b;
     }
@@ -130,9 +131,9 @@ public class AnchorAlgorithm extends DistributionHashAlgorithm<IHashAlgorithm> {
         if (b < size || !removed.isEmpty()) {
             removed.push(b);
         }
-        A[b] = size;
-        W[L[b]] = W[size];
-        L[W[size]] = L[b];
-        K[b] = W[size];
+        a[b] = size;
+        w[l[b]] = w[size];
+        l[w[size]] = l[b];
+        k[b] = w[size];
     }
 }

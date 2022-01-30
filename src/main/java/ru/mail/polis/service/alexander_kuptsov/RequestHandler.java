@@ -7,7 +7,8 @@ import one.nio.pool.PoolException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.service.alexander_kuptsov.sharding.ClusterNodeHandler;
-import ru.mail.polis.service.alexander_kuptsov.sharding.distribution.*;
+import ru.mail.polis.service.alexander_kuptsov.sharding.distribution.IDistributionAlgorithm;
+import ru.mail.polis.service.alexander_kuptsov.sharding.distribution.MaglevAlgorithm;
 import ru.mail.polis.service.alexander_kuptsov.sharding.hash.Fnv1Algorithm;
 import ru.mail.polis.service.alexander_kuptsov.sharding.hash.IHashAlgorithm;
 

@@ -67,14 +67,17 @@ public class MultiProbeAlgorithm extends DistributionHashAlgorithm<IHashAlgorith
             int high = probesRing.size();
             while (low < high) {
                 final int mid = (low + high) >>> 1;
-                if (probesRing.get(mid).hash > hash)
+                if (probesRing.get(mid).hash > hash) {
                     high = mid;
-                else
+                }
+                else {
                     low = mid + 1;
+                }
             }
 
-            if (low >= probesRing.size())
+            if (low >= probesRing.size()) {
                 low = 0;
+            }
 
             final long distance = probesRing.get(low).distance(hash);
             if (distance < minDistance) {

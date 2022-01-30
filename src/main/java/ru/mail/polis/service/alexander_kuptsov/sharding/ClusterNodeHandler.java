@@ -16,6 +16,10 @@ public class ClusterNodeHandler {
     public ClusterNodeHandler(Set<String> topology, final int selfPort, IDistributionAlgorithm distributionAlgorithm) {
         this.distributionAlgorithm = distributionAlgorithm;
         this.servers = new HashMap<>(topology.size());
+        init(topology, selfPort);
+    }
+
+    private void init(Set<String> topology, final int selfPort) {
         addTopology(topology);
         createByTopology(topology, selfPort);
     }

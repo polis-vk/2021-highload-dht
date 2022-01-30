@@ -2,12 +2,16 @@ package ru.mail.polis.service.alexander_kuptsov.sharding.distribution;
 
 import ru.mail.polis.service.alexander_kuptsov.sharding.hash.IHashAlgorithm;
 
-import java.util.*;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Objects;
+import java.util.Set;
+
 
 public class MaglevAlgorithm extends DistributionHashAlgorithm<IHashAlgorithm> {
     private int lookupSize;
-    private String[] lookup;
-    private final Vector<Permutation> permutations;
+    private String[] currentLookup;
+    private final List<Permutation> permutations;
 
     private static final int RECOMMENDED_LOOKUP_SHIFT = 6;
     private static final int DEFAULT_LOOKUP_SIZE = 127;
@@ -19,8 +23,8 @@ public class MaglevAlgorithm extends DistributionHashAlgorithm<IHashAlgorithm> {
     public MaglevAlgorithm(IHashAlgorithm hashAlgorithm, int lookupSize) {
         super(hashAlgorithm);
         this.lookupSize = lookupSize;
-        this.lookup = new String[0];
-        this.permutations = new Vector<>();
+        this.currentLookup = new String[0];
+        this.permutations = new ArrayList<>();
     }
 
     @Override
@@ -33,20 +37,20 @@ public class MaglevAlgorithm extends DistributionHashAlgorithm<IHashAlgorithm> {
         for (String server : topology) {
             permutations.add(createPermutation(server));
         }
-        lookup = newLookup();
+        currentLookup = newLookup();
     }
 
     @Override
     public void addServer(String server) {
         permutations.forEach(Permutation::reset);
         permutations.add(createPermutation(server));
-        lookup = newLookup();
+        currentLookup = newLookup();
     }
 
     @Override
     public String getServer(String id) {
-        final int index = getHash(id) % lookup.length;
-        return lookup[index];
+        final int index = getHash(id) % currentLookup.length;
+        return currentLookup[index];
     }
 
     @Override
@@ -63,14 +67,14 @@ public class MaglevAlgorithm extends DistributionHashAlgorithm<IHashAlgorithm> {
         }
         permutations.remove(permutationToRemove);
         permutations.forEach(Permutation::reset);
-        lookup = newLookup();
+        currentLookup = newLookup();
     }
 
     @Override
     public void removeTopology(Set<String> servers) {
         permutations.removeIf(permutation -> servers.contains(permutation.server));
         permutations.forEach(Permutation::reset);
-        lookup = newLookup();
+        currentLookup = newLookup();
     }
 
     private Permutation createPermutation(String backend) {
@@ -139,9 +143,9 @@ public class MaglevAlgorithm extends DistributionHashAlgorithm<IHashAlgorithm> {
         }
 
         public int next() {
-            final int current = this.current;
-            this.current = (current + skip) % size;
-            return current;
+            final int last = current;
+            current = (last + skip) % size;
+            return last;
         }
 
         public void reset() {

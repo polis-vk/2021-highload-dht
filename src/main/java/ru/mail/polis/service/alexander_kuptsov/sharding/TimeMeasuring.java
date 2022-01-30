@@ -1,17 +1,32 @@
 package ru.mail.polis.service.alexander_kuptsov.sharding;
 
 
-import ru.mail.polis.service.alexander_kuptsov.sharding.distribution.*;
-import ru.mail.polis.service.alexander_kuptsov.sharding.hash.*;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import ru.mail.polis.service.alexander_kuptsov.RequestHandler;
+import ru.mail.polis.service.alexander_kuptsov.sharding.distribution.AnchorAlgorithm;
+import ru.mail.polis.service.alexander_kuptsov.sharding.distribution.IDistributionAlgorithm;
+import ru.mail.polis.service.alexander_kuptsov.sharding.distribution.JumpAlgorithm;
+import ru.mail.polis.service.alexander_kuptsov.sharding.distribution.MaglevAlgorithm;
+import ru.mail.polis.service.alexander_kuptsov.sharding.distribution.MultiProbeAlgorithm;
+import ru.mail.polis.service.alexander_kuptsov.sharding.distribution.RendezvousAlgorithm;
+import ru.mail.polis.service.alexander_kuptsov.sharding.distribution.VNodesAlgorithm;
+import ru.mail.polis.service.alexander_kuptsov.sharding.hash.Fnv1Algorithm;
+import ru.mail.polis.service.alexander_kuptsov.sharding.hash.IHashAlgorithm;
 
 import java.io.IOException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.ServerSocket;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 
 public class TimeMeasuring {
+    private static final Logger logger = LoggerFactory.getLogger(TimeMeasuring.class);
     private static final int COUNT_OF_KEYS = 100000;
     protected static final int[] NUMBER_OF_NODES = new int[]{4, 16, 64, 256, 1024};
     private static final IHashAlgorithm DEFAULT_HASH_ALGORITHM = new Fnv1Algorithm();
@@ -23,23 +38,23 @@ public class TimeMeasuring {
             new RendezvousAlgorithm(DEFAULT_HASH_ALGORITHM),
             new VNodesAlgorithm(DEFAULT_HASH_ALGORITHM)
     };
+    private static final String DEFAULT_IP_ADDRESS = "0.0.0.0";
 
+    private TimeMeasuring() {
+    }
 
     public static void main(String[] args) {
         HashMap<Integer, HashMap<String, Double>> results = new HashMap<>();
         for (int numberOfNodes : NUMBER_OF_NODES) {
-            System.out.println("----- " + numberOfNodes);
             Set<String> topology = new HashSet<>(getRandomNodes(numberOfNodes));
             HashMap<String, Double> currentResults = new HashMap<>();
             for (IDistributionAlgorithm algorithm : ALGORITHMS) {
-                System.out.println("--- " + algorithm.getClass().getSimpleName());
                 double measuredTime = measureServerById(algorithm, topology);
-                System.out.println(measuredTime);
                 currentResults.put(algorithm.getClass().getSimpleName(), measuredTime);
             }
             results.put(numberOfNodes, currentResults);
         }
-        System.out.println(results);
+        logger.trace(results.toString());
     }
 
     private static double measureServerById(IDistributionAlgorithm distributionAlgorithm, Set<String> topology) {
@@ -78,7 +93,6 @@ public class TimeMeasuring {
             distributionAlgorithm.removeServer(server);
             long stopTime = System.nanoTime();
             measuredTime = (measuredTime + (stopTime - startTime)) / 2;
-            break;
         }
         return measuredTime;
     }
@@ -98,7 +112,7 @@ public class TimeMeasuring {
     private static int randomPort() {
         try (ServerSocket socket = new ServerSocket()) {
             socket.setReuseAddress(true);
-            socket.bind(new InetSocketAddress(InetAddress.getByName("0.0.0.0"), 0), 1);
+            socket.bind(new InetSocketAddress(InetAddress.getByName(DEFAULT_IP_ADDRESS), 0), 1);
             return socket.getLocalPort();
         } catch (IOException e) {
             throw new RuntimeException("Can't discover a free port", e);
