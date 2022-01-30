@@ -7,7 +7,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
-
 public class MaglevAlgorithm extends DistributionHashAlgorithm<IHashAlgorithm> {
     private int lookupSize;
     private String[] currentLookup;

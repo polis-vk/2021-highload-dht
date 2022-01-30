@@ -69,8 +69,7 @@ public class MultiProbeAlgorithm extends DistributionHashAlgorithm<IHashAlgorith
                 final int mid = (low + high) >>> 1;
                 if (probesRing.get(mid).hash > hash) {
                     high = mid;
-                }
-                else {
+                } else {
                     low = mid + 1;
                 }
             }

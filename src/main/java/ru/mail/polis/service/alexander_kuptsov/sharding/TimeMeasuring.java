@@ -1,9 +1,7 @@
 package ru.mail.polis.service.alexander_kuptsov.sharding;
 
-
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import ru.mail.polis.service.alexander_kuptsov.RequestHandler;
 import ru.mail.polis.service.alexander_kuptsov.sharding.distribution.AnchorAlgorithm;
 import ru.mail.polis.service.alexander_kuptsov.sharding.distribution.IDistributionAlgorithm;
 import ru.mail.polis.service.alexander_kuptsov.sharding.distribution.JumpAlgorithm;
@@ -25,10 +23,10 @@ import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 
-public class TimeMeasuring {
+public final class TimeMeasuring {
     private static final Logger logger = LoggerFactory.getLogger(TimeMeasuring.class);
     private static final int COUNT_OF_KEYS = 100000;
-    protected static final int[] NUMBER_OF_NODES = new int[]{4, 16, 64, 256, 1024};
+    private static final int[] NUMBER_OF_NODES = new int[]{4, 16, 64, 256, 1024};
     private static final IHashAlgorithm DEFAULT_HASH_ALGORITHM = new Fnv1Algorithm();
     private static final IDistributionAlgorithm[] ALGORITHMS = new IDistributionAlgorithm[]{
             new AnchorAlgorithm(DEFAULT_HASH_ALGORITHM, 1024),
@@ -38,13 +36,18 @@ public class TimeMeasuring {
             new RendezvousAlgorithm(DEFAULT_HASH_ALGORITHM),
             new VNodesAlgorithm(DEFAULT_HASH_ALGORITHM)
     };
-    private static final String DEFAULT_IP_ADDRESS = "0.0.0.0";
 
     private TimeMeasuring() {
     }
 
     public static void main(String[] args) {
-        HashMap<Integer, HashMap<String, Double>> results = new HashMap<>();
+       collectServerByIdResults();
+       collectAddServerResults();
+       collectRemoveServerResults();
+    }
+
+    private static void collectServerByIdResults() {
+        HashMap<Integer, HashMap<String, Double>> resultsServerById = new HashMap<>();
         for (int numberOfNodes : NUMBER_OF_NODES) {
             Set<String> topology = new HashSet<>(getRandomNodes(numberOfNodes));
             HashMap<String, Double> currentResults = new HashMap<>();
@@ -52,9 +55,36 @@ public class TimeMeasuring {
                 double measuredTime = measureServerById(algorithm, topology);
                 currentResults.put(algorithm.getClass().getSimpleName(), measuredTime);
             }
-            results.put(numberOfNodes, currentResults);
+            resultsServerById.put(numberOfNodes, currentResults);
         }
-        logger.trace(results.toString());
+        logger.debug(resultsServerById.toString());
+    }
+
+    private static void collectAddServerResults() {
+        HashMap<Integer, HashMap<String, Double>> resultsRemoveServer = new HashMap<>();
+        for (int numberOfNodes : NUMBER_OF_NODES) {
+            HashMap<String, Double> currentResults = new HashMap<>();
+            for (IDistributionAlgorithm algorithm : ALGORITHMS) {
+                double measuredTime = measureAddServer(algorithm);
+                currentResults.put(algorithm.getClass().getSimpleName(), measuredTime);
+            }
+            resultsRemoveServer.put(numberOfNodes, currentResults);
+        }
+        logger.debug(resultsRemoveServer.toString());
+    }
+
+    private static void collectRemoveServerResults() {
+        HashMap<Integer, HashMap<String, Double>> resultsAddServer = new HashMap<>();
+        for (int numberOfNodes : NUMBER_OF_NODES) {
+            Set<String> topology = new HashSet<>(getRandomNodes(numberOfNodes));
+            HashMap<String, Double> currentResults = new HashMap<>();
+            for (IDistributionAlgorithm algorithm : ALGORITHMS) {
+                double measuredTime = measureRemoveServer(algorithm, topology);
+                currentResults.put(algorithm.getClass().getSimpleName(), measuredTime);
+            }
+            resultsAddServer.put(numberOfNodes, currentResults);
+        }
+        logger.debug(resultsAddServer.toString());
     }
 
     private static double measureServerById(IDistributionAlgorithm distributionAlgorithm, Set<String> topology) {
@@ -69,7 +99,8 @@ public class TimeMeasuring {
         return measuredTime;
     }
 
-    private static double measureAddServer(IDistributionAlgorithm distributionAlgorithm, int startTopologySize) {
+    private static double measureAddServer(IDistributionAlgorithm distributionAlgorithm) {
+        final int startTopologySize = 16;
         final int iterations = 30;
         List<String> topology = getRandomNodes(startTopologySize + iterations);
         HashSet<String> startTopology = new HashSet<>(topology.subList(0, startTopologySize - 1));
@@ -112,7 +143,7 @@ public class TimeMeasuring {
     private static int randomPort() {
         try (ServerSocket socket = new ServerSocket()) {
             socket.setReuseAddress(true);
-            socket.bind(new InetSocketAddress(InetAddress.getByName(DEFAULT_IP_ADDRESS), 0), 1);
+            socket.bind(new InetSocketAddress(InetAddress.getLocalHost(), 0), 1);
             return socket.getLocalPort();
         } catch (IOException e) {
             throw new RuntimeException("Can't discover a free port", e);

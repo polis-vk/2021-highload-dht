@@ -2,15 +2,21 @@ package ru.mail.polis.service.alexander_kuptsov.sharding.distribution;
 
 import ru.mail.polis.service.alexander_kuptsov.sharding.hash.IHashAlgorithm;
 
-import java.util.*;
+import java.util.ArrayDeque;
+import java.util.Deque;
+import java.util.Map;
+import java.util.NavigableMap;
+import java.util.Objects;
+import java.util.Set;
+import java.util.TreeMap;
 
 public class AnchorAlgorithm extends DistributionHashAlgorithm<IHashAlgorithm> {
     private final Deque<Integer> removed;
 
-    private int[] a;
-    private int[] w;
-    private int[] l;
-    private int[] k;
+    private int[] baseA;
+    private int[] baseW;
+    private int[] baseL;
+    private int[] baseK;
 
     private int capacity;
     private int size;
@@ -26,7 +32,7 @@ public class AnchorAlgorithm extends DistributionHashAlgorithm<IHashAlgorithm> {
 
     public AnchorAlgorithm(IHashAlgorithm hashAlgorithm, int capacity) {
         super(hashAlgorithm);
-        this.removed = new LinkedList<>();
+        this.removed = new ArrayDeque<>();
         this.capacity = capacity;
     }
 
@@ -43,18 +49,18 @@ public class AnchorAlgorithm extends DistributionHashAlgorithm<IHashAlgorithm> {
         }
         this.storage = new TreeMap<>();
 
-        this.a = new int[capacity];
-        this.w = new int[capacity];
-        this.l = new int[capacity];
-        this.k = new int[capacity];
+        this.baseA = new int[capacity];
+        this.baseW = new int[capacity];
+        this.baseL = new int[capacity];
+        this.baseK = new int[capacity];
 
         for (int i = 0; i < capacity; i++) {
-            l[i] = i;
-            w[i] = i;
-            k[i] = i;
+            baseL[i] = i;
+            baseW[i] = i;
+            baseK[i] = i;
         }
         for (int i = capacity - 1; i >= size; i--) {
-            a[i] = i;
+            baseA[i] = i;
         }
 
         int bucket = 0;
@@ -104,11 +110,11 @@ public class AnchorAlgorithm extends DistributionHashAlgorithm<IHashAlgorithm> {
         int k = Math.abs(getHashWithSeed(key, SEED));
         int b = k % capacity;
 
-        while (a[b] > 0) {
+        while (baseA[b] > 0) {
             k = Math.abs(getHashWithSeed(String.valueOf(k), b));
-            int h = k % a[b];
-            while (a[h] >= a[b]) {
-                h = this.k[h];
+            int h = k % baseA[b];
+            while (baseA[h] >= baseA[b]) {
+                h = this.baseK[h];
             }
             b = h;
         }
@@ -118,10 +124,10 @@ public class AnchorAlgorithm extends DistributionHashAlgorithm<IHashAlgorithm> {
 
     private int addBucket() {
         final int b = removed.isEmpty() ? size : removed.pop();
-        a[b] = 0;
-        l[w[size]] = size;
-        w[l[b]] = b;
-        k[b] = b;
+        baseA[b] = 0;
+        baseL[baseW[size]] = size;
+        baseW[baseL[b]] = b;
+        baseK[b] = b;
         size++;
         return b;
     }
@@ -131,9 +137,9 @@ public class AnchorAlgorithm extends DistributionHashAlgorithm<IHashAlgorithm> {
         if (b < size || !removed.isEmpty()) {
             removed.push(b);
         }
-        a[b] = size;
-        w[l[b]] = w[size];
-        l[w[size]] = l[b];
-        k[b] = w[size];
+        baseA[b] = size;
+        baseW[baseL[b]] = baseW[size];
+        baseL[baseW[size]] = baseL[b];
+        baseK[b] = baseW[size];
     }
 }
