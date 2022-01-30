@@ -1,4 +1,4 @@
-package ru.mail.polis.service.alexander_kuptsov.sharding;
+package ru.mail.polis.service.alexander_kuptsov.sharding.distribution;
 
 import ru.mail.polis.service.alexander_kuptsov.sharding.hash.IHashAlgorithm;
 
@@ -6,48 +6,40 @@ import java.util.NavigableMap;
 import java.util.Set;
 import java.util.TreeMap;
 
-public class ConsistentHashing {
-    private final Set<String> topology;
+public class VNodesAlgorithm extends DistributionHashAlgorithm<IHashAlgorithm> {
     private final NavigableMap<Integer, Node> virtualNodes = new TreeMap<>();
     private final int virtualNodesCount;
 
-    private final IHashAlgorithm hashAlgorithm;
+    private static final int DEFAULT_VIRTUAL_NODES = 100;
 
-    private static final int DEFAULT_VIRTUAL_NODES = 10;
+    public VNodesAlgorithm(IHashAlgorithm hashAlgorithm) {
+        this(hashAlgorithm, DEFAULT_VIRTUAL_NODES);
+    }
 
-    private ConsistentHashing(Set<String> topology, IHashAlgorithm hashAlgorithm, int virtualNodesCount) {
-        this.topology = topology;
+    public VNodesAlgorithm(IHashAlgorithm hashAlgorithm, int virtualNodesCount) {
+        super(hashAlgorithm);
         this.virtualNodesCount = virtualNodesCount;
-        this.hashAlgorithm = hashAlgorithm;
     }
 
-    public static ConsistentHashing createByTopology(
-            Set<String> topology,
-            IHashAlgorithm hashAlgorithm) {
-        return createByTopology(topology, hashAlgorithm, DEFAULT_VIRTUAL_NODES);
-    }
-
-    public static ConsistentHashing createByTopology(
-            Set<String> topology,
-            IHashAlgorithm hashAlgorithm,
-            int virtualNodesCount) {
-        ConsistentHashing consistentHashing = new ConsistentHashing(topology, hashAlgorithm, virtualNodesCount);
-        consistentHashing.init();
-        return consistentHashing;
-    }
-
-    private void init() {
+    @Override
+    public void addTopology(Set<String> topology) {
         for (String server : topology) {
-            for (int i = 0; i < virtualNodesCount; i++) {
-                Node node = new Node(server, i);
-                int hash = hashAlgorithm.getHash(node.getVirtualName());
-                virtualNodes.put(hash, node);
-            }
+            addServer(server);
         }
     }
 
+    @Override
+    public void addServer(String server) {
+        for (int i = 0; i < virtualNodesCount; i++) {
+            Node node = new Node(server, i);
+            int hash = getHash(node.getVirtualName());
+            virtualNodes.put(hash, node);
+        }
+    }
+
+    @Override
     public String getServer(String key) {
-        int hash = hashAlgorithm.getHash(key);
+        int hash = getHash(key);
         NavigableMap<Integer, Node> subMap = (NavigableMap<Integer, Node>) virtualNodes.tailMap(hash);
         Node virtualNode;
         if (subMap.isEmpty()) {
@@ -63,6 +55,12 @@ public class ConsistentHashing {
             return virtualNode.getServerName();
         }
         return null;
+    }
+
+    @Override
+    public void removeServer(String server) {
+        int hash = getHash(server);
+        virtualNodes.remove(hash);
     }
 
     private static final class Node {

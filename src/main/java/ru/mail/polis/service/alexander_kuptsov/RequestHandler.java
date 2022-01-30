@@ -7,6 +7,9 @@ import one.nio.pool.PoolException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import ru.mail.polis.service.alexander_kuptsov.sharding.ClusterNodeHandler;
+import ru.mail.polis.service.alexander_kuptsov.sharding.distribution.*;
+import ru.mail.polis.service.alexander_kuptsov.sharding.hash.Fnv1Algorithm;
+import ru.mail.polis.service.alexander_kuptsov.sharding.hash.IHashAlgorithm;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -19,7 +22,9 @@ public class RequestHandler {
     private final InternalDaoService internalDaoService;
 
     public RequestHandler(Set<String> topology, final int selfPort, InternalDaoService internalDaoService) {
-        this.clusterNodeHandler = new ClusterNodeHandler(topology, selfPort);
+        IHashAlgorithm hashAlgorithm = new Fnv1Algorithm();
+        IDistributionAlgorithm maglevAlg = new MaglevAlgorithm(hashAlgorithm);
+        this.clusterNodeHandler = new ClusterNodeHandler(topology, selfPort, maglevAlg);
         this.internalDaoService = internalDaoService;
     }
 

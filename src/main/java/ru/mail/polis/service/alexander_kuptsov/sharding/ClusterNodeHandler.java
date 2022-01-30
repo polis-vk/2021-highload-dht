@@ -2,20 +2,21 @@ package ru.mail.polis.service.alexander_kuptsov.sharding;
 
 import one.nio.http.HttpClient;
 import one.nio.net.ConnectionString;
-import ru.mail.polis.service.alexander_kuptsov.sharding.hash.Fnv1Hash32;
+import ru.mail.polis.service.alexander_kuptsov.sharding.distribution.IDistributionAlgorithm;
 
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
 
 public class ClusterNodeHandler {
-    private final ConsistentHashing consistentHashing;
+    private final IDistributionAlgorithm distributionAlgorithm;
     private final Map<String, HttpClient> servers;
     private String selfNode;
 
-    public ClusterNodeHandler(Set<String> topology, final int selfPort) {
-        this.consistentHashing = ConsistentHashing.createByTopology(topology, new Fnv1Hash32());
+    public ClusterNodeHandler(Set<String> topology, final int selfPort, IDistributionAlgorithm distributionAlgorithm) {
+        this.distributionAlgorithm = distributionAlgorithm;
         this.servers = new HashMap<>(topology.size());
+        addTopology(topology);
         createByTopology(topology, selfPort);
     }
 
@@ -32,12 +33,28 @@ public class ClusterNodeHandler {
     }
 
     public HttpClient getServer(String id) {
-        final String node = consistentHashing.getServer(id);
+        final String node = distributionAlgorithm.getServer(id);
         return servers.get(node);
     }
 
     public boolean isSelfNode(String id) {
-        final String node = consistentHashing.getServer(id);
+        final String node = distributionAlgorithm.getServer(id);
         return node.equals(selfNode);
+    }
+
+    public void addTopology(Set<String> topology) {
+        distributionAlgorithm.addTopology(topology);
+    }
+
+    public void addServer(String server) {
+        distributionAlgorithm.addServer(server);
+    }
+
+    public void removeServer(String server) {
+        distributionAlgorithm.removeServer(server);
+    }
+
+    public void removeTopology(Set<String> topology) {
+        distributionAlgorithm.removeTopology(topology);
     }
 }
