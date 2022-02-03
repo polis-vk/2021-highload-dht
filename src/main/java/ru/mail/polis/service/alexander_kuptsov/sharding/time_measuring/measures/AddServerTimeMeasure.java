@@ -7,10 +7,6 @@ import java.util.List;
 import java.util.Set;
 
 public class AddServerTimeMeasure extends TimeMeasure {
-    public AddServerTimeMeasure() {
-        super();
-        // Default constructor
-    }
 
     @Override
     protected double measure(IDistributionAlgorithm distributionAlgorithm, Set<String> topology) {

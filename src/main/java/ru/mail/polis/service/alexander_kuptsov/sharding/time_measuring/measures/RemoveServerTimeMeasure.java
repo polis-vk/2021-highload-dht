@@ -5,10 +5,6 @@ import ru.mail.polis.service.alexander_kuptsov.sharding.distribution.IDistributi
 import java.util.Set;
 
 public class RemoveServerTimeMeasure extends TimeMeasure {
-    public RemoveServerTimeMeasure() {
-        super();
-        // Default constructor
-    }
 
     @Override
     protected double measure(IDistributionAlgorithm distributionAlgorithm, Set<String> topology) {

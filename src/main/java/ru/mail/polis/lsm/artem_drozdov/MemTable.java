@@ -14,10 +14,6 @@ public class MemTable {
     private final NavigableMap<ByteBuffer, Record> internalStorage = new ConcurrentSkipListMap<>();
     private final AtomicLong size = new AtomicLong();
 
-    public MemTable() {
-        // Default constructor
-    }
-
     public long putAndGetSize(Record record) {
         Record previous = internalStorage.put(record.getKey(), record);
         return size.addAndGet(sizeOf(record) - sizeOf(previous));

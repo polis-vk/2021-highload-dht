@@ -4,10 +4,6 @@ public class Fnv1aAlgorithm implements IHashAlgorithm {
     private static final int INIT = 0x811c9dc5;
     private static final int PRIME = 16_777_619;
 
-    public Fnv1aAlgorithm() {
-        // Default constructor
-    }
-
     @Override
     public int getHash(String str) {
         int hash = INIT;

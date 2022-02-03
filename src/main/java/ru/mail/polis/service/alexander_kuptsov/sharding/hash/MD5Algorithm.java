@@ -5,9 +5,6 @@ import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 
 public class MD5Algorithm implements IHashAlgorithm {
-    public MD5Algorithm() {
-        // Default constructor
-    }
 
     @Override
     public int getHash(String str) {
