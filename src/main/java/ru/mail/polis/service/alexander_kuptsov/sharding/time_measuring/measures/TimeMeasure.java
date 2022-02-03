@@ -26,7 +26,6 @@ import java.util.concurrent.ThreadLocalRandom;
 
 public abstract class TimeMeasure {
     private static final Logger LOGGER = LoggerFactory.getLogger(TimeMeasuring.class);
-    protected static final int COUNT_OF_KEYS = 100_000;
     private static final int[] NUMBER_OF_NODES = {4, 16, 64, 256, 1024};
     private static final IHashAlgorithm DEFAULT_HASH_ALGORITHM = new Fnv1Algorithm();
     private static final IDistributionAlgorithm[] ALGORITHMS = {

@@ -7,11 +7,21 @@ import java.util.List;
 import java.util.Set;
 
 public class AddServerTimeMeasure extends TimeMeasure {
+    private final int iterations;
+
+    private static final int DEFAULT_ITERATIONS = 30;
+
+    public AddServerTimeMeasure() {
+        this(DEFAULT_ITERATIONS);
+    }
+
+    public AddServerTimeMeasure(int iterations) {
+        this.iterations = iterations;
+    }
 
     @Override
     protected double measure(IDistributionAlgorithm distributionAlgorithm, Set<String> topology) {
         final int startTopologySize = topology.size();
-        final int iterations = 30;
         List<String> baseTopology = getRandomNodes(startTopologySize + iterations);
         HashSet<String> startTopology = new HashSet<>(baseTopology.subList(0, startTopologySize - 1));
         distributionAlgorithm.addTopology(startTopology);
