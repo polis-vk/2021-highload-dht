@@ -2,7 +2,7 @@ package ru.mail.polis.service.alexander_kuptsov.sharding.hash;
 
 public class LoseLoseAlgorithm implements IHashAlgorithm {
     public LoseLoseAlgorithm() {
-        super();
+        // Default constructor
     }
 
     @Override

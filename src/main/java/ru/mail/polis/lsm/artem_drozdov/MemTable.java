@@ -15,7 +15,7 @@ public class MemTable {
     private final AtomicLong size = new AtomicLong();
 
     public MemTable() {
-        super();
+        // Default constructor
     }
 
     public long putAndGetSize(Record record) {

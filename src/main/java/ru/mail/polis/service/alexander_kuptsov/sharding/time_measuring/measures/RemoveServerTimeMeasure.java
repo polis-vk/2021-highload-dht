@@ -7,6 +7,7 @@ import java.util.Set;
 public class RemoveServerTimeMeasure extends TimeMeasure {
     public RemoveServerTimeMeasure() {
         super();
+        // Default constructor
     }
 
     @Override

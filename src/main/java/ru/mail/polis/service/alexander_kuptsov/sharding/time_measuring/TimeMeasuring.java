@@ -8,6 +8,7 @@ import ru.mail.polis.service.alexander_kuptsov.sharding.time_measuring.measures.
 public final class TimeMeasuring {
 
     private TimeMeasuring() {
+        // Default constructor
     }
 
     public static void main(String[] args) {

@@ -42,11 +42,19 @@ public class HttpRestService extends HttpServer implements Service {
     private static final class RequestPaths {
         public static final String STATUS = "/v0/status";
         public static final String ENTITY = "/v0/entity";
+
+        private RequestPaths() {
+            throw new AssertionError("Instantiating utility class.");
+        }
     }
 
     private static final class RequestParameters {
         public static final String ID = "id";
         public static final String EMPTY_ID = "=";
+
+        private RequestParameters() {
+            throw new AssertionError("Instantiating utility class.");
+        }
     }
 
     public HttpRestService(final int port, Set<String> topology, DAO dao) throws IOException {

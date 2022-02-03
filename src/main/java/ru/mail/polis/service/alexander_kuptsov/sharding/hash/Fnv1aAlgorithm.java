@@ -5,7 +5,7 @@ public class Fnv1aAlgorithm implements IHashAlgorithm {
     private static final int PRIME = 16_777_619;
 
     public Fnv1aAlgorithm() {
-        super();
+        // Default constructor
     }
 
     @Override

@@ -39,6 +39,7 @@ public abstract class TimeMeasure {
     };
 
     protected TimeMeasure() {
+        // Default constructor
     }
 
     public void collectResults() {
