@@ -17,7 +17,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Set;
 
 public class RequestHandler {
-    private static final Logger logger = LoggerFactory.getLogger(RequestHandler.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(RequestHandler.class);
 
     private final ClusterNodeHandler clusterNodeHandler;
     private final InternalDaoService internalDaoService;
@@ -53,7 +53,7 @@ public class RequestHandler {
         try {
             return clusterNodeHandler.getServer(id).invoke(request);
         } catch (InterruptedException | PoolException | IOException | HttpException e) {
-            logger.error("Can't redirect request", e);
+            LOGGER.error("Can't redirect request", e);
             return new Response(Response.BAD_GATEWAY, Response.EMPTY);
         }
     }

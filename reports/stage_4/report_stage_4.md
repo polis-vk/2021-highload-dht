@@ -61,18 +61,18 @@
 ---
 ### Сравнение с предыдущей версией
 #### GET
-Async      |  Sync
-:---:|:---:
-![get_cpu.png](res/get/get_cpu_old.png)  |  ![get_cpu.png](res/get/get_cpu_8080.png)
-![get_cpu.png](res/get/get_mem_old.png)  |  ![get_cpu.png](res/get/get_mem.png)
-![get_cpu.png](res/get/get_lock_old.png)  |  ![get_cpu.png](res/get/get_lock.png)
+|                  Async                   |                   Sync                   |
+|:----------------------------------------:|:----------------------------------------:|
+| ![get_cpu.png](res/get/get_cpu_old.png)  | ![get_cpu.png](res/get/get_cpu_8080.png) |
+| ![get_cpu.png](res/get/get_mem_old.png)  |   ![get_cpu.png](res/get/get_mem.png)    |
+| ![get_cpu.png](res/get/get_lock_old.png) |   ![get_cpu.png](res/get/get_lock.png)   |
 
 #### PUT
-Async      |  Sync
-:---:|:---:
-![get_cpu.png](res/put/put_cpu_old.png)  |  ![get_cpu.png](res/put/put_cpu_8080.png)
-![get_cpu.png](res/put/put_mem_old.png)  |  ![get_cpu.png](res/put/put_mem.png)
-![get_cpu.png](res/put/put_lock_old.png)  |  ![get_cpu.png](res/put/put_lock.png)
+|                  Async                   |                   Sync                   |
+|:----------------------------------------:|:----------------------------------------:|
+| ![get_cpu.png](res/put/put_cpu_old.png)  | ![get_cpu.png](res/put/put_cpu_8080.png) |
+| ![get_cpu.png](res/put/put_mem_old.png)  |   ![get_cpu.png](res/put/put_mem.png)    |
+| ![get_cpu.png](res/put/put_lock_old.png) |   ![get_cpu.png](res/put/put_lock.png)   |
 
 ---
 Можно заметить, что в сравнении с версией из 3-го этапа (без шардирования) при одинаковой загрузке

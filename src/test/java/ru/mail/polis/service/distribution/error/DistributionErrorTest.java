@@ -4,10 +4,10 @@ import org.junit.jupiter.api.Test;
 import ru.mail.polis.service.alexander_kuptsov.sharding.distribution.IDistributionAlgorithm;
 import ru.mail.polis.service.distribution.DistributionTest;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
-import java.util.Vector;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -162,10 +162,10 @@ public abstract class DistributionErrorTest<T extends IDistributionAlgorithm> ex
     }
 
     private static double calculateDistributionError(final int average, final Map<String, Integer> numberOfEachNode) {
-        Vector<Integer> errorList = new Vector<>();
+        ArrayList<Integer> errorList = new ArrayList<>();
         for (final Map.Entry<String, Integer> node : numberOfEachNode.entrySet()) {
             final int numberOfNodes = node.getValue();
-            errorList.addElement(Math.abs(average - numberOfNodes));
+            errorList.add(Math.abs(average - numberOfNodes));
         }
         return errorList
                 .stream()

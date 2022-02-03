@@ -6,6 +6,9 @@ import java.util.Set;
 
 public final class ServerByIdTimeMeasure extends TimeMeasure {
 
+    public ServerByIdTimeMeasure() {
+    }
+
     @Override
     protected double measure(IDistributionAlgorithm distributionAlgorithm, Set<String> topology) {
         distributionAlgorithm.addTopology(topology);

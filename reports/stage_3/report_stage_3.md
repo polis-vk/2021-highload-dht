@@ -608,16 +608,16 @@ Transfer/sec:    588.66KB
 ---
 ### Сравнение с предыдущей (синхронной) версией
 #### GET
-Async      |  Sync
-:---:|:---:
-![get_cpu.png](res/get/get_cpu_q128.png)  |  ![get_cpu.png](res/get/get_cpu_sync.png)
-![get_cpu.png](res/get/get_mem_q128.png)  |  ![get_cpu.png](res/get/get_mem_sync.png)
+|                  Async                   |                   Sync                   |
+|:----------------------------------------:|:----------------------------------------:|
+| ![get_cpu.png](res/get/get_cpu_q128.png) | ![get_cpu.png](res/get/get_cpu_sync.png) |
+| ![get_cpu.png](res/get/get_mem_q128.png) | ![get_cpu.png](res/get/get_mem_sync.png) |
 
 #### PUT
-Async      |  Sync
-:---:|:---:
-![get_cpu.png](res/put/put_cpu_q128.png)  |  ![get_cpu.png](res/put/put_cpu_sync.png)
-![get_cpu.png](res/put/put_mem_q128.png)  |  ![get_cpu.png](res/put/put_mem_sync.png)
+|                  Async                   |                   Sync                   |
+|:----------------------------------------:|:----------------------------------------:|
+| ![get_cpu.png](res/put/put_cpu_q128.png) | ![get_cpu.png](res/put/put_cpu_sync.png) |
+| ![get_cpu.png](res/put/put_mem_q128.png) | ![get_cpu.png](res/put/put_mem_sync.png) |
 
 ---
 В сравнение с синхронной версией можно заметить, что сгладились скачки таймингов в wrk 99%.

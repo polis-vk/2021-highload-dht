@@ -2,7 +2,10 @@ package ru.mail.polis.service.alexander_kuptsov.sharding.hash;
 
 public class Fnv1aAlgorithm implements IHashAlgorithm {
     private static final int INIT = 0x811c9dc5;
-    private static final int PRIME = 16777619;
+    private static final int PRIME = 16_777_619;
+
+    public Fnv1aAlgorithm() {
+    }
 
     @Override
     public int getHash(String str) {

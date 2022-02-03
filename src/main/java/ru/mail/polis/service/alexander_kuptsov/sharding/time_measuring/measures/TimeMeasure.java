@@ -25,11 +25,11 @@ import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
 
 public abstract class TimeMeasure {
-    private static final Logger logger = LoggerFactory.getLogger(TimeMeasuring.class);
-    protected static final int COUNT_OF_KEYS = 100000;
-    private static final int[] NUMBER_OF_NODES = new int[]{4, 16, 64, 256, 1024};
+    private static final Logger LOGGER = LoggerFactory.getLogger(TimeMeasuring.class);
+    protected static final int COUNT_OF_KEYS = 100_000;
+    private static final int[] NUMBER_OF_NODES = {4, 16, 64, 256, 1024};
     private static final IHashAlgorithm DEFAULT_HASH_ALGORITHM = new Fnv1Algorithm();
-    private static final IDistributionAlgorithm[] ALGORITHMS = new IDistributionAlgorithm[]{
+    private static final IDistributionAlgorithm[] ALGORITHMS = {
             new AnchorAlgorithm(DEFAULT_HASH_ALGORITHM, 1024),
             new JumpAlgorithm(DEFAULT_HASH_ALGORITHM),
             new MaglevAlgorithm(DEFAULT_HASH_ALGORITHM),
@@ -37,6 +37,9 @@ public abstract class TimeMeasure {
             new RendezvousAlgorithm(DEFAULT_HASH_ALGORITHM),
             new VNodesAlgorithm(DEFAULT_HASH_ALGORITHM)
     };
+
+    protected TimeMeasure() {
+    }
 
     public void collectResults() {
         HashMap<Integer, HashMap<String, Double>> results = new HashMap<>();
@@ -49,7 +52,7 @@ public abstract class TimeMeasure {
             }
             results.put(numberOfNodes, currentResults);
         }
-        logger.debug(results.toString());
+        LOGGER.debug(results.toString());
     }
 
     protected abstract double measure(IDistributionAlgorithm distributionAlgorithm, Set<String> topology);
@@ -84,4 +87,3 @@ public abstract class TimeMeasure {
         return "http://localhost:" + port;
     }
 }
-

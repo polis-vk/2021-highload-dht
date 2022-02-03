@@ -89,15 +89,15 @@ public class MultiProbeAlgorithm extends DistributionHashAlgorithm<IHashAlgorith
     }
 
     private static class Probe implements Comparable<Probe> {
-        final String server;
-        final long hash;
+        private final String server;
+        private final long hash;
 
         public Probe(String server, long hash) {
             this.server = server;
             this.hash = hash;
         }
 
-        long distance(long hash) {
+        private long distance(long hash) {
             return Math.abs(this.hash - hash);
         }
 

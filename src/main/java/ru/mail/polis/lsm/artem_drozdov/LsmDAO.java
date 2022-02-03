@@ -22,8 +22,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 
 public class LsmDAO implements DAO {
-
-    private static final Logger logger = LoggerFactory.getLogger(LsmDAO.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(LsmDAO.class);
 
     private final AtomicReference<Storage> memTableStorage;
 
@@ -64,15 +63,15 @@ public class LsmDAO implements DAO {
 
             executor.execute(() -> {
                 try {
-                    logger.info("Start flush");
+                    LOGGER.info("Start flush");
                     Storage newStorage = doFlush();
 
                     if (storage.ssTables.size() > config.maxTables) {
                         performCompactNeed(newStorage);
                     }
-                    logger.info("Flush finished");
+                    LOGGER.info("Flush finished");
                 } catch (IOException e) {
-                    logger.error("Fail to flush", e);
+                    LOGGER.error("Fail to flush", e);
                     throw new UncheckedIOException(e);
                 }
             });
@@ -85,7 +84,7 @@ public class LsmDAO implements DAO {
             try {
                 performCompactNeed(doFlush());
             } catch (IOException e) {
-                logger.error("Can't compact", e);
+                LOGGER.error("Can't compact", e);
                 throw new UncheckedIOException(e);
             }
         });
@@ -105,11 +104,11 @@ public class LsmDAO implements DAO {
     }
 
     private void performCompactNeed(Storage storage) throws IOException {
-        logger.info("Compact started");
+        LOGGER.info("Compact started");
         SSTable result = SSTable.compact(config.dir, sstableRanges(storage, null, null));
         this.memTableStorage.updateAndGet(
                 currentValue -> currentValue.afterCompaction(storage.memTablesToFlush, result));
-        logger.info("Compact finished");
+        LOGGER.info("Compact finished");
     }
 
     @Override
@@ -189,9 +188,9 @@ public class LsmDAO implements DAO {
     }
 
     private static class Storage {
-        final MemTable currentMemTable;
-        final List<MemTable> memTablesToFlush;
-        final List<SSTable> ssTables;
+        private final MemTable currentMemTable;
+        private final List<MemTable> memTablesToFlush;
+        private final List<SSTable> ssTables;
 
         private Storage(MemTable currentMemTable, List<MemTable> memTablesToFlush, List<SSTable> ssTables) {
             this.currentMemTable = currentMemTable;

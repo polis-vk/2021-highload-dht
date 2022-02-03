@@ -5,7 +5,7 @@ import ru.mail.polis.service.alexander_kuptsov.sharding.hash.IHashAlgorithm;
 public abstract class DistributionHashAlgorithm<T extends IHashAlgorithm> implements IDistributionAlgorithm {
     private final T hashAlgorithm;
 
-    public DistributionHashAlgorithm(T hashAlgorithm) {
+    protected DistributionHashAlgorithm(T hashAlgorithm) {
         this.hashAlgorithm = hashAlgorithm;
     }
 

@@ -7,6 +7,9 @@ import java.util.List;
 import java.util.Set;
 
 public class AddServerTimeMeasure extends TimeMeasure {
+    public AddServerTimeMeasure() {
+    }
+
     @Override
     protected double measure(IDistributionAlgorithm distributionAlgorithm, Set<String> topology) {
         final int startTopologySize = topology.size();

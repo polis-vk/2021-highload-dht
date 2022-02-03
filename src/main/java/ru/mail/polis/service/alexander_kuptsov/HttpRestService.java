@@ -18,7 +18,7 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
 public class HttpRestService extends HttpServer implements Service {
-    private static final Logger logger = LoggerFactory.getLogger(HttpRestService.class);
+    private static final Logger LOGGER = LoggerFactory.getLogger(HttpRestService.class);
 
     private static final int THREADS_COUNT = 8;
     private static final int QUEUE_CAPACITY = 128;
@@ -31,7 +31,7 @@ public class HttpRestService extends HttpServer implements Service {
             new LinkedBlockingQueue<>(QUEUE_CAPACITY)
     );
 
-    private static final int[] ALLOWED_REQUEST_METHODS = new int[] {
+    private static final int[] ALLOWED_REQUEST_METHODS = {
             Request.METHOD_GET,
             Request.METHOD_PUT,
             Request.METHOD_DELETE
@@ -39,20 +39,14 @@ public class HttpRestService extends HttpServer implements Service {
 
     private final RequestHandler requestHandler;
 
-    private static final class RequestPath {
+    private static final class REQUEST_PATH {
         public static final String STATUS = "/v0/status";
         public static final String ENTITY = "/v0/entity";
-
-        private RequestPath() {
-        }
     }
 
-    private static final class RequestParameters {
+    private static final class REQUEST_PARAMETERS {
         public static final String ID = "id";
         public static final String EMPTY_ID = "=";
-
-        private RequestParameters() {
-        }
     }
 
     public HttpRestService(final int port, Set<String> topology, DAO dao) throws IOException {
@@ -69,7 +63,7 @@ public class HttpRestService extends HttpServer implements Service {
                 return;
             }
         }
-        logger.info("Can't handle request");
+        LOGGER.info("Can't handle request");
         var unavailableResponse = new Response(Response.SERVICE_UNAVAILABLE, Response.EMPTY);
         session.sendResponse(unavailableResponse);
     }
@@ -93,11 +87,11 @@ public class HttpRestService extends HttpServer implements Service {
         String requestPath = request.getPath();
 
         switch (requestPath) {
-            case RequestPath.STATUS: {
+            case REQUEST_PATH.STATUS: {
                 response = status();
                 break;
             }
-            case RequestPath.ENTITY: {
+            case REQUEST_PATH.ENTITY: {
                 response = entity(request);
                 break;
             }
@@ -109,7 +103,7 @@ public class HttpRestService extends HttpServer implements Service {
         try {
             session.sendResponse(response);
         } catch (IOException e) {
-            logger.error("Can't send response", e);
+            LOGGER.error("Can't send response", e);
         }
     }
 
@@ -144,8 +138,8 @@ public class HttpRestService extends HttpServer implements Service {
      *         HTTP code 502
      */
     private Response entity(final Request request) {
-        String id = request.getParameter(RequestParameters.ID);
-        if (id == null || id.equals(RequestParameters.EMPTY_ID)) {
+        String id = request.getParameter(REQUEST_PARAMETERS.ID);
+        if (id == null || id.equals(REQUEST_PARAMETERS.EMPTY_ID)) {
             return new Response(Response.BAD_REQUEST, "Bad id".getBytes(StandardCharsets.UTF_8));
         }
 

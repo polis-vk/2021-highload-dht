@@ -1,6 +1,9 @@
 package ru.mail.polis.service.alexander_kuptsov.sharding.hash;
 
 public class Djb2Algorithm implements IHashAlgorithm {
+    public Djb2Algorithm() {
+    }
+
     @Override
     public int getHash(String str) {
         int hash = 5381;

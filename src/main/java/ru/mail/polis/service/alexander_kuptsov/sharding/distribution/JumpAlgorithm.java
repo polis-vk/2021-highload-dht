@@ -63,7 +63,7 @@ public class JumpAlgorithm extends DistributionHashAlgorithm<IHashAlgorithm> {
         long key = inputKey;
         while (j < bucketsSize) {
             b = j;
-            key = key * 2862933555777941757L + 1;
+            key = key * 2_862_933_555_777_941_757L + 1;
             j = (long) ((b + 1) * ((double) (1L << 31) / (double) ((key >> 33) + 1)));
         }
         return (int) b;
