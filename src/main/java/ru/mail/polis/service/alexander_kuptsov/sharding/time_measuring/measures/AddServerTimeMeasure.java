@@ -8,6 +8,7 @@ import java.util.Set;
 
 public class AddServerTimeMeasure extends TimeMeasure {
     public AddServerTimeMeasure() {
+        super();
     }
 
     @Override

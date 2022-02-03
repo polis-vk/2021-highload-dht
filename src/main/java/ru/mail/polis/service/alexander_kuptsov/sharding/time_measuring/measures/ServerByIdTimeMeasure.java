@@ -5,8 +5,8 @@ import ru.mail.polis.service.alexander_kuptsov.sharding.distribution.IDistributi
 import java.util.Set;
 
 public final class ServerByIdTimeMeasure extends TimeMeasure {
-
     public ServerByIdTimeMeasure() {
+        super();
     }
 
     @Override

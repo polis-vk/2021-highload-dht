@@ -6,7 +6,8 @@ import java.security.NoSuchAlgorithmException;
 
 public class MD5Algorithm implements IHashAlgorithm {
 
-    public MD5Algorithm()  {
+    public MD5Algorithm() {
+        super();
     }
 
     @Override

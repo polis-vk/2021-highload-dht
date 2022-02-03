@@ -39,12 +39,12 @@ public class HttpRestService extends HttpServer implements Service {
 
     private final RequestHandler requestHandler;
 
-    private static final class REQUEST_PATH {
+    private static final class RequestPaths {
         public static final String STATUS = "/v0/status";
         public static final String ENTITY = "/v0/entity";
     }
 
-    private static final class REQUEST_PARAMETERS {
+    private static final class RequestParameters {
         public static final String ID = "id";
         public static final String EMPTY_ID = "=";
     }
@@ -87,11 +87,11 @@ public class HttpRestService extends HttpServer implements Service {
         String requestPath = request.getPath();
 
         switch (requestPath) {
-            case REQUEST_PATH.STATUS: {
+            case RequestPaths.STATUS: {
                 response = status();
                 break;
             }
-            case REQUEST_PATH.ENTITY: {
+            case RequestPaths.ENTITY: {
                 response = entity(request);
                 break;
             }
@@ -138,8 +138,8 @@ public class HttpRestService extends HttpServer implements Service {
      *         HTTP code 502
      */
     private Response entity(final Request request) {
-        String id = request.getParameter(REQUEST_PARAMETERS.ID);
-        if (id == null || id.equals(REQUEST_PARAMETERS.EMPTY_ID)) {
+        String id = request.getParameter(RequestParameters.ID);
+        if (id == null || id.equals(RequestParameters.EMPTY_ID)) {
             return new Response(Response.BAD_REQUEST, "Bad id".getBytes(StandardCharsets.UTF_8));
         }
 

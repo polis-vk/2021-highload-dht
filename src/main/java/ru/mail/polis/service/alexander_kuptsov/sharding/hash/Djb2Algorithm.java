@@ -2,6 +2,7 @@ package ru.mail.polis.service.alexander_kuptsov.sharding.hash;
 
 public class Djb2Algorithm implements IHashAlgorithm {
     public Djb2Algorithm() {
+        super();
     }
 
     @Override
