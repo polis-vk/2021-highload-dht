@@ -27,7 +27,6 @@ import ru.mail.polis.lsm.DAO;
 import ru.mail.polis.lsm.DAOConfig;
 import ru.mail.polis.lsm.DAOFactory;
 
-import java.io.File;
 import java.io.IOException;
 import java.time.Duration;
 import java.util.HashMap;
@@ -45,6 +44,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
  *
  * @author Vadim Tsesko
  */
+@SuppressWarnings("ALL")
 abstract class ClusterTestBase extends TestBase {
     private static final Duration TIMEOUT = Duration.ofSeconds(10);
     private final Map<String, HttpClient> hostToClient = new HashMap<>();

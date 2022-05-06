@@ -4,6 +4,7 @@ plugins {
     id 'net.ltgt.errorprone' version '2.0.2'
     id 'checkstyle'
     id 'pmd'
+    id "me.champeau.jmh" version "0.6.6"
 }
 
 java {
@@ -12,27 +13,44 @@ java {
 }
 
 repositories {
+    //noinspection JCenterRepository
     jcenter()
+    mavenCentral()
+}
+
+sourceSets {
+    jmh {
+        java.srcDirs = ['src/jmh/java']
+        compileClasspath += sourceSets.main.runtimeClasspath
+    }
 }
 
 dependencies {
+    implementation 'org.junit.jupiter:junit-jupiter:5.8.2'
+
     // Checks
-    errorprone 'com.google.errorprone:error_prone_core:2.4.0'
-    checkstyle 'com.puppycrawl.tools:checkstyle:8.42'
+    errorprone 'com.google.errorprone:error_prone_core:2.13.1'
+    checkstyle 'com.puppycrawl.tools:checkstyle:10.2'
 
     // Logging
-    implementation 'org.slf4j:slf4j-api:1.7.26'
-    implementation 'ch.qos.logback:logback-classic:1.2.3'
+    implementation 'org.slf4j:slf4j-api:1.7.36'
+    implementation 'ch.qos.logback:logback-classic:1.2.11'
 
     // Annotations for better code documentation
     implementation 'com.google.code.findbugs:jsr305:3.0.2'
 
     // Our beloved one-nio
-    implementation 'ru.odnoklassniki:one-nio:1.4.0'
+    implementation 'ru.odnoklassniki:one-nio:1.5.0'
 
     // JUnit Jupiter test framework
-    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.7.0'
-    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.7.0'
+    testImplementation 'org.junit.jupiter:junit-jupiter-api:5.8.2'
+    testRuntimeOnly 'org.junit.jupiter:junit-jupiter-engine:5.8.2'
+    testImplementation 'org.junit.jupiter:junit-jupiter-params:5.8.2'
+
+    jmh 'org.openjdk.jmh:jmh-core:1.35'
+    jmh 'org.openjdk.jmh:jmh-generator-annprocess:1.35'
+    jmhAnnotationProcessor 'org.openjdk.jmh:jmh-generator-annprocess:1.35'
+
 }
 
 application {
@@ -55,5 +73,13 @@ pmd {
     toolVersion = "6.21.0"
     ruleSets = []
     ruleSetConfig = project.resources.text.fromFile("pmd.xml")
+    //noinspection GroovyAssignabilityCheck
     sourceSets = [sourceSets.main]
+}
+
+jmh {
+    verbosity = 'EXTRA'
+    warmupIterations = 2
+    iterations = 5
+    fork = 1
 }
