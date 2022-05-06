@@ -11,9 +11,9 @@ import ru.mail.polis.service.Service;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.util.Arrays;
 import java.util.Set;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.RejectedExecutionException;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
@@ -57,6 +57,10 @@ public class HttpRestService extends HttpServer implements Service {
         }
     }
 
+    private static final byte[] BAD_ID_REQUEST_BODY = "Bad id".getBytes(StandardCharsets.UTF_8);
+    private static final byte[] WRONG_METHOD_REQUEST_BODY
+            = "Wrong method. Try GET/PUT/DELETE".getBytes(StandardCharsets.UTF_8);
+
     public HttpRestService(final int port, Set<String> topology, DAO dao) throws IOException {
         super(HttpServiceUtils.createConfigByPort(port));
         InternalDaoService internalDaoService = new InternalDaoService(dao);
@@ -65,15 +69,13 @@ public class HttpRestService extends HttpServer implements Service {
 
     @Override
     public void handleRequest(Request request, HttpSession session) throws IOException {
-        synchronized (this) {
-            if (canExecuteRequest()) {
-                executor.execute(() -> doHandleRequest(request, session));
-                return;
-            }
+        try {
+            executor.execute(() -> doHandleRequest(request, session));
+        } catch (RejectedExecutionException e) {
+            LOGGER.info("Can't handle request");
+            Response unavailableResponse = new Response(Response.SERVICE_UNAVAILABLE, Response.EMPTY);
+            session.sendResponse(unavailableResponse);
         }
-        LOGGER.info("Can't handle request");
-        var unavailableResponse = new Response(Response.SERVICE_UNAVAILABLE, Response.EMPTY);
-        session.sendResponse(unavailableResponse);
     }
 
     @Override
@@ -115,10 +117,6 @@ public class HttpRestService extends HttpServer implements Service {
         }
     }
 
-    private boolean canExecuteRequest() {
-        return executor.getQueue().remainingCapacity() > 0;
-    }
-
     /**
      * This method is part of HTTP REST API protocol. Implements status check.
      *
@@ -145,20 +143,19 @@ public class HttpRestService extends HttpServer implements Service {
      *         HTTP code 405
      *         HTTP code 502
      */
-    private Response entity(final Request request) {
+    private Response entity(Request request) {
         String id = request.getParameter(RequestParameters.ID);
         if (id == null || id.equals(RequestParameters.EMPTY_ID)) {
-            return new Response(Response.BAD_REQUEST, "Bad id".getBytes(StandardCharsets.UTF_8));
+            return new Response(Response.BAD_REQUEST, BAD_ID_REQUEST_BODY);
         }
 
         int requestMethod = request.getMethod();
-        if (Arrays.stream(ALLOWED_REQUEST_METHODS).anyMatch(value -> value == requestMethod)) {
-            return requestHandler.entity(id, requestMethod, request);
+        for (int allowedMethod : ALLOWED_REQUEST_METHODS) {
+            if (requestMethod == allowedMethod) {
+                return requestHandler.entity(id, requestMethod, request);
+            }
         }
-        return new Response(
-                Response.METHOD_NOT_ALLOWED,
-                "Wrong method. Try GET/PUT/DELETE".getBytes(StandardCharsets.UTF_8)
-        );
+        return new Response(Response.METHOD_NOT_ALLOWED, WRONG_METHOD_REQUEST_BODY);
     }
 
     private Response handleDefaultRequest() {
