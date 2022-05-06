@@ -1,42 +1,33 @@
 package ru.mail.polis.service.distribution.time;
 
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import ru.mail.polis.service.alexander_kuptsov.sharding.distribution.IDistributionAlgorithm;
 import ru.mail.polis.service.distribution.DistributionTest;
 
 import java.util.Set;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public abstract class DistributionTimeTest<T extends IDistributionAlgorithm> extends DistributionTest<T> {
-    @Test
-    public void timeFor5Nodes() {
+    @ParameterizedTest(name = "Time check for {0} nodes in topology")
+    @MethodSource("provideParameters")
+    public void timeForNumberOfNodes(int numberOfNodes, int targetTime) {
         IDistributionAlgorithm distributionAlg = getAlgorithm();
-        timeMeasure(distributionAlg, 5, 300);
+        timeMeasure(distributionAlg, numberOfNodes, targetTime);
     }
 
-    @Test
-    public void timeFor25Nodes() {
-        IDistributionAlgorithm distributionAlg = getAlgorithm();
-        timeMeasure(distributionAlg, 25, 350);
-    }
-
-    @Test
-    public void timeFor100Nodes() {
-        IDistributionAlgorithm distributionAlg = getAlgorithm();
-        timeMeasure(distributionAlg, 100, 500);
-    }
-
-    @Test
-    public void timeFor500Nodes() {
-        IDistributionAlgorithm distributionAlg = getAlgorithm();
-        timeMeasure(distributionAlg, 500, 750);
-    }
-
-    @Test
-    public void timeFor1000Nodes() {
-        IDistributionAlgorithm distributionAlg = getAlgorithm();
-        timeMeasure(distributionAlg, 1000, 1000);
+    @SuppressWarnings("unused")
+    private static Stream<Arguments> provideParameters() {
+        return Stream.of(
+                Arguments.of(5, 300),
+                Arguments.of(25, 350),
+                Arguments.of(100, 500),
+                Arguments.of(500, 750),
+                Arguments.of(1000, 1000)
+        );
     }
 
     private void timeMeasure(IDistributionAlgorithm distributionAlgorithm, int numberOfNodes, long targetTime) {

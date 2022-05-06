@@ -1,6 +1,8 @@
 package ru.mail.polis.service.distribution.error;
 
-import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.Arguments;
+import org.junit.jupiter.params.provider.MethodSource;
 import ru.mail.polis.service.alexander_kuptsov.sharding.distribution.IDistributionAlgorithm;
 import ru.mail.polis.service.distribution.DistributionTest;
 
@@ -8,140 +10,51 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 public abstract class DistributionErrorTest<T extends IDistributionAlgorithm> extends DistributionTest<T> {
-    /**
-     * 5 nodes
-     */
-    @Test
-    public void distributionFor5Nodes50percent() {
+    @ParameterizedTest(name = "Distribution accuracy for {0} nodes with error less then {1}")
+    @MethodSource("provideParameters")
+    public void distributionAccuracyForNumberOfNodes(int numberOfNodes, double allowedError) {
         IDistributionAlgorithm distributionAlg = getAlgorithm();
-        distribution(distributionAlg, 5, 0.5);
+        distribution(distributionAlg, numberOfNodes, allowedError);
     }
 
-    @Test
-    public void distributionFor5Nodes30percent() {
-        IDistributionAlgorithm distributionAlg = getAlgorithm();
-        distribution(distributionAlg, 5, 0.3);
-    }
+    @SuppressWarnings("unused")
+    private static Stream<Arguments> provideParameters() {
+        return Stream.of(
+                Arguments.of(5, 0.5),
+                Arguments.of(5, 0.3),
+                Arguments.of(5, 0.2),
+                Arguments.of(5, 0.1),
+                Arguments.of(5, 0.05),
 
-    @Test
-    public void distributionFor5Nodes20percent() {
-        IDistributionAlgorithm distributionAlg = getAlgorithm();
-        distribution(distributionAlg, 5, 0.2);
-    }
+                Arguments.of(25, 0.5),
+                Arguments.of(25, 0.3),
+                Arguments.of(25, 0.2),
+                Arguments.of(25, 0.1),
+                Arguments.of(25, 0.05),
 
-    @Test
-    public void distributionFor5Nodes10percent() {
-        IDistributionAlgorithm distributionAlg = getAlgorithm();
-        distribution(distributionAlg, 5, 0.1);
-    }
+                Arguments.of(100, 0.5),
+                Arguments.of(100, 0.3),
+                Arguments.of(100, 0.2),
+                Arguments.of(100, 0.1),
+                Arguments.of(100, 0.05),
 
-    @Test
-    public void distributionFor5Nodes05percent() {
-        IDistributionAlgorithm distributionAlg = getAlgorithm();
-        distribution(distributionAlg, 5, 0.05);
-    }
+                Arguments.of(500, 0.5),
+                Arguments.of(500, 0.3),
+                Arguments.of(500, 0.2),
+                Arguments.of(500, 0.1),
+                Arguments.of(500, 0.05),
 
-    /**
-     * 25 nodes
-     */
-    @Test
-    public void distributionFor25Nodes50percent() {
-        IDistributionAlgorithm distributionAlg = getAlgorithm();
-        distribution(distributionAlg, 25, 0.5);
-    }
-
-    @Test
-    public void distributionFor25Nodes30percent() {
-        IDistributionAlgorithm distributionAlg = getAlgorithm();
-        distribution(distributionAlg, 25, 0.3);
-    }
-
-    @Test
-    public void distributionFor25Nodes20percent() {
-        IDistributionAlgorithm distributionAlg = getAlgorithm();
-        distribution(distributionAlg, 25, 0.2);
-    }
-
-    @Test
-    public void distributionFor25Nodes10percent() {
-        IDistributionAlgorithm distributionAlg = getAlgorithm();
-        distribution(distributionAlg, 25, 0.1);
-    }
-
-    @Test
-    public void distributionFor25Nodes05percent() {
-        IDistributionAlgorithm distributionAlg = getAlgorithm();
-        distribution(distributionAlg, 25, 0.05);
-    }
-
-    /**
-     * 100 nodes
-     */
-    @Test
-    public void distributionFor100Nodes50percent() {
-        IDistributionAlgorithm distributionAlg = getAlgorithm();
-        distribution(distributionAlg, 100, 0.5);
-    }
-
-    @Test
-    public void distributionFor100Nodes30percent() {
-        IDistributionAlgorithm distributionAlg = getAlgorithm();
-        distribution(distributionAlg, 100, 0.3);
-    }
-
-    @Test
-    public void distributionFor100Nodes20percent() {
-        IDistributionAlgorithm distributionAlg = getAlgorithm();
-        distribution(distributionAlg, 100, 0.2);
-    }
-
-    @Test
-    public void distributionFor100Nodes10percent() {
-        IDistributionAlgorithm distributionAlg = getAlgorithm();
-        distribution(distributionAlg, 100, 0.1);
-    }
-
-    @Test
-    public void distributionFor100Nodes05percent() {
-        IDistributionAlgorithm distributionAlg = getAlgorithm();
-        distribution(distributionAlg, 100, 0.05);
-    }
-
-    /**
-     * 500 nodes
-     */
-    @Test
-    public void distributionFor500Nodes50percent() {
-        IDistributionAlgorithm distributionAlg = getAlgorithm();
-        distribution(distributionAlg, 500, 0.5);
-    }
-
-    @Test
-    public void distributionFor500Nodes30percent() {
-        IDistributionAlgorithm distributionAlg = getAlgorithm();
-        distribution(distributionAlg, 500, 0.3);
-    }
-
-    @Test
-    public void distributionFor500Nodes20percent() {
-        IDistributionAlgorithm distributionAlg = getAlgorithm();
-        distribution(distributionAlg, 500, 0.2);
-    }
-
-    @Test
-    public void distributionFor500Nodes10percent() {
-        IDistributionAlgorithm distributionAlg = getAlgorithm();
-        distribution(distributionAlg, 500, 0.1);
-    }
-
-    @Test
-    public void distributionFor500Nodes05percent() {
-        IDistributionAlgorithm distributionAlg = getAlgorithm();
-        distribution(distributionAlg, 500, 0.05);
+                Arguments.of(1000, 0.5),
+                Arguments.of(1000, 0.3),
+                Arguments.of(1000, 0.2),
+                Arguments.of(1000, 0.1),
+                Arguments.of(1000, 0.05)
+        );
     }
 
     private void distribution(IDistributionAlgorithm distributionAlgorithm, int numberOfNodes, double allowedError) {
