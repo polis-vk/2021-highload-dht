@@ -6,7 +6,7 @@ import one.nio.server.AcceptorConfig;
 import java.nio.ByteBuffer;
 import java.nio.charset.StandardCharsets;
 
-final class HttpServiceUtils {
+public class HttpServiceUtils {
     private HttpServiceUtils() {
     }
 
@@ -16,9 +16,9 @@ final class HttpServiceUtils {
      * @param port port number
      * @return An instance of {@link HttpServerConfig}
      */
-    public static HttpServerConfig createConfigByPort(final int port) {
-        final HttpServerConfig config = new HttpServerConfig();
-        final AcceptorConfig acceptorConfig = new AcceptorConfig();
+    public static HttpServerConfig createConfigByPort(int port) {
+        HttpServerConfig config = new HttpServerConfig();
+        AcceptorConfig acceptorConfig = new AcceptorConfig();
         acceptorConfig.port = port;
         acceptorConfig.reusePort = true;
         config.acceptors = new AcceptorConfig[]{acceptorConfig};
@@ -31,8 +31,8 @@ final class HttpServiceUtils {
      * @param buffer {@link ByteBuffer}
      * @return The new array of bytes
      **/
-    public static byte[] extractBytes(final ByteBuffer buffer) {
-        final byte[] result = new byte[buffer.remaining()];
+    public static byte[] extractBytes(ByteBuffer buffer) {
+        byte[] result = new byte[buffer.remaining()];
         buffer.get(result);
         return result;
     }

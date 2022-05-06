@@ -26,14 +26,14 @@ public class JumpAlgorithm extends DistributionHashAlgorithm<IHashAlgorithm> {
 
     @Override
     public void addServer(String server) {
-        final int bucket = storage.size();
+        int bucket = storage.size();
         storage.put(bucket, server);
         size++;
     }
 
     @Override
     public String getServer(String id) {
-        final int bucket = getBucket(id);
+        int bucket = getBucket(id);
         return storage.get(bucket);
     }
 

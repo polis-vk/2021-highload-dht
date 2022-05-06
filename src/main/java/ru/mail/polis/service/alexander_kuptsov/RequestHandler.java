@@ -22,7 +22,7 @@ public class RequestHandler {
     private final ClusterNodeHandler clusterNodeHandler;
     private final InternalDaoService internalDaoService;
 
-    public RequestHandler(Set<String> topology, final int selfPort, InternalDaoService internalDaoService) {
+    public RequestHandler(Set<String> topology, int selfPort, InternalDaoService internalDaoService) {
         IHashAlgorithm hashAlgorithm = new Fnv1Algorithm();
         IDistributionAlgorithm maglevAlg = new MaglevAlgorithm(hashAlgorithm);
         this.clusterNodeHandler = new ClusterNodeHandler(topology, selfPort, maglevAlg);

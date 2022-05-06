@@ -11,7 +11,7 @@ public class InternalDaoService {
 
     private final DAO dao;
 
-    public InternalDaoService(final DAO dao) {
+    public InternalDaoService(DAO dao) {
         this.dao = dao;
     }
 
@@ -23,10 +23,10 @@ public class InternalDaoService {
      *         HTTP code 404
      */
     public Response get(String id) {
-        final ByteBuffer key = HttpServiceUtils.wrapIdToBuffer(id);
-        final Iterator<Record> range = dao.range(key, DAO.nextKey(key));
+        ByteBuffer key = HttpServiceUtils.wrapIdToBuffer(id);
+        Iterator<Record> range = dao.range(key, DAO.nextKey(key));
         if (range.hasNext()) {
-            final Record first = range.next();
+            Record first = range.next();
             return new Response(Response.OK, HttpServiceUtils.extractBytes(first.getValue()));
         } else {
             return new Response(Response.NOT_FOUND, Response.EMPTY);
@@ -41,8 +41,8 @@ public class InternalDaoService {
      * @return HTTP code 201
      */
     public Response put(String id, byte[] body) {
-        final ByteBuffer key = HttpServiceUtils.wrapIdToBuffer(id);
-        final ByteBuffer value = ByteBuffer.wrap(body);
+        ByteBuffer key = HttpServiceUtils.wrapIdToBuffer(id);
+        ByteBuffer value = ByteBuffer.wrap(body);
         dao.upsert(Record.of(key, value));
         return new Response(Response.CREATED, Response.EMPTY);
     }
@@ -54,7 +54,7 @@ public class InternalDaoService {
      * @return HTTP code 202
      */
     public Response delete(String id) {
-        final ByteBuffer key = HttpServiceUtils.wrapIdToBuffer(id);
+        ByteBuffer key = HttpServiceUtils.wrapIdToBuffer(id);
         dao.upsert(Record.tombstone(key));
         return new Response(Response.ACCEPTED, Response.EMPTY);
     }

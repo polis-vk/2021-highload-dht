@@ -13,36 +13,36 @@ public class ClusterNodeHandler {
     private final Map<String, HttpClient> servers;
     private String selfNode;
 
-    public ClusterNodeHandler(Set<String> topology, final int selfPort, IDistributionAlgorithm distributionAlgorithm) {
+    public ClusterNodeHandler(Set<String> topology, int selfPort, IDistributionAlgorithm distributionAlgorithm) {
         this.distributionAlgorithm = distributionAlgorithm;
         this.servers = new HashMap<>(topology.size());
         init(topology, selfPort);
     }
 
-    private void init(Set<String> topology, final int selfPort) {
+    private void init(Set<String> topology, int selfPort) {
         addTopology(topology);
         createByTopology(topology, selfPort);
     }
 
-    private void createByTopology(Set<String> topology, final int selfPort) {
-        final String selfPortString = String.valueOf(selfPort);
-        for (final String node : topology) {
+    private void createByTopology(Set<String> topology, int selfPort) {
+        String selfPortString = String.valueOf(selfPort);
+        for (String node : topology) {
             if (node.contains(selfPortString)) {
                 this.selfNode = node;
             } else {
-                var serverAccess = new HttpClient(new ConnectionString(node));
+                HttpClient serverAccess = new HttpClient(new ConnectionString(node));
                 this.servers.put(node, serverAccess);
             }
         }
     }
 
     public HttpClient getServer(String id) {
-        final String node = distributionAlgorithm.getServer(id);
+        String node = distributionAlgorithm.getServer(id);
         return servers.get(node);
     }
 
     public boolean isSelfNode(String id) {
-        final String node = distributionAlgorithm.getServer(id);
+        String node = distributionAlgorithm.getServer(id);
         return node.equals(selfNode);
     }
 

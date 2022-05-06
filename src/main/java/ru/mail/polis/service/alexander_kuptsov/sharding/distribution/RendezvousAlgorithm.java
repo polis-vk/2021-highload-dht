@@ -29,7 +29,7 @@ public class RendezvousAlgorithm extends DistributionHashAlgorithm<IHashAlgorith
         long maxHash = Long.MIN_VALUE;
 
         for (String server : topology) {
-            final long hash = getHash(id + server);
+            long hash = getHash(id + server);
             if (hash > maxHash) {
                 currentServer = server;
                 maxHash = hash;
