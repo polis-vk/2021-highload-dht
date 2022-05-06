@@ -21,7 +21,7 @@ public class AddServerTimeMeasure extends TimeMeasure {
 
     @Override
     protected double measure(IDistributionAlgorithm distributionAlgorithm, Set<String> topology) {
-        final int startTopologySize = topology.size();
+        int startTopologySize = topology.size();
         List<String> baseTopology = getRandomNodes(startTopologySize + iterations);
         HashSet<String> startTopology = new HashSet<>(baseTopology.subList(0, startTopologySize - 1));
         distributionAlgorithm.addTopology(startTopology);

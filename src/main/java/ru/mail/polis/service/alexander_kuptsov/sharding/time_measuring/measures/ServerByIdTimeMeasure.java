@@ -4,7 +4,7 @@ import ru.mail.polis.service.alexander_kuptsov.sharding.distribution.IDistributi
 
 import java.util.Set;
 
-public final class ServerByIdTimeMeasure extends TimeMeasure {
+public class ServerByIdTimeMeasure extends TimeMeasure {
     private final int countOfKeys;
 
     private static final int DEFAULT_COUNT_OF_KEYS = 100_000;

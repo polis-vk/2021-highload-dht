@@ -13,16 +13,13 @@ import ru.mail.polis.service.alexander_kuptsov.sharding.hash.Fnv1Algorithm;
 import ru.mail.polis.service.alexander_kuptsov.sharding.hash.IHashAlgorithm;
 import ru.mail.polis.service.alexander_kuptsov.sharding.time_measuring.TimeMeasuring;
 
-import java.io.IOException;
-import java.net.InetAddress;
-import java.net.InetSocketAddress;
-import java.net.ServerSocket;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.ThreadLocalRandom;
+import java.util.stream.Collectors;
 
 public abstract class TimeMeasure {
     private static final Logger LOGGER = LoggerFactory.getLogger(TimeMeasuring.class);
@@ -36,6 +33,8 @@ public abstract class TimeMeasure {
             new RendezvousAlgorithm(DEFAULT_HASH_ALGORITHM),
             new VNodesAlgorithm(DEFAULT_HASH_ALGORITHM)
     };
+    private static final int MIN_ALLOWED_PORT = 1;
+    private static final int MAX_ALLOWED_PORT = 65535;
 
     protected TimeMeasure() {
         // Default constructor
@@ -58,25 +57,22 @@ public abstract class TimeMeasure {
     protected abstract double measure(IDistributionAlgorithm distributionAlgorithm, Set<String> topology);
 
     protected static List<String> getRandomNodes(final int size) {
-        List<String> endpoints = new ArrayList<>();
+        List<Integer> ports = new ArrayList<>();
         for (int i = 0; i < size; i++) {
             int port;
             do {
                 port = randomPort();
-            } while (endpoints.contains(endpoint(port)));
-            endpoints.add(endpoint(port));
+            } while (ports.contains(port));
+            ports.add(port);
         }
-        return endpoints;
+        return ports
+                .stream()
+                .map(TimeMeasure::endpoint)
+                .collect(Collectors.toList());
     }
 
     protected static int randomPort() {
-        try (ServerSocket socket = new ServerSocket()) {
-            socket.setReuseAddress(true);
-            socket.bind(new InetSocketAddress(InetAddress.getLocalHost(), 0), 1);
-            return socket.getLocalPort();
-        } catch (IOException e) {
-            throw new RuntimeException("Can't discover a free port", e);
-        }
+        return MIN_ALLOWED_PORT + (int) (Math.random() * (MAX_ALLOWED_PORT - MIN_ALLOWED_PORT));
     }
 
     protected static String randomId() {
