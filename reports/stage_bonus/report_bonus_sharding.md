@@ -12,7 +12,7 @@
 
 ## Рассмотренные алгоритмы
 В данной работе были рассмотрены и сравнены следующие алгоритмы распределения узлов:
-- [VNodes](https://github.com/giltene/wrk2)
+- [VNodes](https://medium.com/interviewnoodle/how-to-use-consistent-hashing-in-a-system-design-interview-b738be3a1ae3)
 - [Rendezvous](https://medium.com/i0exception/rendezvous-hashing-8c00e2fb58b0)
 - [Maglev](https://static.googleusercontent.com/media/research.google.com/en//pubs/archive/44824.pdf)
 - [AnchorHash](https://arxiv.org/pdf/1812.09674.pdf)
