@@ -43,23 +43,23 @@ public class AnchorAlgorithm extends DistributionHashAlgorithm<IHashAlgorithm> {
 
     @Override
     public void addTopology(Set<String> topology) {
-        this.size = topology.size();
-        if (size >= capacity) {
-            this.capacity = this.size * 2;
+        int topologySize = topology.size();
+        if (topologySize >= capacity) {
+            capacity = topologySize * 2;
         }
-        this.storage = new TreeMap<>();
+        storage = new TreeMap<>();
 
-        this.baseA = new int[capacity];
-        this.baseW = new int[capacity];
-        this.baseL = new int[capacity];
-        this.baseK = new int[capacity];
+        baseA = new int[capacity];
+        baseW = new int[capacity];
+        baseL = new int[capacity];
+        baseK = new int[capacity];
 
         for (int i = 0; i < capacity; i++) {
             baseL[i] = i;
             baseW[i] = i;
             baseK[i] = i;
         }
-        for (int i = capacity - 1; i >= size; i--) {
+        for (int i = capacity - 1; i >= topologySize; i--) {
             baseA[i] = i;
         }
 
@@ -75,7 +75,7 @@ public class AnchorAlgorithm extends DistributionHashAlgorithm<IHashAlgorithm> {
         if (size >= capacity) {
             throw new IndexOutOfBoundsException("No more space for new servers. Consider reassigning updated topology");
         }
-        final int bucket = addBucket();
+        int bucket = addBucket();
         try {
             storage.put(bucket, server);
         } catch (RuntimeException ex) {
@@ -86,7 +86,7 @@ public class AnchorAlgorithm extends DistributionHashAlgorithm<IHashAlgorithm> {
 
     @Override
     public String getServer(String id) {
-        final int bucket = getBucket(id);
+        int bucket = getBucket(id);
         return storage.get(bucket);
     }
 
@@ -123,7 +123,7 @@ public class AnchorAlgorithm extends DistributionHashAlgorithm<IHashAlgorithm> {
     }
 
     private int addBucket() {
-        final int b = removed.isEmpty() ? size : removed.pop();
+        int b = removed.isEmpty() ? size : removed.pop();
         baseA[b] = 0;
         baseL[baseW[size]] = size;
         baseW[baseL[b]] = b;
