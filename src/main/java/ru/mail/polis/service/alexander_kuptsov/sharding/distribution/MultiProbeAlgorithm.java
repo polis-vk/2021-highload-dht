@@ -8,7 +8,7 @@ import java.util.List;
 import java.util.Set;
 
 public class MultiProbeAlgorithm extends DistributionHashAlgorithm<IHashAlgorithm> {
-    private final List<Probe> probesRing;
+    private final List<ServerProbe> probesRing;
     private final int numProbes;
 
     private static final int DEFAULT_NUM_PROBES = 21;
@@ -16,12 +16,6 @@ public class MultiProbeAlgorithm extends DistributionHashAlgorithm<IHashAlgorith
     public MultiProbeAlgorithm(IHashAlgorithm hashAlgorithm) {
         super(hashAlgorithm);
         this.numProbes = DEFAULT_NUM_PROBES;
-        this.probesRing = new ArrayList<>();
-    }
-
-    public MultiProbeAlgorithm(IHashAlgorithm hashAlgorithm, int numProbes) {
-        super(hashAlgorithm);
-        this.numProbes = numProbes;
         this.probesRing = new ArrayList<>();
     }
 
@@ -34,76 +28,82 @@ public class MultiProbeAlgorithm extends DistributionHashAlgorithm<IHashAlgorith
 
     @Override
     public void addServer(String server) {
-        final Probe bucket = getProbe(server);
-        final int pos = Collections.binarySearch(probesRing, bucket);
-        final int index = -(pos + 1);
-        probesRing.add(index, bucket);
+        ServerProbe bucket = getProbe(server);
+        int pos = Collections.binarySearch(probesRing, bucket);
+
+        if (pos == probesRing.size()) {
+            probesRing.add(bucket);
+        } else {
+            int index = pos < 0 ? -(pos + 1) : pos;
+            probesRing.add(index, bucket);
+        }
     }
 
     @Override
     public String getServer(String id) {
-        final int index = getIndex(id);
+        int index = getIndex(id);
         return probesRing.get(index).server;
     }
 
     @Override
     public void removeServer(String server) {
-        final Probe bucket = getProbe(server);
-        final int pos = Collections.binarySearch(probesRing, bucket);
-        probesRing.remove(pos);
+        probesRing.removeIf(serverProbe -> serverProbe.server.equals(server));
     }
 
-    private Probe getProbe(String server) {
-        final long hash = getHash(server);
-        return new Probe(server, hash);
+    private ServerProbe getProbe(String server) {
+        long hash = getHash(server);
+        return new ServerProbe(hash, server);
     }
 
     private int getIndex(String key) {
-        int index = 0;
+        int resIndex = 0;
         long minDistance = Long.MAX_VALUE;
         for (int i = 0; i < numProbes; i++) {
-            final long hash = getHashWithSeed(key, i);
-            int low = 0;
-            int high = probesRing.size();
-            while (low < high) {
-                final int mid = (low + high) >>> 1;
-                if (probesRing.get(mid).hash > hash) {
-                    high = mid;
-                } else {
-                    low = mid + 1;
-                }
+            long hash = getHashWithSeed(key, i);
+            Probe probe = new Probe(hash);
+            int currentIndex = Collections.binarySearch(probesRing, probe);
+            if (currentIndex == -1) { // less than all elements - take first
+                currentIndex = 0;
+            }
+            if (currentIndex == numProbes) { // greater than all elements - take last
+                currentIndex--;
+            }
+            if (currentIndex < -1) { // shift index to the closest probe index (floor)
+                currentIndex = -(currentIndex + 2);
             }
 
-            if (low >= probesRing.size()) {
-                low = 0;
-            }
-
-            final long distance = probesRing.get(low).distance(hash);
+            long distance = probesRing.get(currentIndex).distance(hash);
             if (distance < minDistance) {
                 minDistance = distance;
-                index = low;
+                resIndex = currentIndex;
             }
         }
-
-        return index;
+        return resIndex;
     }
 
     private static class Probe implements Comparable<Probe> {
-        private final String server;
-        private final long hash;
+        public final long hash;
 
-        public Probe(String server, long hash) {
-            this.server = server;
+        public Probe(long hash) {
             this.hash = hash;
         }
 
-        private long distance(long hash) {
+        public long distance(long hash) {
             return Math.abs(this.hash - hash);
         }
 
         @Override
         public int compareTo(Probe other) {
             return Long.compare(this.hash, other.hash);
+        }
+    }
+
+    private static class ServerProbe extends Probe {
+        public final String server;
+
+        public ServerProbe(long hash, String server) {
+            super(hash);
+            this.server = server;
         }
     }
 }
