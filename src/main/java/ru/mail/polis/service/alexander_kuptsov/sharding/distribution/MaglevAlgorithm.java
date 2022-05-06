@@ -28,7 +28,7 @@ public class MaglevAlgorithm extends DistributionHashAlgorithm<IHashAlgorithm> {
 
     @Override
     public void addTopology(Set<String> topology) {
-        final int requiredLookupSize = topology.size() << RECOMMENDED_LOOKUP_SHIFT;
+        int requiredLookupSize = topology.size() << RECOMMENDED_LOOKUP_SHIFT;
         lookupSize = lookupSize < requiredLookupSize
                 ? nextPrime(requiredLookupSize)
                 : lookupSize;
@@ -48,7 +48,7 @@ public class MaglevAlgorithm extends DistributionHashAlgorithm<IHashAlgorithm> {
 
     @Override
     public String getServer(String id) {
-        final int index = getHash(id) % currentLookup.length;
+        int index = getHash(id) % currentLookup.length;
         return currentLookup[index];
     }
 
@@ -81,12 +81,12 @@ public class MaglevAlgorithm extends DistributionHashAlgorithm<IHashAlgorithm> {
     }
 
     private String[] newLookup() {
-        final String[] lookup = new String[lookupSize];
+        String[] lookup = new String[lookupSize];
         int filled = 0;
 
         do {
             for (Permutation permutation : permutations) {
-                final int pos = permutation.next();
+                int pos = permutation.next();
                 if (lookup[pos] == null) {
                     lookup[pos] = permutation.server();
                     if (filled++ >= lookupSize) {
@@ -100,22 +100,28 @@ public class MaglevAlgorithm extends DistributionHashAlgorithm<IHashAlgorithm> {
         return lookup;
     }
 
-    private boolean isPrime(int inputNumber) {
-        if (inputNumber <= 1) {
-            return false;
-        } else {
-            for (int i = 2; i <= inputNumber / 2; i++) {
-                if ((inputNumber % i) == 0) {
-                    return false;
+    public int nextPrime(int num) {
+        if (num <= 2) {
+            return 2;
+        }
+        int startNum = num;
+        if (startNum % 2 == 0) {
+            startNum++;
+        }
+        for (int currentNum = startNum; currentNum < Integer.MAX_VALUE; currentNum += 2) {
+            int top = (int) Math.sqrt(currentNum);
+            boolean isPrime = true;
+            for (int i = 3; i < top; i += 2) {
+                if (currentNum % i == 0) {
+                    isPrime = false;
+                    break;
                 }
             }
-
-            return true;
+            if (isPrime) {
+                return currentNum;
+            }
         }
-    }
-
-    public int nextPrime(int num) {
-        return isPrime(num) ? num : nextPrime(num + 1);
+        return Integer.MAX_VALUE;
     }
 
     private static class Permutation {
@@ -142,7 +148,7 @@ public class MaglevAlgorithm extends DistributionHashAlgorithm<IHashAlgorithm> {
         }
 
         public int next() {
-            final int last = current;
+            int last = current;
             current = (last + skip) % size;
             return last;
         }
