@@ -13,9 +13,6 @@ public class Fnv1aAlgorithm implements IHashAlgorithm {
             hash ^= octect;
             hash *= PRIME;
         }
-        if (hash < 0) {
-            hash = Math.abs(hash);
-        }
-        return hash;
+        return hash & 0x7fffffff;
     }
 }

@@ -8,9 +8,7 @@ public class Djb2Algorithm implements IHashAlgorithm {
         for (int i = 0; i < str.length(); ++i) {
             hash = ((hash << 5) + hash) + str.charAt(i);
         }
-        if (hash < 0) {
-            hash = Math.abs(hash);
-        }
-        return hash;
+
+        return hash & 0x7fffffff;
     }
 }

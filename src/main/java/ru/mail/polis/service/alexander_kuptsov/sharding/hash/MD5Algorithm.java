@@ -23,9 +23,7 @@ public class MD5Algorithm implements IHashAlgorithm {
             hash <<= 8;
             hash |= ((int) digest[i]) & 0xFF;
         }
-        if (hash < 0) {
-            hash = Math.abs(hash);
-        }
-        return hash;
+
+        return hash & 0x7fffffff;
     }
 }

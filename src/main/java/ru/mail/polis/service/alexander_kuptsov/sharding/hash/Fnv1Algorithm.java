@@ -1,6 +1,6 @@
 package ru.mail.polis.service.alexander_kuptsov.sharding.hash;
 
-public final class Fnv1Algorithm implements IHashAlgorithm {
+public class Fnv1Algorithm implements IHashAlgorithm {
     private static final int INIT = 0x811c9dc5;
     private static final int PRIME = 16_777_619;
 
@@ -16,9 +16,6 @@ public final class Fnv1Algorithm implements IHashAlgorithm {
         hash ^= hash >> 17;
         hash += hash << 5;
 
-        if (hash < 0) {
-            hash = Math.abs(hash);
-        }
-        return hash;
+        return hash & 0x7fffffff;
     }
 }
